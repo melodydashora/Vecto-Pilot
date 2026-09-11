@@ -271,6 +271,7 @@ export function parseOfferText(rawText) {
       per_mile: null, per_minute: null,
       surge: null, product_type: null, advantage_pct: null,
       platform_hint: null, parse_confidence: 'minimal',
+      is_exclusive: null,
       price_format: null, offer_kind: 'ride', tip_included: false,
     };
   }
@@ -366,6 +367,13 @@ export function parseOfferText(rawText) {
     advantage_pct: advantagePct,
     platform_hint: platformHint,
     parse_confidence: parseConfidence,
+    // 2026-08-25 (Melody): exclusivity as a first-class flag, independent of the
+    // product name — the "Exclusive" chip renders separately from the product on
+    // Comfort/Priority cards, where extractProductType drops it. Declining a
+    // non-exclusive (Trip Radar / "Match") offer does not affect acceptance
+    // rate, so the ARP fallback is gated on this in rules-engine.js. Text
+    // present but no "Exclusive" anywhere → definite false (the chip is text).
+    is_exclusive: /\bexclusive\b/i.test(rawText),
     // 2026-08-26 (sanity tripwire + delivery lane)
     price_format: priceFormat,           // 'cents' | 'integer' | null — see extractPriceDetailed
     offer_kind: isDelivery ? 'delivery' : 'ride',

@@ -725,6 +725,13 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
         pickup_miles: n(phase1Result.pickup_miles),
         pickup_minutes: n(phase1Result.pickup_minutes),
         rating: (() => { const r = n(phase1Result.rating ?? phase1Result.rider_rating); return r > 0 ? r : null; })(), // 0 = not shown
+        // 2026-08-25 (Melody): gates the ARP fallback — declining a Trip Radar
+        // ("Match", no Exclusive badge) never affects AR, so it is never rescued.
+        // Model boolean wins; else "Exclusive" in the product string is positive
+        // evidence; else unknown (null) — unknown preserves the rescue.
+        is_exclusive: typeof phase1Result.is_exclusive === 'boolean'
+          ? phase1Result.is_exclusive
+          : (/\bexclusive\b/i.test(String(phase1Result.product_type || phase1Result.product || '')) ? true : null),
       };
       const judgment = typeof phase1Result.judgment_reject === 'string' ? phase1Result.judgment_reject.trim() : '';
       // Only arbitrate when the model actually extracted price + miles (else NO DATA territory).
@@ -1050,6 +1057,9 @@ PRE-PARSED DATA (server-verified):
           // Phase-2's independent verdict — training signal, never the record.
           deep_decision: deepResult?.decision ?? null,
           deep_disagrees: deepDisagrees,
+          // 2026-08-25: exclusivity flag (gates the ARP fallback). Vision lane's
+          // model boolean wins; text lane arrives via the preParsed spread above.
+          ...(typeof phase1Result?.is_exclusive === 'boolean' ? { is_exclusive: phase1Result.is_exclusive } : {}),
           // v3.2 (2026-08-26): provenance + lane facts the Offers card renders.
           reason_kind: phase1Result.reason_kind ?? null,          // 'implausible_parse' | 'delivery_*' | engine kinds | null (model-authored)
           implausible: phase1Result.implausible === true,

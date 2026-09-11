@@ -1977,6 +1977,16 @@ export const offer_outcomes = pgTable("offer_outcomes", {
     sql`COALESCE(actual_pay,0) + COALESCE(reimbursements,0) + COALESCE(extras,0) + COALESCE(other,0)`
   ),
 
+  // Upfront-fare validation (2026-08-24, migrations/20260824). tips/tolls sit
+  // OUTSIDE the generated total_earned (altering a generated column isn't
+  // additive) — readers compute the grand total as
+  // COALESCE(total_earned,0)+COALESCE(tips,0)+COALESCE(tolls,0).
+  tips: doublePrecision("tips"),
+  tolls: doublePrecision("tolls"),
+  upfront_price: doublePrecision("upfront_price"),     // offer_intelligence.price snapshot at validation (FK is SET NULL)
+  fare_matched_upfront: boolean("fare_matched_upfront"), // NULL until validated; TRUE matched; FALSE differed (actual in actual_pay)
+  settled_at: timestamp("settled_at", { withTimezone: true }), // NULL = still open in the Recent Offers queue
+
   outcome_source: text("outcome_source").notNull().default('web_app'),
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

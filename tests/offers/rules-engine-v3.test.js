@@ -169,6 +169,18 @@ describe('v3 deterministic gates (spec rules)', () => {
     expect(r).toMatchObject({ decision: 'ACCEPT', reasonKind: 'accept_fallback', fallback: true });
   });
 
+  it('ARP never rescues a Trip Radar offer (is_exclusive false) — Melody 2026-08-25', () => {
+    // Declining a non-exclusive ("Match") offer does not affect acceptance rate,
+    // so the fallback would buy a below-rung ride for zero AR benefit.
+    const radar = { per_mile: 1.20, per_minute: 0.40, total_minutes: 18, is_exclusive: false };
+    expect(evaluateDeterministic('standard', radar, rs).decision).toBe('REJECT');
+    expect(evaluateDeterministic('standard', { ...radar, is_exclusive: true }, rs))
+      .toMatchObject({ decision: 'ACCEPT', reasonKind: 'accept_fallback', fallback: true });
+    // Unknown exclusivity (legacy rows / field not extracted) preserves the rescue.
+    expect(evaluateDeterministic('standard', { ...radar, is_exclusive: null }, rs))
+      .toMatchObject({ decision: 'ACCEPT', reasonKind: 'accept_fallback' });
+  });
+
   it('ARP does not rescue below its floor: $0.95/mi stays REJECT', () => {
     // floor_per_mile is 1.00 in the spec config → floor fires first.
     const r = evaluateDeterministic('standard', { per_mile: 0.95, per_minute: 0.60, total_minutes: 15 }, rs);
@@ -221,12 +233,13 @@ describe('prompt rendering with v3 rules enabled', () => {
     const p = buildPhase1Prompt('standard', rs);
     expect(p).toContain('REJECT if pickup_mi>3 or pickup_min>8.');
     expect(p).toContain('REJECT if total_min>20 unless $/mi>=2.00 and $/min>=1.00.');
-    expect(p).toContain('ACCEPT with "fallback":true if $/mi>=1.00.');
+    expect(p).toContain('ACCEPT with "fallback":true if $/mi>=1.00 and "Exclusive" badge shown (Trip Radar / "Match" offers: never fallback).');
     expect(p).toContain('REJECT if trip heads toward Fort Worth and ride_mi>=8.');
     expect(p).toContain('REJECT if destination is in or within ~6mi of Denton.');
     expect(p).toContain('REJECT if destination is north of US-380.');
     expect(p).toContain('"pickup_miles":0');
     expect(p).toContain('"fallback":false');
+    expect(p).toContain('"is_exclusive":false');
     expect(p).toContain('"notices":[]');
     expect(p).toContain('rating visible and <4.9');
   });
@@ -238,7 +251,7 @@ describe('prompt rendering with v3 rules enabled', () => {
     expect(p).toContain('XL');
     expect(p).toContain('"product":""');
     // ARP must render AFTER tier sections (first-match-wins ordering).
-    const arpIdx = p.indexOf('$/mi>=1.00: ACCEPT with "fallback":true');
+    const arpIdx = p.indexOf('$/mi>=1.00 and "Exclusive" badge shown: ACCEPT with "fallback":true');
     const xlIdx = p.indexOf('XL (');
     expect(arpIdx).toBeGreaterThan(xlIdx);
     expect(arpIdx).toBeGreaterThan(-1);

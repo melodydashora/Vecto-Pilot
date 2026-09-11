@@ -688,6 +688,14 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       if (error?.code === 'RANKING_ID_MISSING') return false;
       return failureCount < 6;
     },
+    // 2026-08-26 (Melody's #2): a READY blocks response was refetched on every
+    // window focus/remount (default staleTime 0), and each ready GET re-enters
+    // venue address resolution server-side. Mirror the strategy query's cache
+    // windows — the SSE blocks_ready handler and manual refetchBlocks() use
+    // refetchQueries/refetch, which bypass staleTime, so freshness pushes
+    // still land immediately.
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // 2026-01-15: FAIL HARD - Detect blocks errors and trigger critical error
