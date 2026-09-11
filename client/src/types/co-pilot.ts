@@ -111,11 +111,25 @@ export type PipelinePhase = 'starting' | 'resolving' | 'analyzing' | 'immediate'
 // Legacy frontend phases (kept for backwards compatibility)
 export type EnrichmentPhase = 'idle' | 'strategy' | 'blocks';
 
+// 2026-09-11: In-memory, authenticated historical text only; never an action scope.
+// receivedAt is client receipt time, not a server generation timestamp.
+export interface PreviousStrategy {
+  ownerId: string;
+  sourceSnapshotId: string;
+  text: string;
+  receivedAt: string;
+  city: string | null;
+  timezone: string | null;
+}
+
 /**
  * StrategyData - Strategy polling response data
  * Uses camelCase to match API response format
  */
 export interface StrategyData {
+  snapshotId?: string;
+  briefingStatus?: string;
+  strategyFresh?: boolean;
   status?: string;
   phase?: PipelinePhase;
   strategy?: {

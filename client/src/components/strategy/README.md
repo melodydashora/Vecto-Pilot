@@ -1,35 +1,20 @@
-> **Last Verified:** 2026-01-06
+# Strategy components
 
-# Strategy Components (`client/src/components/strategy/`)
+The active `pages/co-pilot/StrategyPage.tsx` uses:
 
-## Purpose
+- `StrategyMap.tsx` for current venue/event/traffic map data.
+- `PreviousStrategyCard.tsx` for read-only advice from the same authenticated
+  session while the current Strategy is unavailable. The card receives only
+  historical text, owner/snapshot provenance, original city/timezone and a client
+  receipt timestamp. It has no venue, navigation or feedback actions.
+- `StrategyText.tsx` for literal text, line breaks and simple bold emphasis in
+  current and historical advice. It does not interpret advice as HTML.
 
-Strategy display components. Currently all components are in `_future/` staging.
+`CoPilotProvider` owns the in-memory completed-advice record and can show its
+card inside the existing blocking error screen. Current Briefing/Strategy state
+and venue generation remain separate from that historical display. A cold reload
+starts without a historical record; no persistence or age policy is introduced.
 
-## Structure
-
-```
-strategy/
-├── _future/
-│   ├── SmartBlocks.tsx               # Smart blocks display
-│   ├── ConsolidatedStrategyComp.tsx  # Strategy display
-│   └── StrategyCoach.tsx             # Strategy coach UI
-└── README.md
-```
-
-## Status
-
-All strategy components are currently in `_future/` staging:
-- Not imported anywhere
-- Waiting for feature integration
-
-## To Activate
-
-1. Move component from `_future/` to parent folder
-2. Import in `../../pages/co-pilot.tsx`
-3. Update this README
-
-## Connections
-
-- **Intended for:** `../../pages/co-pilot.tsx`
-- **Currently:** All staged in `_future/`
+The `_future/` components remain staged and are not the active page/provider
+path. The previous future-only README is preserved under
+`docs/architecture/removals/2026-09-11-strategy-components.md`.

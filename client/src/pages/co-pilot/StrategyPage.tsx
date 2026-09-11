@@ -24,6 +24,8 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 // subdirectory. Strategy is the only consumer; the standalone /co-pilot/map
 // route and bottom-nav Map tab were deleted in this phase.
 import StrategyMap from '@/components/strategy/StrategyMap';
+import { PreviousStrategyCard } from '@/components/strategy/PreviousStrategyCard';
+import { StrategyText } from '@/components/strategy/StrategyText';
 import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
 // 2026-04-26 PHASE F: traffic incidents layer source
 import { useTrafficIncidents } from '@/hooks/useTrafficIncidents';
@@ -101,6 +103,7 @@ export default function StrategyPage() {
     lastSnapshotId,
     strategyData,
     immediateStrategy,
+    previousStrategy,
     isStrategyFetching,
     snapshotData: _snapshotData,
     blocks,
@@ -292,6 +295,7 @@ export default function StrategyPage() {
     if (!filteredBlocks.length || !rankingId) return;
     const observers: IntersectionObserver[] = [];
     const starts = new Map<string, number>();
+    let active = true;
     const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-place-id]'));
     filteredBlocks.forEach((block, index) => {
       const placeId = block.placeId;
@@ -301,6 +305,7 @@ export default function StrategyPage() {
 
       const observer = new IntersectionObserver(
         (entries) => {
+          if (!active) return;
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
               if (!starts.has(placeId)) starts.set(placeId, Date.now());
@@ -324,10 +329,11 @@ export default function StrategyPage() {
     });
 
     return () => {
+      active = false;
       observers.forEach(observer => observer.disconnect());
       starts.clear();
     };
-  }, [filteredBlocks, blocksData?.rankingId]);
+  }, [filteredBlocks, blocksData?.rankingId, lastSnapshotId, user?.userId, token]);
 
   const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
@@ -461,13 +467,9 @@ export default function StrategyPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Where to Go NOW</p>
-                  <p
+                  <StrategyText
+                    text={immediateStrategy}
                     className="text-sm text-gray-800 leading-relaxed"
-                    dangerouslySetInnerHTML={{
-                      __html: immediateStrategy
-                        .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-orange-800 font-semibold">$1</strong>')
-                        .replace(/\n/g, '<br />')
-                    }}
                   />
                 </div>
               </div>
@@ -536,6 +538,9 @@ export default function StrategyPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+        {!immediateStrategy && previousStrategy && (
+          <PreviousStrategyCard strategy={previousStrategy} waiting={!!coords && strategyData?.status !== 'error' && strategyData?.status !== 'failed'} />
         )}
       </div>
 

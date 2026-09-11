@@ -65,6 +65,25 @@ test('unknown network failure keeps the card and reuses the request UUID for an 
   expect(h.result.current.state?.scope_revision).toBe(1);
 });
 
+test('confirmed feedback updates qualified current-snapshot caches and preserves their metadata and other rankings', async () => {
+  const currentKey = [...QUERY_KEYS.BLOCKS_FAST('snapshot-a'), 'driver-a', 7];
+  const otherRankingKey = [...QUERY_KEYS.BLOCKS_FAST('snapshot-a'), 'driver-a', 6];
+  const otherSnapshotKey = [...QUERY_KEYS.BLOCKS_FAST('snapshot-b'), 'driver-a', 7];
+  const cached = { now: 'original-receipt', timezone: 'UTC', rankingId: 'ranking-a', blocks: original,
+    metadata: { totalBlocks: 3, processingTimeMs: 17, modelRoute: 'retained-route' } };
+  client.setQueryData(currentKey, cached);
+  client.setQueryData(otherRankingKey, { ...cached, rankingId: 'ranking-previous' });
+  client.setQueryData(otherSnapshotKey, cached);
+  (fetch as jest.Mock).mockImplementation((_url, options) => Promise.resolve(response(options?.method === 'POST'
+    ? receipt(JSON.parse(options.body)) : initial())));
+  const h = hook();
+  await waitFor(() => expect(h.result.current.state?.scope_revision).toBe(0));
+  await act(async () => { await h.result.current.submit(action); });
+  expect(client.getQueryData(currentKey)).toEqual({ ...cached, blocks: [block('b'), block('c'), block('d')] });
+  expect(client.getQueryData(otherRankingKey)).toEqual({ ...cached, rankingId: 'ranking-previous' });
+  expect(client.getQueryData(otherSnapshotKey)).toEqual(cached);
+});
+
 test.each(['scope', 'action', 'replacement', 'receipt'])('a successful HTTP response with the wrong %s cannot remove a venue', async (kind) => {
   (fetch as jest.Mock).mockImplementation((_url, options) => {
     if (options?.method !== 'POST') return Promise.resolve(response(initial()));

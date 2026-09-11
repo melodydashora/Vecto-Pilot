@@ -134,3 +134,31 @@ recorded separately in the ignored sprint coordination artifacts, not in Git.
 This is candidate-only evidence. No production account, migration, publication,
 rate/eligibility redesign, live connection authorization, or physical location/audio
 check is claimed. The broader Settings taxonomy todo remains open.
+
+## Provider lifetime and failed readback follow-up
+
+Desktop identified a reachable overlap after `8d0d4822`: save A, navigate away,
+remount Settings under the same AuthProvider, then save B before A completes.
+Deferred PUT regressions reproduced an older server write landing last despite
+the editor's response fencing. The provider now admits one save per owner through
+its PUT and canonical readback. A second editor receives a retry explanation and
+keeps its draft. The guard survives same-owner token replacement; a different owner
+can save independently. Only the original request releases its own admission.
+
+Additional regressions reproduced successful PUTs followed by a 503, foreign-owner
+response, inconsistent profile or missing profile clearing or replacing the editor.
+Readback now validates user/profile/vehicle identity and the captured expected
+owner before publishing. Only a current 401 expires authentication. Other failures
+preserve the current draft and report that saved values could not be reloaded.
+Malformed JSON, old-token 401, and a newer login during logout remain covered.
+
+All 37 Settings tests and 13 shared authentication tests pass after this follow-up.
+These checks mount the actual provider and editor with controlled HTTP responses;
+they do not replay the already-used PostgreSQL browser fixtures. Earlier SQL
+readback separately proved preservation of unrelated profile, vehicle and complete
+ruleset rows, including nullable rates and timestamps. Final read-only browser
+receipts also passed at 320/390 px with keyboard section switching and no new PUTs.
+
+Admission is scoped to a surviving provider. It does not establish cross-tab or
+server-wide ordering, and a lost transport response cannot prove whether an old
+server write eventually committed. Profile and vehicle writes remain separate.

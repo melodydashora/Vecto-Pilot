@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useAuth } from '@/contexts/auth-context';
-import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
+import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase, PreviousStrategy } from '@/types/co-pilot';
 import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, subscribePhaseChange } from '@/utils/co-pilot-helpers';
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
 import { useBriefingQueries } from '@/hooks/useBriefingQueries';
@@ -16,6 +16,10 @@ import { STORAGE_KEYS, SESSION_KEYS } from '@/constants';
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Critical error component for unrecoverable states
 import CriticalError, { type CriticalErrorType } from '@/components/CriticalError';
+import { PreviousStrategyCard } from '@/components/strategy/PreviousStrategyCard';
+
+// 2026-09-11: Unique only within this running module; no token in cache keys/storage.
+let nextStrategySession = 0;
 
 interface CoPilotContextValue {
   // Location (from LocationContext)
@@ -36,6 +40,7 @@ interface CoPilotContextValue {
   // Strategy
   strategyData: StrategyData | null;
   immediateStrategy: string | null;
+  previousStrategy: PreviousStrategy | null;
   isStrategyFetching: boolean;
   snapshotData: any;
 
@@ -99,22 +104,39 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const locationContext = useLocationContext();
   const queryClient = useQueryClient();
   // 2026-04-05: Gate all queries on auth state — stop polling after logout
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, token } = useAuth();
+  const ownerId = user?.userId ?? null;
+  const authScope = useMemo(() => isAuthenticated && ownerId && token
+    ? { ownerId, token, revision: ++nextStrategySession }
+    : null, [isAuthenticated, ownerId, token]);
+  const authScopeRef = useRef(authScope);
+  authScopeRef.current = authScope;
+  const [completedStrategy, setCompletedStrategy] = useState<{
+    scope: NonNullable<typeof authScope>; record: PreviousStrategy;
+  } | null>(null);
+  // Render-time comparison closes the frame before auth cleanup effects run.
+  const previousStrategy = authScope && completedStrategy?.scope === authScope
+    ? completedStrategy.record : null;
 
   // 2026-01-15: FAIL HARD - Critical error state
   // When set, the entire dashboard unmounts and CriticalError is shown
-  const [criticalError, setCriticalError] = useState<{
-    type: CriticalErrorType;
-    message?: string;
-    details?: string;
+  const [criticalErrorState, setCriticalErrorState] = useState<{
+    scope: typeof authScope; error: CoPilotContextValue['criticalError'];
   } | null>(null);
+  // Error details are also account/session data: hide them before cleanup effects.
+  const criticalError = authScope && criticalErrorState?.scope === authScope ? criticalErrorState.error : null;
+  const setCriticalError = React.useCallback((error: CoPilotContextValue['criticalError']) => {
+    setCriticalErrorState(error ? { scope: authScopeRef.current, error } : null);
+  }, []);
 
   // Snapshot state
-  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
-  // Track which snapshot the current strategy belongs to (for future refresh optimization)
-  const [_strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null);
-
-  const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null);
+  const [snapshotState, setSnapshotState] = useState<{
+    id: string | null; scope: typeof authScope;
+  } | null>(null);
+  const lastSnapshotId = authScope && snapshotState?.scope === authScope ? snapshotState.id : null;
+  const setLastSnapshotId = React.useCallback((id: string | null) => {
+    setSnapshotState({ id, scope: authScopeRef.current });
+  }, []);
 
   // Enriched reasonings for closed venues
   const [enrichedReasonings, _setEnrichedReasonings] = useState<Map<string, string>>(new Map());
@@ -143,18 +165,20 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // 2026-04-05: Clear snapshot on logout so all queries stop (refetchInterval included)
   // Without this, strategy query keeps polling with refetchInterval: 3000 after logout
   // because lastSnapshotId is still set and `enabled` is true.
-  const prevAuthRef = useRef(isAuthenticated);
+  const prevAuthRef = useRef(authScope);
   useEffect(() => {
-    if (prevAuthRef.current && !isAuthenticated) {
-      // User just logged out
-      console.log('[CoPilotContext] Auth lost — clearing snapshot and stopping queries');
+    if (prevAuthRef.current !== authScope) {
+      // 2026-09-11: Includes direct account switches and same-account reauthentication.
+      console.log('[CoPilotContext] Auth scope changed — clearing snapshot and stopping queries');
       setLastSnapshotId(null);
       setCriticalError(null);
       // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
       // refactor but the setter call sites were missed, causing a ReferenceError
       // that the (now instrumented) ErrorBoundary surfaced. localStorage cleanup
       // for the persistent-strategy slot still happens via STORAGE_KEYS.
-      setImmediateStrategy(null);
+      setCompletedStrategy(null);
+      manualRefreshInProgressRef.current = false;
+      snapshotHardFailRef.current = null;
       waterfallTriggeredRef.current.clear();
       // 2026-04-10: Abort any in-flight waterfall POST (Window 3 race fix)
       if (waterfallAbortRef.current) {
@@ -162,8 +186,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         waterfallAbortRef.current = null;
       }
     }
-    prevAuthRef.current = isAuthenticated;
-  }, [isAuthenticated]);
+    prevAuthRef.current = authScope;
+  }, [authScope, setLastSnapshotId]);
 
   // Get coords from location context
   const gpsCoords = locationContext?.currentCoords;
@@ -196,7 +220,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     // After logout, LocationContext may briefly still hold the old snapshotId
     // (before its own auth-drop cleanup runs). Without this guard, the sync
     // restores the dead snapshot 1ms after the auth-drop effect clears it.
-    if (!isAuthenticated) return;
+    if (!authScope) return;
 
     if (contextSnapshotId && !lastSnapshotId) {
       // 2026-01-10: CONSOLIDATED - This useEffect only syncs state
@@ -212,7 +236,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
       // NOTE: Waterfall is triggered by vecto-snapshot-saved event, not here
     }
-  }, [locationContext?.lastSnapshotId, lastSnapshotId, isAuthenticated]);
+  }, [locationContext?.lastSnapshotId, lastSnapshotId, authScope, setLastSnapshotId]);
 
   // 2026-01-07: Listen for manual refresh to immediately clear strategy state
   // Location context dispatches 'vecto-strategy-cleared' when user clicks refresh button
@@ -233,8 +257,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
       // Clear React state - MUST clear lastSnapshotId so new snapshot triggers waterfall
       // 2026-04-27: setPersistentStrategy removed — see auth-lost cleanup above for why.
-      setImmediateStrategy(null);
-      setStrategySnapshotId(null);
+      // Completed text stays separate from current snapshot data during regeneration.
       setLastSnapshotId(null);  // CRITICAL: Clear snapshot ID so new one triggers waterfall
 
       // Clear deduplication set so new snapshot can trigger waterfall
@@ -260,12 +283,13 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('vecto-strategy-cleared', handleStrategyClear);
     return () => window.removeEventListener('vecto-strategy-cleared', handleStrategyClear);
-  }, [queryClient]);
+  }, [queryClient, setLastSnapshotId]);
 
   // Listen for snapshot-saved event (PRIMARY trigger - fires when new snapshot is created)
   // 2026-01-06: P3-D - Event now includes reason: 'init' | 'manual_refresh' | 'resume'
   useEffect(() => {
     const handleSnapshotSaved = async (e: any) => {
+      if (!authScopeRef.current) return;
       const snapshotId = e.detail?.snapshotId;
       const reason = e.detail?.reason;
 
@@ -440,8 +464,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
       // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
       // refactor; localStorage cleanup above is sufficient.
-      setImmediateStrategy(null);
-      setStrategySnapshotId(null);
+      // Completed text stays separate from current snapshot data during regeneration.
       queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(null) });
     }
 
@@ -500,21 +523,24 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
   // 2026-01-15: FAIL HARD - Set critical error if snapshot fetch fails with 4xx/5xx
   const { data: snapshotData, error: snapshotError } = useQuery({
-    queryKey: QUERY_KEYS.SNAPSHOT(lastSnapshotId),
-    queryFn: async () => {
-      if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
+    queryKey: [...QUERY_KEYS.SNAPSHOT(lastSnapshotId), authScope?.ownerId, authScope?.revision],
+    queryFn: async ({ signal }) => {
+      if (!authScope || !lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
       const response = await fetch(API_ROUTES.SNAPSHOT.GET(lastSnapshotId), {
-        headers: getAuthHeader()
+        headers: { Authorization: `Bearer ${authScope.token}` }, signal,
       });
+      if (signal.aborted || authScopeRef.current !== authScope) return null;
       if (!response.ok) {
         // 2026-01-15: FAIL HARD - Don't silently return null, throw so react-query catches it
         const errorData = await response.json().catch(() => ({}));
+        if (signal.aborted || authScopeRef.current !== authScope) return null;
         const error = new Error(errorData.error || `Snapshot fetch failed: ${response.status}`);
         (error as any).code = errorData.error;
         (error as any).details = errorData.message;
         throw error;
       }
       const data = await response.json();
+      if (signal.aborted || authScopeRef.current !== authScope) return null;
       // 2026-01-15: FAIL HARD - Validate critical fields exist
       if (!data.city || !data.timezone) {
         const error = new Error('Snapshot data incomplete: missing city or timezone');
@@ -524,7 +550,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       return data;
     },
     // 2026-04-05: Gate on isAuthenticated to prevent polling after logout
-    enabled: isAuthenticated && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+    enabled: !!authScope && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 10 * 60 * 1000,
     gcTime: 20 * 60 * 1000,
     retry: (failureCount, error: any) => {
@@ -551,52 +577,83 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch strategy
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
-  const { data: strategyData, isFetching: isStrategyFetching } = useQuery({
-    queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId),
-    queryFn: async () => {
-      if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
-
+  const { data: strategyResponse, isFetching: isStrategyFetching } = useQuery({
+    queryKey: [...QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), authScope?.ownerId, authScope?.revision],
+    queryFn: async ({ signal }) => {
+      if (!authScope || !lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
       const response = await fetch(API_ROUTES.BLOCKS.STRATEGY(lastSnapshotId), {
-        headers: getAuthHeader()
+        headers: { Authorization: `Bearer ${authScope.token}` }, signal,
       });
-      if (!response.ok) return null;
-
+      if (!response.ok || signal.aborted || authScopeRef.current !== authScope) return null;
       const data = await response.json();
-      return { ...data, _snapshotId: lastSnapshotId };
+      if (signal.aborted || authScopeRef.current !== authScope) return null;
+      return { ...data, _snapshotId: lastSnapshotId, _sessionRevision: authScope.revision };
     },
     // 2026-04-05: Gate on isAuthenticated — this is the 3-second poller that spams after logout
-    enabled: isAuthenticated && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+    enabled: !!authScope && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      if (status === 'ok' || status === 'error') return false;
+      if (status === 'error') return false;
+      if (status === 'ok' && query.state.data?.briefingStatus === 'complete' &&
+        query.state.data?.strategyFresh !== false && query.state.data?.snapshotId === lastSnapshotId) return false;
       return 3000;
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
+  // 2026-09-11: A query key identifies a request, not the server's response.
+  // Require both snapshot IDs and the private session revision before using text.
+  const responseMatches = !!authScope && !!lastSnapshotId &&
+    strategyResponse?._sessionRevision === authScope.revision &&
+    strategyResponse?._snapshotId === lastSnapshotId && strategyResponse?.snapshotId === lastSnapshotId;
+  const strategyReady = responseMatches && strategyResponse?.briefingStatus === 'complete' &&
+    strategyResponse?.strategyFresh !== false &&
+    (strategyResponse?.status === 'ok' || strategyResponse?.status === 'pending_blocks');
+  const immediateStrategy = strategyReady && typeof strategyResponse?.strategy?.strategyForNow === 'string' &&
+    strategyResponse.strategy.strategyForNow.trim() ? strategyResponse.strategy.strategyForNow : null;
+  // Progress/failure metadata remains current; retained server text cannot leak
+  // through another consumer while its Briefing is pending or known stale.
+  const strategyData = useMemo(() => responseMatches
+    ? (strategyReady ? strategyResponse : { ...strategyResponse, strategy: undefined })
+    : null, [responseMatches, strategyReady, strategyResponse]);
+
   useEffect(() => {
-    if (!isAuthenticated || !lastSnapshotId || strategyData?._snapshotId !== lastSnapshotId) return;
-    if (strategyData.status === 'error') {
+    if (strategyData?.status === 'error') {
       setCriticalError({
         type: strategyData.error === 'briefing_failed' ? 'briefing_failed' : 'unknown',
         details: strategyData.message || 'Strategy generation failed. Please retry.',
       });
     }
-  }, [isAuthenticated, lastSnapshotId, strategyData]);
+  }, [strategyData]);
 
   useEffect(() => {
-    const strategyForNow = strategyData?.strategy?.strategyForNow;
-    if (strategyData?.status !== 'error' && strategyForNow && strategyForNow !== immediateStrategy) {
-      setImmediateStrategy(strategyForNow);
-      setStrategySnapshotId(lastSnapshotId);
-    }
-  }, [strategyData, lastSnapshotId, immediateStrategy]);
+    if (!authScope || !lastSnapshotId || !immediateStrategy || strategyData?.status !== 'ok') return;
+    setCompletedStrategy(previous => {
+      const city = typeof snapshotData?.city === 'string' ? snapshotData.city : null;
+      const timezone = typeof snapshotData?.timezone === 'string' ? snapshotData.timezone : null;
+      if (previous?.scope === authScope && previous.record.sourceSnapshotId === lastSnapshotId &&
+        previous.record.text === immediateStrategy) {
+        // The owned snapshot GET may finish after Strategy. Fill absent metadata
+        // from that same snapshot, preserving receipt time and known source fields.
+        if ((previous.record.city !== null || city === null) &&
+          (previous.record.timezone !== null || timezone === null)) return previous;
+        return { scope: authScope, record: {
+          ...previous.record, city: previous.record.city ?? city, timezone: previous.record.timezone ?? timezone,
+        } };
+      }
+      return { scope: authScope, record: {
+        ownerId: authScope.ownerId, sourceSnapshotId: lastSnapshotId, text: immediateStrategy,
+        receivedAt: new Date().toISOString(),
+        city, timezone,
+      } };
+    });
+  }, [authScope, lastSnapshotId, immediateStrategy, strategyData?.status, snapshotData?.city, snapshotData?.timezone]);
 
   // Fetch blocks
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
-  const { data: blocksData, isLoading: isBlocksLoading, error: blocksError, refetch: refetchBlocks } = useQuery<BlocksResponse>({
-    queryKey: QUERY_KEYS.BLOCKS_FAST(lastSnapshotId),
+  const { data: blocksResponse, isLoading: isBlocksLoading, error: blocksError, refetch: refetchBlocks } = useQuery<BlocksResponse>({
+    queryKey: [...QUERY_KEYS.BLOCKS_FAST(lastSnapshotId), authScope?.ownerId, authScope?.revision],
     queryFn: async () => {
       if (!coords) throw new Error('No GPS coordinates');
 
@@ -607,7 +664,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch(API_ROUTES.BLOCKS.FAST_WITH_QUERY(lastSnapshotId!), {
           method: 'GET',
           signal: controller.signal,
-          headers: { 'X-Snapshot-Id': lastSnapshotId || '', ...getAuthHeader() }
+          headers: { 'X-Snapshot-Id': lastSnapshotId || '', Authorization: `Bearer ${authScope!.token}` }
         });
         clearTimeout(timeoutId);
 
@@ -691,15 +748,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         throw err;
       }
     },
-    enabled: (() => {
-      if (!isAuthenticated) return false; // 2026-04-05: No polling after logout
-      const hasCoords = !!coords;
-      const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
-      // 2026-01-10: D-021 - Server sends 'ok' or 'pending_blocks', not 'complete' (removed deprecated check)
-      const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'pending_blocks';
-      const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
-      return hasCoords && hasSnapshot && strategyReady && snapshotMatches;
-    })(),
+    // 2026-09-11: Historical text never enables current venue generation/actions.
+    enabled: !!coords && !!lastSnapshotId && strategyReady,
     refetchInterval: (query) => {
       const blocks = query.state.data?.blocks;
       if (blocks && blocks.length > 0) return false;
@@ -714,9 +764,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  // Hide cached same-snapshot venues immediately when Briefing loses readiness.
+  const blocksData = strategyReady ? blocksResponse : null;
+
   // 2026-01-15: FAIL HARD - Detect blocks errors and trigger critical error
   useEffect(() => {
-    if (blocksError) {
+    if (strategyReady && blocksError) {
       const err = blocksError as any;
       // Only trigger critical error for specific error codes
       if (err.code === 'RANKING_ID_MISSING') {
@@ -729,7 +782,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
       // Other block errors (timeout, network) should show toast, not critical error
     }
-  }, [blocksError, setCriticalError]);
+  }, [strategyReady, blocksError, setCriticalError]);
 
   // 2026-01-06: CRITICAL FIX - Memoize blocks to prevent infinite re-render loop
   // Without useMemo, .map() creates a new array reference on every render.
@@ -812,10 +865,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       try {
         await locationContext.refreshGPS();
       } catch {
+        if (authScopeRef.current !== authScope) return;
         setCriticalError({ type: 'location_failed', details: 'Could not refresh location for a new Briefing. Please retry.' });
       }
     }
-  }, [lastSnapshotId, queryClient, criticalError?.type, locationContext.refreshGPS]);
+  }, [authScope, lastSnapshotId, queryClient, criticalError?.type, locationContext.refreshGPS, setCriticalError]);
 
   const value: CoPilotContextValue = useMemo(() => ({
     // Location
@@ -835,6 +889,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     // Strategy
     strategyData: strategyData as StrategyData | null,
     immediateStrategy,
+    previousStrategy,
     isStrategyFetching,
     snapshotData,
 
@@ -908,6 +963,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     lastSnapshotId,
     strategyData,
     immediateStrategy,
+    previousStrategy,
     isStrategyFetching,
     snapshotData,
     blocks,
@@ -942,7 +998,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
           message={criticalError.message}
           details={criticalError.details}
           onRetry={handleClearError}
-        />
+        >
+          {previousStrategy && criticalError.type !== 'auth_failed' && (
+            <PreviousStrategyCard strategy={previousStrategy} waiting={false} />
+          )}
+        </CriticalError>
       </CoPilotContext.Provider>
     );
   }

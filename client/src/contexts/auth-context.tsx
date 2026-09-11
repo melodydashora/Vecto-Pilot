@@ -44,6 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Invalidates late profile/login responses after an auth transition.
   const authGeneration = useRef(0);
   const profileRequest = useRef(0);
+  // Settings can unmount while its PUT is pending. Admission belongs to the
+  // surviving provider, and stays per owner across a token rollover: an old
+  // authenticated write may still be committing after the new session begins.
+  const profileMutations = useRef(new Map<string, { token: string; generation: number }>());
   const [state, setState] = useState<AuthState>({
     user: null,
     profile: null,
@@ -101,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('vecto-auth-error', handleAuthError);
   }, [logout]);
 
-  const fetchProfile = useCallback(async (token: string) => {
+  const fetchProfile = useCallback(async (token: string, expectedOwnerId?: string) => {
     if (localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== token) return;
     const generation = authGeneration.current;
     const request = ++profileRequest.current;
@@ -119,6 +123,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         const data: AuthApiResponse = await response.json();
         if (!isCurrent()) return;
+        // A readback confirms only the requested owner. During initial boot the
+        // owner is not yet known, but the returned identity/profile/vehicle must
+        // still agree before any private values enter shared provider state.
+        const ownerId = data?.user?.userId;
+        const profile = data?.profile;
+        if (typeof ownerId !== 'string' || !ownerId ||
+            typeof profile?.id !== 'string' || !profile.id || profile.userId !== ownerId ||
+            (expectedOwnerId !== undefined && ownerId !== expectedOwnerId) ||
+            (data.vehicle != null && data.vehicle.driverProfileId !== profile.id)) {
+          throw new Error('Profile response did not confirm the requested account.');
+        }
         setState({
           user: data.user || null,
           profile: data.profile || null,
@@ -129,7 +144,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         return data;
       } else {
-        if (isCurrent()) clearAuth();
+        if (!isCurrent()) return;
+        // A transient readback failure is not an expired session. Preserve the
+        // mounted editor/draft and let updateProfile report verification failure.
+        if (response.status === 401) clearAuth();
+        else setState(prev => ({ ...prev, isLoading: false }));
       }
     } catch (error) {
       console.error('[auth] Failed to fetch profile:', error);
@@ -201,18 +220,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (state.token) {
-      await fetchProfile(state.token);
+      await fetchProfile(state.token, state.user?.userId);
     }
-  }, [state.token, fetchProfile]);
+  }, [state.token, state.user?.userId, fetchProfile]);
 
   const updateProfile = useCallback(async (data: Partial<DriverProfile>) => {
-    if (!state.token) {
+    const userId = state.user?.userId;
+    if (!state.token || !userId) {
       return { success: false, error: 'Not authenticated' };
     }
 
     const generation = authGeneration.current;
     const isCurrent = () => generation === authGeneration.current &&
       localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === state.token;
+    if (!isCurrent()) return { success: false, error: 'Your sign-in changed. Review your current settings.' };
+    if (profileMutations.current.has(userId)) {
+      return { success: false, error: 'A settings save is still in progress. Wait for it to finish, then save your changes again.' };
+    }
+    const mutation = { token: state.token, generation };
+    profileMutations.current.set(userId, mutation);
 
     try {
       const response = await fetch(API_ROUTES.AUTH.PROFILE, {
@@ -233,14 +259,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Return this save's own readback; an unrelated refresh cannot confirm its payload.
-      const confirmedProfile = await fetchProfile(state.token);
+      const confirmedProfile = await fetchProfile(state.token, userId);
       if (!isCurrent()) return { success: false, error: 'Your sign-in changed. Review your current settings.' };
       return { success: true, confirmedProfile, profileRefreshFailed: !confirmedProfile };
     } catch (error) {
       console.error('[auth] Update profile error:', error);
       return { success: false, error: 'Network error. Please try again.' };
+    } finally {
+      // A stale request may release only its own admission, never another save.
+      if (profileMutations.current.get(userId) === mutation) profileMutations.current.delete(userId);
     }
-  }, [state.token, fetchProfile]);
+  }, [state.token, state.user?.userId, fetchProfile]);
 
   // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
   // Without useMemo, every render creates a new object → all consumers re-render → cascade

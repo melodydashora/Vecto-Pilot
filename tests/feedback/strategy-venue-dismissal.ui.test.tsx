@@ -302,3 +302,73 @@ test('dwell logging follows displayed place identity after replacement, not the 
   ]));
   expect(within(newCard).getByRole('button', { name: 'Remove Stage Replacement from this strategy' })).toBeEnabled();
 });
+
+test.each(['snapshot', 'ranking'])('an open, unsent venue draft closes when its opening %s changes', async boundary => {
+  const view = await mountPage();
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Stage Alpha from this strategy' }));
+  fireEvent.change(screen.getByLabelText('Additional comments (optional)'), { target: { value: 'Old scope only' } });
+  expect(posts).toHaveLength(0);
+  mockScope = boundary === 'snapshot'
+    ? { snapshotId: 'snapshot-b', rankingId: 'ranking-b' }
+    : { snapshotId: 'snapshot-a', rankingId: 'ranking-b' };
+  act(() => { seedScope([replacement, beta], state(undefined, undefined, [replacement, beta])); view.rerender(<Page />); });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(screen.queryByLabelText('Additional comments (optional)')).not.toBeInTheDocument();
+  expect(visibleIds()).toEqual(['place-replacement', 'place-beta']);
+  expect(posts).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Stage Replacement from this strategy' }));
+  expect(screen.getByLabelText('Additional comments (optional)')).toHaveValue('');
+  fireEvent.click(screen.getByTestId('button-submit-feedback'));
+  await waitFor(() => expect(posts).toHaveLength(1));
+  expect(posts[0].body).toMatchObject({ snapshot_id: mockScope.snapshotId, ranking_id: 'ranking-b', place_id: 'place-replacement' });
+  expect(posts.some(post => post.body.place_id === 'place-alpha')).toBe(false);
+});
+
+test.each(['snapshot', 'account'])('dwell elapsed time does not cross a %s change while prior blocks and ranking are retained', async boundary => {
+  const view = await mountPage();
+  const target = card('place-alpha');
+  const oldObserver = Observer.instances.find(observer => !observer.disconnected && observer.targets.includes(target))!;
+  act(() => oldObserver.emit(target, true));
+  now = 1800;
+  if (boundary === 'snapshot') mockScope = { snapshotId: 'snapshot-b', rankingId: 'ranking-a' };
+  else {
+    mockAuth = { user: { userId: 'driver-b' }, token: 'synthetic-b' };
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, mockAuth.token);
+  }
+  // During refresh the old block object/ranking can remain visible until the
+  // replacement response arrives. A new scope must start fresh dwell timing.
+  await act(async () => { seedScope(); view.rerender(<Page />); });
+  now = 1900;
+  act(() => oldObserver.emit(target, false));
+  expect(actions.filter(action => action.action === 'block_dwell')).toEqual([]);
+  expect(oldObserver.disconnected).toBe(true);
+  const currentTarget = card('place-alpha');
+  const currentObserver = Observer.instances.find(observer => !observer.disconnected && observer.targets.includes(currentTarget))!;
+  act(() => currentObserver.emit(currentTarget, true));
+  now = 2200;
+  act(() => currentObserver.emit(currentTarget, false));
+  expect(actions.filter(action => action.action === 'block_dwell')).toEqual([]);
+  act(() => currentObserver.emit(currentTarget, true));
+  now = 2900;
+  act(() => currentObserver.emit(currentTarget, false));
+  await waitFor(() => expect(actions.filter(action => action.action === 'block_dwell')).toEqual([
+    expect.objectContaining({ ranking_id: 'ranking-a', block_id: 'place-alpha', dwell_ms: 700, from_rank: 1 }),
+  ]));
+});
+
+test('queued entries from a disconnected observer cannot restart a historical dwell timer', async () => {
+  const view = await mountPage();
+  const target = card('place-alpha');
+  const oldObserver = Observer.instances.find(observer => !observer.disconnected && observer.targets.includes(target))!;
+  act(() => oldObserver.emit(target, true));
+  mockScope = { snapshotId: 'snapshot-b', rankingId: 'ranking-b' };
+  await act(async () => { seedScope([replacement, beta], state(undefined, undefined, [replacement, beta])); view.rerender(<Page />); });
+  expect(oldObserver.disconnected).toBe(true);
+  // Browser callbacks already queued before disconnect may still be delivered.
+  // Clearing the old Map alone does not invalidate a later queued enter/exit.
+  now = 2000;
+  act(() => oldObserver.emit(target, true));
+  now = 2900;
+  act(() => oldObserver.emit(target, false));
+  expect(actions.filter(action => action.action === 'block_dwell')).toEqual([]);
+});

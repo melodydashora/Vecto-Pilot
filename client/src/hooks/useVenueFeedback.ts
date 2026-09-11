@@ -71,7 +71,8 @@ export function useVenueFeedback(snapshotId: string | null, rankingId?: string) 
     setSaved({ key, value });
     setProblem(null);
     if (value.scope_revision > 0) {
-      queryClient.setQueryData<BlocksResponse>(QUERY_KEYS.BLOCKS_FAST(snapshotId), previous =>
+      // The provider appends its authenticated session revision to this prefix.
+      queryClient.setQueriesData<BlocksResponse>({ queryKey: QUERY_KEYS.BLOCKS_FAST(snapshotId) }, previous =>
         previous && previous.rankingId === rankingId ? { ...previous, blocks: value.blocks } : previous);
     }
   };

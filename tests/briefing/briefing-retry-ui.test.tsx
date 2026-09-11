@@ -7,14 +7,14 @@ let strategyData, authenticated;
 const queryClient = { resetQueries: jest.fn(), refetchQueries: jest.fn() };
 jest.unstable_mockModule('@tanstack/react-query', () => ({
   useQueryClient: () => queryClient,
-  useQuery: options => ({ data: options.queryKey[0] === '/api/blocks/strategy' ? strategyData : null, refetch: jest.fn() }),
+  useQuery: options => ({ data: options.queryKey[0] === '/api/blocks/strategy' && strategyData ? Object.assign(strategyData, { snapshotId: strategyData._snapshotId, _sessionRevision: options.queryKey[3] }) : null, refetch: jest.fn() }),
 }));
 const refreshGPS = jest.fn(async () => {
   window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
 });
 const location = { lastSnapshotId: 'test-snapshot', refreshGPS };
 jest.unstable_mockModule('../../client/src/contexts/location-context-clean.tsx', () => ({ useLocation: () => location }));
-jest.unstable_mockModule('../../client/src/contexts/auth-context.tsx', () => ({ useAuth: () => ({ isAuthenticated: authenticated }) }));
+jest.unstable_mockModule('../../client/src/contexts/auth-context.tsx', () => ({ useAuth: () => ({ isAuthenticated: authenticated, user: { userId: 'synthetic-driver' }, token: 'synthetic-token' }) }));
 jest.unstable_mockModule('../../client/src/utils/co-pilot-helpers.ts', () => ({
   getAuthHeader: () => ({}), subscribeStrategyReady: () => () => {}, subscribeBlocksReady: () => () => {}, subscribePhaseChange: () => () => {},
 }));
