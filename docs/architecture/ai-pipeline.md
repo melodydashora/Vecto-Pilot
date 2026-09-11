@@ -28,74 +28,25 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 
 ## Pipeline Flow
 
+September 10, 2026: Melody explicitly reaffirmed that Strategy always waits on the
+full Briefing. The active path is:
+
 ```
-POST /api/blocks-fast (triggers waterfall)
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│           PHASE 1 (PARALLEL)               │
-│                                            │
-│  ┌─────────────┐  ┌─────────────┐         │
-│  │ Strategist  │  │   Briefer   │         │
-│  │Claude Opus  │  │ Gemini 3.0  │         │
-│  │             │  │+ Google Srch│         │
-│  └──────┬──────┘  └──────┬──────┘         │
-│         │                │                │
-│         ▼                ▼                │
-│   strategy      events, news, traffic,    │
-│                 weather, airport,         │
-│                 schools, holiday          │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│           PHASE 2                          │
-│                                            │
-│            ┌─────────────────┐             │
-│            │Immediate Consol.│             │
-│            │ Claude Opus 4.8 │             │
-│            └────────┬────────┘             │
-│                     │                      │
-│                     ▼                      │
-│             strategy_for_now               │
-│              (1hr tactics)                 │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│           PHASE 3 (SEQUENTIAL)             │
-│                                            │
-│  ┌──────────────────────────────────────┐ │
-│  │            Venue Planner             │ │
-│  │     GPT-5.5 (gpt-5.5-2026-04-23)     │ │
-│  │  Generates Top 6 venue recommendations│ │
-│  └────────────────┬─────────────────────┘ │
-│                   │                        │
-│                   ▼                        │
-│  ┌──────────────────────────────────────┐ │
-│  │      Venue Enrichment (Google)       │ │
-│  │  - Places API (hours, status)        │ │
-│  │  - Routes API (distance, drive time) │ │
-│  └────────────────┬─────────────────────┘ │
-│                   │                        │
-│                   ▼                        │
-│           Smart Blocks (Top 6)             │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│           PHASE 4 (OPTIONAL)               │
-│                                            │
-│  ┌──────────────────────────────────────┐ │
-│  │ Event Verifier (VENUE_EVENT_VERIFIER,│ │
-│  │ Gemini 3.5 Flash) — verifies venue   │ │
-│  │ events during enrichment             │ │
-│  └──────────────────────────────────────┘ │
-└───────────────────────────────────────────┘
-        │
-        ▼
-    Response to Client
+POST /api/blocks-fast
+  -> complete snapshot
+  -> Briefing (analyzing): weather, traffic, events, airport, news, holiday; schools
+  -> final Briefing row saved as complete (all sections usable)
+  -> Strategy (immediate): STRATEGY_TACTICAL
+  -> venues: VENUE_SCORER and existing Google/event enrichment
+  -> complete
 ```
+
+Any required Briefing section failure blocks Strategy and displays the red retry
+screen with a safe cause. Successful, explained empty results remain valid. The
+shared guard checks both section data and final persistence metadata; progressive
+SSE notifications are not completion. The 90-second wait for another generation
+fails on timeout. There is no partial-data fallthrough or separate active
+STRATEGY_CORE dispatch before Briefing. See the [Briefing completion contract](../../server/lib/briefing/README.md).
 
 ## Timing
 
@@ -103,8 +54,8 @@ Total pipeline: ~90-130 seconds (updated Dec 2025)
 
 | Phase | Duration | Notes |
 |-------|----------|-------|
-| Phase 1 | 25-30s | Strategist + Briefer + Holiday in parallel |
-| Phase 2 | 8-12s | Daily + Immediate consolidators in parallel |
+| Phase 1 | Historical estimate: 25-30s | Briefing sections; completion depends on saved data, not elapsed time |
+| Phase 2 | Historical estimate: 8-12s | Immediate Strategy after complete Briefing |
 | Phase 3 | 60-90s | Venue planning (GPT-5.5 (gpt-5.5-2026-04-23)) is the slowest phase |
 | Phase 4 | 3-5s | Event validation + Places/Routes enrichment |
 

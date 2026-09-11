@@ -8,6 +8,7 @@ import { AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export type CriticalErrorType =
+  | 'briefing_failed'
   | 'snapshot_missing'
   | 'snapshot_incomplete'
   | 'location_failed'
@@ -23,6 +24,10 @@ interface CriticalErrorProps {
 }
 
 const ERROR_MESSAGES: Record<CriticalErrorType, { title: string; description: string }> = {
+  briefing_failed: {
+    title: 'Briefing Could Not Be Completed',
+    description: 'Strategy needs the complete Briefing. Please try again or come back later.'
+  },
   snapshot_missing: {
     title: 'Session Data Missing',
     description: 'Unable to load your current session. Your location snapshot could not be retrieved.'
@@ -85,7 +90,7 @@ export default function CriticalError({
   };
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-b from-red-900 to-red-950 flex items-center justify-center z-50">
+    <div role="alert" aria-live="assertive" data-testid="critical-error" className="fixed inset-0 bg-gradient-to-b from-red-900 to-red-950 flex items-center justify-center z-50">
       <div className="max-w-md mx-auto p-8 text-center">
         {/* Error Icon */}
         <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">

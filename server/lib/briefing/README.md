@@ -2,6 +2,65 @@
 
 # Briefing Module (`server/lib/briefing/`)
 
+## Strict completion dependency (September 10, 2026)
+
+Provenance: Codex implementation of Melody's explicit requirement that Strategy
+always waits for the full Briefing, and a failed Briefing blocks the app with a
+reason and a retry action. This section describes the current executable path;
+older Workstream 6 history below describes the extraction, not failure policy.
+
+`generateAndStoreBriefing` records `status: pending`, clears every section and
+`generated_at`, then awaits weather, traffic, events, airport, news, holiday, and
+schools. The final atomic write publishes either `complete` plus `generated_at`,
+or `error` plus failure markers. All eight section columns must be usable;
+non-null values alone do not establish completion. Explained successful empty
+searches, verified geographic absence of airports, and verified non-holiday remain
+valid. Configuration, HTTP, model and parse failures do not become empty facts.
+
+`briefing-readiness.js` owns that shared contract. `runBriefing` returns only a
+completed, persisted row. `runImmediateStrategy` re-reads and validates the saved
+row before any Strategy model call, including the diagnostics route. Progressive
+per-section SSE events only request a refetch; they do not unlock Strategy.
+Cross-process contention waits up to 90 seconds for the generation lock and the
+completed row. Timeout throws rather than continuing with partial data.
+
+Each claim uses a short transaction and the existing
+`pg_try_advisory_xact_lock(hashtext(snapshotId))` key. A new UUID in
+`briefings.generation_token` fences every progressive, final and failure write:
+its SQL predicate requires the matching snapshot, token and pending status. Late
+writes from an old generation or after completion cannot change the row. No pool
+connection is held during provider work. Ordinary duplicates join pending work;
+explicit full refresh supersedes it. Legacy section-refresh entry points now
+regenerate the full context, clearing readiness until final reconciliation.
+
+Rollout requires `migrations/20260910_briefing_generation_token.sql` before new
+code is enabled. Drain and replace all old generation workers before routing work
+to the new version: legacy writers do not have the token predicate and can still
+overwrite rows during a mixed-writer rollout. The migration is additive and leaves
+old completed rows readable; unmarked rows regenerate on demand. This change is
+not a durable queue or server-restart recovery system. Abandoned pending work
+fails its bounded wait; explicit refresh/new snapshot provides a new attempt.
+Cached Strategy routes return briefing_failed with retry new_snapshot for legacy
+unowned Briefings or pending owners with no progress for 90 seconds, without
+stealing ownership. The existing red-screen retry creates that new snapshot.
+
+Stored failures take precedence over old Strategy text in the polling API. The
+CoPilot provider shows the existing blocking red screen with a safe section/cause
+explanation. Try Again invokes the existing GPS/snapshot refresh workflow. Pending
+work keeps the dashboard mounted. Polling and cached block responses preserve old
+text/venues with status pending, briefingStatus pending, strategyFresh false and
+waitFor briefing; they never auto-correct that pending state to complete. Client
+retention and old-data labeling remain a separate coordinated change.
+
+Focused server tests: `tests/briefing/briefing-readiness.test.js`,
+`briefing-dependency.test.js`, `briefing-provider-failures.test.js`,
+`briefing-events-failures.test.js`, `briefing-cached-route.test.js`, and
+`briefing-error-poll.test.js`. The client test `briefing-retry-ui.test.tsx` needs the
+TSX/jsdom Jest harness (the base JS-only configuration does not select TSX tests).
+Provider and database boundaries in these tests are mocked; they do not call
+providers or Postgres. Focused event cases use the actual normalizer/validator.
+
+
 ## Purpose
 
 Real-time briefing service for events, traffic, weather, news, airport conditions, and school closures. Provides the data shown in the Briefing tab and consumed by the Strategist AI.
@@ -145,7 +204,7 @@ Both pathways terminate in a NO-NULLS briefings row: every JSONB column gets a t
 - **Weather** (only DUAL-section pipeline): `discoverWeather` writes BOTH `weather_current` AND `weather_forecast` in a single `writeSectionAndNotify` call. Returns `{ weather_current, weather_forecast, reason }`.
 - **News** (only NESTED-reason pipeline): the `news` section IS itself `{ items, reason }`, so the wider contract becomes `{ news: { items, reason }, reason }` — outer reason for orchestrator-level failure messaging, inner reason for section content.
 - **Events** (only POLYMORPHIC-section pipeline): the `events` column is the array directly when items > 0, OR a `{ items: [], reason }` object when empty. The pipeline preserves this polymorphism in its SSE write.
-- **Schools** (the PILOT pipeline): catches its own errors internally and returns `[]` (no throw). Other 5 pipelines re-throw via `errorMarker .catch`.
+- **Schools** (the PILOT pipeline): successful empty searches return `[]` with an explanation at the section boundary. Configuration/model/parse failures now throw and write an error marker like the other pipelines.
 
 ## Files
 

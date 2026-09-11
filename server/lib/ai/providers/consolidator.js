@@ -5,6 +5,7 @@
 
 import crypto from 'crypto';
 import { db } from '../../../db/drizzle.js';
+import { assertBriefingReady } from '../../briefing/briefing-readiness.js';
 // 2026-04-11: Added driver_profiles for STRATEGIST_ENRICHMENT_PLAN (driver preferences,
 // home base, vehicle class derivation, EV detection). See
 // server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md for the design rationale.
@@ -1346,7 +1347,7 @@ async function batchLookupVenueHours(venueNames, timezone) {
  * @param {string} snapshotId - UUID of snapshot
  * @param {Object} options - Optional parameters
  * @param {Object} options.snapshot - Pre-fetched snapshot row to avoid redundant DB reads
- * @param {Object} options.briefingRow - Pre-fetched briefing row (2026-01-10: pass fresh briefing directly)
+ * @param {Object} options.briefingRow - Legacy caller option; the guard re-reads the saved Briefing
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
@@ -1365,30 +1366,12 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       throw new Error(`Snapshot not found: ${snapshotId}`);
     }
 
-    // 2026-01-10: Use pre-fetched briefing if provided (ensures fresh data is used)
-    // This avoids re-reading from DB after runBriefing just wrote it
-    let briefingRow = options.briefingRow;
-    if (!briefingRow) {
-      [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-    }
-
-    if (!briefingRow) {
-      throw new Error(`Briefing not found for snapshot ${snapshotId}`);
-    }
-
-    // 2026-04-05: Validate briefing data is POPULATED, not just placeholder row.
-    // DATA CORRECTNESS > SPEED. Strategy with missing data produces bad advice.
-    const hasTraffic = briefingRow.traffic_conditions !== null;
-    const hasEvents = briefingRow.events !== null;
-    const hasWeather = briefingRow.weather_current !== null;
-    const hasNews = briefingRow.news !== null;
-    const hasAirport = briefingRow.airport_conditions !== null;
-
-    triadLog.phase(3, `[DATA CHECK] traffic=${hasTraffic}, events=${hasEvents}, weather=${hasWeather}, news=${hasNews}, airport=${hasAirport}`);
-
-    if (!hasTraffic && !hasEvents) {
-      throw new Error(`Briefing data not ready for snapshot ${snapshotId} (placeholder only - traffic=${hasTraffic}, events=${hasEvents})`);
-    }
+    // Final shared guard for every caller, including diagnostics. Re-read the
+    // persisted row: a supplied object or progressive SSE event cannot prove that
+    // the final atomic write succeeded or that a refresh is complete.
+    const [briefingRow] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    assertBriefingReady(briefingRow, snapshotId);
 
     // Check if immediate strategy already exists
     const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);

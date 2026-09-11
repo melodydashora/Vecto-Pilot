@@ -468,7 +468,7 @@ export default function StrategyPage() {
               </div>
             </CardContent>
           </Card>
-        ) : strategyData?.status === 'failed' ? (
+        ) : (strategyData?.status === 'error' || strategyData?.status === 'failed') ? (
           <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-red-50 border-red-300 shadow-md" data-testid="strategy-failed-card">
             <CardContent className="p-5">
               <div className="flex items-start gap-3">

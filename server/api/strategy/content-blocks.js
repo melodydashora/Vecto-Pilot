@@ -34,7 +34,8 @@ import { requireSnapshotOwnership } from "../../middleware/require-snapshot-owne
 import { PHASE_EXPECTED_DURATIONS, updatePhase } from "../../lib/strategy/strategy-utils.js";
 import { toApiBlock } from "../../validation/transformers.js";
 // 2026-01-10: S-004 FIX - Use canonical status constants
-import { STRATEGY_STATUS } from "../../lib/strategy/status-constants.js";
+import { getBriefingReadiness, BriefingNotReadyError, cachedBriefingRetryReason } from '../../lib/briefing/briefing-readiness.js';
+import { STRATEGY_STATUS, isStrategyComplete } from "../../lib/strategy/status-constants.js";
 
 export const router = Router();
 
@@ -65,6 +66,33 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
       .where(eq(strategies.snapshot_id, snapshotId))
       .limit(1);
 
+    // Fetch briefing from separate briefings table.
+    // 2026-07-06: the snapshots fetch that used to sit here is gone — its only
+    // consumers were the holiday reads, which now come from briefings.holiday.
+    const [briefingRow] = await db
+      .select()
+      .from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId))
+      .limit(1);
+
+    // A stored failure must win over pending text, old text, or existing venues.
+    // Returning 200 with the canonical error status lets the poller stop and show
+    // the blocking retry screen instead of spinning forever.
+    const readiness = getBriefingReadiness(briefingRow, snapshotId);
+    if ((strategy?.status === 'error' || strategy?.status === STRATEGY_STATUS.FAILED) || readiness.failed) {
+      const briefingFailed = readiness.failed || strategy?.error_message?.startsWith('briefing_failed:');
+      return res.json({
+        status: 'error',
+        snapshotId,
+        phase: strategy?.phase,
+        error: briefingFailed ? 'briefing_failed' : 'strategy_failed',
+        message: readiness.failed
+          ? new BriefingNotReadyError(briefingRow, snapshotId).message
+          : strategy.error_message || 'Strategy generation failed. Please retry.',
+        timeElapsedMs: 0,
+      });
+    }
+
     if (!strategy) {
       // 2026-01-10: Use camelCase for API response per contract
       return res.json({
@@ -74,15 +102,14 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
         phase: "starting", // Strategy row not yet created, still initializing
       });
     }
-
-    // Fetch briefing from separate briefings table.
-    // 2026-07-06: the snapshots fetch that used to sit here is gone — its only
-    // consumers were the holiday reads, which now come from briefings.holiday.
-    const [briefingRow] = await db
-      .select()
-      .from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId))
-      .limit(1);
+    const retryReason = isStrategyComplete(strategy.status)
+      ? cachedBriefingRetryReason(briefingRow, snapshotId) : null;
+    if (retryReason) {
+      return res.json({
+        status: 'error', snapshotId, error: 'briefing_failed', message: retryReason,
+        retry: 'new_snapshot', strategyFresh: false, timeElapsedMs: 0,
+      });
+    }
 
     // Holiday from the briefing section (errorMarker-guarded; null when the
     // section failed or hasn't landed yet — never a fabricated value)
@@ -141,7 +168,9 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
           expectedDurationMs: expectedDurationMs,
           expectedDurations: PHASE_EXPECTED_DURATIONS
         },
-        waitFor: ["strategy"],
+        briefingStatus: readiness.ready ? 'complete' : 'pending',
+        strategyFresh: false,
+        waitFor: readiness.ready ? ["strategy"] : ["briefing"],
         strategy: {
           strategyForNow: "",
           holiday: briefingHoliday || 'none',
@@ -184,10 +213,10 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
 
       // 2026-01-10: Use camelCase for API response per contract
       return res.json({
-        status: STRATEGY_STATUS.PENDING_BLOCKS,
+        status: readiness.ready ? STRATEGY_STATUS.PENDING_BLOCKS : STRATEGY_STATUS.PENDING,
         snapshotId: snapshotId,
         timeElapsedMs,
-        phase: currentPhase,
+        phase: readiness.ready ? currentPhase : 'analyzing',
         // Timing metadata for dynamic progress calculation
         timing: {
           phaseStartedAt: phaseStartedAt,
@@ -195,7 +224,9 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
           expectedDurationMs: expectedDurationMs,
           expectedDurations: PHASE_EXPECTED_DURATIONS
         },
-        waitFor: ["blocks"],
+        briefingStatus: readiness.ready ? 'complete' : 'pending',
+        ...(!readiness.ready ? { strategyFresh: false } : {}),
+        waitFor: readiness.ready ? ["blocks"] : ["briefing"],
         strategy: {
           strategyForNow: strategy.strategy_for_now || "",
           holiday: briefingHoliday || 'none',
@@ -206,7 +237,7 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
     }
 
     // Auto-correct phase if blocks exist but phase stuck (Fix #15.2)
-    if (strategy.phase !== 'complete') {
+    if (readiness.ready && strategy.phase !== 'complete') {
       console.log(`[VENUE] Auto-correcting phase: ${strategy.phase} → complete for ${snapshotId.slice(0, 8)}`);
       await updatePhase(snapshotId, 'complete');
     }
@@ -214,10 +245,12 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
     // Strategy AND blocks ready - return complete data
     // 2026-01-10: Use camelCase for API response per contract
     res.json({
-      status: STRATEGY_STATUS.OK,
+      status: readiness.ready ? STRATEGY_STATUS.OK : STRATEGY_STATUS.PENDING,
       snapshotId: snapshotId,
       timeElapsedMs,
-      phase: 'complete',
+      phase: readiness.ready ? 'complete' : 'analyzing',
+      briefingStatus: readiness.ready ? 'complete' : 'pending',
+      ...(!readiness.ready ? { strategyFresh: false, waitFor: ['briefing'] } : {}),
       strategy: {
         strategyForNow: strategy.strategy_for_now || "",
         holiday: briefingHoliday,

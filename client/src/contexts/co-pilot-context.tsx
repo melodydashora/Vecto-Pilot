@@ -149,6 +149,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       // User just logged out
       console.log('[CoPilotContext] Auth lost — clearing snapshot and stopping queries');
       setLastSnapshotId(null);
+      setCriticalError(null);
       // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
       // refactor but the setter call sites were missed, causing a ReferenceError
       // that the (now instrumented) ErrorBoundary surfaced. localStorage cleanup
@@ -227,6 +228,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       // Clear localStorage
       localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
       localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+
+      setCriticalError(null);
 
       // Clear React state - MUST clear lastSnapshotId so new snapshot triggers waterfall
       // 2026-04-27: setPersistentStrategy removed — see auth-lost cleanup above for why.
@@ -372,6 +375,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             attempt++;
           }
 
+          if (response && !response.ok && response.status !== 503) {
+            const body = await response.clone().json().catch(() => ({}));
+            // Ignore a late failure after refresh/logout moved to a new snapshot.
+            if (body.error === 'briefing_failed' && !controller.signal.aborted &&
+                prevSnapshotIdRef.current === snapshotId) {
+              setCriticalError({
+                type: 'briefing_failed',
+                details: body.message || 'Briefing generation failed. Please retry.',
+              });
+            }
+          }
           if (response?.ok) {
             console.log("✅ Waterfall complete");
           } else if (response?.status === 503) {
@@ -562,8 +576,18 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    if (!isAuthenticated || !lastSnapshotId || strategyData?._snapshotId !== lastSnapshotId) return;
+    if (strategyData.status === 'error') {
+      setCriticalError({
+        type: strategyData.error === 'briefing_failed' ? 'briefing_failed' : 'unknown',
+        details: strategyData.message || 'Strategy generation failed. Please retry.',
+      });
+    }
+  }, [isAuthenticated, lastSnapshotId, strategyData]);
+
+  useEffect(() => {
     const strategyForNow = strategyData?.strategy?.strategyForNow;
-    if (strategyForNow && strategyForNow !== immediateStrategy) {
+    if (strategyData?.status !== 'error' && strategyForNow && strategyForNow !== immediateStrategy) {
       setImmediateStrategy(strategyForNow);
       setStrategySnapshotId(lastSnapshotId);
     }
@@ -779,12 +803,19 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Without useMemo, every render creates a new object → all children re-render → flashing UI.
   // NOTE: refetchBlocks and refetchBars are STABLE refs from useQuery, so they're NOT in deps.
   // 2026-01-15: FAIL HARD - Callback to clear critical error (for retry functionality)
-  const handleClearError = React.useCallback(() => {
+  const handleClearError = React.useCallback(async () => {
     setCriticalError(null);
     // Also clear related state to allow fresh retry
     setLastSnapshotId(null);
     queryClient.resetQueries({ queryKey: QUERY_KEYS.SNAPSHOT(lastSnapshotId) });
-  }, [lastSnapshotId, queryClient]);
+    if (criticalError?.type === 'briefing_failed') {
+      try {
+        await locationContext.refreshGPS();
+      } catch {
+        setCriticalError({ type: 'location_failed', details: 'Could not refresh location for a new Briefing. Please retry.' });
+      }
+    }
+  }, [lastSnapshotId, queryClient, criticalError?.type, locationContext.refreshGPS]);
 
   const value: CoPilotContextValue = useMemo(() => ({
     // Location

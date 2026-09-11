@@ -238,6 +238,7 @@ export async function fetchTrafficConditions({ snapshot }) {
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
     briefingLog.warn(2, 'Missing location data in snapshot - cannot fetch traffic', OP.AI);
     return {
+      ...errorMarker(new Error('Traffic snapshot missing required location data')),
       summary: 'Traffic data unavailable — snapshot missing city, state, or timezone',
       briefing: 'Traffic analysis could not be performed because location data is incomplete.',
       incidents: [],
@@ -261,6 +262,7 @@ export async function fetchTrafficConditions({ snapshot }) {
 
   // Default fallback traffic data — NO NULLS: every field has a typed value + reason
   const fallbackTraffic = {
+    ...errorMarker(new Error('Traffic providers unavailable')),
     summary: `Traffic data for ${city}, ${state} could not be retrieved from any provider`,
     briefing: `Traffic analysis for ${city}, ${state} is temporarily unavailable. Both TomTom and Gemini providers failed to return data.`,
     incidents: [],
@@ -425,7 +427,8 @@ export async function fetchTrafficConditions({ snapshot }) {
           safetyAlert: traffic.jams > 3 ? `${traffic.jams} active traffic jams in the area` : 'No safety alerts at this time',
           fetchedAt: traffic.fetchedAt,
           provider: 'tomtom',
-          analyzed: !!analysis
+          analyzed: !!analysis,
+          ...(!analysis ? errorMarker(new Error('Traffic analysis provider failed')) : {})
         };
       }
 
@@ -484,6 +487,9 @@ CRITICAL: Include highDemandZones and repositioning.`;
 
   try {
     const parsed = safeJsonParse(result.output);
+    if (!parsed?.summary || !Array.isArray(parsed.incidents) || !parsed.congestionLevel) {
+      throw new Error('Traffic response is missing required analysis fields');
+    }
     matrixLog.info({
       category: 'BRIEFING',
       connection: 'AI',
@@ -534,6 +540,7 @@ export async function discoverTraffic({ snapshot, snapshotId }) {
 
   try {
     traffic_conditions = await fetchTrafficConditions({ snapshot }) || {
+      ...errorMarker(new Error('Traffic provider returned no data')),
       summary: 'No traffic data available for this area',
       incidents: [],
       congestionLevel: 'unknown',

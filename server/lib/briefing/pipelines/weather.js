@@ -137,19 +137,11 @@ function generateWeatherDriverImpact(current, forecast = []) {
 export async function fetchWeatherConditions({ snapshot }) {
   if (!process.env.GOOGLE_MAPS_API_KEY) {
     briefingLog.warn(1, `GOOGLE_MAPS_API_KEY not set - skipping weather`, OP.API);
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'GOOGLE_MAPS_API_KEY not configured' },
-      forecast: [],
-      reason: 'GOOGLE_MAPS_API_KEY not configured'
-    };
+    throw new Error('Weather provider not configured');
   }
 
   if (!Number.isFinite(snapshot?.lat) || !Number.isFinite(snapshot?.lng)) {
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'Snapshot missing GPS coordinates' },
-      forecast: [],
-      reason: 'Snapshot missing GPS coordinates (lat/lng)'
-    };
+    throw new Error('Weather snapshot missing GPS coordinates');
   }
 
   const { lat, lng, country } = snapshot;
@@ -162,12 +154,18 @@ export async function fetchWeatherConditions({ snapshot }) {
       fetch(`https://weather.googleapis.com/v1/forecast/hours:lookup?location.latitude=${lat}&location.longitude=${lng}&hours=6&key=${apiKey}`)
     ]);
 
+    if (!currentRes.ok || !forecastRes.ok) {
+      throw new Error(`Weather API request failed (current HTTP ${currentRes.status}, forecast HTTP ${forecastRes.status})`);
+    }
     let current = null;
     let forecast = [];
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
       const tempC = currentData.temperature?.degrees ?? currentData.temperature;
+      if (!Number.isFinite(tempC) || !currentData.weatherCondition?.description?.text) {
+        throw new Error('Weather API returned invalid current conditions');
+      }
       const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
       const windSpeedMs = currentData.windSpeed?.value ?? currentData.windSpeed;
 
@@ -200,7 +198,10 @@ export async function fetchWeatherConditions({ snapshot }) {
 
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
-      forecast = (forecastData.forecastHours || []).map((hour, idx) => {
+      if (!Array.isArray(forecastData.forecastHours) || forecastData.forecastHours.length === 0) {
+        throw new Error('Weather API returned no forecast hours');
+      }
+      forecast = forecastData.forecastHours.map((hour, idx) => {
         const tempC = hour.temperature?.degrees ?? hour.temperature;
         const windSpeedMs = hour.windSpeed?.value ?? hour.wind?.speed;
         const tempData = formatTemperature(tempC, country);
@@ -236,11 +237,7 @@ export async function fetchWeatherConditions({ snapshot }) {
     return { current, forecast, fetchedAt: new Date().toISOString() };
   } catch (error) {
     briefingLog.error(1, `Weather API error`, error, OP.API);
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: `Weather API error: ${error.message}` },
-      forecast: [],
-      reason: `Google Weather API error: ${error.message}`
-    };
+    throw error;
   }
 }
 
@@ -254,14 +251,8 @@ export async function fetchWeatherConditions({ snapshot }) {
  * Special case: this is the only pipeline that writes TWO sections in a single
  * `writeSectionAndNotify` call. Other pipelines write one section.
  *
- * Two error pathways are preserved:
- *   - Pathway A (thrown): synchronous/async failure inside fetchWeatherConditions →
- *     errorMarker is written to weather_current, then re-thrown so the orchestrator's
- *     Promise.allSettled captures it as `failedReasons.weather`.
- *   - Pathway B (graceful): API returns no data (e.g., GOOGLE_MAPS_API_KEY missing,
- *     bad coordinates, API 5xx) → returns `{ weather_current: { temperature: 'N/A',
- *     reason: '...' }, weather_forecast: [], reason: '<string>' }`. The orchestrator
- *     reads `weatherResult.weather_current` directly.
+ * HTTP/configuration/parse failures throw and remain failures through the final
+ * reconciliation. An unavailable weather provider is not a verified empty sky.
  *
  * @param {object} args
  * @param {object} args.snapshot - snapshot row (lat/lng/country drive the API call)
@@ -275,12 +266,11 @@ export async function discoverWeather({ snapshot, snapshotId }) {
 
   try {
     const result = await fetchWeatherConditions({ snapshot });
-    weather_current = result?.current || {
-      temperature: 'N/A',
-      conditions: 'Weather data could not be retrieved',
-      reason: 'Weather API returned no current conditions'
-    };
-    weather_forecast = result?.forecast || [];
+    if (!result?.current || !Array.isArray(result.forecast)) {
+      throw new Error('Weather provider returned an invalid response');
+    }
+    weather_current = result.current;
+    weather_forecast = result.forecast;
     reason = result?.reason || null;
 
     await writeSectionAndNotify(snapshotId, {
@@ -289,9 +279,9 @@ export async function discoverWeather({ snapshot, snapshotId }) {
     }, CHANNELS.WEATHER);
   } catch (err) {
     weather_current = errorMarker(err);
-    weather_forecast = [];
+    weather_forecast = errorMarker(err);
     reason = err.message;
-    await writeSectionAndNotify(snapshotId, { weather_current }, CHANNELS.WEATHER);
+    await writeSectionAndNotify(snapshotId, { weather_current, weather_forecast }, CHANNELS.WEATHER);
     throw err;
   }
 

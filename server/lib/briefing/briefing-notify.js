@@ -9,9 +9,10 @@
 // in commit 9) also imports from here.
 
 import { db } from '../../db/drizzle.js';
-import { briefings } from '../../../shared/schema.js';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { briefingLog, OP } from '../../logger/workflow.js';
+import { BRIEFING_FIELDS, briefingFailureReason } from './briefing-readiness.js';
+import { writeBriefingGeneration } from './briefing-generation.js';
 
 /**
  * Canonical pg_notify channel names. The SSE forwarder
@@ -40,7 +41,9 @@ export const CHANNELS = Object.freeze({
  */
 export const errorMarker = (err) => ({
   _generationFailed: true,
-  error: err.message,
+  // Section errors are returned by the Briefing API as well as Strategy polling.
+  // Keep the cause safe at the shared boundary, before either response is built.
+  error: briefingFailureReason(err),
   failedAt: new Date().toISOString(),
 });
 
@@ -61,9 +64,12 @@ export const errorMarker = (err) => ({
  */
 export async function writeSectionAndNotify(snapshotId, updates, notifyChannel) {
   try {
-    await db.update(briefings)
-      .set({ ...updates, updated_at: new Date() })
-      .where(eq(briefings.snapshot_id, snapshotId));
+    if (Object.keys(updates).some(field => !BRIEFING_FIELDS.includes(field))) {
+      throw new Error('Progressive Briefing writes may only update section fields');
+    }
+    const stored = await writeBriefingGeneration(snapshotId, { ...updates, updated_at: new Date() });
+    // A replacement owns the row, or final reconciliation already completed.
+    if (!stored) return;
   } catch (err) {
     briefingLog.warn(1, `Progressive write failed for ${notifyChannel}: ${err.message}`, OP.DB);
     return;

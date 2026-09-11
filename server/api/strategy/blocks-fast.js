@@ -46,6 +46,7 @@ import {
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
+import { getBriefingReadiness, BriefingNotReadyError, assertBriefingReady, cachedBriefingRetryReason } from '../../lib/briefing/briefing-readiness.js';
 import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
 import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
@@ -215,6 +216,12 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
   venuesLog.info(`Generating venue cards for ${snapshotId.slice(0, 8)}`);
 
   try {
+    // Re-read after claiming. A refresh may have replaced the supplied Briefing;
+    // the catch below releases our venue claim if this guard fails.
+    const [persistedBriefing] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    assertBriefingReady(persistedBriefing, snapshotId);
+    briefingRow = persistedBriefing;
     // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
     await generateEnhancedSmartBlocks({
       snapshotId,
@@ -244,6 +251,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       status: STRATEGY_STATUS.OK,
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId)).catch(() => {});
+    if (err instanceof BriefingNotReadyError) throw err;
     return { ranking: null, generated: false, error: err.message };
   }
 }
@@ -408,6 +416,33 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
+    const [currentBriefing] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    const readiness = getBriefingReadiness(currentBriefing, snapshotId);
+    if (readiness.failed) throw new BriefingNotReadyError(currentBriefing, snapshotId);
+    const retryReason = cachedBriefingRetryReason(currentBriefing, snapshotId);
+    if (retryReason) {
+      return res.status(500).json({
+        status: 'error', error: 'briefing_failed', snapshotId, message: retryReason,
+        retry: 'new_snapshot', strategyFresh: false,
+      });
+    }
+    if (!readiness.ready) {
+      // Keep saved guidance available as previous data; never label it fresh or
+      // start venue models from an incomplete replacement Briefing.
+      const [savedRanking] = await db.select().from(rankings)
+        .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+      const candidates = savedRanking ? await db.select().from(ranking_candidates)
+        .where(eq(ranking_candidates.ranking_id, savedRanking.ranking_id))
+        .orderBy(ranking_candidates.rank) : [];
+      return res.status(202).json({
+        ok: false, status: 'pending', reason: 'briefing_pending', snapshotId,
+        briefingStatus: 'pending', strategyFresh: false, waitFor: ['briefing'],
+        strategy: { strategyForNow: strategyRow?.strategy_for_now || '' },
+        briefing, blocks: candidates.map(toApiBlock), rankingId: savedRanking?.ranking_id,
+      });
+    }
+
     // GATE 2: Ensure blocks exist (generate if missing)
     // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
     const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
@@ -469,7 +504,9 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       action: 'GET_REQUEST_FAIL',
       location: 'blocks-fast.js:getHandler',
     }, 'GET request failed', error);
-    return res.status(500).json({ error: 'internal_error', blocks: [] });
+    return res.status(500).json(error instanceof BriefingNotReadyError
+      ? { status: 'error', error: 'briefing_failed', message: error.message, snapshotId, blocks: [] }
+      : { error: 'internal_error', blocks: [] });
   }
 });
 
@@ -688,6 +725,22 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // If strategy is COMPLETE/OK/PENDING_BLOCKS, generate SmartBlocks if not already done
     // 2026-01-10: S-004 FIX - Use isStrategyComplete() which handles legacy 'complete' value
     if (currentStrategy && isStrategyComplete(currentStrategy.status)) {
+      const [currentBriefing] = await db.select().from(briefings)
+        .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+      const readiness = getBriefingReadiness(currentBriefing, snapshotId);
+      const retryReason = cachedBriefingRetryReason(currentBriefing, snapshotId);
+      if (retryReason) {
+        return sendOnce(500, {
+          status: 'error', error: 'briefing_failed', snapshotId, message: retryReason,
+          retry: 'new_snapshot', strategyFresh: false,
+        });
+      }
+      if (readiness.failed) {
+        return sendOnce(500, {
+          ok: false, status: 'error', error: 'briefing_failed', snapshotId,
+          message: new BriefingNotReadyError(currentBriefing, snapshotId).message,
+        });
+      }
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
         matrixLog.info({
@@ -699,11 +752,15 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         const candidates = await db.select().from(ranking_candidates)
           .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
           .orderBy(ranking_candidates.rank);
-        const blocks = await mapCandidatesToBlocks(candidates, { isHoliday: false, hasSpecialHours: false });
-        return sendOnce(200, {
-          ok: true,
-          status: 'ok',
-          reason: 'blocks_ready',
+        const blocks = readiness.ready
+          ? await mapCandidatesToBlocks(candidates, { isHoliday: false, hasSpecialHours: false })
+          : candidates.map(toApiBlock);
+        return sendOnce(readiness.ready ? 200 : 202, {
+          ok: readiness.ready,
+          status: readiness.ready ? 'ok' : 'pending',
+          reason: readiness.ready ? 'blocks_ready' : 'briefing_pending',
+          briefingStatus: readiness.ready ? 'complete' : 'pending',
+          ...(!readiness.ready ? { strategyFresh: false, waitFor: ['briefing'] } : {}),
           snapshotId: snapshotId,
           blocks,
           rankingId: ranking.ranking_id,
@@ -711,6 +768,13 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           strategy: {
             strategyForNow: currentStrategy.strategy_for_now || ''
           }
+        });
+      }
+      if (!readiness.ready) {
+        return sendOnce(202, {
+          ok: false, status: 'pending', reason: 'briefing_pending', snapshotId,
+          briefingStatus: 'pending', strategyFresh: false, waitFor: ['briefing'],
+          strategy: { strategyForNow: currentStrategy.strategy_for_now || '' },
         });
       }
       // Strategy is ready but blocks don't exist yet - generate them
@@ -767,66 +831,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           const briefingResult = await runBriefing(snapshotId, { snapshot });
           freshBriefing = briefingResult.briefing;
 
-          // =========================================================================
-          // 2026-04-05: BRIEFING READINESS GATE — DATA CORRECTNESS > SPEED
-          // The strategy MUST NOT proceed with null briefing fields. If runBriefing
-          // returns incomplete data (race condition with concurrent subsystems), poll
-          // the DB for up to 90 seconds until all critical fields are populated.
-          // =========================================================================
-          const BRIEFING_WAIT_TIMEOUT_MS = 90000;
-          const BRIEFING_POLL_INTERVAL_MS = 3000;
-          const briefingStartWait = Date.now();
-
-          function checkBriefingReady(row) {
-            return {
-              traffic: row?.traffic_conditions !== null && row?.traffic_conditions !== undefined,
-              events: row?.events !== null && row?.events !== undefined,
-              news: row?.news !== null && row?.news !== undefined,
-              weather: row?.weather_current !== null && row?.weather_current !== undefined,
-              airport: row?.airport_conditions !== null && row?.airport_conditions !== undefined,
-              schools: row?.school_closures !== null && row?.school_closures !== undefined,
-            };
-          }
-
-          let readiness = checkBriefingReady(freshBriefing);
-          let allReady = Object.values(readiness).every(Boolean);
-
-          if (!allReady) {
-            const missing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
-            matrixLog.warn({
-              category: 'BRIEFING',
-              action: 'BRIEFING_GATE_PENDING',
-              location: 'blocks-fast.js:postHandler',
-            }, `Briefing incomplete after runBriefing — missing: ${missing.join(', ')}. Polling DB (max ${BRIEFING_WAIT_TIMEOUT_MS / 1000}s)`);
-
-            while (!allReady && (Date.now() - briefingStartWait) < BRIEFING_WAIT_TIMEOUT_MS) {
-              await new Promise(r => setTimeout(r, BRIEFING_POLL_INTERVAL_MS));
-              const [dbRow] = await db.select().from(briefings)
-                .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-              if (dbRow) {
-                freshBriefing = dbRow;
-                readiness = checkBriefingReady(freshBriefing);
-                allReady = Object.values(readiness).every(Boolean);
-              }
-            }
-
-            const elapsed = ((Date.now() - briefingStartWait) / 1000).toFixed(1);
-            if (allReady) {
-              matrixLog.info({
-                category: 'BRIEFING',
-                action: 'BRIEFING_GATE_COMPLETE',
-                location: 'blocks-fast.js:postHandler',
-              }, `Briefing gate: all fields populated after ${elapsed}s`);
-            } else {
-              const stillMissing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
-              matrixLog.warn({
-                category: 'BRIEFING',
-                action: 'BRIEFING_GATE_TIMEOUT',
-                location: 'blocks-fast.js:postHandler',
-              }, `Briefing gate TIMEOUT after ${elapsed}s — proceeding with incomplete data. Still missing: ${stillMissing.join(', ')}`);
-            }
-          }
-
+          // runBriefing resolves only after the complete row has been persisted.
+          // Lock contention and timeout use the same strict gate as direct callers.
           // 2026-04-05: Re-read snapshot AFTER briefing is ready (fixes weather race condition).
           // The snapshot enrichment (weather fetch) may complete after the initial snapshot read.
           // Re-reading ensures strategy sees the fully enriched snapshot.
@@ -843,7 +849,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             category: 'BRIEFING',
             action: 'VERIFY',
             location: 'blocks-fast.js:postHandler',
-          }, `Briefing row populated (traffic=${readiness.traffic}, events=${readiness.events}, news=${readiness.news}, weather=${readiness.weather}, schools=${readiness.schools}, airport=${readiness.airport})`);
+          }, 'Complete Briefing persisted; all sections verified');
           matrixLog.info({
             category: 'STRATEGY',
             action: 'VERIFY',
@@ -904,7 +910,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
         try {
           // STRATEGY_TACTICAL → strategy_for_now (immediate 1hr strategy for Strategy Tab)
-          // 2026-01-10: Pass fresh briefing directly (no DB re-read for stale data)
+          // The shared Strategy guard re-reads final Briefing status before the model call
           await runImmediateStrategy(snapshotId, { snapshot, briefingRow: freshBriefing });
 
           // 2026-01-09: Removed strategyEmitter.emit - DB NOTIFY 'strategy_ready' is canonical
@@ -1096,7 +1102,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         location: 'blocks-fast.js:postHandler',
       }, 'Waterfall error', jobErr);
       return sendOnce(500, {
-        error: 'waterfall_failed',
+        error: jobErr instanceof BriefingNotReadyError ? 'briefing_failed' : 'waterfall_failed',
+        ...(jobErr instanceof BriefingNotReadyError ? { status: 'error', snapshotId } : {}),
         message: jobErr.message
       });
     }

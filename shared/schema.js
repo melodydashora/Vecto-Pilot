@@ -136,6 +136,7 @@ export const briefings = pgTable("briefings", {
   // a fabricated 'none'.
   holiday: jsonb("holiday"),
   status: text("status"), // Briefing status: pending, complete, error
+  generation_token: uuid("generation_token"), // Fences writes from superseded Briefing generations
   generated_at: timestamp("generated_at", { withTimezone: true }), // When briefing was fully generated
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

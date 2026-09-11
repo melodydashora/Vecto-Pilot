@@ -380,7 +380,7 @@ DO NOT use any other category values.`;
         secondaryCat: 'EVENTS',
         location: 'pipelines/events.js:fetchEventCategory',
       }, 'Briefer call failed', result.error);
-      return { category: category.name, items: [], error: result.error };
+      return { category: category.name, items: [], error: result.error || 'Event data provider failed without an explanation' };
     }
 
     const parsed = safeJsonParse(result.output);
@@ -396,7 +396,14 @@ DO NOT use any other category values.`;
       const shape = parsed && typeof parsed === 'object' ? `object with keys [${Object.keys(parsed).slice(0, 5).join(', ')}]` : typeof parsed;
       return { category: category.name, items: [], error: `parsed non-array response without events/items key (${shape})` };
     }
-    return { category: category.name, items: items.filter(e => e.title && e.venue) };
+    if (items.some(e => !e?.title || !e?.venue ||
+        !(e.event_start_date || e.event_date || e.date) || !e.event_end_date ||
+        !(e.event_start_time || e.event_time || e.time) || !(e.event_end_time || e.end_time))) {
+      // normalizeEvent can infer times for other callers. Briefing requires the
+      // source facts and must reject omissions before those defaults can run.
+      throw new Error('Event data provider returned invalid events missing title, venue, date or time');
+    }
+    return { category: category.name, items, reason: parsed?.reason || null };
   } catch (err) {
     return { category: category.name, items: [], error: err.message };
   }
@@ -414,7 +421,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   // 2026-01-09: Require ALL location data - no fallbacks for global app
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
     briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch events', OP.AI);
-    return { items: [], reason: 'Location data not available (missing timezone)' };
+    throw new Error('Event discovery requires city, state and timezone');
   }
   const city = snapshot.city;
   const state = snapshot.state;
@@ -425,9 +432,9 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   // entire event discovery to "no events found."
   const lat = Number(snapshot.lat);
   const lng = Number(snapshot.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (snapshot.lat == null || snapshot.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
     briefingLog.warn(2, `Invalid or missing snapshot coords (lat=${snapshot.lat}, lng=${snapshot.lng}) — skipping event discovery`, OP.AI);
-    return { items: [], reason: 'Location coordinates unavailable for event discovery' };
+    throw new Error('Location coordinates unavailable for event discovery');
   }
   // 2026-09-10: removed `const hour = snapshot?.hour ?? new Date().getHours()` — the value
   // was never read, and the fallback substituted the SERVER's clock for the driver's hour
@@ -453,7 +460,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   // returned data in incompatible formats causing more parsing failures than it solved.
   if (!process.env.GEMINI_API_KEY) {
     briefingLog.error(2, `GEMINI_API_KEY not set - cannot fetch events`, null, OP.AI);
-    return { items: [], reason: 'GEMINI_API_KEY required for event discovery' };
+    throw new Error('GEMINI_API_KEY required for event discovery');
   }
 
   briefingLog.ai(2, 'Gemini', `events for ${market || '[unknown-market]'} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
@@ -472,21 +479,22 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   );
 
   const categoryResults = await Promise.all(categoryPromises);
+  // Cached rows or another successful category cannot prove the failed search
+  // completed. Reject before cache reads or publishing any section as ready.
+  const failures = categoryResults.filter(result => result.timedOut || result.error);
+  if (failures.length) {
+    throw new Error('Event discovery incomplete: ' + failures.map(result =>
+      result.timedOut ? 'The data provider timed out' : result.error
+    ).join('; '));
+  }
 
   // Merge results from all categories
   // 2026-04-11: Two-phase merge — exact title dedup first, then semantic title-similarity dedup
   const rawEvents = [];
   const seenTitles = new Set();
   let totalFound = 0;
-  let timedOutCount = 0;
-  let erroredCount = 0;
 
   for (const result of categoryResults) {
-    // 2026-01-15: Handle timeout results - treat as empty with warning
-    if (result.timedOut) {
-      timedOutCount++;
-      continue;
-    }
     totalFound += result.items?.length || 0;
     for (const event of result.items || []) {
       // Phase 1: Exact title dedup (cheap, catches identical titles from different categories)
@@ -496,15 +504,8 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
         rawEvents.push(event);
       }
     }
-    if (result.error) {
-      erroredCount++;
-      briefingLog.warn(2, `Category ${result.category} failed: ${result.error}`, OP.AI);
-    }
   }
 
-  if (timedOutCount > 0) {
-    briefingLog.warn(2, `${timedOutCount}/${EVENT_CATEGORIES.length} category searches timed out`, OP.AI);
-  }
 
   // 2026-04-11: Phase 2 — Title-similarity dedup. Catches:
   // - "Jon Wolfe Concert" / "Jon Wolfe Live" / "Jon Wolfe" (title variants)
@@ -528,15 +529,10 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const elapsedMs = Date.now() - startTime;
   briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 2 searches) in ${elapsedMs}ms`, OP.AI);
 
-  // 2026-02-26: No cross-provider fallback. If Gemini returns 0, return empty.
-  // The Strategist AI can flag gaps; a second LLM returning different JSON made things worse.
-  // 2026-08-06: timedOutCount/erroredCount ride along so the caller can distinguish
-  // "searched and found nothing" from "searches never completed" (todo #24 honesty).
-  if (allEvents.length === 0) {
-    return { items: [], reason: 'No events found across all categories', provider: 'gemini', timedOutCount, erroredCount };
-  }
-
-  return { items: allEvents, reason: null, provider: 'gemini', timedOutCount, erroredCount };
+  // Every category completed. Preserve provided no-data explanations; bare-array
+  // providers retain the existing successful-empty contract.
+  const emptyReasons = categoryResults.map(result => result.reason).filter(reason => typeof reason === 'string' && reason.trim());
+  return { items: allEvents, reason: allEvents.length ? null : emptyReasons.join('; ') || 'No events found across all categories', provider: 'gemini' };
 }
 
 /**
@@ -610,18 +606,11 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   // Simpler pipeline, lower cost, cleaner data - model-agnostic (configured via BRIEFING_EVENTS_MODEL)
   briefingLog.phase(2, `Event discovery for ${city}, ${state} (${todayStr})`, OP.AI);
 
-  // 2026-08-06: discovery health survives the swallow-and-continue catch below, so
-  // the final empty-DB-read branch can distinguish "searched, found nothing" from
-  // "searches never completed" (todo #24: verified-empty vs failed are different states).
-  let discoveryHealth = { timedOutCount: 0, erroredCount: 0 };
-
+  let discoveryReason = null;
   try {
     // Run parallel category search using configured Briefer model
     const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot });
-    discoveryHealth = {
-      timedOutCount: discoveryResult.timedOutCount || 0,
-      erroredCount: discoveryResult.erroredCount || 0,
-    };
+    discoveryReason = discoveryResult.reason;
 
     if (discoveryResult.items && discoveryResult.items.length > 0) {
       briefingLog.done(2, `Events: ${discoveryResult.items.length} discovered`, OP.AI);
@@ -635,9 +624,18 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
       // 2026-04-28: thread snapshot.timezone so Rule 13 today-check uses driver's local tz
       // (spec §9.2 — global-app correctness for far-east / Hawaii callers near midnight UTC)
-      const { valid: validatedEvents } = validateEventsHard(normalized, {
+      const { valid: validatedEvents, invalid: invalidEvents } = validateEventsHard(normalized, {
         context: { timezone: timezone }
       });
+      // Date-window exclusions are legitimate search results. Missing or invalid
+      // required content means discovery failed, even if cache rows also exist.
+      const malformedEvents = (invalidEvents || []).filter(result =>
+        !['starts_in_future', 'ended_before_today'].includes(result.reason));
+      if (malformedEvents.length) {
+        throw new Error('Event data provider returned invalid required event fields: ' +
+          [...new Set(malformedEvents.map(result => result.reason))].join(', '));
+      }
+      if (!validatedEvents.length) discoveryReason = 'No events remained within the current date window';
 
       // 2026-06-11: Two-stage dedup here is intentionally retained (NOT redundant with the
       // raw-stage deduplicateEventsSemantic in fetchEventsWithGemini3ProPreview). The earlier
@@ -826,18 +824,13 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             }
           });
         } catch (insertErr) {
-          // Ignore individual insert errors (duplicates, etc.)
-          if (!insertErr.message?.includes('duplicate')) {
-            briefingLog.warn(2, `Event insert failed: ${insertErr.message}`, OP.DB);
-          }
+          throw new Error('Events database persistence failed', { cause: insertErr });
         }
       }
     }
   } catch (discoveryErr) {
     briefingLog.warn(2, `Event discovery failed: ${discoveryErr.message}`, OP.AI);
-    // Continue - we can still read cached events from DB
-    // 2026-08-06: record the failure so an empty cache read reports failed, not verified-empty
-    discoveryHealth.erroredCount = EVENT_CATEGORIES.length;
+    throw discoveryErr;
   }
 
   // Read events from discovered_events table for this city/state and date range
@@ -932,25 +925,14 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       const cleanEvents = filterInvalidEvents(normalizedEvents, { timezone });
 
       briefingLog.done(2, `Events: ${cleanEvents.length} from discovered_events table`, OP.DB);
-      return { items: cleanEvents, reason: null, provider: 'discovered_events' };
+      return { items: cleanEvents, reason: cleanEvents.length ? null : 'No events remained after date and required-field validation', provider: 'discovered_events' };
     }
 
     briefingLog.info(`No events found for ${city}, ${state}`);
-    // 2026-08-06: empty cache AFTER incomplete discovery is a FAILURE, not a
-    // verified-empty — the section never actually searched successfully.
-    const failedSearches = discoveryHealth.timedOutCount + discoveryHealth.erroredCount;
-    if (failedSearches > 0) {
-      return {
-        items: [],
-        reason: `Event discovery incomplete (${discoveryHealth.timedOutCount} timed out, ${discoveryHealth.erroredCount} failed of ${EVENT_CATEGORIES.length} searches) — no cached events available`,
-        discoveryFailed: true,
-        provider: 'discovered_events'
-      };
-    }
-    return { items: [], reason: 'No events found for this location', provider: 'discovered_events' };
+    return { items: [], reason: discoveryReason || 'No events found for this location', provider: 'discovered_events' };
   } catch (dbErr) {
     briefingLog.error(2, `Events DB read failed: ${dbErr.message}`, dbErr, OP.DB);
-    return { items: [], reason: `Database error: ${dbErr.message}`, provider: 'discovered_events' };
+    throw new Error('Events database read failed', { cause: dbErr });
   }
 }
 
@@ -986,13 +968,12 @@ export async function discoverEvents({ snapshot, snapshotId }) {
 
   try {
     const r = await fetchEventsForBriefing({ snapshot });
-    const items = Array.isArray(r?.items) ? r.items : [];
+    if (!Array.isArray(r?.items)) throw new Error('Event discovery returned an invalid response');
+    const items = r.items;
 
-    // 2026-08-06 (todo #24): incomplete discovery + empty cache = FAILED section.
-    // Throwing routes through the errorMarker write below, so the UI renders the
-    // amber failed state instead of asserting "no events" it never verified.
-    if (items.length === 0 && r?.discoveryFailed) {
-      throw new Error(r.reason || 'Event discovery failed with no cached events');
+    // Reject explicit failure metadata even if results also exist.
+    if (r?.discoveryFailed || r?.timedOutCount > 0 || r?.erroredCount > 0) {
+      throw new Error(r.reason || 'Event discovery failed');
     }
 
     events = {

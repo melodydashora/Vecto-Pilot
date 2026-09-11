@@ -142,7 +142,7 @@ export async function fetchRideshareNews({ snapshot }) {
   // 2026-01-09: Require ALL location data - no fallbacks for global app
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
     briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch news', OP.AI);
-    return { items: [], reason: 'Location data not available (missing timezone)' };
+    throw new Error('News snapshot missing required location or timezone');
   }
   const city = snapshot.city;
   const state = snapshot.state;
@@ -188,7 +188,7 @@ export async function fetchRideshareNews({ snapshot }) {
       secondaryCat: 'NEWS',
       location: 'pipelines/news.js:fetchRideshareNews',
     }, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`);
-    return { items: [], reason: 'Briefer model not configured' };
+    throw new Error('News provider not configured');
   }
 
   try {
@@ -206,15 +206,16 @@ export async function fetchRideshareNews({ snapshot }) {
         secondaryCat: 'NEWS',
         location: 'pipelines/news.js:fetchRideshareNews',
       }, 'News fetch failed', result.error);
-      return { items: [], reason: 'news-fetch-failed', provider: 'briefer' };
+      throw new Error('News provider failed: ' + (result.error || 'unknown provider failure'));
     }
 
     const parsed = safeJsonParse(result.output);
-    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
+    const newsArray = Array.isArray(parsed) ? parsed : parsed?.items;
+    if (!Array.isArray(newsArray)) throw new Error('News response is not a valid items array');
 
     if (newsArray.length === 0) {
       briefingLog.info(`No news items found for ${market}`, OP.AI);
-      return { items: [], reason: `No rideshare news found for ${market} market`, provider: 'briefer' };
+      return { items: [], reason: parsed?.reason || `No rideshare news found for ${market} market`, provider: 'briefer' };
     }
 
     // Filter recent news + sort by impact
@@ -228,12 +229,12 @@ export async function fetchRideshareNews({ snapshot }) {
 
     return {
       items: sorted,
-      reason: null,
+      reason: sorted.length === 0 ? 'All returned news was outside the requested date window' : null,
       provider: 'briefer'
     };
   } catch (err) {
     briefingLog.error(2, `News fetch error: ${err.message}`, err, OP.AI);
-    return { items: [], reason: `News fetch error: ${err.message}`, provider: 'briefer' };
+    throw err;
   }
 }
 
