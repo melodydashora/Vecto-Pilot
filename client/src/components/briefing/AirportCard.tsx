@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plane, Loader, Sparkles, Clock, PlaneLanding, PlaneTakeoff, AlertTriangle, Cloud, ChevronUp, ChevronDown, ShieldCheck } from "lucide-react";
@@ -63,8 +63,44 @@ interface Airport {
   distance_miles?: number;
   terminals?: TerminalInfo[];
   best_entry?: { general?: BestEntryLane; preCheck?: BestEntryLane; clear?: BestEntryLane };
-  faa_delay_minutes?: number;
+  faa_delay_minutes?: number | null;
+  faa_has_delays?: boolean | null;
+  faa_ground_stops?: { reason?: string; end_time?: string | null }[];
+  faa_delay_reason?: string | null;
   faa_closure_status?: string;
+  faa_closure_start?: string | null;
+  faa_closure_end?: string | null;
+  faa_supported?: boolean | null;
+  faa_source_updated_at?: string | null;
+  faa_fetched_at?: string | null;
+}
+
+// FAA observations take precedence over optimistic model status. Unknown FAA
+// coverage must remain distinguishable from a measured absence of delays.
+function getFAAStatus(airport: Airport) {
+  const hasFAA = airport.faa_delay_minutes !== undefined || airport.faa_has_delays !== undefined ||
+    airport.faa_closure_status !== undefined || airport.faa_supported !== undefined ||
+    airport.faa_ground_stops !== undefined;
+  if (!hasFAA) return null;
+  if (airport.faa_ground_stops?.length || airport.faa_closure_status === 'ground-stop') {
+    return { status: 'ground-stop', label: 'FAA: Ground stop', disrupted: true };
+  }
+  if (airport.faa_closure_status === 'restricted') {
+    return { status: 'restricted', label: 'FAA: Restrictions reported', disrupted: true };
+  }
+  if (airport.faa_closure_status === 'closed') {
+    return { status: 'closed', label: 'FAA: Closure reported', disrupted: true };
+  }
+  if (airport.faa_has_delays === true || (airport.faa_delay_minutes ?? 0) > 0) {
+    return { status: 'delayed', label: 'FAA: Delays reported', disrupted: true };
+  }
+  if (airport.faa_supported === false) {
+    return { status: 'unknown', label: 'FAA: Airport not covered by ASWS', disrupted: false };
+  }
+  if (airport.faa_has_delays === false) {
+    return { status: 'normal', label: 'FAA: No delays reported', disrupted: false };
+  }
+  return { status: 'unknown', label: 'FAA: Status unknown', disrupted: false };
 }
 
 type BusyPeriod = string | {
@@ -97,6 +133,7 @@ interface AirportCardProps {
 
 export function AirportCard({ airportData, isAirportLoading }: AirportCardProps) {
   const [expandedAirport, setExpandedAirport] = useState(true);
+  const contentId = useId();
 
   const airportConditions = airportData?.airport_conditions;
   // Failed ≠ empty: a provider failure or fallback object must never render
@@ -120,7 +157,7 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
     const s = (status || '').toLowerCase();
     if (s === 'normal') return 'bg-green-100 text-green-700 border-green-300';
     if (s === 'severe_delays' || s === 'severe' || s === 'closed' || s === 'ground-stop') return 'bg-red-100 text-red-700 border-red-300';
-    if (s === 'delays' || s === 'delayed' || s.includes('delay') || s.includes('impacted') || s.includes('disrupted')) return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+    if (s === 'restricted' || s === 'delays' || s === 'delayed' || s.includes('delay') || s.includes('impacted') || s.includes('disrupted')) return 'bg-yellow-100 text-yellow-700 border-yellow-300';
     return 'bg-gray-100 text-gray-700 border-gray-300';
   };
 
@@ -130,41 +167,45 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
     if (s === 'severe_delays' || s === 'severe') return 'Severe Delays';
     if (s === 'closed') return 'Closed';
     if (s === 'ground-stop') return 'Ground Stop';
+    if (s === 'restricted') return 'Restrictions';
     if (s === 'delays' || s === 'delayed' || s.includes('delay') || s.includes('impacted') || s.includes('disrupted')) return 'Delays';
     return 'Unknown';
   };
 
   return (
     <Card className="bg-gradient-to-r from-sky-50 to-cyan-50 border-sky-200">
-      <CardHeader
-        className="pb-2 cursor-pointer hover:bg-sky-100/50 transition-colors"
-        onClick={() => setExpandedAirport(!expandedAirport)}
-      >
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            {!airportData ? (
-              <Loader className="w-5 h-5 animate-spin text-sky-600" />
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 rounded text-left hover:bg-sky-100/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-expanded={expandedAirport}
+            aria-controls={contentId}
+            onClick={() => setExpandedAirport(expanded => !expanded)}
+          >
+            <span className="flex min-w-0 flex-wrap items-center gap-2">
+              {!airportData ? (
+                <Loader aria-hidden="true" className="w-5 h-5 shrink-0 animate-spin text-sky-600" />
+              ) : (
+                <Plane aria-hidden="true" className="w-5 h-5 shrink-0 text-sky-600" />
+              )}
+              <span>Airport Conditions</span>
+              {airports.length > 0 && (
+                <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-700 border-sky-300">
+                  {airports.length} {airports.length === 1 ? 'airport' : 'airports'}
+                </span>
+              )}
+            </span>
+            {expandedAirport ? (
+              <ChevronUp aria-hidden="true" className="w-5 h-5 shrink-0 text-sky-600" />
             ) : (
-              <>
-                <Plane className="w-5 h-5 text-sky-600" />
-                Airport Conditions
-                {airports.length > 0 && (
-                  <Badge variant="outline" className="bg-sky-100 text-sky-700 border-sky-300 ml-2">
-                    {airports.length} {airports.length === 1 ? 'airport' : 'airports'}
-                  </Badge>
-                )}
-              </>
+              <ChevronDown aria-hidden="true" className="w-5 h-5 shrink-0 text-sky-600" />
             )}
-          </CardTitle>
-          {expandedAirport ? (
-            <ChevronUp className="w-5 h-5 text-sky-600" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-sky-600" />
-          )}
-        </div>
+          </button>
+        </CardTitle>
       </CardHeader>
       {expandedAirport && (
-        <CardContent>
+        <CardContent id={contentId}>
           {isAirportLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader className="w-5 h-5 animate-spin text-sky-600 mr-2" />
@@ -184,19 +225,22 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
 
               {/* Airport Cards */}
               {airports.map((airport, idx) => {
-                const airportStatus = airport.overallStatus || airport.status || 'normal';
+                const researchedStatus = (airport.overallStatus || airport.status || 'unknown').trim().toLowerCase();
+                const faaStatus = getFAAStatus(airport);
+                const airportStatus = faaStatus?.disrupted || (faaStatus?.status === 'unknown' && researchedStatus === 'normal')
+                  ? faaStatus.status : researchedStatus;
 
                 return (
                 <div
                   key={idx}
                   className="p-4 bg-white/60 rounded-lg border border-sky-100 hover:border-sky-300 transition-colors"
                 >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-sky-100">
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="p-2 rounded-lg bg-sky-100 shrink-0">
                         <Plane className="w-5 h-5 text-sky-600" />
                       </div>
-                      <div>
+                      <div className="min-w-0 break-words">
                         <h4 className="font-semibold text-gray-900">{airport.code}</h4>
                         <p className="text-xs text-gray-500">{airport.name}</p>
                       </div>
@@ -206,7 +250,36 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                     </Badge>
                   </div>
 
-                  {airport.delays && (
+                  {faaStatus && (
+                    <div className={`p-3 rounded-lg border mb-3 text-sm break-words [overflow-wrap:anywhere] ${getAirportStatusColor(faaStatus.status)}`}>
+                      <p className="font-semibold">{faaStatus.label}</p>
+                      {airport.faa_delay_reason && <p className="mt-1">{airport.faa_delay_reason}</p>}
+                      {airport.faa_closure_status === 'restricted' && (
+                        <p className="mt-1">Restrictions may apply to specific aircraft or operations; this does not mean the entire airport is closed.</p>
+                      )}
+                      {faaStatus.disrupted && (
+                        <p className="mt-1">
+                          {typeof airport.faa_delay_minutes === 'number' && Number.isFinite(airport.faa_delay_minutes) && airport.faa_delay_minutes > 0
+                            ? `FAA reported delay: ${airport.faa_delay_minutes} min`
+                            : 'Delay duration not reported.'}
+                        </p>
+                      )}
+                      {airport.faa_ground_stops?.map((stop, stopIndex) => (
+                        <p key={stopIndex} className="mt-1">
+                          Ground stop{stop.reason ? `: ${stop.reason}` : ''}
+                          {stop.end_time ? ` (FAA reported end: ${stop.end_time})` : ''}
+                        </p>
+                      ))}
+                      {airport.faa_closure_start && <p className="mt-1">FAA {airport.faa_closure_status === 'closed' ? 'closure' : 'restriction'} start: {airport.faa_closure_start}</p>}
+                      {airport.faa_closure_end && (
+                        <p className="mt-1">{airport.faa_closure_status === 'closed' ? 'FAA reported reopening' : 'FAA reported restriction end'}: {airport.faa_closure_end}</p>
+                      )}
+                      {airport.faa_source_updated_at && <p className="mt-2 text-xs">FAA feed updated: {airport.faa_source_updated_at}</p>}
+                      {airport.faa_fetched_at && <p className="mt-1 text-xs">Retrieved: {airport.faa_fetched_at}</p>}
+                    </div>
+                  )}
+
+                  {airport.delays && !(faaStatus && faaStatus.status !== 'normal' && researchedStatus === 'normal') && (
                     <div className="p-3 bg-white/50 rounded-lg border border-sky-100 mb-3">
                       <p className="text-sm text-gray-700">{airport.delays}</p>
                     </div>
