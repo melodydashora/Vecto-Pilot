@@ -15,6 +15,7 @@ import { isOperator } from '../../middleware/require-operator.js';
 import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { voiceTurnsLimiter } from '../../middleware/rate-limit.js';
 import { validateAction } from '../rideshare-coach/validate.js';
+import { parseActions } from './parse-actions.js';
 // 2026-08-14 (voice-turns): model provenance for voice_transcript rows comes
 // from the registry (COACH_VOICE_LIVE role), never a hardcoded model string.
 import { getRoleConfig } from '../../lib/ai/model-registry.js';
@@ -65,175 +66,7 @@ async function getOfferAnalyzerRules() {
 // Parse special action tags from AI responses and execute them
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Parse AI actions from response text
- * 2026-01-06: P1-B fix - Improved to handle nested JSON properly
- *
- * Supports two formats:
- * 1. Legacy inline: [SAVE_NOTE: {...}] (kept for backward compat)
- * 2. JSON envelope: ```json\n{"actions": [...], "response": "..."}\n``` (preferred)
- */
-function parseActions(responseText) {
-  const actions = {
-    notes: [],
-    events: [],
-    news: [],
-    systemNotes: [],
-    zoneIntel: [],
-    eventReactivations: [],
-    addEvents: [],          // 2026-02-17: Coach-created events from driver intel
-    updateEvents: [],       // 2026-02-17: Coach-corrected event details
-    coachMemos: [],         // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
-    marketIntel: [],        // 2026-03-18: C-3 — market-wide intelligence from driver conversations
-    venueIntel: [],         // 2026-03-18: C-3 — staging spots, GPS dead zones, venue intel
-    offerDecisions: [],     // 2026-05-05: New offer decisions to log (coach_offer_decisions)
-    offerDecisionUpdates: [],// 2026-05-05: Lifecycle/verdict updates on existing decisions
-    offerIntelBackfills: [] // 2026-05-05: Ground-truth backfills onto offer_intelligence
-  };
-
-  let cleanedText = responseText;
-
-  // 2026-03-18: FIX (H-3) — Match only JSON blocks containing "actions" array.
-  // Previous regex captured the first ```json block, which could be a code example.
-  const jsonEnvelopeMatch = responseText.match(/```json\s*([\s\S]*?"actions"\s*:\s*\[[\s\S]*?)\s*```/);
-  if (jsonEnvelopeMatch) {
-    try {
-      const envelope = JSON.parse(jsonEnvelopeMatch[1]);
-      if (envelope.actions && Array.isArray(envelope.actions)) {
-        for (const action of envelope.actions) {
-          const actionType = action.type?.toUpperCase();
-          const actionData = action.data || action;
-
-          if (actionType === 'SAVE_NOTE') actions.notes.push(actionData);
-          else if (actionType === 'DEACTIVATE_EVENT') actions.events.push(actionData);
-          else if (actionType === 'REACTIVATE_EVENT') actions.eventReactivations.push(actionData);
-          else if (actionType === 'ADD_EVENT') actions.addEvents.push(actionData);
-          else if (actionType === 'UPDATE_EVENT') actions.updateEvents.push(actionData);
-          else if (actionType === 'COACH_MEMO') actions.coachMemos.push(actionData);
-          else if (actionType === 'DEACTIVATE_NEWS') actions.news.push(actionData);
-          else if (actionType === 'SYSTEM_NOTE') actions.systemNotes.push(actionData);
-          else if (actionType === 'ZONE_INTEL') actions.zoneIntel.push(actionData);
-          else if (actionType === 'MARKET_INTEL') actions.marketIntel.push(actionData);
-          else if (actionType === 'SAVE_VENUE_INTEL') actions.venueIntel.push(actionData);
-          // 2026-05-05: Offer decision pipeline
-          else if (actionType === 'LOG_OFFER_DECISION') actions.offerDecisions.push(actionData);
-          else if (actionType === 'UPDATE_OFFER_DECISION') actions.offerDecisionUpdates.push(actionData);
-          else if (actionType === 'BACKFILL_OFFER_INTEL') actions.offerIntelBackfills.push(actionData);
-        }
-        // Use the response field if present, otherwise remove the JSON block
-        cleanedText = envelope.response || responseText.replace(jsonEnvelopeMatch[0], '').trim();
-        console.log(`[COACH] Parsed JSON envelope: ${envelope.actions.length} actions`);
-        return { actions, cleanedText };
-      }
-    } catch (e) {
-      console.warn(`[COACH] JSON envelope parse failed, falling back to regex:`, e.message);
-    }
-  }
-
-  // 2026-01-06: Improved regex-based parsing with proper JSON extraction
-  // Uses balanced brace matching instead of [^}]+ which breaks on nested JSON
-  const actionTypes = [
-    { prefix: 'SAVE_NOTE', key: 'notes' },
-    { prefix: 'DEACTIVATE_EVENT', key: 'events' },
-    { prefix: 'REACTIVATE_EVENT', key: 'eventReactivations' },
-    { prefix: 'ADD_EVENT', key: 'addEvents' },
-    { prefix: 'UPDATE_EVENT', key: 'updateEvents' },
-    { prefix: 'COACH_MEMO', key: 'coachMemos' },
-    { prefix: 'DEACTIVATE_NEWS', key: 'news' },
-    { prefix: 'SYSTEM_NOTE', key: 'systemNotes' },
-    { prefix: 'ZONE_INTEL', key: 'zoneIntel' },
-    { prefix: 'MARKET_INTEL', key: 'marketIntel' },
-    { prefix: 'SAVE_VENUE_INTEL', key: 'venueIntel' },
-    // 2026-05-05: Offer decision pipeline (legacy regex form)
-    { prefix: 'LOG_OFFER_DECISION', key: 'offerDecisions' },
-    { prefix: 'UPDATE_OFFER_DECISION', key: 'offerDecisionUpdates' },
-    { prefix: 'BACKFILL_OFFER_INTEL', key: 'offerIntelBackfills' }
-  ];
-
-  for (const { prefix, key } of actionTypes) {
-    // Find all instances of [PREFIX: {...]
-    const pattern = new RegExp(`\\[${prefix}:\\s*`, 'g');
-    let match;
-
-    while ((match = pattern.exec(responseText)) !== null) {
-      const startIndex = match.index + match[0].length;
-      const jsonResult = extractBalancedJson(responseText, startIndex);
-
-      if (!jsonResult.json) {
-        // 2026-03-18: FIX (M-3) — Log when AI generates malformed action tags
-        console.warn(`[COACH] ${prefix} action tag found but JSON extraction failed (malformed/unclosed braces)`);
-      } else {
-        try {
-          const parsed = JSON.parse(jsonResult.json);
-          actions[key].push(parsed);
-          // Build the full match to remove (include closing bracket)
-          const fullMatch = responseText.slice(match.index, jsonResult.endIndex + 1);
-          // 2026-03-18: FIX (M-2) — replaceAll so duplicate tags are both removed
-          cleanedText = cleanedText.replaceAll(fullMatch, '');
-        } catch (e) {
-          console.warn(`[COACH] Failed to parse ${key} JSON:`, e.message);
-        }
-      }
-    }
-  }
-
-  return { actions, cleanedText: cleanedText.trim() };
-}
-
-/**
- * Extract balanced JSON from string starting at given index
- * Handles nested braces correctly
- */
-function extractBalancedJson(str, startIndex) {
-  if (str[startIndex] !== '{') {
-    return { json: null, endIndex: startIndex };
-  }
-
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-
-  for (let i = startIndex; i < str.length; i++) {
-    const char = str[i];
-
-    if (escape) {
-      escape = false;
-      continue;
-    }
-
-    if (char === '\\' && inString) {
-      escape = true;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-
-    if (!inString) {
-      if (char === '{') depth++;
-      else if (char === '}') {
-        depth--;
-        if (depth === 0) {
-          // Check for closing bracket ]
-          let endIndex = i;
-          const remaining = str.slice(i + 1);
-          const closeBracket = remaining.match(/^\s*\]/);
-          if (closeBracket) {
-            endIndex = i + closeBracket[0].length;
-          }
-          return {
-            json: str.slice(startIndex, i + 1),
-            endIndex
-          };
-        }
-      }
-    }
-  }
-
-  return { json: null, endIndex: str.length };
-}
+// 2026-09-11: parseActions/extractBalancedJson live in ./parse-actions.js (unit-tested; reports parse failures).
 
 /**
  * Execute parsed actions asynchronously (non-blocking)
@@ -1587,7 +1420,8 @@ Full transparency. Maximum insight.
         console.log(`[COACH] Gemini streamed response: ${totalText.length} chars`);
 
         // 2026-03-18: Parse actions and execute them (awaited for client feedback)
-        const { actions, cleanedText } = parseActions(totalText);
+        const { actions, cleanedText: parsedText, parseErrors } = parseActions(totalText);
+        let cleanedText = parsedText;
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
         if (hasActions) {
@@ -1604,6 +1438,17 @@ Full transparency. Maximum insight.
             console.error('[COACH] Action execution error:', e.message);
             actionsResult = { saved: 0, errors: [e.message] };
           }
+        }
+
+        // 2026-09-11 (desktop-coach-review item 2): parse failures join execution failures in
+        // the done payload, and an explicit not-saved line is appended to the streamed AND
+        // persisted text, so no unqualified "saved" claim survives a failed action.
+        const actionFailures = [...(parseErrors || []), ...(actionsResult?.errors || [])];
+        if (actionFailures.length > 0) {
+          actionsResult = { saved: actionsResult?.saved || 0, errors: actionFailures };
+          const notSavedNote = `\n\n⚠️ Not saved: ${actionFailures.join('; ')}. Nothing was written for these — ask me to try again.`;
+          cleanedText += notSavedNote;
+          res.write(`data: ${JSON.stringify({ delta: notSavedNote })}\n\n`);
         }
 
         // Save assistant response to coach_conversations (authenticated users only)

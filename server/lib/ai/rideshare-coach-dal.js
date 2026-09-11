@@ -1,6 +1,7 @@
 // server/lib/coach-dal.js
 // AI Coach Data Access Layer - Full Schema Read/Write Access
 import { db } from '../../db/drizzle.js';
+import { getBriefingReadiness } from '../briefing/briefing-readiness.js';
 import {
   snapshots,
   strategies,
@@ -49,6 +50,38 @@ import { formatOfferPatterns } from '../offers/offer-patterns.js';
  * - Null-safe reads (missing data returns null, not errors)
  * - Temporal alignment: Trust snapshot day/time as ground truth
  */
+// 2026-09-11 (desktop-coach-review item 4, verified in the current tree): the DATA ACCESS
+// SUMMARY labelled ANY non-empty briefing object "Complete" — including the empty-arrays
+// object returned for a MISSING row — so the Coach was told a Briefing existed when
+// generation had not started, was still pending or had failed. The label is now derived
+// from briefings.status / generated_at and the same readiness rules Strategy uses
+// (server/lib/briefing/briefing-readiness.js). Legacy rows without a completion marker are
+// called out as unverified rather than promoted to complete.
+export function describeBriefingStatus(briefing) {
+  if (!briefing || briefing.exists === false) {
+    if (briefing?.status === 'read_failed') {
+      return `Unavailable — Briefing read failed (${briefing.error || 'unknown error'}); do not present Briefing facts as current`;
+    }
+    return 'Unavailable — no Briefing row for this snapshot; do not present Briefing facts as current';
+  }
+  const readiness = briefing.readiness || {};
+  const issues = readiness.issues ? Object.entries(readiness.issues).map(([section, reason]) => `${section}: ${reason}`).join('; ') : '';
+  if (briefing.status === 'error' || readiness.failed) {
+    return `Failed${issues ? ` (${issues})` : ''}; Briefing sections below may be missing or stale`;
+  }
+  if (readiness.ready) {
+    const at = briefing.generated_at ? new Date(briefing.generated_at).toISOString() : 'unknown time';
+    return `Complete (generated ${at})`;
+  }
+  if (briefing.status === 'pending') {
+    return `Pending — generation in progress${issues ? ` (${issues})` : ''}; do not present Briefing facts as current`;
+  }
+  if (briefing.status == null) {
+    return `Unverified legacy Briefing (no completion marker)${issues ? ` — ${issues}` : ''}; treat its facts as provisional`;
+  }
+  return `Incomplete (${briefing.status})${issues ? ` — ${issues}` : ''}; treat Briefing facts as provisional`;
+}
+
 export class RideshareCoachDAL {
   /**
    * Resolve strategy_id to snapshot_id + user_id (entry point)
@@ -254,7 +287,12 @@ export class RideshareCoachDAL {
         .limit(1);
 
       if (!briefingRecord) {
+        // 2026-09-11 (desktop-coach-review item 4): a missing row is reported as such
+        // instead of an empty object that the prompt used to label "Complete".
         return {
+          exists: false,
+          status: 'missing',
+          readiness: { ready: false, failed: false, issues: {} },
           events: [],
           traffic: [],
           news: [],
@@ -262,6 +300,11 @@ export class RideshareCoachDAL {
       }
 
       return {
+        // 2026-09-11: real completion state for the prompt summary (see describeBriefingStatus)
+        exists: true,
+        status: briefingRecord.status || null,
+        generated_at: briefingRecord.generated_at || null,
+        readiness: getBriefingReadiness(briefingRecord, snapshotId),
         // Events, news, traffic from briefings table
         events: briefingRecord.events || [],
         traffic: briefingRecord.traffic_conditions || {},
@@ -279,7 +322,16 @@ export class RideshareCoachDAL {
       };
     } catch (error) {
       console.error('[COACH] getComprehensiveBriefing error:', error);
-      return {};
+      // 2026-09-11: a read failure is not "no data" — say so in the summary.
+      return {
+        exists: false,
+        status: 'read_failed',
+        error: error.message,
+        readiness: { ready: false, failed: false, issues: {} },
+        events: [],
+        traffic: [],
+        news: [],
+      };
     }
   }
 
@@ -1315,7 +1367,8 @@ export class RideshareCoachDAL {
     prompt += `\n   ✓ Vehicle: ${driverVehicle ? `${driverVehicle.year} ${driverVehicle.make} ${driverVehicle.model}` : 'Not set'}`;
     prompt += `\n   ✓ Snapshot: ${snapshot ? 'Complete' : 'Unavailable'}`;
     prompt += `\n   ✓ Strategy: ${strategy ? (strategy.strategy_for_now ? 'Ready' : 'In Progress') : 'Pending'}`;
-    prompt += `\n   ✓ Briefing: ${briefing && Object.keys(briefing).length > 0 ? 'Complete' : 'Unavailable'}`;
+    // 2026-09-11 (desktop-coach-review item 4): derived from status/generated_at/readiness.
+    prompt += `\n   ✓ Briefing: ${describeBriefingStatus(briefing)}`;
     prompt += `\n   ✓ Smart Blocks: ${smartBlocks?.length || 0} venues`;
     prompt += `\n   ✓ Feedback: ${feedback?.venue_feedback?.length || 0} venue votes`;
     prompt += `\n   ✓ Actions: ${actions?.length || 0} recorded`;

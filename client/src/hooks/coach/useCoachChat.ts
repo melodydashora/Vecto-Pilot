@@ -150,6 +150,24 @@ export function useCoachChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [compressingFiles, setCompressingFiles] = useState<Set<string>>(new Set());
 
+  // 2026-09-11 (desktop-coach-review.md item 3): stream identity fence. A stream
+  // that started under one (userId, snapshotId) must not touch messages state,
+  // localStorage (useChatPersistence keys by identity), or the delta/done/notes
+  // callbacks once this hook serves another identity or has unmounted. The
+  // cleanup runs on identity change AND on unmount: abort the in-flight request,
+  // bump the generation so late deltas / done payloads are dropped, and clear
+  // isStreaming here because the stale send()'s finally is fenced and must not
+  // clobber a newer stream's flag.
+  const generationRef = useRef(0);
+  useEffect(() => {
+    return () => {
+      generationRef.current += 1;
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      setIsStreaming(false);
+    };
+  }, [userId, snapshotId]);
+
   const { logConversation, summarizeConversation } = useMemory({
     userId,
     loadOnMount: false,
@@ -288,6 +306,9 @@ export function useCoachChat({
 
     controllerRef.current?.abort();
     controllerRef.current = new AbortController();
+    // Identity fence (2026-09-11): everything after an await checks `stale()`.
+    const generation = ++generationRef.current;
+    const stale = () => generation !== generationRef.current;
 
     try {
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -323,6 +344,7 @@ export function useCoachChat({
         }),
         signal: controllerRef.current.signal,
       });
+      if (stale()) return;
 
       if (!res.ok && res.headers.get("content-type")?.includes("text/event-stream") === false) {
         // 2026-08-11: read the body ONCE. res.json() consumes the stream even
@@ -359,6 +381,12 @@ export function useCoachChat({
 
       while (true) {
         const { value, done } = await reader.read();
+        if (stale()) {
+          // Identity changed / unmounted mid-stream: release the body and drop
+          // everything that arrived late. No state, storage or callback writes.
+          void reader.cancel().catch(() => { /* already closed */ });
+          return;
+        }
         if (done) break;
         acc += dec.decode(value, { stream: true });
 
@@ -412,6 +440,7 @@ export function useCoachChat({
         if (lastNl >= 0) acc = acc.slice(lastNl + 1);
       }
 
+      if (stale()) return;
       if (fullResponse) {
         // Deltas streamed raw tag JSON into the visible message — replace the
         // displayed content with the tag-stripped text now the stream is done.
@@ -427,12 +456,15 @@ export function useCoachChat({
         onStreamComplete?.(displayText, { userMessage: messageText });
       }
     } catch (err: unknown) {
+      if (stale()) return;
       const error = err as Error;
       if (error.name !== 'AbortError') {
         setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Connection error: ${error.message}` }]);
       }
     } finally {
-      setIsStreaming(false);
+      // Fenced: a stale stream's teardown must not reset a newer stream's flag;
+      // the identity-change cleanup already cleared it for the stale one.
+      if (!stale()) setIsStreaming(false);
     }
   }, [
     attachments,

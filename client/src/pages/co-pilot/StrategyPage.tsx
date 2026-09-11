@@ -1044,7 +1044,8 @@ export default function StrategyPage() {
         placeId={feedbackModal.block?.placeId}
         snapshotId={lastSnapshotId || undefined}
         rankingId={blocksData?.rankingId}
-        userId={localStorage.getItem('vecto_user_id') || 'default'}
+        // 2026-09-11: userId prop dropped — it read the never-written legacy localStorage key
+        // ('default' for everyone) and the feedback routes use req.auth.userId only.
         onSuccess={(sentiment) => {
           console.log(`Feedback submitted: ${sentiment}`);
         }}
