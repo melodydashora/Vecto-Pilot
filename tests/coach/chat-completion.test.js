@@ -114,4 +114,16 @@ describe('POST /api/chat completion truthfulness (real router)', () => {
     expect(r.done.response_text).toMatch(/Not saved: COACH_MEMO/);
     expect(assistantHistory()[0].content).toBe(r.done.response_text);
   });
+
+  test('mixed: a confirmed memo retains its exact receipt when another action fails to parse', async () => {
+    providerEvents = completed(`Done. ${VALID_MEMO} [SAVE_NOTE: {"title":"Airport tip",}]`);
+    const r = await ask('save both');
+    expect(calls.memo).toHaveLength(1);
+    expect(calls.note).toHaveLength(0);
+    expect(r.done.actions_result.saved).toBe(1);
+    expect(r.done.actions_result.memos).toEqual([{ id: 'memo-0001-abcd', type: 'bug', title: 'Synthetic memo', created_at: '2026-09-11T02:00:00.000Z' }]);
+    expect(r.done.actions_result.errors).toEqual([expect.stringMatching(/^SAVE_NOTE: malformed/)]);
+    expect(r.done.response_text).toMatch(/Not saved: SAVE_NOTE/);
+    expect(assistantHistory()[0].content).toBe(r.done.response_text);
+  });
 });

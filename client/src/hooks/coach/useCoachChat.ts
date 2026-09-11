@@ -354,6 +354,10 @@ export function useCoachChat({
         // "body stream already read" whenever the error body wasn't JSON
         // (e.g., the platform proxy's HTML page during a server restart).
         const raw = await res.text();
+        // 2026-09-11: error bodies can arrive after an identity change just like
+        // SSE events. Do not write the new thread through the old storage setter
+        // or release a newer request's busy flag when that transport finishes.
+        if (stale()) return;
         let errData: { code?: string; message?: string; error?: string } = {};
         try { errData = JSON.parse(raw); } catch { /* non-JSON error body */ }
         if (errData.code === 'missing_timezone') {

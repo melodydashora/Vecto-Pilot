@@ -72,6 +72,39 @@ test('retains closure restrictions as restrictions, not a universal airport shut
   assert.equal(result.closure_end, 'end');
 });
 
+// 2026-09-11: list order must not choose which concurrent FAA observation survives.
+// Ground-stop timing and scoped-restriction timing describe separate observations.
+const groundStopObservation = '<Delay_type><Ground_Stop_List><Program><ARPT>AAA</ARPT><Reason>Weather / low ceilings</Reason><End_Time>18:00 UTC</End_Time></Program></Ground_Stop_List></Delay_type>';
+const restrictionObservation = '<Delay_type><Airport_Closure_List><Airport><ARPT>AAA</ARPT><Reason>Runway maintenance limits heavy aircraft</Reason><Start>17:00 UTC</Start><Reopen>19:00 UTC</Reopen></Airport></Airport_Closure_List></Delay_type>';
+for (const [order, observations] of [
+  ['ground stop before scoped restriction', [groundStopObservation, restrictionObservation]],
+  ['scoped restriction before ground stop', [restrictionObservation, groundStopObservation]],
+]) {
+  test(`${order} preserves both facts despite optimistic ASWS, with no invented closure or minutes`, async () => {
+    mockFAA({ feed: xml(observations.join('')), airport: status({ Delay: false }) });
+    const result = await fetchFAADelayData('AAA', { strict: true });
+    assert.deepEqual({
+      closure_status: result.closure_status,
+      delay_reason: result.delay_reason,
+      closure_start: result.closure_start,
+      closure_end: result.closure_end,
+      ground_stops: result.ground_stops,
+      delay_minutes: result.delay_minutes,
+      has_delays: result.has_delays,
+      source_updated_at: result.source_updated_at,
+    }, {
+      closure_status: 'restricted',
+      delay_reason: 'Runway maintenance limits heavy aircraft; Weather / low ceilings',
+      closure_start: '17:00 UTC',
+      closure_end: '19:00 UTC',
+      ground_stops: [{ reason: 'Weather / low ceilings', end_time: '18:00 UTC' }],
+      delay_minutes: null,
+      has_delays: true,
+      source_updated_at: sourceTime,
+    });
+  });
+}
+
 test('retains zero visibility rather than dropping a meaningful weather measurement', async () => {
   mockFAA({ airport: status({ Weather: { Visibility: [0], Temp: [0] } }) });
   const result = await fetchFAADelayData('AAA', { strict: true });

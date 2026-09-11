@@ -2,7 +2,6 @@
 // Strategy page with AI recommendations, smart blocks, and coach chat
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +36,8 @@ import { useCoPilot } from '@/contexts/co-pilot-context';
 import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
 import { logAction as logActionHelper, filterHighValueSpacedBlocks } from '@/utils/co-pilot-helpers';
 import type { SmartBlock } from '@/types/co-pilot';
+import { useAuth } from '@/contexts/auth-context';
+import { useVenueFeedback } from '@/hooks/useVenueFeedback';
 
 // 2026-04-26: Type shapes mirrored from MapPage.tsx for the embedded MapTab.
 // Inline-duplicated rather than extracted into a shared module — the brief
@@ -92,7 +93,7 @@ interface MapBar {
 export default function StrategyPage() {
   const locationContext = useLocationContext();
   const { toast } = useToast();
-  const _queryClient = useQueryClient();
+  const { user, token } = useAuth();
 
   // Get shared state from context
   const {
@@ -115,6 +116,10 @@ export default function StrategyPage() {
     timeRemainingText,
     timezone
   } = useCoPilot();
+  const venueFeedback = useVenueFeedback(lastSnapshotId, blocksData?.rankingId);
+  const confirmedBlocks = venueFeedback.state && venueFeedback.state.scope_revision > 0 ? venueFeedback.state.blocks : null;
+  const currentBlocks = confirmedBlocks ?? blocks;
+  const [undoError, setUndoError] = useState<string | null>(null);
 
   // 2026-04-26: Embedded-MapTab data prep. Memos lifted from MapPage.tsx
   // verbatim — same field names, same dedup logic, same type shapes.
@@ -161,8 +166,8 @@ export default function StrategyPage() {
     return mappedBars;
   }, [barsData]);
 
-  const mapVenues = useMemo(() => blocks.map((block, idx) => ({
-    id: `${idx}`,
+  const mapVenues = useMemo(() => currentBlocks.map((block, idx) => ({
+    id: block.placeId || `${idx}`,
     name: block.name,
     lat: block.coordinates.lat,
     lng: block.coordinates.lng,
@@ -171,7 +176,7 @@ export default function StrategyPage() {
     est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? undefined,
     rank: idx + 1,
     value_grade: block.valueGrade,
-  })), [blocks]);
+  })), [currentBlocks]);
 
   const mapEvents: MapEvent[] = useMemo(() => (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
     title: e.title as string,
@@ -187,22 +192,19 @@ export default function StrategyPage() {
     subtype: e.subtype as string | undefined,
   })), [activeEventsData?.events]);
 
-  // Filter blocks to show only top 3 Grade A venues that are >= 1 mile apart
-  // This is the "NOW strategy" - focused, actionable recommendations
+  // Confirmed replacement order comes from the saved ranking. Initial display
+  // uses the existing A/B policy with preferred one-mile spacing.
   const filteredBlocks = useMemo(() => {
+    if (confirmedBlocks) return confirmedBlocks;
     if (!blocks || blocks.length === 0) return [];
-
-    const filtered = filterHighValueSpacedBlocks(blocks as any[], 1.0, 3); // 1 mile minimum, max 3 venues
-    console.log(`[StrategyPage] NOW Strategy: ${filtered.length} Grade A venues (>= 1mi apart, max 3)`);
-    return filtered;
-  }, [blocks]);
+    return filterHighValueSpacedBlocks(blocks.map(block => ({ ...block })), 1.0, 3);
+  }, [blocks, confirmedBlocks]);
 
   // Track how many blocks were filtered out
-  const filteredOutCount = blocks.length - filteredBlocks.length;
+  const filteredOutCount = Math.max(0, currentBlocks.length - filteredBlocks.length);
 
   // Local state for this page only
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
 
   // Feedback modal state
   const [feedbackModal, setFeedbackModal] = useState<{
@@ -219,6 +221,11 @@ export default function StrategyPage() {
 
   // Strategy feedback modal state
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
+
+  useEffect(() => {
+    setFeedbackModal({ isOpen: false, sentiment: null, block: null, blockIndex: null });
+    setUndoError(null);
+  }, [user?.userId, token, lastSnapshotId, blocksData?.rankingId]);
 
   // Get GPS refresh from location context (with fallback for legacy pattern)
   // CRITICAL: Match GlobalHeader pattern for consistent GPS access
@@ -281,33 +288,30 @@ export default function StrategyPage() {
 
   // Track dwell time for each block using IntersectionObserver
   useEffect(() => {
-    if (!blocks.length) return;
-
-    const observers = new Map<number, IntersectionObserver>();
-
-    blocks.forEach((block, index) => {
-      const blockElement = document.querySelector(`[data-block-index="${index}"]`);
+    const rankingId = blocksData?.rankingId;
+    if (!filteredBlocks.length || !rankingId) return;
+    const observers: IntersectionObserver[] = [];
+    const starts = new Map<string, number>();
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-place-id]'));
+    filteredBlocks.forEach((block, index) => {
+      const placeId = block.placeId;
+      if (!placeId) return;
+      const blockElement = elements.find(element => element.dataset.placeId === placeId);
       if (!blockElement) return;
 
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              const startTime = Date.now();
-              setDwellTimers(prev => new Map(prev).set(index, startTime));
+              if (!starts.has(placeId)) starts.set(placeId, Date.now());
             } else {
-              const startTime = dwellTimers.get(index);
-              if (startTime) {
+              const startTime = starts.get(placeId);
+              if (startTime !== undefined) {
                 const dwellMs = Date.now() - startTime;
                 if (dwellMs > 500) {
-                  const blockId = `${block.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${block.coordinates.lat}_${block.coordinates.lng}`;
-                  logAction('block_dwell', blockId, dwellMs, index + 1);
+                  logActionHelper(rankingId, 'block_dwell', placeId, dwellMs, index + 1);
                 }
-                setDwellTimers(prev => {
-                  const next = new Map(prev);
-                  next.delete(index);
-                  return next;
-                });
+                starts.delete(placeId);
               }
             }
           });
@@ -316,13 +320,14 @@ export default function StrategyPage() {
       );
 
       observer.observe(blockElement);
-      observers.set(index, observer);
+      observers.push(observer);
     });
 
     return () => {
       observers.forEach(observer => observer.disconnect());
+      starts.clear();
     };
-  }, [blocks, blocksData?.rankingId]);
+  }, [filteredBlocks, blocksData?.rankingId]);
 
   const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
@@ -535,6 +540,28 @@ export default function StrategyPage() {
       </div>
 
       {/* Smart Blocks Section */}
+      {(venueFeedback.error || undoError || !!venueFeedback.state?.dismissals.length) && (
+        <div className="mb-4 rounded-lg border border-gray-200 p-3 space-y-2" aria-label="Saved venue choices">
+          {(venueFeedback.error || undoError) && <p role="alert" className="text-sm text-red-700">{undoError || venueFeedback.error}</p>}
+          {(venueFeedback.error || undoError) && <Button variant="outline" size="sm" onClick={() => { setUndoError(null); void venueFeedback.reload(); }}>Reload saved choices</Button>}
+          {venueFeedback.state?.dismissals.map(dismissal => (
+            <div key={dismissal.action_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 break-words">{dismissal.venue_name} removed from this strategy.</span>
+              <Button variant="outline" size="sm" disabled={venueFeedback.pending} aria-label={`Undo removal of ${dismissal.venue_name}`} onClick={async () => {
+                setUndoError(null);
+                try {
+                  const receipt = await venueFeedback.submit({ action: 'restore', place_id: dismissal.place_id,
+                    undo_action_id: dismissal.action_id, visible_place_ids: filteredBlocks.flatMap(block => block.placeId ? [block.placeId] : []) });
+                  if (receipt) toast(receipt.blocks.some(block => block.placeId === dismissal.place_id)
+                    ? { title: 'Venue restored', description: `${dismissal.venue_name} is back in this strategy.` }
+                    : { title: 'Removal cleared', description: 'Your saved choices have changed. This venue is eligible again but is outside the current shortlist.' });
+                } catch (error) { setUndoError(error instanceof Error ? error.message : 'Undo was not confirmed. Please retry.'); }
+              }}>Undo</Button>
+            </div>
+          ))}
+          {confirmedBlocks?.length === 0 && <p className="text-sm text-gray-600">No alternative is available in this strategy. Undo a removal to bring a venue back.</p>}
+        </div>
+      )}
       {filteredBlocks.length > 0 && (
         <div className="mb-6" id="blocks-section">
           <div className="flex items-center justify-between mb-4">
@@ -552,7 +579,7 @@ export default function StrategyPage() {
                   data-testid="filter-badge"
                 >
                   <Zap className="w-3 h-3" />
-                  Grade A only
+                  Grades A &amp; B
                 </Badge>
               )}
               {metadata?.validation?.status && (
@@ -568,7 +595,7 @@ export default function StrategyPage() {
                   {metadata.validation.status === 'ok' ? '✓ Validated' : '⚠ Validation Issues'}
                 </Badge>
               )}
-              {metadata?.processingTimeMs && (
+              {typeof metadata?.processingTimeMs === 'number' && metadata.processingTimeMs > 0 && (
                 <span className="text-xs text-gray-400">
                   {(metadata.processingTimeMs / 1000).toFixed(1)}s
                 </span>
@@ -582,10 +609,10 @@ export default function StrategyPage() {
               <div className="flex items-center gap-2 text-sm text-emerald-700">
                 <Zap className="w-4 h-4 text-emerald-500" />
                 <span>
-                  <strong className="text-emerald-800">NOW Strategy:</strong> Top {filteredBlocks.length} Grade A venue{filteredBlocks.length !== 1 ? 's' : ''}
-                  {' '}(≥1 mile apart).
+                  <strong className="text-emerald-800">NOW Strategy:</strong> Top {filteredBlocks.length} Grade A/B venue{filteredBlocks.length !== 1 ? 's' : ''}
+                  {' '}(one-mile spacing preferred).
                   <span className="text-emerald-500 ml-1">
-                    {filteredOutCount} lower-value venue{filteredOutCount !== 1 ? 's' : ''} hidden.
+                    {filteredOutCount} other venue{filteredOutCount !== 1 ? 's' : ''} outside this shortlist.
                   </span>
                 </span>
               </div>
@@ -616,10 +643,11 @@ export default function StrategyPage() {
 
               return (
                 <Card
-                  key={index}
+                  key={block.placeId || `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`}
                   className={`border-2 shadow-md hover:shadow-xl transition-all ${cardGradient}`}
                   data-testid={`block-${index}`}
                   data-block-index={index}
+                  data-place-id={block.placeId}
                 >
                   <CardContent className="p-4">
                     {/* Block Header */}
@@ -659,8 +687,8 @@ export default function StrategyPage() {
                     </div>
 
                     {/* Metrics Row */}
-                    <div className="grid grid-cols-3 gap-4 mb-3">
-                      <div className="text-center">
+                    <div className="grid grid-cols-[1.2fr_1fr_1fr] sm:grid-cols-3 gap-2 sm:gap-4 mb-3 [&>div]:min-w-0">
+                      <div className="text-center break-words [&_div]:max-w-full">
                         {(() => {
                           const distance = Number(block.estimatedDistanceMiles ?? 0);
                           const isNearby = distance <= 5;
@@ -669,7 +697,7 @@ export default function StrategyPage() {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">🔥</div>
-                                <div className="text-sm font-bold text-orange-600">HIGH VALUE</div>
+                                <div className="text-xs sm:text-sm font-bold text-orange-600">HIGH VALUE</div>
                                 <div className="text-xs text-gray-500">Top ranked</div>
                               </div>
                             );
@@ -677,7 +705,7 @@ export default function StrategyPage() {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">⭐</div>
-                                <div className="text-sm font-bold text-yellow-600">GOOD OPPORTUNITY</div>
+                                <div className="text-xs sm:text-sm font-bold text-yellow-600">GOOD OPPORTUNITY</div>
                                 <div className="text-xs text-gray-500">Recommended</div>
                               </div>
                             );
@@ -685,7 +713,7 @@ export default function StrategyPage() {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">📍</div>
-                                <div className="text-sm font-bold text-blue-600">NEARBY OPTION</div>
+                                <div className="text-xs sm:text-sm font-bold text-blue-600">NEARBY OPTION</div>
                                 <div className="text-xs text-gray-500">Close proximity</div>
                               </div>
                             );
@@ -693,7 +721,7 @@ export default function StrategyPage() {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">💡</div>
-                                <div className="text-sm font-bold text-purple-600">STRATEGIC</div>
+                                <div className="text-xs sm:text-sm font-bold text-purple-600">STRATEGIC</div>
                                 <div className="text-xs text-gray-500">Consider timing</div>
                               </div>
                             );
@@ -783,7 +811,9 @@ export default function StrategyPage() {
                               variant="outline"
                               className="border-blue-400 text-blue-600 hover:bg-blue-50"
                               onClick={() => {
-                                const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${block.stagingArea.lat},${block.stagingArea.lng}`;
+                                const stagingArea = block.stagingArea;
+                                if (!stagingArea) return;
+                                const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${stagingArea.lat},${stagingArea.lng}`;
                                 window.open(mapsUrl, '_blank');
                               }}
                               data-testid="button-navigate-staging"
@@ -852,7 +882,7 @@ export default function StrategyPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
                       <div className="flex items-center gap-3">
                         {/* 2026-04-14: Issue Y — Removed count display (block.up_count/down_count).
                             toApiBlock() does not emit count fields and the pipeline has no aggregation.
@@ -862,6 +892,8 @@ export default function StrategyPage() {
                           size="sm"
                           className="text-green-600 hover:text-green-700 hover:bg-green-50"
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'up', block, blockIndex: index })}
+                          aria-label={`Recommend ${block.name}`}
+                          disabled={!block.placeId || venueFeedback.pending}
                           data-testid={`button-thumbs-up-${index}`}
                         >
                           <ThumbsUp className="w-4 h-4" />
@@ -871,6 +903,8 @@ export default function StrategyPage() {
                           size="sm"
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'down', block, blockIndex: index })}
+                          aria-label={`Remove ${block.name} from this strategy`}
+                          disabled={!block.placeId || venueFeedback.pending}
                           data-testid={`button-thumbs-down-${index}`}
                         >
                           <ThumbsDown className="w-4 h-4" />
@@ -1046,9 +1080,11 @@ export default function StrategyPage() {
         rankingId={blocksData?.rankingId}
         // 2026-09-11: userId prop dropped — it read the never-written legacy localStorage key
         // ('default' for everyone) and the feedback routes use req.auth.userId only.
-        onSuccess={(sentiment) => {
-          console.log(`Feedback submitted: ${sentiment}`);
-        }}
+        onVenueSubmit={(sentiment, comment) => venueFeedback.submit({
+          action: sentiment === 'down' ? 'dismiss' : 'upvote', place_id: feedbackModal.block?.placeId || '', comment,
+          visible_place_ids: filteredBlocks.flatMap(block => block.placeId ? [block.placeId] : []),
+        })}
+        onVenueReload={venueFeedback.reload}
       />
 
       <FeedbackModal

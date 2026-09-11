@@ -41,9 +41,16 @@ jest.unstable_mockModule('../../server/lib/venue/enhanced-smart-blocks.js', () =
 jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ resolveVenueAddressesBatch: mustNotGenerate }));
 jest.unstable_mockModule('../../server/events/phase-emitter.js', () => ({ phaseEmitter: {} }));
 jest.unstable_mockModule('../../server/validation/transformers.js', () => ({ toApiBlock: value => value }));
+// Venue receipt SQL is covered by tests/feedback/venue-feedback.api.integration.mjs.
+// This fixture retains the existing no-dismissal Briefing readiness assertions.
+jest.unstable_mockModule('../../server/lib/venue/venue-feedback.js', () => ({
+  applyVenueFeedbackExclusions: async (_db, { blocks }) => ({ blocks, scope_revision: 0, dismissed_place_ids: [], dismissals: [] }),
+  readSavedVenueFeedback: mustNotGenerate,
+  VenueFeedbackError: class extends Error {},
+}));
 const { default: router } = await import('../../server/api/strategy/blocks-fast.js');
 const invoke = async method => {
-  const handler = router.stack.find(layer => layer.route?.methods[method]).route.stack.at(-1).handle;
+  const handler = router.stack.find(layer => layer.route?.path === '/' && layer.route.methods[method]).route.stack.at(-1).handle;
   let body, code = 200;
   const response = { status: value => { code = value; return response; }, json: value => { body = value; } };
   await handler({ params: {}, headers: {}, body: { snapshotId }, query: { snapshotId }, auth: { userId: 'owner' } }, response);

@@ -59,6 +59,7 @@ import { phaseEmitter } from '../../events/phase-emitter.js';
 import { sseLog, venuesLog, dbLog, briefingLog, matrixLog } from '../../logger/workflow.js';
 // 2026-01-10: Import canonical transformer (single source of truth for block mapping)
 import { toApiBlock } from '../../validation/transformers.js';
+import { applyVenueFeedbackExclusions, readSavedVenueFeedback, VenueFeedbackError } from '../../lib/venue/venue-feedback.js';
 
 const router = Router();
 
@@ -362,6 +363,21 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
 // ROUTES
 // ============================================================================
 
+// 2026-09-11: An explicit persisted-only reload for feedback receipts. This never
+// invokes readiness repair, model generation or external address resolution.
+router.get('/saved', requireAuth, async (req, res) => {
+  try {
+    const state = await readSavedVenueFeedback(db, {
+      userId: req.auth.userId, snapshotId: req.query.snapshotId, rankingId: req.query.rankingId,
+    });
+    return res.json(state);
+  } catch (error) {
+    if (error instanceof VenueFeedbackError) return res.status(error.status).json({ ok: false, error: error.code, message: error.message });
+    venuesLog.error(4, 'Saved recommendation read failed');
+    return res.status(500).json({ ok: false, error: 'saved_blocks_failed', message: 'Saved recommendations could not be loaded.' });
+  }
+});
+
 // GET endpoint - return existing blocks for a snapshot
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
 // ISSUE #24 FIX: Rate limited to prevent quota exhaustion
@@ -435,11 +451,14 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       const candidates = savedRanking ? await db.select().from(ranking_candidates)
         .where(eq(ranking_candidates.ranking_id, savedRanking.ranking_id))
         .orderBy(ranking_candidates.rank) : [];
+      const feedbackState = savedRanking ? await applyVenueFeedbackExclusions(db, {
+        userId: authUserId, snapshotId, rankingId: savedRanking.ranking_id, blocks: candidates.map(toApiBlock),
+      }) : { blocks: [] };
       return res.status(202).json({
         ok: false, status: 'pending', reason: 'briefing_pending', snapshotId,
         briefingStatus: 'pending', strategyFresh: false, waitFor: ['briefing'],
         strategy: { strategyForNow: strategyRow?.strategy_for_now || '' },
-        briefing, blocks: candidates.map(toApiBlock), rankingId: savedRanking?.ranking_id,
+        briefing, ...feedbackState, rankingId: savedRanking?.ranking_id,
       });
     }
 
@@ -488,7 +507,11 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     const hasSpecialHours = !!(holidaySection?.holiday && holidaySection?.is_holiday === true);
 
     // Map candidates to blocks and filter/sort
-    const allBlocks = await mapCandidatesToBlocks(candidates, { isHoliday, hasSpecialHours });
+    const feedbackState = await applyVenueFeedbackExclusions(db, {
+      userId: authUserId, snapshotId, rankingId: ranking.ranking_id, blocks: candidates.map(toApiBlock),
+    });
+    const allBlocks = feedbackState.scope_revision > 0
+      ? feedbackState.blocks : await mapCandidatesToBlocks(candidates, { isHoliday, hasSpecialHours });
     const { blocks, rejected } = filterAndSortBlocks(allBlocks);
 
     const audit = [
@@ -497,7 +520,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       { step: 'sorting', method: 'value_desc_distance_asc' }
     ];
 
-    return res.json({ blocks, rankingId: ranking.ranking_id, briefing, audit });
+    return res.json({ ...feedbackState, blocks, rankingId: ranking.ranking_id, briefing, audit });
   } catch (error) {
     matrixLog.error({
       category: 'STRATEGY',
@@ -752,9 +775,12 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         const candidates = await db.select().from(ranking_candidates)
           .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
           .orderBy(ranking_candidates.rank);
-        const blocks = readiness.ready
+        const feedbackState = await applyVenueFeedbackExclusions(db, {
+          userId: authUserId, snapshotId, rankingId: ranking.ranking_id, blocks: candidates.map(toApiBlock),
+        });
+        const blocks = readiness.ready && feedbackState.scope_revision === 0
           ? await mapCandidatesToBlocks(candidates, { isHoliday: false, hasSpecialHours: false })
-          : candidates.map(toApiBlock);
+          : feedbackState.blocks;
         return sendOnce(readiness.ready ? 200 : 202, {
           ok: readiness.ready,
           status: readiness.ready ? 'ok' : 'pending',
@@ -762,6 +788,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           briefingStatus: readiness.ready ? 'complete' : 'pending',
           ...(!readiness.ready ? { strategyFresh: false, waitFor: ['briefing'] } : {}),
           snapshotId: snapshotId,
+          ...feedbackState,
           blocks,
           rankingId: ranking.ranking_id,
           // 2026-01-10: D-027 - Use camelCase for API response (single contract)
@@ -1003,6 +1030,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             hasSpecialHours: false,
             logPlusCodes: true
           });
+          const feedbackState = await applyVenueFeedbackExclusions(db, {
+            userId: authUserId, snapshotId, rankingId: ranking.ranking_id, blocks,
+          });
 
           // Fetch strategy for response
           const [strategyRow] = await db.select().from(strategies)
@@ -1025,7 +1055,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           return sendOnce(200, {
             status: 'ok',
             snapshotId: snapshotId,
-            blocks: blocks,
+            ...feedbackState,
             rankingId: ranking.ranking_id,
             // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {

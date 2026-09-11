@@ -144,6 +144,34 @@ export default function RideshareCoach({
   // bare sentViaVoiceRef whose flag survived failed voice sends and leaked speech into the
   // next typed reply with read-aloud OFF.
   const voiceGateRef = useRef(createVoiceTurnGate());
+  // 2026-09-11: typed and spoken sends share admission before React can render
+  // isStreaming. A refused turn retains its draft, and old teardown cannot
+  // release a newer turn after the authenticated user/snapshot changes.
+  const activeSendRef = useRef<symbol | null>(null);
+  const coachScopeRef = useRef<{ userId: string; snapshotId?: string } | null>(null);
+  const pendingCoachTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    coachScopeRef.current = { userId, snapshotId };
+    return () => {
+      coachScopeRef.current = null;
+      activeSendRef.current = null;
+      voiceGateRef.current = createVoiceTurnGate();
+      latestTranscriptRef.current = '';
+      pendingCoachTimersRef.current.forEach(timer => clearTimeout(timer));
+      pendingCoachTimersRef.current.clear();
+      // Cancel future sends/mic starts; already-authorized TTS keeps playing
+      // during ordinary navigation, as requested by Melody (2026-05-04).
+    };
+  }, [userId, snapshotId]);
+  const scheduleCoachTask = useCallback((task: () => void, delay: number) => {
+    const scope = coachScopeRef.current;
+    if (!scope) return;
+    const timer = setTimeout(() => {
+      pendingCoachTimersRef.current.delete(timer);
+      if (coachScopeRef.current === scope) task();
+    }, delay);
+    pendingCoachTimersRef.current.add(timer);
+  }, []);
   // 2026-05-04 (COACH-V1): once-per-session guards for the stop-phrase effects
   // (transcript changes per recognition tick; without these the effects re-fire).
   const stopAndOutputFiredRef = useRef(false);
@@ -154,6 +182,17 @@ export default function RideshareCoach({
   // 2026-04-27: Step 5 — streaming TTS chunks. Flag-gated OFF by default;
   // Step 6 flips the default. When OFF, pushDelta/flush are never called.
   const streaming = useStreamingReadAloud({ speak, stopSpeak, playbackSpeed });
+  const playbackUserRef = useRef(userId);
+  useEffect(() => {
+    if (playbackUserRef.current === userId) return;
+    playbackUserRef.current = userId;
+    // 2026-09-11: account replacement ends the previous driver's audio ownership.
+    // Ordinary page navigation still preserves already-playing speech.
+    manualStopRef.current = true;
+    streaming.abort();
+    stopMic();
+    clearTranscript();
+  }, [userId, streaming, stopMic, clearTranscript]);
 
   const [input, setInput] = useState("");
 
@@ -297,7 +336,7 @@ export default function RideshareCoach({
     conversationIdRef: voice.conversationIdRef,
   });
 
-  const sendVoiceTurn = useCanonicalVoiceSend(send, () => {
+  const sendCanonicalVoice = useCanonicalVoiceSend(send, () => {
     voiceGateRef.current.arm();
     latestTranscriptRef.current = '';
     clearTranscript();
@@ -306,6 +345,30 @@ export default function RideshareCoach({
     // into the next typed reply.
     voiceGateRef.current.settle();
   });
+  const admitCoachTurn = useCallback(async (operation: () => Promise<boolean>) => {
+    const scope = coachScopeRef.current;
+    if (!scope || scope.userId !== userId || scope.snapshotId !== snapshotId || isStreaming || activeSendRef.current) return false;
+    const turn = Symbol('coach-turn');
+    activeSendRef.current = turn;
+    try {
+      return await operation();
+    } finally {
+      if (activeSendRef.current === turn) activeSendRef.current = null;
+    }
+  }, [userId, snapshotId, isStreaming]);
+  const sendVoiceTurn = useCallback((text: string) => {
+    if (!text.trim()) return Promise.resolve(false);
+    // Check the shared gate BEFORE canonical voice admission clears transcript.
+    return admitCoachTurn(() => sendCanonicalVoice(text));
+  }, [admitCoachTurn, sendCanonicalVoice]);
+  const sendTypedTurn = useCallback((text: string) => {
+    if (!text && attachments.length === 0) return Promise.resolve(false);
+    return admitCoachTurn(async () => {
+      setInput('');
+      await send(text);
+      return true;
+    });
+  }, [admitCoachTurn, attachments.length, send]);
 
   // Committed voice turns become normal thread messages (persisted via
   // useChatPersistence like everything else). Render-time ref assignment —
@@ -374,7 +437,7 @@ export default function RideshareCoach({
       console.log('[RideshareCoach] VAD silence timeout triggered (3-5s) — auto-sending');
       warmUp();
       stopMic();
-      setTimeout(() => {
+      scheduleCoachTask(() => {
         // Read after final recognition events. Other finalizers clear this ref
         // synchronously when claiming the turn, so an old timer cannot resend it.
         // 2026-09-11: a refused (busy) send keeps the transcript; admission clears it.
@@ -519,7 +582,7 @@ export default function RideshareCoach({
       warmUp();
       stopMic();
       // 300ms delay lets final onresult events commit before we read the ref
-      setTimeout(() => {
+      scheduleCoachTask(() => {
         const text = latestTranscriptRef.current.trim();
         // 2026-09-11: a refused (busy) send keeps the transcript; admission clears it.
         if (text) void sendVoiceTurn(text); else clearTranscript();
@@ -535,7 +598,7 @@ export default function RideshareCoach({
       clearTranscript();
       startMic('en');
     }
-  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, sendVoiceTurn, streaming]);
+  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, sendVoiceTurn, streaming, scheduleCoachTask]);
 
   // 2026-08-14 (Melody): Coach voice picker lives in the header — she's
   // actively voice-shopping and Settings round-trips were too slow. Changing
@@ -635,12 +698,12 @@ export default function RideshareCoach({
 
     warmUp();
     stopMic();
-    setTimeout(() => {
+    scheduleCoachTask(() => {
       const text = latestTranscriptRef.current.trim();
       // 2026-09-11: a refused (busy) send keeps the transcript; admission clears it.
       if (text) void sendVoiceTurn(text); else clearTranscript();
     }, 300);
-  }, [transcript, isListening, isSpeaking, warmUp, stopMic, sendVoiceTurn, clearTranscript]);
+  }, [transcript, isListening, isSpeaking, warmUp, stopMic, sendVoiceTurn, clearTranscript, scheduleCoachTask]);
 
   // 2026-05-04 (COACH-V1): "stop replying" stop phrase. Only acts while TTS is
   // speaking. Cancels TTS; mic stays listening so the driver can immediately
@@ -682,24 +745,21 @@ export default function RideshareCoach({
         manualStopRef.current = false;
       } else if (autoListenEnabled && !isListening && micSupported) {
         // H1: 500ms delay before resuming mic to prevent capturing TTS tail/echo
-        setTimeout(() => {
+        scheduleCoachTask(() => {
           if (!manualStopRef.current) startMic('en');
         }, 500);
       }
     }
     wasSpeakingRef.current = isSpeaking;
-  }, [isSpeaking, isListening, micSupported, startMic, clearTranscript, voice.mode]);
+  }, [isSpeaking, isListening, micSupported, startMic, clearTranscript, voice.mode, scheduleCoachTask]);
 
   // 2026-04-26: Submit handler — gates and clears input, then delegates to chat.send.
   // Preserves the original semantics: empty input + no attachments → no-op (input untouched);
   // mid-stream click → no-op (typing preserved).
   const handleSubmit = useCallback(() => {
     const text = input.trim();
-    if (!text && attachments.length === 0) return;
-    if (isStreaming) return;
-    setInput("");
-    send(text);
-  }, [input, attachments, isStreaming, send]);
+    void sendTypedTurn(text);
+  }, [input, sendTypedTurn]);
 
   const suggestedQuestions = [
     "Where should I go right now?",
@@ -1069,10 +1129,7 @@ export default function RideshareCoach({
                   className="text-xs bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900 hover:border-blue-400 shadow-sm"
                   onClick={() => {
                     setInput(q);
-                    setTimeout(() => {
-                      send(q);
-                      setInput("");
-                    }, 100);
+                    scheduleCoachTask(() => { void sendTypedTurn(q); }, 100);
                   }}
                   data-testid={`button-suggested-${i}`}
                 >

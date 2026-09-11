@@ -149,6 +149,7 @@
   "author": "Eidolon Enhanced SDK",
   "license": "MIT",
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.16",
     "@eslint/js": "^9.39.2",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@testing-library/jest-dom": "^6.9.1",

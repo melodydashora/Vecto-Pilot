@@ -111,7 +111,8 @@ async function fetchPublicAPI() {
     for (const entry of airportData) {
       const existing = byCode.get(entry.airport_code);
       if (!existing) {
-        byCode.set(entry.airport_code, { ground_stops: [], ...entry });
+        byCode.set(entry.airport_code, { ground_stops: [], ...entry,
+          reasons: new Set(entry.delay_reason ? [entry.delay_reason] : []) });
         continue;
       }
       // 2026-09-11: null-aware — unknown minutes never collapse to 0, and any listed
@@ -123,15 +124,23 @@ async function fetchPublicAPI() {
         ? true : (existing.has_delays ?? entry.has_delays ?? null);
       existing.ground_delay_programs = [...(existing.ground_delay_programs || []), ...(entry.ground_delay_programs || [])];
       existing.ground_stops = [...(existing.ground_stops || []), ...(entry.ground_stops || [])];
-      if (existing.closure_status === 'open' && entry.closure_status !== 'open') {
+      // 2026-09-11: closure_status retains an observed scoped restriction while
+      // ground_stops independently retains the concurrent stop. Feed order must
+      // not attach restriction times to a stop while dropping the restriction.
+      if (entry.closure_status === 'restricted' ||
+          (existing.closure_status === 'open' && entry.closure_status !== 'open')) {
         existing.closure_status = entry.closure_status;
       }
-      existing.delay_reason = existing.delay_reason || entry.delay_reason;
+      if (entry.delay_reason) existing.reasons.add(entry.delay_reason);
       if (entry.closure_start) existing.closure_start = entry.closure_start;
       if (entry.closure_end) existing.closure_end = entry.closure_end;
     }
 
-    return { airports: Array.from(byCode.values()), source_updated_at: root.Update_Time };
+    // Retain distinct source reasons without choosing the first feed list as
+    // authoritative. Sorting makes the summary independent of list order.
+    return { airports: Array.from(byCode.values(), ({ reasons, ...entry }) => ({
+      ...entry, delay_reason: [...reasons].sort().join('; ') || null
+    })), source_updated_at: root.Update_Time };
   } catch (error) {
     throw new Error(`FAA disruption feed unavailable: ${error.message}`);
   }

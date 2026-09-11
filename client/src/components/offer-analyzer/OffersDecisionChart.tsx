@@ -97,7 +97,7 @@ export default function OffersDecisionChart({ refreshToken }: { refreshToken: st
         <ChartContainer config={config} className="h-[180px] w-full" aria-label={`Analyzer: ${stats.analyzer_accepted} accept, ${stats.analyzer_rejected} reject. You: ${stats.driver_accepted} accepted, ${stats.driver_rejected} rejected.`}>
           <BarChart data={bars} accessibilityLayer margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid vertical={false} /><XAxis dataKey="decision" /><YAxis allowDecimals={false} width={36} />
-            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartTooltip content={<ChartTooltipContent className="[&_.tabular-nums]:ml-2" />} />
             <Bar dataKey="analyzer" fill="var(--color-analyzer)" radius={3} /><Bar dataKey="driver" fill="var(--color-driver)" radius={3} />
           </BarChart>
         </ChartContainer>

@@ -31,13 +31,13 @@ function makeStream() {
   const queued: Chunk[] = [];
   const cancel = jest.fn(async () => undefined);
   const reader = {
-    read: () => {
+    read: jest.fn(() => {
       const q = queued.shift();
       if (q) return Promise.resolve(q);
       const d = deferred<Chunk>();
       pending.push(d);
       return d.promise;
-    },
+    }),
     cancel,
     // 2026-09-11: the candidate's readCoachEvents releases the lock in its finally.
     releaseLock: () => {},
@@ -67,6 +67,37 @@ function installFetch() {
       body: { getReader: () => stream.reader },
     } as unknown as Response;
   });
+}
+
+// 2026-09-11: deliberately ignore AbortSignal at BOTH await boundaries. The
+// generation fence must protect state even when a transport delivers late work.
+function holdFirstResponse(kind: 'sse' | 'http-error', headersPending: boolean) {
+  const nextFetch = globalThis.fetch;
+  const headers = deferred<Response>();
+  const text = deferred<string>();
+  const stream = makeStream();
+  const readText = jest.fn(() => text.promise);
+  const response = {
+    ok: kind === 'sse',
+    status: kind === 'sse' ? 200 : 503,
+    headers: { get: () => kind === 'sse' ? 'text/event-stream' : 'application/json' },
+    body: { getReader: () => stream.reader },
+    text: readText,
+  } as unknown as Response;
+  let first = true;
+  globalThis.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    if (!first) return nextFetch(input, init);
+    first = false;
+    fetchCalls.push({ url: String(input), init: init!, stream });
+    return headers.promise;
+  });
+  if (!headersPending) headers.resolve(response);
+  return {
+    releaseHeaders: () => headers.resolve(response),
+    releaseText: (body = '{"message":"Private stale error for A"}') => text.resolve(body),
+    readText,
+    stream,
+  };
 }
 
 const key = (userId: string, snapshotId?: string) => `vecto_coach_chat_${userId}_${snapshotId || 'global'}`;
@@ -235,5 +266,100 @@ describe('useCoachChat identity fence', () => {
     expect(onStreamComplete).not.toHaveBeenCalled();
     expect(onNotesSaved).not.toHaveBeenCalled();
     expect(a.stream.cancel).toHaveBeenCalled();
+  });
+
+  const boundaries = ['account', 'snapshot', 'unmount'] as const;
+  const phases = ['headers', 'body'] as const;
+  const responseKinds = ['sse', 'http-error'] as const;
+  const lateResponses = boundaries.flatMap(boundary => phases.flatMap(phase =>
+    responseKinds.map(kind => ({ boundary, phase, kind }))));
+
+  it.each(lateResponses)('$boundary change while $kind $phase are pending fences late work and preserves B', async ({ boundary, phase, kind }) => {
+    const transport = holdFirstResponse(kind, phase === 'headers');
+    const initial = { userId: 'driver-a', snapshotId: 'snap-a' };
+    const next = boundary === 'account'
+      ? { userId: 'driver-b', snapshotId: 'snap-a' }
+      : { userId: 'driver-a', snapshotId: 'snap-b' };
+    const hook = mount(initial);
+    let sendA!: Promise<void>;
+    await act(async () => { sendA = hook.result.current.send('A private question'); });
+    await flush();
+    const a = fetchCalls[0];
+    const aBefore = stored(key(initial.userId, initial.snapshotId));
+    if (phase === 'body') {
+      expect(kind === 'sse' ? transport.stream.reader.read : transport.readText).toHaveBeenCalledTimes(1);
+    } else {
+      expect(transport.stream.reader.read).not.toHaveBeenCalled();
+      expect(transport.readText).not.toHaveBeenCalled();
+    }
+
+    if (boundary === 'unmount') hook.unmount();
+    else hook.rerender(next);
+    await flush();
+    expect((a.init.signal as AbortSignal).aborted).toBe(true);
+
+    let bBefore: string | null = null;
+    if (boundary !== 'unmount') {
+      await act(async () => { void hook.result.current.send('B question'); });
+      await flush();
+      expect(fetchCalls).toHaveLength(2);
+      expect(hook.result.current.isStreaming).toBe(true);
+      bBefore = stored(key(next.userId, next.snapshotId));
+    }
+
+    await act(async () => {
+      transport.releaseHeaders();
+      transport.releaseText();
+      transport.stream.sse({ delta: 'Private stale answer for A' });
+      transport.stream.sse({ done: true, actions_result: { saved: 1, errors: ['Stale action error'] } });
+      transport.stream.end();
+      await sendA;
+    });
+
+    expect(stored(key(initial.userId, initial.snapshotId))).toBe(aBefore);
+    expect(onStreamDelta).not.toHaveBeenCalled();
+    expect(onStreamComplete).not.toHaveBeenCalled();
+    expect(onNotesSaved).not.toHaveBeenCalled();
+    if (boundary === 'unmount') return;
+
+    // A's late error handler/finally must not overwrite B's thread or release
+    // its busy flag; a second deliberate send is refused while B is active.
+    expect(hook.result.current.isStreaming).toBe(true);
+    expect(hook.result.current.validationErrors).toEqual([]);
+    expect(hook.result.current.messages.map(message => message.content)).toEqual(['B question', '']);
+    expect(stored(key(next.userId, next.snapshotId))).toBe(bBefore);
+    await act(async () => { await hook.result.current.send('Blocked duplicate B'); });
+    expect(fetchCalls).toHaveLength(2);
+
+    await act(async () => {
+      fetchCalls[1].stream.sse({ delta: 'B confirmed reply' });
+      fetchCalls[1].stream.sse({ done: true, actions_result: { saved: 1, errors: [] } });
+      fetchCalls[1].stream.end();
+    });
+    await flush();
+    expect(hook.result.current.isStreaming).toBe(false);
+    expect(hook.result.current.messages.map(message => message.content)).toEqual(['B question', 'B confirmed reply']);
+    expect(onStreamDelta).toHaveBeenCalledTimes(1);
+    expect(onStreamComplete).toHaveBeenCalledWith('B confirmed reply', { userMessage: 'B question' });
+    expect(onStreamComplete).toHaveBeenCalledTimes(1);
+    expect(onNotesSaved).toHaveBeenCalledTimes(1);
+    expect(stored(key(initial.userId, initial.snapshotId))).toBe(aBefore);
+    expect(JSON.parse(stored(key(next.userId, next.snapshotId))!).messages[1].content).toBe('B confirmed reply');
+  });
+
+  it('still displays a current HTTP error and releases its own busy flag', async () => {
+    const transport = holdFirstResponse('http-error', false);
+    const { result } = mount({ userId: 'driver-a', snapshotId: 'snap-a' });
+    let sending!: Promise<void>;
+    await act(async () => { sending = result.current.send('hello'); });
+    await flush();
+    expect(transport.readText).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      transport.releaseText('{"message":"Synthetic service unavailable"}');
+      await sending;
+    });
+    expect(result.current.isStreaming).toBe(false);
+    expect(result.current.messages[1].content).toBe('Sorry—chat failed: Synthetic service unavailable');
+    expect(onStreamComplete).not.toHaveBeenCalled();
   });
 });

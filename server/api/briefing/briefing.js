@@ -3,6 +3,7 @@ import crypto from 'crypto';
 // 2026-04-04: FIX C-2 — Added fetchTrafficConditions (was missing, causing ReferenceError on /traffic/realtime)
 import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing } from '../../lib/briefing/briefing-aggregator.js';
 import { filterInvalidEvents } from '../../lib/briefing/pipelines/events.js';
+import { reconcileEventLists } from '../../lib/events/event-read-reconciliation.js';
 import { fetchWeatherConditions } from '../../lib/briefing/pipelines/weather.js';
 import { fetchTrafficConditions } from '../../lib/briefing/pipelines/traffic.js';
 import { fetchRideshareNews } from '../../lib/briefing/pipelines/news.js';
@@ -361,22 +362,6 @@ function eventActiveToday(e, today) {
   // YYYY-MM-DD strings compare lexically === chronologically.
   return !!(start && end && start <= today && end >= today);
 }
-// Collapse same-event duplicates: identity = normalized(title) | start_date | normalized(venue).
-// Time is intentionally NOT part of identity (a time correction is the same event). Catches
-// both the state-wide∩market overlap and hash-variance rows that escape the storage unique hash.
-function eventIdentityKey(e) {
-  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  return `${norm(e.title)}|${e.event_start_date || ''}|${norm(e.venue || e.venue_name)}`;
-}
-function dedupeEvents(events) {
-  const seen = new Set();
-  return (Array.isArray(events) ? events : []).filter((e) => {
-    const k = eventIdentityKey(e);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-}
 
 router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
@@ -402,7 +387,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
       ? briefing.events
       : (briefing.events?.items || []);
     const localEventsFailed = sectionFailed(briefing.events);
-    let freshEvents = localEventsFailed ? [] : filterFreshEvents(rawLocalEvents, new Date(), tz3);
+    let freshEvents = localEventsFailed ? [] : rawLocalEvents;
 
     // Filter stale news - only today's news with valid publication dates (2026-01-05)
     const newsFailed = sectionFailed(briefing.news);
@@ -417,10 +402,8 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
     endDateObj.setDate(endDateObj.getDate() + 7);
     const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: tz3 });
 
-    // 2026-05-30: TODAY-ONLY + dedup for the displayed local events (helpers above).
-    // filterFreshEvents only drops already-ended events; this narrows to active-today and
-    // collapses the same-event duplicates that were cluttering the briefing.
-    freshEvents = dedupeEvents(freshEvents.filter((e) => eventActiveToday(e, today)));
+    // Reconcile before freshness filtering so conflicting source end times survive
+    // while any original report is still visible. This never modifies stored rows.
 
     let marketEvents = [];
     let marketName = null;
@@ -448,6 +431,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
           );
           const rawMarketEvents = await db.select({
             id: discovered_events.id,
+            venue_id: discovered_events.venue_id,
             title: discovered_events.title,
             venue_name: discovered_events.venue_name,
             address: discovered_events.address,
@@ -477,6 +461,8 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
             .orderBy(discovered_events.event_start_date)
             .limit(20);
           marketEvents = rawMarketEvents.map(e => ({
+            id: e.id,
+            venue_id: e.venue_id,
             title: e.title,
             summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
             impact: 'high',
@@ -494,13 +480,6 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
             longitude: e.venue_lng,
             city: e.city,
           }));
-          marketEvents = filterFreshEvents(marketEvents, new Date(), tz3);
-          // 2026-05-30: TODAY-ONLY, dedup, and drop market events already in the local
-          // list (the local list is state-wide, so high-value market events appear in both
-          // → they were rendering twice).
-          marketEvents = dedupeEvents(marketEvents.filter((e) => eventActiveToday(e, today)));
-          const localKeys = new Set(freshEvents.map(eventIdentityKey));
-          marketEvents = marketEvents.filter((e) => !localKeys.has(eventIdentityKey(e)));
         }
       }
     } catch (marketErr) {
@@ -517,6 +496,12 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
         `Market events lookup failed (non-fatal): ${marketErr.message}`
       );
     }
+
+    const eventReadTime = new Date();
+    const freshEventReports = new Set(filterFreshEvents([...freshEvents, ...marketEvents], eventReadTime, tz3));
+    ({ local: freshEvents, market: marketEvents } = reconcileEventLists(freshEvents, marketEvents, {
+      isVisible: event => eventActiveToday(event, today) && freshEventReports.has(event),
+    }));
 
     // 2026-07-06 (Melody, todo #24): every section carries THREE distinct states
     // so the UI can stop rendering pending/failed as verified-empty:
@@ -1021,29 +1006,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const snapshotTz = snapshot.timezone;
-    const beforeFreshFilter = allEvents.length;
-    allEvents = filterFreshEvents(allEvents, new Date(), snapshotTz);
-
-    // 2026-05-30: dedup same-event duplicates (helpers at module scope). The local WHERE
-    // clause already restricts to active-today; this collapses state-wide ∩ hash-variance dups.
-    allEvents = dedupeEvents(allEvents);
-
-    // Apply "active" filter: show only events happening RIGHT NOW (during their duration)
-    // Used by MapPage for real-time event display
-    // 2026-01-09: NO FALLBACKS - snapshotTz already validated above
-    if (filter === 'active') {
-      const now = new Date();
-      const beforeCount = allEvents.length;
-      allEvents = allEvents.filter(e => isEventActiveNow(e, now, snapshotTz));
-      matrixLog.debug({
-        category: 'BRIEFING',
-        connection: 'API',
-        action: 'EVENTS',
-        roleName: 'API',
-        secondaryCat: 'FILTER',
-        location: 'briefing.js:events'
-      }, `Active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
-    }
+    // Existing freshness and active predicates are applied to original reports below,
+    // after grouping; an unresolved projected end must never become "ongoing forever".
 
     // 2026-01-08: Fetch high-value events from the user's market (beyond local city)
     // This shows major events (stadiums, arenas, conventions) from across the market
@@ -1094,6 +1058,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
           // Coordinates now come from venue_catalog via venue_id FK.
           const rawMarketEvents = await db.select({
             id: discovered_events.id,
+            venue_id: discovered_events.venue_id,
             title: discovered_events.title,
             venue_name: discovered_events.venue_name,
             address: discovered_events.address,
@@ -1127,6 +1092,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
 
           // Map to same format as local events
           marketEvents = rawMarketEvents.map(e => ({
+            id: e.id,
+            venue_id: e.venue_id,
             title: e.title,
             summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
             impact: 'high', // All market events are high-value by definition
@@ -1146,12 +1113,6 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
             city: e.city // Include city for UI display
           }));
 
-          marketEvents = filterFreshEvents(marketEvents, new Date(), snapshotTz);
-          // 2026-05-30: TODAY-ONLY + drop market events already in the (state-wide) local list.
-          marketEvents = dedupeEvents(marketEvents.filter((e) => eventActiveToday(e, today)));
-          const localKeys = new Set(allEvents.map(eventIdentityKey));
-          marketEvents = marketEvents.filter((e) => !localKeys.has(eventIdentityKey(e)));
-
           if (marketEvents.length > 0) {
             console.log(`[BRIEFING] Market events: ${marketEvents.length} high-value events from ${marketName} market (${otherMarketCities.length} cities)`);
           }
@@ -1161,6 +1122,14 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       // Graceful degradation: if market lookup fails, just return local events
       console.error('[BRIEFING] Market events lookup failed (non-blocking):', marketError.message);
     }
+
+    const eventReadTime = new Date();
+    const freshEventReports = new Set(filterFreshEvents([...allEvents, ...marketEvents], eventReadTime, snapshotTz));
+    ({ local: allEvents, market: marketEvents } = reconcileEventLists(allEvents, marketEvents, {
+      isVisible: (event, scope) => eventActiveToday(event, today) &&
+        freshEventReports.has(event) &&
+        (scope !== 'local' || filter !== 'active' || isEventActiveNow(event, eventReadTime, snapshotTz)),
+    }));
 
     res.json({
       success: true,

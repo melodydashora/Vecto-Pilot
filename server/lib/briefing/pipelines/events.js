@@ -897,6 +897,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // 2026-01-14: Removed source_model field entirely - all events come from Gemini Briefer
       // 2026-02-01: Added event_end_date (defaults to event_start_date for single-day events)
       const normalizedEvents = events.map(e => ({
+        id: e.id,
         title: e.title,
         summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
         impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',

@@ -27,6 +27,10 @@ This patch contains no backend, auth-provider, query-constant or dependency edit
   nullable duration, ground stops, scoped restrictions and original source/fetch
   timestamps. Restrictions do not claim the airport is closed or reopening.
   Airport collapse is keyboard-operable; narrow layouts wrap names/advisories.
+- Airport pending, missing, failed and resolved-empty states remain distinct.
+  Failure reasons remain visible alongside retained airport identities; empty
+  results require the server reason. Legacy directional data cannot invent an
+  absent direction or contradict an observed FAA disruption with On Time.
 
 ## Required backend contracts (Claude-owned)
 
@@ -56,16 +60,23 @@ node /home/runner/workspace/node_modules/eslint/bin/eslint.js client/src/compone
 git diff --check
 ```
 
-Offer 24/24 UI tests; FAA 14/14 UI tests; client TypeScript, focused ESLint and
+Offer 24/24 UI tests; FAA 20/20 UI tests; client TypeScript, focused ESLint and
 diff checks passed. New tests first reproduced draft loss, cross-account list
 reuse, inconsistent summary acceptance and latest-25 eviction before fixes.
 DOM tests use synthetic data; Offer select/chart primitives are substituted.
+Six additional FAA tests first reproduced pending/empty/failure-state mistakes
+and contradictory or fabricated legacy direction labels before the follow-up
+fixes. This completes the AirportCard leaf of todo #8, not its other sections.
 
 Separate synthetic Chromium checks use actual CSS, Radix and Recharts at
 320/768px: Save/Edit/Cancel, pending-save controls,503/409 draft preservation,
 period switching, keyboard airport collapse, no horizontal overflow or page
 errors. A clipped Unknown placeholder at320px was fixed with stacked earnings
 inputs; targeted visual readback is recorded under the ignored sprint artifacts.
+The follow-up browser probe reproduced a long failure-reason overflow and then
+passed after constrained text wrapping: document, body and root stayed 320px,
+the alert stayed 268px, and airport identity and accurate legacy labels remained
+visible. Before/after screenshots and receipts are in `artifacts/faa-browser-v2`.
 No application gateway or provider/database was started by these checks.
 
 ## Recovery and remaining work

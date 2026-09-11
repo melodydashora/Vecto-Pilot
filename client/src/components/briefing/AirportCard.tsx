@@ -4,8 +4,19 @@ import { Badge } from "@/components/ui/badge";
 import { Plane, Loader, Sparkles, Clock, PlaneLanding, PlaneTakeoff, AlertTriangle, Cloud, ChevronUp, ChevronDown, ShieldCheck } from "lucide-react";
 
 interface AirportDelay {
-  status: string;
-  avgMinutes: number;
+  status?: string;
+  avgMinutes?: number | null;
+}
+
+function directionalDelayLabel(delay: AirportDelay, faaUnconfirmed: boolean): string {
+  if (typeof delay.avgMinutes === 'number' && Number.isFinite(delay.avgMinutes) && delay.avgMinutes > 0) {
+    return `~${delay.avgMinutes} min delay`;
+  }
+  const status = delay.status?.trim() ?? '';
+  if (['none', 'normal', 'on time', 'on-time'].includes(status.toLowerCase())) {
+    return faaUnconfirmed ? 'Status not confirmed' : 'On Time';
+  }
+  return status || 'Unknown';
 }
 
 // 2026-05-12 (D-108 step 2): TSA wait times per checkpoint type. Gemini returns
@@ -122,6 +133,7 @@ interface AirportConditions {
   // airport_conditions; the wrapper-level flag is dropped by the real mount
   // path (co-pilot-context unwraps, BriefingPage rewraps without flags).
   _generationFailed?: boolean;
+  _pending?: boolean;
   verifiedEmpty?: boolean;
 }
 
@@ -143,7 +155,9 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
   // dropped by the real mount path (co-pilot-context unwraps, BriefingPage
   // rewraps without flags), so DB failures rendered as "No nearby airports found".
   const airportFailed = !!airportData?._generationFailed || !!airportConditions?._generationFailed || !!airportConditions?.isFallback;
-  const airportReason = airportConditions?.reason || airportConditions?.error || null;
+  const airportReason = [airportConditions?.reason, airportConditions?.error]
+    .find(value => typeof value === 'string' && value.trim())?.trim() ?? null;
+  const airportPending = !!airportData?._pending || !!airportConditions?._pending;
   const airports = airportConditions?.airports || [];
   const busyPeriods = airportConditions?.busyPeriods || [];
   const airportRecommendations = airportConditions?.recommendations;
@@ -206,7 +220,13 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
       </CardHeader>
       {expandedAirport && (
         <CardContent id={contentId}>
-          {isAirportLoading ? (
+          {airportFailed && (
+            <div role="alert" className="mb-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 break-words">
+              <AlertTriangle aria-hidden="true" className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="min-w-0 [overflow-wrap:anywhere]">Airport data couldn't be retrieved — {airportReason ?? 'the server did not provide a failure reason'}. Refresh the briefing to retry.</span>
+            </div>
+          )}
+          {(isAirportLoading || airportPending) && !airportFailed ? (
             <div className="flex items-center justify-center py-8">
               <Loader className="w-5 h-5 animate-spin text-sky-600 mr-2" />
               <span className="text-gray-600">Loading airport data...</span>
@@ -410,29 +430,29 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
 
                   {(airport.arrivalDelays || airport.departureDelays) && (
                   <div className="grid grid-cols-2 gap-3 mb-3">
+                    {airport.arrivalDelays && (
                     <div className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-100">
                       <PlaneLanding className="w-4 h-4 text-green-600" />
                       <div>
                         <p className="text-xs text-gray-500">Arrivals</p>
                         <p className="text-sm font-medium text-gray-700">
-                          {airport.arrivalDelays?.status === 'none' ? 'On Time' :
-                            airport.arrivalDelays?.avgMinutes ? `~${airport.arrivalDelays.avgMinutes} min delay` :
-                              airport.arrivalDelays?.status || 'Normal'}
+                          {directionalDelayLabel(airport.arrivalDelays, !!faaStatus && faaStatus.status !== 'normal')}
                         </p>
                       </div>
                     </div>
+                    )}
 
+                    {airport.departureDelays && (
                     <div className="flex items-center gap-2 p-2 bg-blue-50 rounded border border-blue-100">
                       <PlaneTakeoff className="w-4 h-4 text-blue-600" />
                       <div>
                         <p className="text-xs text-gray-500">Departures</p>
                         <p className="text-sm font-medium text-gray-700">
-                          {airport.departureDelays?.status === 'none' ? 'On Time' :
-                            airport.departureDelays?.avgMinutes ? `~${airport.departureDelays.avgMinutes} min delay` :
-                              airport.departureDelays?.status || 'Normal'}
+                          {directionalDelayLabel(airport.departureDelays, !!faaStatus && faaStatus.status !== 'normal')}
                         </p>
                       </div>
                     </div>
+                    )}
                   </div>
                   )}
 
@@ -489,19 +509,12 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                 </div>
               )}
             </div>
-          ) : airportFailed ? (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>Airport data couldn't be retrieved{airportReason ? ` — ${airportReason}` : ''}. It will retry on the next briefing refresh.</span>
-            </div>
+          ) : airportFailed ? null : !airportConditions ? (
+            <p role="status" className="text-gray-500 text-sm text-center py-4">Waiting for airport information…</p>
+          ) : airportReason ? (
+            <p className="text-gray-500 text-sm text-center py-4">{airportReason}</p>
           ) : (
-            <p className="text-gray-500 text-sm text-center py-4">
-              {/* 2026-08-06: verifiedEmpty shape carries server-provided text
-                  (e.g., "No major airports within 50 miles of this location") —
-                  prefer it so verified-empty / missing-coords / residual
-                  failures are distinguishable. Static string is final fallback. */}
-              {airportConditions?.reason || airportConditions?.recommendations || 'No nearby airports found'}
-            </p>
+            <p role="alert" className="text-amber-800 text-sm py-4">Airport information is incomplete: no reason was returned for the empty result. Refresh the briefing to retry.</p>
           )}
         </CardContent>
       )}

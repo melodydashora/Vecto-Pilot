@@ -127,3 +127,47 @@ test('loading retains an accessible collapse name', () => {
   expect(screen.getByRole('button', { name: 'Airport Conditions' })).toBeTruthy();
   expect(screen.getByText('Loading airport data...')).toBeTruthy();
 });
+
+test('no section received never claims that no nearby airports exist', () => {
+  render(<AirportCard isAirportLoading={false} />);
+  expect(screen.getByText('Waiting for airport information…')).toBeTruthy();
+  expect(screen.queryByText('No nearby airports found')).toBeNull();
+});
+
+test('an inner pending marker is honored even when the query loading flag is false', () => {
+  render(<AirportCard isAirportLoading={false} airportData={{ airport_conditions: { _pending: true, airports: [] } } as any} />);
+  expect(screen.getByText('Loading airport data...')).toBeTruthy();
+  expect(screen.queryByText('No nearby airports found')).toBeNull();
+});
+
+test('a resolved empty section requires and displays its actual reason', () => {
+  const view = render(<AirportCard isAirportLoading={false} airportData={{ airport_conditions: { airports: [], verifiedEmpty: true, reason: 'Synthetic verified selection returned no airports' } }} />);
+  expect(screen.getByText('Synthetic verified selection returned no airports')).toBeTruthy();
+  view.rerender(<AirportCard isAirportLoading={false} airportData={{ airport_conditions: { airports: [], recommendations: 'A recommendation is not an empty-result reason' } }} />);
+  expect(screen.getByRole('alert').textContent).toMatch(/no reason/);
+  expect(screen.queryByText('A recommendation is not an empty-result reason')).toBeNull();
+  expect(screen.queryByText('No nearby airports found')).toBeNull();
+});
+
+test('a known failure remains visible with its reason even when nearby identities or a loading flag remain', () => {
+  render(<AirportCard isAirportLoading={true} airportData={{ airport_conditions: { isFallback: true, reason: 'Synthetic research timeout', airports: [{ code: 'AAA', name: 'Known synthetic airport', status: 'unknown' }] } }} />);
+  expect(screen.getByRole('alert').textContent).toContain('Synthetic research timeout');
+  expect(screen.getByText('Known synthetic airport')).toBeTruthy();
+  expect(screen.queryByText('No nearby airports found')).toBeNull();
+});
+
+test('legacy directional on-time claims stay unconfirmed during an observed FAA disruption', () => {
+  show({ faa_closure_status: 'ground-stop', faa_has_delays: true, arrivalDelays: { status: 'none', avgMinutes: 0 } });
+  expect(screen.getByText('Arrivals')).toBeTruthy();
+  expect(screen.getByText('Status not confirmed')).toBeTruthy();
+  expect(screen.queryByText('On Time')).toBeNull();
+  expect(screen.queryByText('Normal')).toBeNull();
+  expect(screen.queryByText('Departures')).toBeNull();
+});
+
+test('one historical direction preserves its reported delay without inventing the missing direction', () => {
+  show({ status: 'delayed', arrivalDelays: { status: 'delayed', avgMinutes: 18 } });
+  expect(screen.getByText('~18 min delay')).toBeTruthy();
+  expect(screen.queryByText('Departures')).toBeNull();
+  expect(screen.queryByText('Normal')).toBeNull();
+});

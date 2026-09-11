@@ -1363,7 +1363,7 @@ Full transparency. Maximum insight.
         // persisted text, so no unqualified "saved" claim survives a failed action.
         const actionFailures = [...(parseErrors || []), ...(actionsResult?.errors || [])];
         if (actionFailures.length > 0) {
-          actionsResult = { saved: actionsResult?.saved || 0, errors: actionFailures };
+          actionsResult = { ...actionsResult, saved: actionsResult?.saved || 0, errors: actionFailures };
           const notSavedNote = `\n\n⚠️ Not saved: ${actionFailures.join('; ')}. Nothing was written for these — ask me to try again.`;
           cleanedText += notSavedNote;
           displayResponse = cleanedText;
