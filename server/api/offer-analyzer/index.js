@@ -14,11 +14,11 @@ import { requireAuth } from '../../middleware/auth.js';
 import { DEFAULT_RULESET, migrateRuleset } from '../../lib/offers/rules-engine.js';
 import { validateRuleset } from '../../lib/offers/ruleset-schema.js';
 import { hashRuleset, generateShortcutToken, invalidateUser } from '../../lib/offers/ruleset-store.js';
+import { parseOutcomeInput, offerPeriod } from '../../lib/offers/outcome-input.js';
 
 const router = Router();
 router.use(requireAuth);
 
-const OUTCOME_VALUES = ['Accepted', 'Rejected', 'Cancelled', 'Completed'];
 
 // ── Rules ────────────────────────────────────────────────────────────────────
 
@@ -205,6 +205,39 @@ router.post('/shortcut-token/label', async (req, res) => {
 
 // ── Offers + outcomes ────────────────────────────────────────────────────────
 
+// Counts cover every owned offer received in the rolling [start, end) window.
+// They are intentionally independent of the latest-25 editor list and its LIMIT.
+router.get('/offers/stats', async (req, res) => {
+  let period;
+  try { period = offerPeriod(req.query.period); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  try {
+    const result = await db.execute(sql`
+      SELECT count(*)::integer AS analyzed,
+        count(*) FILTER (WHERE oi.decision = 'ACCEPT')::integer AS analyzer_accepted,
+        count(*) FILTER (WHERE oi.decision = 'REJECT')::integer AS analyzer_rejected,
+        count(*) FILTER (WHERE oi.decision = 'NO DATA')::integer AS analyzer_no_data,
+        count(*) FILTER (WHERE oo.driver_decision IN ('Accepted', 'Completed'))::integer AS driver_accepted,
+        count(*) FILTER (WHERE oo.driver_decision = 'Rejected')::integer AS driver_rejected,
+        count(*) FILTER (WHERE oo.driver_decision = 'Cancelled')::integer AS cancelled,
+        count(*) FILTER (WHERE oo.driver_decision = 'Other')::integer AS other,
+        count(*) FILTER (WHERE oo.driver_decision IS NULL)::integer AS unrecorded,
+        count(*) FILTER (WHERE oo.driver_decision IN ('Accepted', 'Completed') AND
+          (oo.actual_pay IS NOT NULL OR oo.reimbursements IS NOT NULL OR oo.extras IS NOT NULL OR oo.other IS NOT NULL))::integer AS reported_count,
+        coalesce(round(sum(CASE WHEN oo.driver_decision IN ('Accepted', 'Completed') THEN oo.total_earned ELSE 0 END)::numeric, 2), 0)::double precision AS reported_total
+      FROM offer_intelligence oi
+      LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id AND oo.user_id = oi.user_id
+      WHERE oi.user_id = ${req.auth.userId}
+        AND oi.created_at >= ${period.start}::timestamptz AND oi.created_at < ${period.end}::timestamptz
+    `);
+    if (!result.rows?.[0]) throw new Error('Offer summary was not returned');
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ success: true, period, stats: result.rows[0] });
+  } catch (_error) {
+    res.status(500).json({ error: 'Could not load offer statistics' });
+  }
+});
+
 // GET /api/offer-analyzer/offers?limit= — my analyzed offers joined with my
 // actual outcomes, plus stats that keep analyzer-vs-driver SEPARATE (the three-
 // decisions rule, OFFER_ANALYZER.md §3: "accepted" never pretends the analyzer's ACCEPTs were taken).
@@ -222,13 +255,12 @@ router.get('/offers', async (req, res) => {
              (oi.parsed_data_json->>'tip_included') IN ('true','t','1') AS tip_included,  -- tolerant: a legacy row could hold any json type
              oi.parsed_data_json->>'reason_kind'     AS reason_kind,
              oi.parsed_data_json->>'shortcut_system' AS shortcut_system,
-             oo.id AS outcome_id, oo.driver_decision, oo.driver_reasoning,
+             oo.id AS outcome_id, oo.revision AS outcome_revision, oo.driver_decision, oo.driver_reasoning,
              oo.actual_pay, oo.reimbursements, oo.extras, oo.other, oo.total_earned,
-             -- 2026-09-10 (VP-009): the outcome row's version, echoed back by the client as
-             -- expected_outcome_updated_at so a stale tab cannot overwrite newer earnings.
-             oo.updated_at AS outcome_updated_at
+             -- Preserve Claude f09e8d58's timestamp contract without losing PG microseconds in JS Date.
+             to_char(oo.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS outcome_updated_at
       FROM offer_intelligence oi
-      LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
+      LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id AND oo.user_id = oi.user_id
       WHERE oi.user_id = ${req.auth.userId}
       ORDER BY oi.created_at DESC
       LIMIT ${limit}
@@ -260,77 +292,69 @@ router.get('/offers', async (req, res) => {
 // POST /api/offer-analyzer/offers/:id/outcome — record what I ACTUALLY did.
 // "If I get a reject — I can tell our system I accepted it" (Melody, 2026-07-03).
 router.post('/offers/:id/outcome', async (req, res) => {
+  const offerId = req.params.id;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(offerId)) {
+    return res.status(400).json({ error: 'A valid offer ID is required' });
+  }
+  let input;
+  try { input = parseOutcomeInput(req.body); }
+  catch (error) { return res.status(400).json({ error: error.code || error.message, message: error.message }); }
   try {
-    const offerId = req.params.id;
-    const { driver_decision, driver_reasoning, actual_pay, reimbursements, extras, other, expected_outcome_updated_at } = req.body || {};
-
-    if (driver_decision != null && !OUTCOME_VALUES.includes(driver_decision)) {
-      return res.status(400).json({ error: `driver_decision must be one of ${OUTCOME_VALUES.join(', ')} or null` });
-    }
-    // 2026-09-10 (VP-009 / Astra R2a+R2b, verified + skeptic-confirmed): optimistic
-    // concurrency. The client echoes the outcome_updated_at it last read (null = "no
-    // outcome row existed"). If the row has moved on, the upsert is refused with 409 and
-    // the current row, instead of silently reverting someone else's newer earnings.
-    // A body without the field keeps the pre-2026-09-10 unconditional behavior so an
-    // older client bundle still works; the client is expected to always send it.
-    const hasExpected = Object.prototype.hasOwnProperty.call(req.body || {}, 'expected_outcome_updated_at');
-    let expectedUpdatedAt = null;
-    if (hasExpected && expected_outcome_updated_at != null) {
-      if (typeof expected_outcome_updated_at !== 'string' || Number.isNaN(Date.parse(expected_outcome_updated_at))) {
-        return res.status(400).json({ error: 'expected_outcome_updated_at must be an ISO timestamp or null' });
-      }
-      expectedUpdatedAt = new Date(expected_outcome_updated_at);
-    }
-    const num = (v) => (v == null || v === '' ? null : Number(v));
-    for (const [k, v] of Object.entries({ actual_pay, reimbursements, extras, other })) {
-      if (num(v) != null && (!Number.isFinite(num(v)) || num(v) < 0 || num(v) > 10000)) {
-        return res.status(400).json({ error: `${k} must be a number between 0 and 10000` });
-      }
-    }
-
-    // Ownership: the offer must be mine (user_id was stamped at ingest).
+    const { fields, expectedRevision, expectedUpdatedAt, versionKind, expectsNew } = input;
+    const supplied = key => Object.hasOwn(fields, key);
     const owned = await db.execute(sql`
       SELECT id FROM offer_intelligence
       WHERE id = ${offerId} AND user_id = ${req.auth.userId} LIMIT 1
     `);
     if (!owned.rows?.length) return res.status(404).json({ error: 'Offer not found for this user' });
-
+    // The conflict guard and field updates are one statement. A new outcome can
+    // only insert with a null expectation; an existing one updates at its exact
+    // revision. Decision-only changes never replay stale earnings or notes.
+    const decision = sql`CASE WHEN ${supplied('driver_decision')} THEN EXCLUDED.driver_decision ELSE offer_outcomes.driver_decision END`;
+    const earnings = key => sql`CASE WHEN (${decision}) IN ('Accepted', 'Completed')
+      THEN CASE WHEN ${supplied(key)} THEN ${sql.raw(`EXCLUDED.${key}`)} ELSE ${sql.raw(`offer_outcomes.${key}`)} END
+      ELSE NULL END`; // key is selected only from the four fixed calls below.
+    const matchesVersion = alias => versionKind === 'revision'
+      ? sql`${sql.raw(`${alias}.revision`)} = ${expectedRevision}::integer`
+      : sql`${sql.raw(`${alias}.updated_at`)} = ${expectedUpdatedAt}::timestamptz`;
     const result = await db.execute(sql`
       INSERT INTO offer_outcomes
         (user_id, offer_intelligence_id, driver_decision, driver_reasoning,
          actual_pay, reimbursements, extras, other, outcome_source)
-      VALUES
-        (${req.auth.userId}, ${offerId}, ${driver_decision ?? null}, ${driver_reasoning ?? null},
-         ${num(actual_pay)}, ${num(reimbursements)}, ${num(extras)}, ${num(other)}, 'web_app')
+      SELECT ${req.auth.userId}, oi.id, ${fields.driver_decision ?? null}, ${fields.driver_reasoning ?? null},
+        ${fields.actual_pay ?? null}, ${fields.reimbursements ?? null}, ${fields.extras ?? null}, ${fields.other ?? null}, 'web_app'
+      FROM offer_intelligence oi WHERE oi.id = ${offerId} AND oi.user_id = ${req.auth.userId}
+        AND (${expectsNew} OR EXISTS (
+          SELECT 1 FROM offer_outcomes current WHERE current.offer_intelligence_id = oi.id
+            AND current.user_id = ${req.auth.userId} AND ${matchesVersion('current')}
+        ))
       ON CONFLICT (offer_intelligence_id) WHERE offer_intelligence_id IS NOT NULL
       DO UPDATE SET
-        driver_decision = EXCLUDED.driver_decision,
-        driver_reasoning = EXCLUDED.driver_reasoning,
-        actual_pay = EXCLUDED.actual_pay,
-        reimbursements = EXCLUDED.reimbursements,
-        extras = EXCLUDED.extras,
-        other = EXCLUDED.other,
-        updated_at = NOW()
-      ${hasExpected ? sql`WHERE offer_outcomes.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt}::timestamptz` : sql``}
-      RETURNING id, driver_decision, total_earned, updated_at
+        driver_decision = ${decision},
+        driver_reasoning = CASE WHEN ${supplied('driver_reasoning')} THEN EXCLUDED.driver_reasoning ELSE offer_outcomes.driver_reasoning END,
+        actual_pay = ${earnings('actual_pay')}, reimbursements = ${earnings('reimbursements')},
+        extras = ${earnings('extras')}, other = ${earnings('other')},
+        revision = offer_outcomes.revision + 1, updated_at = NOW()
+      WHERE offer_outcomes.user_id = ${req.auth.userId} AND ${matchesVersion('offer_outcomes')}
+        AND (${!['actual_pay', 'reimbursements', 'extras', 'other'].some(key => supplied(key) && fields[key] !== null)}
+          OR (${decision}) IN ('Accepted', 'Completed'))
+      RETURNING id, offer_intelligence_id, revision, driver_decision, driver_reasoning,
+        actual_pay, reimbursements, extras, other, total_earned,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
     `);
-
     const row = result.rows?.[0];
-    if (!row && hasExpected) {
-      // The DO UPDATE's WHERE did not match: someone saved a newer version (or the row was
-      // created after this client last read). Hand back the current row so the UI can reload.
-      const current = await db.execute(sql`
-        SELECT id, driver_decision, driver_reasoning, actual_pay, reimbursements, extras, other,
-               total_earned, updated_at
-        FROM offer_outcomes WHERE offer_intelligence_id = ${offerId} LIMIT 1
-      `);
-      return res.status(409).json({ error: 'outcome_conflict', outcome: current.rows?.[0] ?? null });
+    res.set('Cache-Control', 'private, no-store');
+    if (!row) {
+      const current = await db.execute(sql`SELECT id, offer_intelligence_id, revision, driver_decision,
+        driver_reasoning, actual_pay, reimbursements, extras, other, total_earned,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+        FROM offer_outcomes WHERE offer_intelligence_id = ${offerId} AND user_id = ${req.auth.userId} LIMIT 1`);
+      const canonical = current.rows?.[0] ?? null;
+      return res.status(409).json({ error: 'outcome_conflict', message: 'This outcome changed elsewhere. Review the saved version before editing again.', current: canonical, outcome: canonical });
     }
-    console.log(`[offer-analyzer] Outcome: offer=${offerId} → ${row?.driver_decision ?? '(cleared)'} $${row?.total_earned ?? 0}`);
     res.json({ success: true, outcome: row });
-  } catch (err) {
-    console.error('[offer-analyzer/outcome POST]', err.message);
-    res.status(500).json({ error: err.message });
+  } catch (_error) {
+    res.status(500).json({ error: 'Could not save the outcome. Your entries have not been confirmed.' });
   }
 });
 

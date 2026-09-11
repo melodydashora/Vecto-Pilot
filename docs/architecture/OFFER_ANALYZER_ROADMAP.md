@@ -200,8 +200,11 @@ Six-reader adversarial review of the shortcut + Offer Analyzer surfaces (32 raw 
 handshake + LISTEN client). What is **left open** from that review, by design (todo #56):
 - Phase-1/2 timeouts abandon the model call instead of cancelling it (`callModel` has no
   AbortSignal on the non-stream path; still billed; a 503 retry can start after we gave up).
-- `POST /offers/:id/outcome` is a full-column upsert from the last-fetched row — a second
-  tab can revert earnings (needs partial-update semantics client + server).
+- Outcome overwrite fix implemented in the September 10 candidate
+  `codex/vecto-offer-workflow-20260910`: partial field updates plus required revision,
+  canonical 409 recovery, and explicit saved-state UI. Synthetic router/SQL and DOM
+  checks cover stale edits; live integration/publication remain pending. See
+  `docs/coordination/2026-09-10-offer-workflow-handoff.md` and VP-009.
 - Duplicates on different Cloud Run instances are caught only at storage (the in-memory
   gate is per instance): both instances still pay Phase 1 + Phase 2 model calls.
 - Design choice recorded: an identical request from the same driver inside 60 s (105 s at

@@ -1791,8 +1791,9 @@ export const offer_outcomes = pgTable("offer_outcomes", {
   user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'restrict' }),
   offer_intelligence_id: uuid("offer_intelligence_id").references(() => offer_intelligence.id, { onDelete: 'set null' }),
 
-  driver_decision: text("driver_decision"),            // 'Accepted' | 'Rejected' | 'Cancelled' | 'Completed' (CHECK in migration)
+  driver_decision: text("driver_decision"),            // Accepted / Rejected / Cancelled / Completed / Other
   driver_reasoning: text("driver_reasoning"),          // the "AI was wrong here" signal
+  revision: integer("revision").notNull().default(1), // optimistic edit protection; never a timestamp comparison
 
   // Realized earnings (meaningful when Accepted/Completed); total is a Postgres
   // GENERATED STORED column — computed in the DB, cannot drift from the parts.
@@ -1811,7 +1812,8 @@ export const offer_outcomes = pgTable("offer_outcomes", {
 }, (table) => [
   // Live DB has this CHECK from migrations/20260703 — declared here too so Drizzle
   // matches reality (2026-08-17, todo #49). Name matches the auto-generated constraint.
-  check("offer_outcomes_driver_decision_check", sql`${table.driver_decision} IN ('Accepted', 'Rejected', 'Cancelled', 'Completed')`),
+  check("offer_outcomes_driver_decision_check", sql`${table.driver_decision} IN ('Accepted', 'Rejected', 'Cancelled', 'Completed', 'Other')`),
+  check("offer_outcomes_revision_check", sql`${table.revision} >= 1`),
   // One outcome per analyzed offer (upsert target)
   uniqueIndex('uq_outcome_offer').on(table.offer_intelligence_id).where(sql`offer_intelligence_id is not null`),
   index('idx_outcome_user_created').on(table.user_id, table.created_at.desc()),

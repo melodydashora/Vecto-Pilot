@@ -114,7 +114,7 @@ separate:
 |---|---|---|---|
 | 1 | **Analyzer decision** — what the driver was told | `offer_intelligence.decision` (NOT NULL) | `ACCEPT` / `REJECT` / `NO DATA` |
 | 2 | **Driver override** — in-the-moment disagreement via hook | `offer_intelligence.user_override` | `null` / `ACCEPT` / `REJECT` |
-| 3 | **Driver actual outcome** — ground truth, recorded on the web page | `offer_outcomes.driver_decision` (+ earnings) | `Accepted` / `Rejected` / `Cancelled` / `Completed` |
+| 3 | **Driver actual outcome** — driver-reported, recorded on the web page | `offer_outcomes.driver_decision` (+ earnings) | `Accepted` / `Rejected` / `Cancelled` / `Completed` / `Other` |
 
 Also kept separate: the **Phase-2 deep model's verdict** is stored only as data
 (`parsed_data_json.deep_decision`, `deep_disagrees`, and a `[deep model dissents: X]`
@@ -875,15 +875,17 @@ Indexes (12): `idx_oi_device_created (device_id, created_at desc)`, `idx_oi_mark
 
 `id uuid PK`, `user_id uuid NOT NULL → users ON DELETE RESTRICT`, `offer_intelligence_id
 uuid → offer_intelligence(id) ON DELETE SET NULL`, `driver_decision text` (CHECK
-`Accepted|Rejected|Cancelled|Completed` in the migration), `driver_reasoning`,
+`Accepted|Rejected|Cancelled|Completed|Other` in the forward migration), `driver_reasoning`,
+`revision integer NOT NULL default 1` (increments on every successful edit),
 `actual_pay`, `reimbursements`, `extras`, `other`, `total_earned` **GENERATED ALWAYS AS**
 sum **STORED**, `outcome_source text NOT NULL default 'web_app'`, timestamps.
 Indexes: `uq_outcome_offer` (unique partial on `offer_intelligence_id`),
 `idx_outcome_user_created`, `idx_outcome_decision`.
-Drizzle-vs-DB drift (live-checked): the `driver_decision` CHECK and the partial index
-`idx_dp_shortcut_token` (redundant with the UNIQUE constraint) exist in the migration and
-live DB but are not declared in `shared/schema.js`; the SQL migration is the source of
-truth for them.
+The outcome decision/revision CHECKs are declared in `shared/schema.js` and
+`migrations/20260910_offer_outcome_revision_other.sql`. That forward migration preserves
+existing rows, adds revision 1, and extends the named decision constraint. It does not
+rewrite historical decisions. Source changes and synthetic migration tests do not
+establish the deployed schema; deployment readback remains a separate gate.
 ⚠️ `ON DELETE SET NULL` survives row DELETEs, **not TRUNCATE** (verified live 2026-07-03,
 lessons_learned #11) — any `offer_intelligence` reset must `DELETE`.
 
@@ -901,7 +903,7 @@ executors (todo #38) — the analyzer never writes it.
 
 ## 12. Editor API — `/api/offer-analyzer` (authed)
 
-**File:** `server/api/offer-analyzer/index.js` (326 lines); mounted at `/api/offer-analyzer`
+**File:** `server/api/offer-analyzer/index.js`; mounted at `/api/offer-analyzer`
 (`routes.js:137`); `router.use(requireAuth)` → `req.auth.userId`.
 
 | Method | Route | Behavior |
@@ -911,9 +913,17 @@ executors (todo #38) — the analyzer never writes it.
 | GET | `/shortcut-token` | get-or-create → `{ token, created_at, device_label }` (404 if no driver profile). Mint writes only into a still-NULL slot (`… AND shortcut_token IS NULL RETURNING`); a raced second request returns the winner's token instead of overwriting it (2026-08-17). |
 | POST | `/shortcut-token/regenerate` | rotate → `{ token, created_at }`; old token dead immediately |
 | POST | `/shortcut-token/label` `{ label }` | ≤80 chars, display only → `{ success, device_label }` |
-| GET | `/offers?limit=25` (≤100) | my `offer_intelligence` LEFT JOIN `offer_outcomes` → `{ success, stats:{ analyzed, analyzer_accepted, analyzer_rejected, driver_accepted, disagreements, realized_total }, offers:[…] }` |
-| POST | `/offers/:id/outcome` `{ driver_decision?, driver_reasoning?, actual_pay?, reimbursements?, extras?, other? }` | 400 on bad enum / non-finite / <0 / >10000; 404 unless the offer is mine; upsert on `offer_intelligence_id` → `{ success, outcome:{ id, driver_decision, total_earned } }` |
+| GET | `/offers?limit=25` (≤100) | latest owned offers across all dates, joined only to same-user outcomes; rows include `outcome_revision` and exact UTC `outcome_updated_at` (six fractional digits). Existing `stats` remain scoped to the returned rows for compatibility; they are not period totals. |
+| GET | `/offers/stats?period=7d` | `7d` (default), `30d`, or `90d`; full user-scoped rolling `[start,end)` window by offer `created_at`, independent of list limit. Returns `period:{key,label,start,end}` and `stats:{analyzed,analyzer_accepted,analyzer_rejected,analyzer_no_data,driver_accepted,driver_rejected,cancelled,other,unrecorded,reported_count,reported_total}`. Accepted includes Completed; unknown/Other/Cancelled remain distinct. No estimates of savings or financial impact. |
+| POST | `/offers/:id/outcome` `{ expected_revision, driver_decision?, driver_reasoning?, actual_pay?, reimbursements?, extras?, other? }` | New clients send `expected_revision`: null for new, positive integer for an edit. Claude's `f09e8d58` contract also remains supported: `expected_outcome_updated_at` ISO-with-timezone or null. Revision takes precedence if both are supplied. Only supplied fields change; explicit Rejected/Cancelled/Other clears earnings. 400 on malformed input, 404 for another user's offer, 409 `outcome_conflict` with canonical `current` and compatibility alias `outcome`. Success returns the full outcome including `revision`, all parts/total/reason, linked offer ID and exact `updated_at`. Bodies without either version field receive 400 `outcome_version_required` and a refresh instruction. |
 | GET | `/places/search?q=` (≥3 chars) | Google Places Text Search (New), 5 results, biased 50 km around `driver_profiles.home_lat/lng`; per-user 20/min (429); 503 without `GOOGLE_MAPS_API_KEY`; → `{ success, results:[{ place_id, label, formatted_address, lat, lng (6-dec), types }] }` |
+
+Timestamp compatibility retains the original supplied fractional seconds for SQL;
+JavaScript `Date` is used only to validate dates. Millisecond truncation is not an
+equality fallback: an older truncated token conflicts and returns the exact current
+value, protecting two distinct updates within the same millisecond. Unlike the
+earlier unconditional compatibility path, an entirely unversioned cached client
+must refresh before writing. This intentional rollout change protects newer data.
 
 ---
 
@@ -933,7 +943,9 @@ Route `client/src/routes.tsx:196` (under `/co-pilot`, ProtectedRoute); hamburger
 | `LimitsCard` | `global.pickup_limits`, `global.time_limit` (+ ARP threshold) |
 | `GeographyCard` | `avoid[]` via `GET /places/search` → place pick → mode / radius / corridor / enable |
 | `VisionRulesCard` | `global.safety_road_types`, `global.commercial_staging`, `global.notices` |
-| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed` **and** on the server's `state` handshake at every SSE (re)connect (skipped when the newest id is already shown; `refetch({ cancelRefetch:false })` joins an in-flight fetch), `refetchOnWindowFocus:true` (was `false` — the tab is backgrounded while the Shortcut runs from the Uber app), per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time) + earnings form (shown for Accepted/Completed; cleared when switching to Rejected/Cancelled) → `POST /offers/:id/outcome`; stats row. **v3.2 rows:** `reason_kind:'implausible_parse'` → amber **PARSE ERROR — decide manually** badge (struck-through $/mi; never the green ACCEPT); delivery rows → violet `Delivery` / `Delivery · Exclusive` chip, `X.X mi total`, `$N/hr`, `tip incl.`; a small mono `shortcut_system` tag when the phone reported one. `GET /offers` adds `offer_kind`, `tip_included`, `reason_kind`, `shortcut_system` from `parsed_data_json` (no new columns) |
+| `OffersCard` | Latest 25 offers across all dates; existing SSE handshake/refetch and focus/reconnect behavior. Owns the row list and refreshes the independent period summary after confirmed saves. |
+| `OfferOutcomeRow` | Existing analyzer/delivery/parse-error presentation plus explicit draft → Save outcome → compact confirmation with Edit. Other/error has an optional reason and never becomes a binary accept/reject. Followed is offered only for known ACCEPT/REJECT. New earnings drafts start from a trusted offered amount; nothing is recorded until explicit Save. Saved zero and unknown amounts survive Edit. Failure/conflict keeps the editor and draft; loading the conflicting saved version is explicit. Inputs are disabled during the request. |
+| `OffersDecisionChart` | Rolling 7/30/90-day selector (default 7), full-period counts from `/offers/stats`, separate analyzer and driver accept/reject bars, other/unrecorded counts, and driver-reported earnings. The latest-list limit does not limit these counts. Offers use their received date, even if the driver records an outcome later. Display times follow the browser's timezone; windows are elapsed days. |
 
 Rules save is an explicit sticky **Save** (react-hook-form + Zod), not autosave. The PUT
 carries `expected_version` (what the page loaded); a **409** loads the stored rules from
