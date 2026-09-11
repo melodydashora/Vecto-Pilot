@@ -394,6 +394,72 @@ Classify ALL venues. No explanation.`;
 // sets this flag via tactical-planner.js, but the Bars pipeline is independent.
 // Decision pending: either call loadDriverPreferences() here and compute haversine
 // inline, or restructure to share the scoring step. See SESSION_HANDOFF_2026-04-16.md.
+/**
+ * Map Google Places (New) results to the venue shape used by the bars pipeline.
+ *
+ * 2026-09-11 (todo #64): extracted from discoverNearbyVenues and guarded. The old inline
+ * map wrote `lat: place.location?.latitude` / `lng: place.location?.longitude`, and NO later
+ * boundary re-checked them (transformers.js toApiVenue passes them through; the client's
+ * StrategyMap feeds them straight into AdvancedMarkerElement) — so one Places result
+ * without a `location` crashed the whole Strategy route with a TypeError. The cache branch
+ * already filtered with Number.isFinite; this is the same rule for the Google branch:
+ * a venue without finite coordinates is dropped LOUDLY, never emitted with undefined
+ * coords and never given substitute coordinates.
+ *
+ * @param {Array<object>} places - `data.places` from the Places API response
+ * @param {string|null} timezone - IANA zone for open/closed calculation
+ * @returns {Array<object>} venues with finite lat/lng only
+ */
+export function mapGooglePlacesToVenues(places, timezone) {
+  const venues = [];
+  for (const place of places || []) {
+    const venueName = place.displayName?.text || 'Unknown Venue';
+    const latitude = place.location?.latitude;
+    const longitude = place.location?.longitude;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      barsLog.warn(1, `"${venueName}" (${place.id || 'no place_id'}) dropped: Google Places returned no usable coordinates (lat=${String(latitude)}, lng=${String(longitude)})`);
+      continue;
+    }
+
+    const price = getPriceDisplay(place.priceLevel);
+    const openStatus = calculateOpenStatus(place, timezone);
+    const type = place.primaryType === 'night_club' ? 'nightclub' :
+                 place.primaryType === 'wine_bar' ? 'wine_bar' : 'bar';
+
+    // Debug: Log hours for each venue
+    barsLog.debug(`"${venueName}" - is_open=${openStatus.is_open}, hours_today="${openStatus.hours_today || 'none'}"`);
+
+    venues.push({
+      name: venueName,
+      type,
+      address: place.formattedAddress || '',
+      phone: place.nationalPhoneNumber || null,
+      expense_level: price.level,
+      expense_rank: price.rank,
+      // 2026-01-10: Dual compatibility - camelCase for client, snake_case for legacy
+      isOpen: openStatus.is_open,
+      is_open: openStatus.is_open,
+      hours_today: openStatus.hours_today,
+      closing_soon: openStatus.closing_soon,
+      minutes_until_close: openStatus.minutes_until_close,
+      // 2026-01-09: Added opens_in_minutes for "opening soon" badges
+      opens_in_minutes: openStatus.opens_in_minutes,
+      rating: place.rating || null,
+      crowd_level: place.rating >= 4.5 ? 'high' : place.rating >= 4 ? 'medium' : 'low',
+      rideshare_potential: price.rank >= 3 ? 'high' : price.rank >= 2 ? 'medium' : 'low',
+      lat: latitude,
+      lng: longitude,
+      place_id: place.id,
+      google_types: place.types || [],
+      // 2026-02-26: Capture raw hours for persistence to venue_catalog
+      // Without this, cached venues have no hours and get filtered out
+      _regularOpeningHours: place.regularOpeningHours || null,
+      _currentOpeningHours: place.currentOpeningHours || null
+    });
+  }
+  return venues;
+}
+
 export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 25, timezone = null }) {
   if (!GOOGLE_MAPS_API_KEY) {
     barsLog.warn(1, `GOOGLE_MAPS_API_KEY not set`);
@@ -609,46 +675,8 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
 
     barsLog.phase(1, `Google Places returned ${places.length} venues`);
 
-    // Transform Google Places data to our venue format
-    let venues = places.map(place => {
-      const price = getPriceDisplay(place.priceLevel);
-      const openStatus = calculateOpenStatus(place, timezone);
-      const type = place.primaryType === 'night_club' ? 'nightclub' :
-                   place.primaryType === 'wine_bar' ? 'wine_bar' : 'bar';
-
-      const venueName = place.displayName?.text || 'Unknown Venue';
-
-      // Debug: Log hours for each venue
-      barsLog.debug(`"${venueName}" - is_open=${openStatus.is_open}, hours_today="${openStatus.hours_today || 'none'}"`);
-
-      return {
-        name: venueName,
-        type,
-        address: place.formattedAddress || '',
-        phone: place.nationalPhoneNumber || null,
-        expense_level: price.level,
-        expense_rank: price.rank,
-        // 2026-01-10: Dual compatibility - camelCase for client, snake_case for legacy
-        isOpen: openStatus.is_open,
-        is_open: openStatus.is_open,
-        hours_today: openStatus.hours_today,
-        closing_soon: openStatus.closing_soon,
-        minutes_until_close: openStatus.minutes_until_close,
-        // 2026-01-09: Added opens_in_minutes for "opening soon" badges
-        opens_in_minutes: openStatus.opens_in_minutes,
-        rating: place.rating || null,
-        crowd_level: place.rating >= 4.5 ? 'high' : place.rating >= 4 ? 'medium' : 'low',
-        rideshare_potential: price.rank >= 3 ? 'high' : price.rank >= 2 ? 'medium' : 'low',
-        lat: place.location?.latitude,
-        lng: place.location?.longitude,
-        place_id: place.id,
-        google_types: place.types || [],
-        // 2026-02-26: Capture raw hours for persistence to venue_catalog
-        // Without this, cached venues have no hours and get filtered out
-        _regularOpeningHours: place.regularOpeningHours || null,
-        _currentOpeningHours: place.currentOpeningHours || null
-      };
-    });
+    // Transform Google Places data to our venue format (see mapGooglePlacesToVenues)
+    let venues = mapGooglePlacesToVenues(places, timezone);
 
     // Step 1: Quick filter - remove obvious fast food/chains
     venues = venues.filter(v => !isExcludedVenue(v.name));

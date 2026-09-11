@@ -398,8 +398,10 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       .limit(200);
 
     // Haversine filter + distance
+    // 2026-09-11 (todo #62): coordinates are the joined venue_catalog doubles; a joined row
+    // without finite coords is unmappable and is dropped here (never coerced or defaulted).
     const nearby = rows
-      .filter(e => e.lat && e.lng)
+      .filter(e => Number.isFinite(e.lat) && Number.isFinite(e.lng))
       .map(e => ({
         ...e,
         distance_miles: haversineDistanceMiles(lat, lng, e.lat, e.lng),
@@ -423,10 +425,14 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       source: 'db',
     }));
   } catch (err) {
-    // 2026-09-10: still degrade to "no DB events" for the rider (optional data), but the
-    // failure is logged with its cause instead of looking like an empty city.
-    console.error('[CONCIERGE] Events DB query FAILED (returning no DB events):', err.message);
-    return [];
+    // 2026-09-11 (todo #62, CLAUDE.md "fail loud; never fake"): this catch used to return []
+    // — which is exactly how the dropped-column predicate (FIX H-7) hid for months: the
+    // concierge showed "no events" as if the city were empty, and searchNearby counted the
+    // failure as zero results and paid for a Gemini fallback. A failed query is an error,
+    // not missing optional data: propagate it with its cause so the route returns 500 and
+    // the log names the real problem.
+    console.error('[CONCIERGE] Events DB query FAILED:', err.message);
+    throw new Error(`Concierge events DB query failed: ${err.message}`);
   }
 }
 
