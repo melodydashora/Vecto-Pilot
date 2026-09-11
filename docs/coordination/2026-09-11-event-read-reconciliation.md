@@ -89,3 +89,17 @@ No hosted browser/responsive check or integrated protected-app acceptance is
 claimed. The backend tests exercise the pure projection and visibility contract;
 they do not make a real HTTP request through the authenticated database routes.
 Inspect the updated Briefing cards in the combined candidate before publication.
+
+## Additive visual-review correction
+
+Root's local 320px review of the real component found that a known end plus a
+missing end was described as a disagreement. The follow-up changes only UI
+wording: missing-only reports now say that some reports omit an end; differing
+known ends still say they disagree; a combination mentions both. Equivalent
+12h/24h displayed end values do not create a claimed disagreement. The projection,
+expiry rules, schema and stored records are unchanged. The original candidate
+and transfer patch remain intact; this is a separate additive commit from it.
+
+The real component suite now has 10 checks, including omission versus known
+disagreement and mixed missing/differing or equivalent end reports. The 5188
+synthetic harness is rebuilt from the updated component for root's reload/review.

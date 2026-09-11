@@ -24,7 +24,9 @@ interface AuthContextValue extends AuthState {
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (data: Partial<DriverProfile>) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: Partial<DriverProfile>) => Promise<{
+    success: boolean; error?: string; confirmedProfile?: AuthApiResponse; profileRefreshFailed?: boolean;
+  }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   // Invalidates late profile/login responses after an auth transition.
   const authGeneration = useRef(0);
+  const profileRequest = useRef(0);
   const [state, setState] = useState<AuthState>({
     user: null,
     profile: null,
@@ -99,8 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [logout]);
 
   const fetchProfile = useCallback(async (token: string) => {
+    if (localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== token) return;
     const generation = authGeneration.current;
+    const request = ++profileRequest.current;
     const isCurrent = () => generation === authGeneration.current &&
+      request === profileRequest.current &&
       localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === token;
     if (!isCurrent()) return;
     try {
@@ -121,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAuthenticated: true,
           isLoading: false,
         });
+        return data;
       } else {
         if (isCurrent()) clearAuth();
       }
@@ -203,6 +210,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Not authenticated' };
     }
 
+    const generation = authGeneration.current;
+    const isCurrent = () => generation === authGeneration.current &&
+      localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === state.token;
+
     try {
       const response = await fetch(API_ROUTES.AUTH.PROFILE, {
         method: 'PUT',
@@ -215,13 +226,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const result: AuthApiResponse = await response.json();
 
+      if (!isCurrent()) return { success: false, error: 'Your sign-in changed. Review your current settings.' };
+
       if (!response.ok) {
         return { success: false, error: result.message || result.error || 'Update failed' };
       }
 
-      // Refresh profile data
-      await fetchProfile(state.token);
-      return { success: true };
+      // Return this save's own readback; an unrelated refresh cannot confirm its payload.
+      const confirmedProfile = await fetchProfile(state.token);
+      if (!isCurrent()) return { success: false, error: 'Your sign-in changed. Review your current settings.' };
+      return { success: true, confirmedProfile, profileRefreshFailed: !confirmedProfile };
     } catch (error) {
       console.error('[auth] Update profile error:', error);
       return { success: false, error: 'Network error. Please try again.' };

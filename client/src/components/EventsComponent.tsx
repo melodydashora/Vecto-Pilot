@@ -38,6 +38,18 @@ interface EventsComponentProps {
   timezone?: string;
 }
 
+function endUncertaintyMessage(reports: EventVariant[] = []): string {
+  const knownEnds = reports.map(report => report.event_end_time?.trim()).filter((end): end is string => !!end);
+  if (knownEnds.length === reports.length) return 'Reported end times disagree. End time is unconfirmed.';
+  // Compare displayed clock values so equivalent 24h/12h reports are not described
+  // as disagreement merely because another source omitted its end.
+  const distinctEnds = new Set(knownEnds.map(end =>
+    formatEventTime(end).replace(/\s/g, '').toUpperCase().replace(/^0(?=\d)/, '')));
+  return distinctEnds.size > 1
+    ? 'Reported end times disagree, and some reports omit an end time. End time is unconfirmed.'
+    : 'Some reports omit an end time. End time is unconfirmed.';
+}
+
 export default function EventsComponent({ events, isLoading: _isLoading, timezone }: EventsComponentProps) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     today: true,
@@ -270,7 +282,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
                         {event.event_end_conflict && (
                           <p className="flex items-start gap-1 font-medium text-amber-800">
                             <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
-                            Reported end times disagree. End time is unconfirmed.
+                            {endUncertaintyMessage(event.event_variants)}
                           </p>
                         )}
 

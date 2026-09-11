@@ -1358,11 +1358,15 @@ router.put('/profile', requireAuth, async (req, res) => {
 
     profileUpdates.updated_at = new Date();
 
-    // Check if any address fields changed - if so, re-geocode
-    const addressFieldsChanged =
-      updates.address1 || updates.address2 !== undefined ||
-      updates.city || updates.stateTerritory ||
-      updates.zipCode !== undefined || updates.country;
+    // Settings submits the full profile. Compare the normalized values actually
+    // being written so an unchanged address does not trigger paid geocoding (or
+    // overwrite an explicitly selected market). Omitted partial-update fields
+    // retain their persisted value; clearing an optional field still counts.
+    const normalizeAddressPart = value => value?.trim() || null;
+    const addressFieldsChanged = [
+      'address_1', 'address_2', 'city', 'state_territory', 'zip_code', 'country',
+    ].some(field => Object.hasOwn(profileUpdates, field) &&
+      normalizeAddressPart(profileUpdates[field]) !== normalizeAddressPart(profile[field]));
 
     if (addressFieldsChanged) {
       // Build complete address from updates + existing profile data

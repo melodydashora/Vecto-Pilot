@@ -2,9 +2,9 @@
 // 2026-02-13: User profile settings page with editable fields
 // Uses same API endpoints and patterns as SignUpPage for consistency
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm, type Resolver, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
@@ -17,10 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/useToast';
 import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase } from 'lucide-react';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
-import type { MarketOption } from '@/types/auth';
+import type { MarketOption, DriverProfile, DriverVehicle } from '@/types/auth';
+import { mergeSettingsDraft, sameSettingsValue, settingsSectionForField, SETTINGS_PLATFORMS, type SettingsSection, type ServiceSection } from '@/lib/settings-draft';
 
 // Validation schema for settings form
 const settingsSchema = z.object({
@@ -72,16 +74,76 @@ const settingsSchema = z.object({
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
 
+function profileSettingsValues(profile: DriverProfile, vehicle?: DriverVehicle | null): SettingsFormData {
+  return {
+    nickname: profile.nickname || profile.firstName,
+    phone: profile.phone || '',
+    address1: profile.address1 || '',
+    address2: profile.address2 || '',
+    city: profile.city || '',
+    stateTerritory: profile.stateTerritory || '',
+    zipCode: profile.zipCode || '',
+    country: profile.country || 'US',
+    market: profile.market || '',
+    vehicleYear: vehicle?.year || new Date().getFullYear(),
+    vehicleMake: vehicle?.make || '',
+    vehicleModel: vehicle?.model || '',
+    seatbelts: vehicle?.seatbelts || 4,
+    ridesharePlatforms: profile.ridesharePlatforms || ['uber'],
+    // Vehicle Class
+    eligEconomy: profile.eligEconomy ?? true,
+    eligXl: profile.eligXl || false,
+    eligXxl: profile.eligXxl || false,
+    eligComfort: profile.eligComfort || false,
+    eligLuxurySedan: profile.eligLuxurySedan || false,
+    eligLuxurySuv: profile.eligLuxurySuv || false,
+    // Vehicle Attributes
+    attrElectric: profile.attrElectric || false,
+    attrGreen: profile.attrGreen || false,
+    attrWav: profile.attrWav || false,
+    attrSki: profile.attrSki || false,
+    attrCarSeat: profile.attrCarSeat || false,
+    // Service Preferences
+    prefPetFriendly: profile.prefPetFriendly || false,
+    prefTeen: profile.prefTeen || false,
+    prefAssist: profile.prefAssist || false,
+    prefShared: profile.prefShared || false,
+    marketingOptIn: profile.marketingOptIn || false,
+  };
+}
+
 interface DropdownOption {
   value: string;
   label: string;
 }
 
 export default function SettingsPage() {
+  const { user, profile, isLoading } = useAuth();
+  if (isLoading || (user && (!profile || profile.userId !== user.userId))) {
+    return <div role="status" className="flex items-center justify-center p-8">Loading your settings…</div>;
+  }
+  if (!user || !profile) {
+    return <div className="container max-w-2xl mx-auto px-4 py-8"><Alert><AlertDescription>Please sign in to access your settings.</AlertDescription></Alert></div>;
+  }
+  // A different authenticated account gets a new form before any private draft can render.
+  return <SettingsEditor key={user.userId} />;
+}
+
+function SettingsEditor() {
   const navigate = useNavigate();
-  const { profile, vehicle, isLoading: authLoading, updateProfile, refreshProfile } = useAuth();
+  const { profile, vehicle, isLoading: authLoading, updateProfile } = useAuth();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [section, setSection] = useState<SettingsSection>('profile');
+  const [serviceSection, setServiceSection] = useState<ServiceSection>('ridehail');
+  const [validationMessage, setValidationMessage] = useState('');
+  const [focusField, setFocusField] = useState<keyof SettingsFormData | 'customMarket' | null>(null);
+  const customMarketRef = useRef<HTMLInputElement>(null);
+  const [customMarketError, setCustomMarketError] = useState('');
+  const baselineRef = useRef<SettingsFormData | null>(null);
+  const saveRef = useRef<{ submitted: SettingsFormData; incoming: SettingsFormData | null } | null>(null);
+  const activeRef = useRef(true);
+  useEffect(() => { activeRef.current = true; return () => { activeRef.current = false; }; }, []);
 
   // Dropdown data
   const [countries, setCountries] = useState<DropdownOption[]>([]);
@@ -136,7 +198,7 @@ export default function SettingsPage() {
     },
   });
 
-  const _watchPlatforms = form.watch('ridesharePlatforms');
+  const watchPlatforms = form.watch('ridesharePlatforms');
   const watchCountry = form.watch('country');
   const watchMarket = form.watch('market');
   const watchState = form.watch('stateTerritory');
@@ -144,46 +206,44 @@ export default function SettingsPage() {
   // 2026-02-13: Track "Other" market selection
   const isOtherMarket = watchMarket === '__OTHER__';
 
+  const applyBaseline = (incoming: SettingsFormData, previous = baselineRef.current) => {
+    const draft = previous ? mergeSettingsDraft(previous, form.getValues(), incoming) : incoming;
+    baselineRef.current = incoming;
+    form.reset(incoming, { keepErrors: true, keepTouched: true });
+    for (const key of Object.keys(draft) as (keyof SettingsFormData)[]) {
+      if (!sameSettingsValue(draft[key], incoming[key])) {
+        form.setValue(key, draft[key], { shouldDirty: true });
+      }
+    }
+  };
+
   // Load profile data into form when profile is available
   useEffect(() => {
     if (profile) {
-      form.reset({
-        nickname: profile.nickname || profile.firstName,
-        phone: profile.phone || '',
-        address1: profile.address1 || '',
-        address2: profile.address2 || '',
-        city: profile.city || '',
-        stateTerritory: profile.stateTerritory || '',
-        zipCode: profile.zipCode || '',
-        country: profile.country || 'US',
-        market: profile.market || '',
-        vehicleYear: vehicle?.year || new Date().getFullYear(),
-        vehicleMake: vehicle?.make || '',
-        vehicleModel: vehicle?.model || '',
-        seatbelts: vehicle?.seatbelts || 4,
-        ridesharePlatforms: profile.ridesharePlatforms || ['uber'],
-        // Vehicle Class
-        eligEconomy: profile.eligEconomy ?? true,
-        eligXl: profile.eligXl || false,
-        eligXxl: profile.eligXxl || false,
-        eligComfort: profile.eligComfort || false,
-        eligLuxurySedan: profile.eligLuxurySedan || false,
-        eligLuxurySuv: profile.eligLuxurySuv || false,
-        // Vehicle Attributes
-        attrElectric: profile.attrElectric || false,
-        attrGreen: profile.attrGreen || false,
-        attrWav: profile.attrWav || false,
-        attrSki: profile.attrSki || false,
-        attrCarSeat: profile.attrCarSeat || false,
-        // Service Preferences
-        prefPetFriendly: profile.prefPetFriendly || false,
-        prefTeen: profile.prefTeen || false,
-        prefAssist: profile.prefAssist || false,
-        prefShared: profile.prefShared || false,
-        marketingOptIn: profile.marketingOptIn || false,
-      });
+      const incoming = profileSettingsValues(profile, vehicle);
+      // updateProfile refreshes the source before resolving. Hold it until the save
+      // settles so an edit (including reverting a value) during the request survives.
+      if (saveRef.current) saveRef.current.incoming = incoming;
+      else applyBaseline(incoming);
     }
   }, [profile, vehicle, form]);
+
+  useEffect(() => {
+    if (!focusField) return;
+    if (focusField === 'customMarket') customMarketRef.current?.focus();
+    else form.setFocus(focusField);
+    setFocusField(null);
+  }, [focusField, section, serviceSection, form]);
+
+  const onInvalid = (errors: FieldErrors<SettingsFormData>) => {
+    const field = Object.keys(errors)[0] as keyof SettingsFormData | undefined;
+    if (!field) return;
+    setSection(settingsSectionForField(field));
+    if (field.startsWith('eligLuxury')) setServiceSection('premium');
+    else if (field === 'ridesharePlatforms') setServiceSection('ridehail');
+    setValidationMessage('Check the highlighted field. Your changes have not been saved.');
+    setFocusField(field);
+  };
 
   // Fetch countries on mount
   useEffect(() => {
@@ -247,7 +307,7 @@ export default function SettingsPage() {
           typeof m === 'string' ? { value: m, label: m } : m
         );
         // Add current profile market if not in list
-        if (profile?.market && !marketList.some(m => m.value === profile.market)) {
+        if (profile?.market && profile.market !== '__OTHER__' && !marketList.some(m => m.value === profile.market)) {
           marketList.unshift({ value: profile.market, label: profile.market });
         }
         // Add "Other" option at the end
@@ -259,7 +319,7 @@ export default function SettingsPage() {
         console.error('Failed to load markets:', err);
         // Still show profile market + Other
         const fallback: MarketOption[] = [];
-        if (profile?.market) {
+        if (profile?.market && profile.market !== '__OTHER__') {
           fallback.push({ value: profile.market, label: profile.market });
         }
         fallback.push({ value: '__OTHER__', label: 'Other (add new market)' });
@@ -290,7 +350,19 @@ export default function SettingsPage() {
   }, [vehicle?.year]);
 
   const onSubmit = async (data: SettingsFormData) => {
+    if (saveRef.current) return;
+    if (data.market === '__OTHER__' && !customMarket.trim()) {
+      setCustomMarketError('Please enter your market name');
+      setValidationMessage('Please review the highlighted field in Location.');
+      setSection('location');
+      setFocusField('customMarket');
+      return;
+    }
+    const request = { submitted: structuredClone(data), incoming: null as SettingsFormData | null };
+    let confirmedSave = false;
+    saveRef.current = request;
     setIsSaving(true);
+    setValidationMessage('');
 
     try {
       // 2026-02-13: Handle custom market ("Other" selection)
@@ -299,7 +371,7 @@ export default function SettingsPage() {
         try {
           const addMarketRes = await fetch(API_ROUTES.INTELLIGENCE.ADD_MARKET, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
             body: JSON.stringify({
               market_name: customMarket.trim(),
               city: data.city,
@@ -307,6 +379,7 @@ export default function SettingsPage() {
             }),
           });
           const addMarketData = await addMarketRes.json();
+          if (!activeRef.current) return;
           if (addMarketData.success) {
             finalMarket = addMarketData.market_name;
           } else {
@@ -319,6 +392,7 @@ export default function SettingsPage() {
             return;
           }
         } catch (err) {
+          if (!activeRef.current) return;
           console.error('Failed to add custom market:', err);
           toast({
             title: "Error",
@@ -328,16 +402,9 @@ export default function SettingsPage() {
           setIsSaving(false);
           return;
         }
-      } else if (data.market === '__OTHER__' && !customMarket.trim()) {
-        toast({
-          title: "Error",
-          description: "Please enter your market name",
-          variant: "destructive",
-        });
-        setIsSaving(false);
-        return;
       }
 
+      if (!activeRef.current) return;
       const result = await updateProfile({
         nickname: data.nickname,
         phone: data.phone,
@@ -377,12 +444,25 @@ export default function SettingsPage() {
         },
       } as any);
 
+      if (!activeRef.current) return;
       if (result.success) {
+        confirmedSave = true;
+        // Only this save's own readback confirms its canonical values. A held
+        // background refresh may predate the PUT and must not undo a successful save.
+        const confirmed = result.confirmedProfile?.profile
+          ? profileSettingsValues(result.confirmedProfile.profile, result.confirmedProfile.vehicle)
+          : { ...request.submitted, market: finalMarket };
+        applyBaseline(confirmed, request.submitted);
+        if (request.submitted.market === '__OTHER__') setCustomMarket('');
+        const saveMessage = sameSettingsValue(form.getValues(), confirmed)
+          ? 'Your profile has been updated successfully.'
+          : 'Settings saved. You made more changes while saving; save again to keep those too.';
         toast({
           title: "Settings saved",
-          description: "Your profile has been updated successfully.",
+          description: result.profileRefreshFailed
+            ? `${saveMessage} The latest saved values could not be reloaded.`
+            : saveMessage,
         });
-        await refreshProfile();
       } else {
         toast({
           title: "Error",
@@ -391,13 +471,18 @@ export default function SettingsPage() {
         });
       }
     } catch (_err) {
+      if (!activeRef.current) return;
       toast({
         title: "Error",
         description: "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
-      setIsSaving(false);
+      // A failed request does not confirm its payload. Still adopt any background
+      // refresh against the previous saved baseline, retaining the user's draft.
+      if (activeRef.current && !confirmedSave && request.incoming) applyBaseline(request.incoming);
+      if (saveRef.current === request) saveRef.current = null;
+      if (activeRef.current) setIsSaving(false);
     }
   };
 
@@ -429,6 +514,7 @@ export default function SettingsPage() {
           variant="ghost"
           size="icon"
           onClick={() => navigate(-1)}
+          aria-label="Back"
           className="shrink-0"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -440,7 +526,26 @@ export default function SettingsPage() {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
+          <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
+            <p className="font-medium text-gray-900">Your services</p>
+            <p className="mt-1 break-words text-gray-600">
+              {watchPlatforms?.length
+                ? watchPlatforms.map(id => SETTINGS_PLATFORMS.find(option => option.id === id)?.label ?? id).join(' · ')
+                : 'No services selected'}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">{form.formState.isDirty ? 'Unsaved changes' : 'No unsaved changes'} · Selections stay with you when changing sections.</p>
+          </div>
+          {validationMessage && <Alert role="alert"><AlertDescription>{validationMessage}</AlertDescription></Alert>}
+          <Tabs value={section} onValueChange={value => setSection(value as SettingsSection)}>
+            <TabsList aria-label="Settings sections" className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-5">
+              <TabsTrigger value="profile" className="whitespace-normal">Profile</TabsTrigger>
+              <TabsTrigger value="location" className="whitespace-normal">Location</TabsTrigger>
+              <TabsTrigger value="vehicle" className="whitespace-normal">Vehicle</TabsTrigger>
+              <TabsTrigger value="services" className="whitespace-normal">Services</TabsTrigger>
+              <TabsTrigger value="connections" className="whitespace-normal">Connections</TabsTrigger>
+            </TabsList>
+          <TabsContent value="profile" forceMount hidden={section !== 'profile'} className="space-y-4">
           {/* Personal Info Section */}
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardHeader className="pb-4">
@@ -507,19 +612,17 @@ export default function SettingsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-gray-700">Phone Number</FormLabel>
-                    <FormControl>
                       <div className="flex gap-2">
                         <div className="flex items-center px-3 bg-gray-100 border border-gray-300 rounded-md text-gray-600 text-sm min-w-[60px] justify-center">
                           +1
                         </div>
-                        <Input
+                        <FormControl><Input
                           type="tel"
                           placeholder="(555) 555-5555"
-                          className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 flex-1"
+                          className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 flex-1 min-w-0"
                           {...field}
-                        />
+                        /></FormControl>
                       </div>
-                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -527,6 +630,8 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
+          </TabsContent>
+          <TabsContent value="location" forceMount hidden={section !== 'location'}>
           {/* Base Location Section */}
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardHeader className="pb-4">
@@ -583,7 +688,7 @@ export default function SettingsPage() {
                       <FormLabel className="text-gray-700">Country</FormLabel>
                       <Select key={`country-${field.value}`} onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger className="bg-white border-gray-300 text-gray-800">
+                          <SelectTrigger ref={field.ref} onBlur={field.onBlur} className="bg-white border-gray-300 text-gray-800">
                             <SelectValue placeholder="Select country" />
                           </SelectTrigger>
                         </FormControl>
@@ -615,7 +720,7 @@ export default function SettingsPage() {
                           disabled={!watchCountry || isLoadingRegions}
                         >
                           <FormControl>
-                            <SelectTrigger className="bg-white border-gray-300 text-gray-800">
+                            <SelectTrigger ref={field.ref} onBlur={field.onBlur} className="bg-white border-gray-300 text-gray-800">
                               <SelectValue placeholder={
                                 !watchCountry
                                   ? 'Select country first'
@@ -705,10 +810,10 @@ export default function SettingsPage() {
                             }
                           }}
                           value={field.value}
-                          disabled={!watchCountry || isLoadingMarkets}
+                          disabled={!watchCountry || isLoadingMarkets || (isSaving && isOtherMarket)}
                         >
                           <FormControl>
-                            <SelectTrigger className="bg-white border-gray-300 text-gray-800">
+                            <SelectTrigger ref={field.ref} onBlur={field.onBlur} className="bg-white border-gray-300 text-gray-800">
                               <SelectValue placeholder={
                                 !watchCountry
                                   ? 'Select country first'
@@ -736,14 +841,20 @@ export default function SettingsPage() {
                         {/* Show text input when "Other" is selected */}
                         {isOtherMarket && (
                           <div className="mt-2">
+                            <label htmlFor="settings-custom-market" className="text-sm font-medium text-gray-700">Custom market name</label>
                             <Input
+                              id="settings-custom-market"
+                              ref={customMarketRef}
+                              disabled={isSaving}
+                              aria-invalid={Boolean(customMarketError)}
+                              aria-describedby="settings-custom-market-help"
                               placeholder="Enter your market name (e.g., Dallas-Fort Worth)"
                               className="bg-white border-gray-300 text-gray-800"
                               value={customMarket}
-                              onChange={(e) => setCustomMarket(e.target.value)}
+                              onChange={(e) => { setCustomMarket(e.target.value); setCustomMarketError(''); }}
                             />
-                            <FormDescription className="text-gray-500 text-xs mt-1">
-                              Your market will be added to our database
+                            <FormDescription id="settings-custom-market-help" className="text-gray-500 text-xs mt-1">
+                              {customMarketError || (isSaving ? 'Saving this market name. Other settings remain editable.' : 'Your market will be added to our database')}
                             </FormDescription>
                           </div>
                         )}
@@ -770,6 +881,8 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
+          </TabsContent>
+          <TabsContent value="vehicle" forceMount hidden={section !== 'vehicle'} className="space-y-4">
           {/* Vehicle Section */}
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardHeader className="pb-4">
@@ -790,7 +903,7 @@ export default function SettingsPage() {
                     {/* 2026-02-13: key forces Radix Select to re-mount when form.reset() updates value */}
                     <Select key={`year-${field.value}`} onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
                       <FormControl>
-                        <SelectTrigger className="bg-white border-gray-300 text-gray-800">
+                        <SelectTrigger ref={field.ref} onBlur={field.onBlur} className="bg-white border-gray-300 text-gray-800">
                           <SelectValue placeholder="Select year" />
                         </SelectTrigger>
                       </FormControl>
@@ -857,7 +970,7 @@ export default function SettingsPage() {
                     {/* 2026-02-13: key forces Radix Select to re-mount when form.reset() updates value */}
                     <Select key={`seatbelts-${field.value}`} onValueChange={(v) => field.onChange(parseInt(v))} value={field.value?.toString()}>
                       <FormControl>
-                        <SelectTrigger className="bg-white border-gray-300 text-gray-800 w-32">
+                        <SelectTrigger ref={field.ref} onBlur={field.onBlur} className="bg-white border-gray-300 text-gray-800 w-32">
                           <SelectValue placeholder="Seatbelts" />
                         </SelectTrigger>
                       </FormControl>
@@ -877,88 +990,12 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Rideshare Platforms Section */}
-          <Card className="bg-white border-gray-200 shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Briefcase className="h-5 w-5 text-amber-400" />
-                Rideshare Platforms
-              </CardTitle>
-              <CardDescription>Platforms you drive for</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="ridesharePlatforms"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex flex-wrap gap-4">
-                      {[
-                        { id: 'uber', label: 'Uber' },
-                        { id: 'lyft', label: 'Lyft' },
-                        { id: 'ridehail', label: 'Other Ridehail' },
-                        { id: 'private', label: 'Private/Chauffeur' },
-                      ].map((platform) => (
-                        <label key={platform.id} className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={field.value?.includes(platform.id)}
-                            onCheckedChange={(checked) => {
-                              const newValue = checked
-                                ? [...(field.value || []), platform.id]
-                                : (field.value || []).filter((p) => p !== platform.id);
-                              field.onChange(newValue);
-                            }}
-                          />
-                          <span className="text-sm text-gray-700">{platform.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Vehicle Class Section */}
-              <Separator className="bg-gray-200" />
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-gray-700">Vehicle Class</label>
-                <p className="text-xs text-gray-500">What type of vehicle do you drive?</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { name: 'eligEconomy', label: 'Economy' },
-                    { name: 'eligXl', label: 'Large (XL)' },
-                    { name: 'eligXxl', label: 'Extra Large (XXL)' },
-                    { name: 'eligComfort', label: 'Comfort' },
-                    { name: 'eligLuxurySedan', label: 'Luxury Sedan' },
-                    { name: 'eligLuxurySuv', label: 'Luxury SUV' },
-                  ].map(({ name, label }) => (
-                    <FormField
-                      key={name}
-                      control={form.control}
-                      name={name as keyof SettingsFormData}
-                      render={({ field }) => (
-                        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                          <Checkbox
-                            id={`settings-${name}`}
-                            checked={field.value as boolean}
-                            onCheckedChange={field.onChange}
-                          />
-                          <label htmlFor={`settings-${name}`} className="text-sm text-gray-700 cursor-pointer">
-                            {label}
-                          </label>
-                        </div>
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
-
+          <Card className="bg-white border-gray-200 shadow-sm"><CardContent className="pt-6">
               {/* Vehicle Attributes Section */}
-              <Separator className="bg-gray-200" />
               <div className="space-y-3">
                 <label className="text-sm font-medium text-gray-700">Vehicle Features</label>
                 <p className="text-xs text-gray-500">Special features of your vehicle</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {[
                     { name: 'attrElectric', label: 'Electric (EV)' },
                     { name: 'attrGreen', label: 'Green / Hybrid' },
@@ -987,12 +1024,108 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+          </CardContent></Card>
+          </TabsContent>
+          <TabsContent value="connections" className="space-y-4">
+            <UberSettingsSection />
+          </TabsContent>
+          <TabsContent value="services" forceMount hidden={section !== 'services'}>
+          {/* Rideshare Platforms Section */}
+          <Card className="bg-white border-gray-200 shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Briefcase className="h-5 w-5 text-amber-400" />
+                Driving services
+              </CardTitle>
+              <CardDescription>Organize the services and vehicle classes you use.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Tabs value={serviceSection} onValueChange={value => setServiceSection(value as ServiceSection)}>
+                <TabsList aria-label="Driving service sections" className="grid h-auto w-full grid-cols-1 gap-1 min-[380px]:grid-cols-3">
+                  <TabsTrigger value="ridehail" className="whitespace-normal">Ridehail</TabsTrigger>
+                  <TabsTrigger value="premium" className="whitespace-normal">Black / premium</TabsTrigger>
+                  <TabsTrigger value="private" className="whitespace-normal">Private / chauffeur</TabsTrigger>
+                </TabsList>
+                <TabsContent value={serviceSection} className="space-y-4">
+              <p className="text-sm text-gray-600">
+                {serviceSection === 'premium'
+                  ? 'Your luxury vehicle selections. These are separate from the platforms you drive for.'
+                  : serviceSection === 'private'
+                    ? 'Select private or chauffeur work. Your vehicle details and ride preferences are shared across services.'
+                    : 'Select the ridehail platforms and vehicle classes you use.'}
+              </p>
+              <div hidden={serviceSection === 'premium'}>
+              <FormField
+                control={form.control}
+                name="ridesharePlatforms"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {SETTINGS_PLATFORMS.filter(platform => platform.section === serviceSection).map((platform, index) => (
+                        <label key={platform.id} className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
+                            ref={index === 0 ? field.ref : undefined}
+                            name={field.name}
+                            aria-invalid={Boolean(form.formState.errors.ridesharePlatforms)}
+                            checked={field.value?.includes(platform.id)}
+                            onCheckedChange={(checked) => {
+                              const newValue = checked
+                                ? [...(field.value || []), platform.id]
+                                : (field.value || []).filter((p) => p !== platform.id);
+                              field.onChange(newValue);
+                            }}
+                          />
+                          <span className="text-sm text-gray-700">{platform.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              </div>
+
+              {/* Vehicle Class Section */}
+              <Separator className="bg-gray-200" />
+              <div className="space-y-3" hidden={serviceSection === 'private'}>
+                <label className="text-sm font-medium text-gray-700">Vehicle Class</label>
+                <p className="text-xs text-gray-500">What type of vehicle do you drive?</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    { name: 'eligEconomy', label: 'Economy' },
+                    { name: 'eligXl', label: 'Large (XL)' },
+                    { name: 'eligXxl', label: 'Extra Large (XXL)' },
+                    { name: 'eligComfort', label: 'Comfort' },
+                    { name: 'eligLuxurySedan', label: 'Luxury Sedan' },
+                    { name: 'eligLuxurySuv', label: 'Luxury SUV' },
+                  ].filter(({ name }) => name.startsWith('eligLuxury') === (serviceSection === 'premium')).map(({ name, label }) => (
+                    <FormField
+                      key={name}
+                      control={form.control}
+                      name={name as keyof SettingsFormData}
+                      render={({ field }) => (
+                        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                          <Checkbox
+                            id={`settings-${name}`}
+                            checked={field.value as boolean}
+                            onCheckedChange={field.onChange}
+                          />
+                          <label htmlFor={`settings-${name}`} className="text-sm text-gray-700 cursor-pointer">
+                            {label}
+                          </label>
+                        </div>
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+
               {/* Service Preferences Section */}
               <Separator className="bg-gray-200" />
               <div className="space-y-3">
                 <label className="text-sm font-medium text-gray-700">Service Preferences</label>
                 <p className="text-xs text-gray-500">Rides you're willing to take (unchecked = avoid)</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {[
                     { name: 'prefPetFriendly', label: 'Pet Friendly' },
                     { name: 'prefTeen', label: 'Teen Rides' },
@@ -1038,8 +1171,12 @@ export default function SettingsPage() {
                   </div>
                 )}
               />
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
+          </TabsContent>
+          </Tabs>
 
           {/* Save Button */}
           <div className="sticky bottom-20 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent pt-4">

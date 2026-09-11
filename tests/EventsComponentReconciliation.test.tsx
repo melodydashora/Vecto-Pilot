@@ -102,17 +102,33 @@ describe('EventsComponent reconciled source reports', () => {
     expect(screen.getByText(otherReport.title)).toBeVisible();
   });
 
-  test('labels a missing original end time without treating it as agreement', () => {
+  test('labels a missing original end time as omission rather than disagreement', () => {
     render(<EventsComponent events={[{
       ...conflict,
       event_variants: [original, { ...otherReport, event_end_time: undefined }],
     }]} timezone={timezone} />);
 
     expect(screen.getByText('Starts 6:30 PM')).toBeVisible();
-    expect(screen.getByText(/Reported end times disagree/)).toBeVisible();
+    expect(screen.getByText('Some reports omit an end time. End time is unconfirmed.')).toBeVisible();
+    expect(screen.queryByText(/Reported end times disagree/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Source reports (2)'));
     expect(screen.getByText('Reported end: Not reported')).toBeVisible();
     expect(screen.getByText(`Reported end: ${date} at 10:00 PM`)).toBeVisible();
+  });
+
+  test.each([
+    ['10:00 pm', 'Some reports omit an end time. End time is unconfirmed.'],
+    ['22:30', 'Reported end times disagree, and some reports omit an end time. End time is unconfirmed.'],
+  ])('distinguishes equivalent known ends from differing ends when a report is missing (%s)', (otherEnd, message) => {
+    render(<EventsComponent events={[{
+      ...conflict,
+      event_variants: [original, { ...otherReport, event_end_time: otherEnd }, { ...thirdReport, event_end_time: undefined }],
+    }]} timezone={timezone} />);
+
+    expect(screen.getByText(message)).toBeVisible();
+    expect(screen.getByText('Starts 6:30 PM')).toBeVisible();
+    fireEvent.click(screen.getByText('Source reports (3)'));
+    expect(screen.getByText('Reported end: Not reported')).toBeVisible();
   });
 
   test('keeps a conflicted group when one original report passes date/time filtering', () => {
