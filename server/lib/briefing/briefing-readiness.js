@@ -64,6 +64,19 @@ export function briefingSectionIssue(field, value) {
   return 'Unknown Briefing section.';
 }
 
+// 2026-09-11 (Astra FAA chain finding 1, verified): the aggregator replaced any fulfilled
+// section that still failed the contract (e.g. an airport fallback that RETAINED known
+// airport identities with isFallback) by a bare error marker, discarding the safe known
+// data the pipeline had deliberately kept. Seal the failure instead: keep the section's
+// own plain-object fields, add the failure marker and reason. Readiness is unchanged —
+// _generationFailed still means failed → status error, never complete.
+export function sealFailedSection(value, issue) {
+  const known = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const { _generationFailed: _ignored, ...safe } = known;
+  const failedAt = new Date().toISOString();
+  return { ...safe, _generationFailed: true, error: issue, failedAt, reason: issue };
+}
+
 export function getBriefingReadiness(row, snapshotId) {
   const issues = Object.fromEntries(BRIEFING_FIELDS.flatMap(field => {
     const issue = briefingSectionIssue(field, row?.[field]);

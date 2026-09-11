@@ -4,7 +4,7 @@
 import { db } from '../../db/drizzle.js';
 import { randomUUID } from 'node:crypto';
 import { withBriefingGeneration, writeBriefingGeneration, BriefingSupersededError } from './briefing-generation.js';
-import { BRIEFING_FIELDS, briefingSectionIssue, briefingFailureReason, getBriefingReadiness, BriefingNotReadyError, assertBriefingReady, waitForBriefing } from './briefing-readiness.js';
+import { sealFailedSection, BRIEFING_FIELDS, briefingSectionIssue, briefingFailureReason, getBriefingReadiness, BriefingNotReadyError, assertBriefingReady, waitForBriefing } from './briefing-readiness.js';
 import { briefings, snapshots } from '../../../shared/schema.js';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { briefingLog, OP } from '../../logger/workflow.js';
@@ -282,7 +282,9 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   for (const field of BRIEFING_FIELDS) {
     const issue = briefingSectionIssue(field, briefingData[field]);
     if (issue && !briefingData[field]?._generationFailed) {
-      briefingData[field] = { ...errorMarker(new Error(issue)), reason: issue };
+      // 2026-09-11: keep the section's safe known data (e.g. retained airport identities)
+      // under the failure marker instead of discarding it (briefing-readiness.js).
+      briefingData[field] = sealFailedSection(briefingData[field], issue);
     }
   }
   const hasFailure = BRIEFING_FIELDS.some(field => briefingData[field]?._generationFailed);

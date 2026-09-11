@@ -61,3 +61,25 @@ describe('Briefing completion contract', () => {
     await expect(waitForBriefing({ read: async () => ({ ...completeBriefing(), status: 'error' }), sleep: () => { throw new Error('should not sleep'); } })).rejects.toThrow('not complete');
   });
 });
+
+// 2026-09-11 (Astra FAA chain finding 1): sealing a failed section keeps its safe known data.
+describe('sealFailedSection', () => {
+  test('keeps retained airport identities under the failure marker and stays failed', async () => {
+    const { sealFailedSection } = await import('../../server/lib/briefing/briefing-readiness.js');
+    const fallback = { airports: [{ code: 'DFW', name: 'Dallas/Fort Worth International' }], isFallback: true, reason: 'FAA feed unavailable' };
+    const sealed = sealFailedSection(fallback, 'Airport conditions provider was unavailable');
+    expect(sealed.airports).toEqual(fallback.airports);
+    expect(sealed._generationFailed).toBe(true);
+    expect(sealed.reason).toBe('Airport conditions provider was unavailable');
+    expect(sealed.error).toBe('Airport conditions provider was unavailable');
+    expect(typeof sealed.failedAt).toBe('string');
+    const row = { ...completeBriefing(), airport_conditions: sealed };
+    expect(getBriefingReadiness(row, 'test-snapshot').failed).toBe(true);
+    expect(getBriefingReadiness(row, 'test-snapshot').ready).toBe(false);
+  });
+  test('arrays and nulls seal to a bare marker', async () => {
+    const { sealFailedSection } = await import('../../server/lib/briefing/briefing-readiness.js');
+    expect(sealFailedSection(null, 'x')).toMatchObject({ _generationFailed: true, reason: 'x' });
+    expect(sealFailedSection([1, 2], 'x')).toEqual(expect.not.objectContaining({ 0: 1 }));
+  });
+});

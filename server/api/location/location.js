@@ -1906,7 +1906,14 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     }
 
     // Log travel disruptions for airports with delays (non-blocking)
-    if (airportContext && airportContext.airport_code && (airportContext.delay_minutes || airportContext.closure_status !== 'open')) {
+    // 2026-09-11 (Astra FAA chain finding 2): log a disruption only when one is actually
+    // observed — a listed delay, positive minutes, or a real restriction — never for
+    // closure_status 'unknown'; unknown minutes stay null instead of becoming 0.
+    const observedDisruption = !!airportContext?.airport_code && (
+      airportContext.has_delays === true
+      || (Number.isFinite(airportContext.delay_minutes) && airportContext.delay_minutes > 0)
+      || ['restricted', 'ground-stop', 'closed'].includes(airportContext.closure_status));
+    if (observedDisruption) {
       try {
         const { travel_disruptions } = await import('../../../shared/schema.js');
         const { randomUUID } = await import('crypto');
@@ -1917,13 +1924,13 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
           country_code: snapshotV1?.resolved?.country || dbSnapshot?.country || 'US',
           airport_code: airportContext.airport_code,
           airport_name: airportContext.airport_name || null,
-          delay_minutes: Number(airportContext.delay_minutes || 0),
+          delay_minutes: Number.isFinite(airportContext.delay_minutes) ? airportContext.delay_minutes : null,
           ground_stops: airportContext.ground_stops || [],
           ground_delay_programs: airportContext.ground_delay_programs || [],
           closure_status: airportContext.closure_status || 'open',
           delay_reason: airportContext.delay_reason || null,
           ai_summary: airportContext.ai_summary || null,
-          impact_level: airportContext.impact_level || (airportContext.delay_minutes > 30 ? 'high' : airportContext.delay_minutes > 0 ? 'medium' : 'none'),
+          impact_level: airportContext.impact_level || (airportContext.delay_minutes > 30 ? 'high' : airportContext.delay_minutes > 0 ? 'medium' : Number.isFinite(airportContext.delay_minutes) ? 'none' : null),
           data_source: 'FAA',
           last_updated: new Date(),
           next_update_at: null

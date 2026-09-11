@@ -114,7 +114,13 @@ async function fetchPublicAPI() {
         byCode.set(entry.airport_code, { ground_stops: [], ...entry });
         continue;
       }
-      existing.delay_minutes = Math.max(existing.delay_minutes || 0, entry.delay_minutes || 0);
+      // 2026-09-11: null-aware — unknown minutes never collapse to 0, and any listed
+      // disruption keeps has_delays true across the merged entry.
+      existing.delay_minutes = [existing.delay_minutes, entry.delay_minutes].some(v => Number.isFinite(v))
+        ? Math.max(...[existing.delay_minutes, entry.delay_minutes].filter(v => Number.isFinite(v)))
+        : null;
+      existing.has_delays = existing.has_delays === true || entry.has_delays === true
+        ? true : (existing.has_delays ?? entry.has_delays ?? null);
       existing.ground_delay_programs = [...(existing.ground_delay_programs || []), ...(entry.ground_delay_programs || [])];
       existing.ground_stops = [...(existing.ground_stops || []), ...(entry.ground_stops || [])];
       if (existing.closure_status === 'open' && entry.closure_status !== 'open') {
@@ -172,12 +178,17 @@ function parseDelayData(delay) {
   const ad = delay.Arrival_Departure;
   const minMatch = ad?.Min?.match(/(\d+)/);
   const maxMatch = ad?.Max?.match(/(\d+)/);
-  const minDelay = minMatch ? parseInt(minMatch[1]) : 0;
-  const maxDelay = maxMatch ? parseInt(maxMatch[1]) : 0;
+  // 2026-09-11 (Astra FAA producer finding, verified): a public delay-list entry with a
+  // reason but no numeric duration used to become delay_minutes 0, and the merge then let
+  // an optimistic ASWS Delay:false turn it into "no delays". Unknown minutes stay null and
+  // the entry's presence is itself the disruption signal (has_delays: true).
+  const minDelay = minMatch ? parseInt(minMatch[1], 10) : null;
+  const maxDelay = maxMatch ? parseInt(maxMatch[1], 10) : null;
 
   return {
     airport_code: delay.ARPT,
-    delay_minutes: maxDelay,
+    has_delays: true,
+    delay_minutes: maxDelay ?? minDelay ?? null,
     ground_delay_programs: [{
       reason: delay.Reason || 'Unknown',
       min_delay: minDelay,
@@ -193,7 +204,8 @@ function parseDelayData(delay) {
 function parseClosureData(closure) {
   return {
     airport_code: closure.ARPT,
-    delay_minutes: 0,
+    has_delays: null,           // a scoped restriction says nothing about delay minutes
+    delay_minutes: null,
     ground_delay_programs: [],
     closure_status: 'restricted',
     delay_reason: closure.Reason,
@@ -203,17 +215,20 @@ function parseClosureData(closure) {
 }
 
 // 2026-08-06: "1 hour and 32 minutes" / "43 minutes" → total minutes
+// 2026-09-11: null (unknown) when the feed gives no parseable duration — never 0.
 function parseDurationMinutes(text) {
-  if (!text) return 0;
+  if (!text) return null;
   const hours = text.match(/(\d+)\s*hour/);
   const minutes = text.match(/(\d+)\s*minute/);
+  if (!hours && !minutes) return null;
   return (hours ? parseInt(hours[1], 10) * 60 : 0) + (minutes ? parseInt(minutes[1], 10) : 0);
 }
 
 function parseGroundStopData(program) {
   return {
     airport_code: program.ARPT,
-    delay_minutes: 0,
+    has_delays: true,           // a ground stop is a disruption even with no minutes figure
+    delay_minutes: null,
     ground_delay_programs: [],
     ground_stops: [{
       reason: program.Reason || 'Unknown',
@@ -228,6 +243,7 @@ function parseGroundDelayData(gd) {
   const avgMinutes = parseDurationMinutes(gd.Avg);
   return {
     airport_code: gd.ARPT,
+    has_delays: true,           // listed ground delay program = disruption; minutes may be unknown
     delay_minutes: avgMinutes,
     ground_delay_programs: [{
       reason: gd.Reason || 'Unknown',
@@ -279,10 +295,16 @@ function mergeAirportData(airportCode, publicData, authData) {
     airport_name: authInfo?.airport_name || code,
     city: authInfo?.city || null,
     state: authInfo?.state || null,
-    // ASWS can report a delay before the aggregate feed contains its minutes.
-    delay_minutes: publicInfo?.delay_minutes ?? (authInfo?.has_delays === false ? 0 : null),
-    has_delays: publicInfo && (publicInfo.delay_minutes > 0 || publicInfo.ground_stops?.length > 0)
-      ? true : authInfo?.has_delays ?? null,
+    // ASWS can report a delay before the aggregate feed contains its minutes; and the
+    // public feed can list a disruption whose minutes are unknown while ASWS still says
+    // Delay:false (2026-09-11, Astra finding). A listed public disruption wins; unknown
+    // minutes stay null instead of borrowing ASWS's optimistic zero.
+    delay_minutes: publicInfo
+      ? (Number.isFinite(publicInfo.delay_minutes) ? publicInfo.delay_minutes : null)
+      : (authInfo?.has_delays === false ? 0 : null),
+    has_delays: publicInfo && (publicInfo.has_delays === true || publicInfo.delay_minutes > 0
+        || publicInfo.ground_stops?.length > 0 || publicInfo.ground_delay_programs?.length > 0)
+      ? true : (authInfo?.has_delays ?? null),
     supported: authInfo?.supported ?? null,
     ground_stops: publicInfo?.ground_stops || [],
     ground_delay_programs: publicInfo?.ground_delay_programs || [],

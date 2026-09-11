@@ -106,3 +106,33 @@ test('invalid airport codes fail before making requests', async () => {
   await assert.rejects(fetchFAADelayData('../AAA', { strict: true }), /three-letter IATA/);
   assert.equal(called, false);
 });
+
+// 2026-09-11 (Astra FAA producer finding): a public delay-list entry with a reason but no
+// numeric duration, combined with an optimistic ASWS Delay:false, must remain a disruption
+// with UNKNOWN minutes — never has_delays:false / delay_minutes:0 / "No delays reported".
+test('public delay listed without a duration stays a disruption with null minutes despite ASWS Delay:false', async () => {
+  mockFAA({ feed: xml('<Delay_type><Name>Airport Delays</Name><Arrival_Departure_Delay_List><Delay><ARPT>AAA</ARPT><Reason>WEATHER / LOW CEILINGS</Reason><Arrival_Departure><Type>Departure</Type><Trend>Increasing</Trend></Arrival_Departure></Delay></Arrival_Departure_Delay_List></Delay_type>') });
+  const result = await fetchFAADelayData('AAA', { strict: true });
+  assert.equal(result.has_delays, true);
+  assert.equal(result.delay_minutes, null);
+  assert.equal(result.closure_status, 'open');
+  assert.equal(result.delay_reason, 'WEATHER / LOW CEILINGS');
+  assert.equal(result.ground_delay_programs.length, 1);
+  assert.equal(result.ground_delay_programs[0].max_delay, null);
+});
+
+test('ground delay program without an Avg keeps null minutes and stays a disruption', async () => {
+  mockFAA({ feed: xml('<Delay_type><Name>Ground Delay Programs</Name><Ground_Delay_List><Ground_Delay><ARPT>AAA</ARPT><Reason>VOLUME</Reason></Ground_Delay></Ground_Delay_List></Delay_type>') });
+  const result = await fetchFAADelayData('AAA', { strict: true });
+  assert.equal(result.has_delays, true);
+  assert.equal(result.delay_minutes, null);
+  assert.equal(result.ground_delay_programs[0].type, 'Ground Delay Program');
+});
+
+test('quantified public delay still yields its minutes and merging keeps the larger known figure', async () => {
+  mockFAA({ feed: xml('<Delay_type><Name>Airport Delays</Name><Arrival_Departure_Delay_List><Delay><ARPT>AAA</ARPT><Reason>WX</Reason><Arrival_Departure><Min>15 minutes</Min><Max>45 minutes</Max></Arrival_Departure></Delay></Arrival_Departure_Delay_List></Delay_type><Delay_type><Name>Ground Delay Programs</Name><Ground_Delay_List><Ground_Delay><ARPT>AAA</ARPT><Reason>VOLUME</Reason></Ground_Delay></Ground_Delay_List></Delay_type>') });
+  const result = await fetchFAADelayData('AAA', { strict: true });
+  assert.equal(result.has_delays, true);
+  assert.equal(result.delay_minutes, 45);
+  assert.equal(result.ground_delay_programs.length, 2);
+});
