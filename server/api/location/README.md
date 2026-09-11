@@ -90,6 +90,12 @@ GPS coords → /api/location/resolve
 4. **2026-02-01:** Copies `market` from `driver_profiles.market` (for market-wide event discovery)
 5. Stores complete context in snapshots table
 
+September 10, 2026: airport context uses the pure `buildAirportContext` mapper
+in `server/lib/location/airport-context.js`. FAA minutes and delay flags remain
+nullable; unavailable/unsupported status does not mean zero delay or a closure.
+Ground stops remain separate from whole-airport closure, and restrictions retain
+their scope/reason. Feed and retrieval timestamps are copied only when supplied.
+
 **Market Field (2026-02-01):**
 - Snapshots now include a `market` column (e.g., "Dallas-Fort Worth")
 - Copied from `driver_profiles.market` at snapshot creation time

@@ -12,6 +12,7 @@ import { makeCoordsKey } from '../../lib/location/coords-key.js';
 import { getDayPartKey, getLocalHour, getLocalDow } from '../../lib/location/daypart.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
+import { buildAirportContext } from '../../lib/location/airport-context.js';
 // 2026-07-06: validation-gates.js deleted (consolidation Phase 1) — its
 // validateLocationFreshness import here was never called.
 import { uuidOrNull } from '../../util/uuid.js';
@@ -1691,43 +1692,19 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         
         if (airportData) {
           console.log('[Airport API] 🛫 FAA data received:', {
-            delay_minutes: airportData.delay_minutes || 0,
-            delay_reason: airportData.delay_reason || 'none',
+            delay_minutes: airportData.delay_minutes,
+            delay_reason: airportData.delay_reason ?? 'unreported',
             closure_status: airportData.closure_status,
             weather: airportData.weather
           });
           
-          airportContext = {
-            airport_code: nearbyAirport.code,
-            airport_name: nearbyAirport.name,
-            distance_miles: parseFloat(nearbyAirport.distance.toFixed(1)),
-            delay_minutes: airportData.delay_minutes || 0,
-            delay_reason: airportData.delay_reason,
-            closure_status: airportData.closure_status,
-            has_delays: airportData.delay_minutes > 0,
-            has_closures: airportData.closure_status !== 'open',
-            weather: airportData.weather ? {
-              temperature: airportData.weather.temperature,
-              conditions: airportData.weather.conditions,
-              wind: airportData.weather.wind
-            } : null
-          };
+          airportContext = buildAirportContext(nearbyAirport, airportData);
           
           console.log('[Airport API] Airport context prepared for DB:', airportContext);
         } else {
           // Issue #29 Fix: Preserve basic airport proximity even when FAA API fails
           console.log('[Airport API] No FAA data available for', nearbyAirport.code, '- saving proximity data only');
-          airportContext = {
-            airport_code: nearbyAirport.code,
-            airport_name: nearbyAirport.name,
-            distance_miles: parseFloat(nearbyAirport.distance.toFixed(1)),
-            delay_minutes: 0,
-            delay_reason: null,
-            closure_status: 'unknown',
-            has_delays: false,
-            has_closures: false,
-            weather: null
-          };
+          airportContext = buildAirportContext(nearbyAirport);
           console.log('[Airport API] Basic airport context prepared (FAA unavailable):', airportContext);
         }
       } else {

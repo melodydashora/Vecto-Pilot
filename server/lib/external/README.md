@@ -11,7 +11,7 @@ Third-party API integrations that don't fit into other domain modules.
 | File | Purpose | Key Export |
 |------|---------|------------|
 | ~~`tomtom-traffic.js`~~ | **Moved to `server/lib/traffic/tomtom.js`** | Re-exported for backwards compat |
-| `faa-asws.js` | FAA airport status | `fetchFAAStatus(airportCode)` |
+| `faa-asws.js` | FAA airport status | `fetchFAADelayData(airportCode, { strict })` |
 | `routes-api.js` | Google Routes API | `getRouteMatrix()`, `getDriveTime()` |
 | `semantic-search.js` | Vector/semantic search | `indexFeedback()`, `searchSimilar()` |
 | `tts-handler.js` | Text-to-speech | `synthesizeSpeech(text)` |
@@ -38,11 +38,21 @@ See `server/lib/traffic/README.md` for full documentation.
 
 ### FAA Airport Status
 ```javascript
-import { fetchFAAStatus } from './faa-asws.js';
+import { fetchFAADelayData } from './faa-asws.js';
 
-const status = await fetchFAAStatus('DFW');
-// Returns: { delays: [...], closures: [...], status: 'normal' }
+const status = await fetchFAADelayData(airportCode, { strict: true });
+// Returns observed disruption fields, coverage, weather and source/fetch times.
+// Missing delay minutes remain null. A failed feed throws with its reason.
 ```
+
+September 10, 2026: the FAA ASWS per-airport endpoint at
+`https://external-api.faa.gov/asws/api/airport/status/{IATA}` was verified with an
+anonymous JSON request. No Basic credentials are required by the observed
+endpoint. The companion NAS disruption feed remains XML. Both requests have a
+15-second timeout. Briefing requires successful responses; unsupported airport
+coverage is represented explicitly, with a reason, rather than as an outage or
+an inferred normal status. The legacy snapshot caller can retain nullable
+failure behavior by omitting `strict`; Briefing always opts into strict errors.
 
 ### Google Routes API
 ```javascript
@@ -85,7 +95,7 @@ const results = await searchSimilar("airport pickup strategy");
 ## Error Handling
 
 All external APIs include retry logic and graceful degradation:
-- FAA: Returns empty status if unavailable
+- FAA: Strict Briefing callers receive a failure reason; legacy nullable callers receive null
 - Routes: Falls back to straight-line distance
 - TTS: Returns error message audio
 
@@ -93,12 +103,12 @@ All external APIs include retry logic and graceful degradation:
 
 ```javascript
 // From server/api/*/
-import { fetchFAAStatus } from '../../lib/external/faa-asws.js';
+import { fetchFAADelayData } from '../../lib/external/faa-asws.js';
 import { getDriveTime, getRouteMatrix } from '../../lib/external/routes-api.js';
 import { synthesizeSpeech } from '../../lib/external/tts-handler.js';
 import { searchSimilar, indexFeedback } from '../../lib/external/semantic-search.js';
 
 // From server/lib/*/
 import { getDriveTime } from '../external/routes-api.js';
-import { fetchFAAStatus } from '../external/faa-asws.js';
+import { fetchFAADelayData } from '../external/faa-asws.js';
 ```

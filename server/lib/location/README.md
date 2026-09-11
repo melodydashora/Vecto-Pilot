@@ -27,6 +27,7 @@ location/
 | File | Purpose | Key Export |
 |------|---------|------------|
 | `address-validation.js` | Address validation | `validateAddress()`, `normalizeAddress()` |
+| `airport-context.js` | Preserve FAA observations or unknown proximity-only context without provider/DB access | `buildAirportContext()` |
 | `coords-key.js` | Coordinate key generator | `coordsKey()`, `parseCoordKey()`, `isValidCoordKey()` |
 | `geo.js` | Distance calculation | `haversineKm()`, `haversineDistanceMeters()`, `haversineDistanceMiles()` |
 | `geocode.js` | Google Geocoding/Timezone API | `geocodeAddress()`, `getTimezoneForCoords()` |
