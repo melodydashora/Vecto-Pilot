@@ -129,11 +129,6 @@ const BriefingTab = memo(function BriefingTab({
         <div className="flex items-center gap-2 flex-wrap">
           <Newspaper className="w-5 h-5 text-indigo-600" />
           <h2 className="text-lg font-semibold text-gray-800">Driver Briefing</h2>
-          {snapshotId && (
-            <Badge variant="outline" className="text-xs font-mono bg-gray-100 text-gray-600">
-              {snapshotId.slice(0, 8)}...
-            </Badge>
-          )}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 // Complete server-counted rolling windows, separate from the latest-25 editor list.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
@@ -40,9 +40,11 @@ export default function OffersDecisionChart({ refreshToken }: { refreshToken: st
   const { user, token, isAuthenticated, isLoading } = useAuth();
   const { timeZone } = useLocation();
   const userId = user?.userId;
+  // Local identity only: never put bearer credentials in query keys or storage.
+  const session = useMemo(() => ({ userId, token }), [userId, token]);
   const [period, setPeriod] = useState<Period>('7d');
   const [retry, setRetry] = useState(0);
-  const [result, setResult] = useState<{ userId: string; period: Period; data?: Summary; error?: string } | null>(null);
+  const [result, setResult] = useState<{ session: typeof session; period: Period; data?: Summary; error?: string } | null>(null);
   useEffect(() => {
     const refresh = () => setRetry(value => value + 1);
     window.addEventListener('focus', refresh); window.addEventListener('online', refresh);
@@ -60,18 +62,18 @@ export default function OffersDecisionChart({ refreshToken }: { refreshToken: st
         if (!response.ok) throw new Error('Could not load decision counts for this period.');
         const data = await response.json();
         if (!validSummary(data, period)) throw new Error('The server did not return complete decision counts.');
-        if (!controller.signal.aborted) setResult({ userId, period, data });
+        if (!controller.signal.aborted) setResult({ session, period, data });
       } catch (error) {
-        if (!controller.signal.aborted) setResult({ userId, period, error: error instanceof Error ? error.message : 'Could not load decision counts.' });
+        if (!controller.signal.aborted) setResult({ session, period, error: error instanceof Error ? error.message : 'Could not load decision counts.' });
       }
     };
     void load();
     return () => controller.abort();
-  }, [userId, token, isAuthenticated, isLoading, period, retry, refreshToken]);
+  }, [session, userId, token, isAuthenticated, isLoading, period, retry, refreshToken]);
 
   // This identity check also protects the render before the effect cleanup executes.
   if (!userId || !token || !isAuthenticated || isLoading) return null;
-  const current = result?.userId === userId && result.period === period ? result : null;
+  const current = result?.session === session && result.period === period ? result : null;
   const data = current?.data, stats = data?.stats;
   const bars = stats ? [
     { decision: 'Accept', analyzer: stats.analyzer_accepted, driver: stats.driver_accepted },

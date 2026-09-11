@@ -91,3 +91,25 @@ Screenshots and browser receipts live under
 `.config/astra-vecto-coordination/sprint-20260911/artifacts/`. These fixtures prove
 bounded behavior, not live provider availability, auth acceptance or Postgres
 concurrency. Main gateway liveness is separate from feature correctness.
+
+## Current integrated session-boundary follow-up
+
+The earlier integration instructions above are historical. The current combined
+candidate is `astra/offer-faa-review-20260911`, checkpoint `21506372`, including
+Claude's recovered backend work and the subsequent authenticated Offer/browser/
+PostgreSQL evidence recorded in shared status. Preserve Claude's frozen worktree.
+
+A focused follow-up on this candidate reproduced old decision counts and old
+request errors in the first render after replacing a token for the same driver.
+The chart owns local state, so clearing the provider's query cache did not prevent
+that render. Results now carry the current local session identity and are compared
+before display. The existing cancellation checks already reject late headers and
+late JSON, even when the synthetic transport ignores AbortSignal; they remain
+unchanged. No backend or shared chart contract changed.
+
+All 30 Offer UI tests pass: 24 existing cases plus six current session-boundary
+cases, including two reproduced first-render failures. Scoped lint, client
+TypeScript and whitespace checks pass. This follow-up changes no layout. The
+existing tooltip correction already provides an 8 px gap at 320 px; its saved
+browser receipt matches the pre-follow-up chart source exactly. Shared status
+contains the stable focused patch, latest build and runtime attestation.

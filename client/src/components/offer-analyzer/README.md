@@ -17,6 +17,9 @@ cards keep their current responsibilities and explicit Save Rules flow.
   Inconsistent count partitions or interval bounds show an error. Date labels use
   the GPS-resolved timezone through the shared adapter, with original instants in
   `time` elements; a missing timezone leaves local labels unresolved.
+  Counts and errors are bound to the current authenticated session. Replacing a
+  token for the same driver hides the old result before effect cleanup; delayed
+  responses cannot restore it.
 
 This UI requires the recovered September 10 outcome revision/Other migration,
 canonical POST/conflict response, and complete-period stats endpoint. Backend
