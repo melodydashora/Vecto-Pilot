@@ -1,4 +1,5 @@
 import { useCanonicalVoiceSend } from '@/hooks/coach/useCanonicalVoiceSend';
+import { createVoiceTurnGate } from '@/utils/coach/voiceTurnGate';
 import { ReportedMemos } from '@/components/coach/ReportedMemos';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useRef, useState, useEffect, useCallback } from "react";
@@ -139,7 +140,10 @@ export default function RideshareCoach({
 
   const latestTranscriptRef = useRef('');
   // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
-  const sentViaVoiceRef = useRef(false);
+  // 2026-09-11: explicit voice-turn gate (see utils/coach/voiceTurnGate.ts) replaces the
+  // bare sentViaVoiceRef whose flag survived failed voice sends and leaked speech into the
+  // next typed reply with read-aloud OFF.
+  const voiceGateRef = useRef(createVoiceTurnGate());
   // 2026-05-04 (COACH-V1): once-per-session guards for the stop-phrase effects
   // (transcript changes per recognition tick; without these the effects re-fire).
   const stopAndOutputFiredRef = useRef(false);
@@ -240,18 +244,20 @@ export default function RideshareCoach({
     // 2026-08-14 (unified voice thread): while a live session is up, the live
     // MOUTH speaks the answer (typed message or upload → brain → relay) and
     // classic TTS stays silent — never two audio paths at once.
+    const gate = voiceGateRef.current;
+    gate.complete();
     if (voice.isLive) {
       const spoken = cleanTextForTTS(fullResponse).slice(0, 4000);
       if (spoken.length > 0) voice.sayText(spoken, { userMessage: meta.userMessage });
-      sentViaVoiceRef.current = false;
+      gate.consume();
       return;
     }
-    if (!readAloudEnabled && !sentViaVoiceRef.current) return;
+    const askedByVoice = gate.consume();
+    if (!readAloudEnabled && !askedByVoice) return;
 
     // Speak only after the server confirms action/persistence outcomes.
     const spokenText = cleanTextForTTS(fullResponse);
     if (spokenText.length > 0) void speak(spokenText.slice(0, 4000), 'en', playbackSpeed);
-    sentViaVoiceRef.current = false;
   }, [voice.isLive, voice.sayText, readAloudEnabled, speak, streaming, playbackSpeed]);
 
   // 2026-04-27 (Step 5): per-delta hook for chunked TTS. Same gate as
@@ -292,9 +298,13 @@ export default function RideshareCoach({
   });
 
   const sendVoiceTurn = useCanonicalVoiceSend(send, () => {
-    sentViaVoiceRef.current = true;
+    voiceGateRef.current.arm();
     latestTranscriptRef.current = '';
     clearTranscript();
+  }, () => {
+    // Settled without a completion (503 / throw / abort): the voice flag must not leak
+    // into the next typed reply.
+    voiceGateRef.current.settle();
   });
 
   // Committed voice turns become normal thread messages (persisted via
@@ -367,8 +377,8 @@ export default function RideshareCoach({
       setTimeout(() => {
         // Read after final recognition events. Other finalizers clear this ref
         // synchronously when claiming the turn, so an old timer cannot resend it.
+        // 2026-09-11: a refused (busy) send keeps the transcript; admission clears it.
         void sendVoiceTurn(latestTranscriptRef.current);
-        clearTranscript();
       }, 300);
     }
   };
@@ -511,10 +521,8 @@ export default function RideshareCoach({
       // 300ms delay lets final onresult events commit before we read the ref
       setTimeout(() => {
         const text = latestTranscriptRef.current.trim();
-        if (text) {
-          void sendVoiceTurn(text);
-        }
-        clearTranscript();
+        // 2026-09-11: a refused (busy) send keeps the transcript; admission clears it.
+        if (text) void sendVoiceTurn(text); else clearTranscript();
       }, 300);
     } else {
       // Interrupt coach TTS if it's speaking when driver starts talking.
@@ -629,10 +637,8 @@ export default function RideshareCoach({
     stopMic();
     setTimeout(() => {
       const text = latestTranscriptRef.current.trim();
-      if (text) {
-        void sendVoiceTurn(text);
-      }
-      clearTranscript();
+      // 2026-09-11: a refused (busy) send keeps the transcript; admission clears it.
+      if (text) void sendVoiceTurn(text); else clearTranscript();
     }, 300);
   }, [transcript, isListening, isSpeaking, warmUp, stopMic, sendVoiceTurn, clearTranscript]);
 
