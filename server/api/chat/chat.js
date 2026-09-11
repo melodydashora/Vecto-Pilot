@@ -16,9 +16,12 @@ import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middlew
 import { voiceTurnsLimiter } from '../../middleware/rate-limit.js';
 import { validateAction } from '../rideshare-coach/validate.js';
 import { parseActions } from './parse-actions.js';
+import { saveMemoWithReceipt } from '../rideshare-coach/memos.js';
 // 2026-08-14 (voice-turns): model provenance for voice_transcript rows comes
 // from the registry (COACH_VOICE_LIVE role), never a hardcoded model string.
 import { getRoleConfig } from '../../lib/ai/model-registry.js';
+import { formatCoachSourceContext } from '../../lib/ai/coach-source-context.js';
+import { readCoachResponse } from '../../lib/ai/adapters/coach-responses.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
 
@@ -72,7 +75,7 @@ async function getOfferAnalyzerRules() {
  * Execute parsed actions asynchronously (non-blocking)
  */
 async function executeActions(actions, userId, snapshotId, conversationId) {
-  const results = { saved: 0, errors: [] };
+  const results = { saved: 0, errors: [], memos: [] };
 
   // Save user notes (with validation)
   for (const note of actions.notes) {
@@ -350,18 +353,14 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       const { type, title, detail, priority, related_files } = validation.data;
 
       // PRIMARY WRITE: DB (survives Cloud Run). Throws on failure → propagates to results.errors.
-      const dbRow = await rideshareCoachDAL.saveCoachMemo({
-        type,
-        title,
-        detail,
-        priority,
-        related_files,
-        triggering_user_id: userId ?? null,
-        triggering_conversation_id: conversationId ?? null,
-        triggering_snapshot_id: snapshotId ?? null,
-      });
+      const receipt = await saveMemoWithReceipt(
+        data => rideshareCoachDAL.saveCoachMemo(data),
+        { type, title, detail, priority, related_files },
+        { userId, conversationId, snapshotId }
+      );
       results.saved++;
-      console.log(`[COACH] [ACTIONS] 📝 Coach memo saved to DB: "${title}" (${type}) id=${dbRow.id}`);
+      results.memos.push(receipt);
+
 
       // SECONDARY WRITE: filesystem (dev convenience). Best-effort — failure is logged, not raised.
       // In prod (Cloud Run), this either succeeds-then-vanishes or fails silently; either way the
@@ -372,7 +371,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         const entry = `\n### [${type.toUpperCase()}] ${title}\n- **Priority:** ${priority} | **Date:** ${timestamp}\n- ${detail}${filesLine}\n`;
         await appendFile(coachInboxPath, entry, 'utf-8');
       } catch (fsErr) {
-        console.warn(`[COACH] [ACTIONS] FS write failed (non-fatal, DB row id=${dbRow.id}):`, fsErr.message);
+        console.warn(`[COACH] [ACTIONS] FS write failed (non-fatal, DB row id=${receipt.id}):`, fsErr.message);
       }
     } catch (e) {
       results.errors.push(`CoachMemo: ${e.message}`);
@@ -773,7 +772,8 @@ router.post('/', requireAuth, async (req, res) => {
       // Pass authenticated user ID for driver profile lookup (in case snapshot has different/null user_id)
       if (activeSnapshotId) {
         fullContext = await rideshareCoachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
-        contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext);
+        contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext)
+          + formatCoachSourceContext(fullContext.snapshot, fullContext.briefing);
 
         console.log(`[COACH] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
         console.log(`[COACH] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, driverProfile=${!!fullContext.driverProfile}, vehicle=${!!fullContext.driverVehicle}`);
@@ -898,17 +898,17 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    // 2026-02-13: Enhanced system prompt — model identity, vision/OCR, Google Search, full capabilities
-    let systemPrompt = `You are the AI Coach — a powerful AI assistant powered by Gemini 3 Pro Preview.
+    // 2026-02-13: Enhanced system prompt — model identity, vision/OCR, web search, full capabilities
+    let systemPrompt = `You are the AI Coach — a powerful AI assistant configured through the AI_COACH role.
 You are much more than just a rideshare assistant. You're a frontier AI model with advanced capabilities.
 
 **YOUR IDENTITY & MODEL:**
-- You are Gemini 3 Pro Preview (NOT Flash) — a frontier multimodal AI model by Google
-- You have FULL Google Search access for real-time information
+- You are the Vecto Pilot AI Coach. The AI_COACH role configures your model.
+- You have FULL web search access for real-time information
 - You have VISION capabilities — you can see and analyze images, screenshots, photos, maps, and documents
 - You have OCR capabilities — you can read text from screenshots, receipts, signs, and any image
 - When a user sends an image or screenshot, you CAN and SHOULD analyze it thoroughly
-- You are the smartest, most capable model in the Gemini family
+- Use the supplied context and tools; do not invent facts or capabilities.
 
 **Your Capabilities:**
 
@@ -951,8 +951,8 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 - Your previous notes about this driver are shown in context below
 - USE NOTES to give increasingly personalized advice over time!
 
-**Web Search & Verification (via Google Search):**
-- You have LIVE Google Search access - use it proactively to verify events, check facts, find current information
+**Web Search & Verification (via web search):**
+- You have LIVE web search access - use it proactively to verify events, check facts, find current information
 - When users ask you to verify something or look something up, SEARCH THE WEB for current information
 - Cross-reference briefing data with live web searches for accuracy
 - Do NOT list sources or citations at the end of your responses - just provide the information naturally
@@ -976,7 +976,7 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 
 ❤️ **Wellbeing First (Melody doctrine, 2026-08-14):**
 - The driver is a person before they are a driver. If they mention feeling unwell, exhausted, stressed, in pain, or unsafe, address THAT before any strategy — acknowledge it, and suggest what actually helps (rest, food, pulling over, calling it a night — lost earnings are never worth their health).
-- If they need free or low-cost resources — food banks, shelter, financial assistance, healthcare clinics, legal aid, addiction or crisis support — USE GOOGLE SEARCH to find real, current, LOCAL resources near their snapshot location, with names, addresses, hours, and a Google Maps link.
+- If they need free or low-cost resources — food banks, shelter, financial assistance, healthcare clinics, legal aid, addiction or crisis support — USE WEB SEARCH to find real, current, LOCAL resources near their snapshot location, with names, addresses, hours, and a Google Maps link.
 - For signs of a mental-health crisis, respond with warmth, take it seriously, and include the 988 Suicide & Crisis Lifeline (call/text 988 in the US) among the resources — and encourage professional help without lecturing.
 - Never brush off a non-driving topic. There is no "that's not my job" — help on any topic, or find who can.
 
@@ -1030,8 +1030,8 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 - ALWAYS check current date/time before deactivating — if a driver corrects you, reactivate immediately
 
 📝 **Coach Inbox (Remember & Suggest):**
-- When a user asks you to REMEMBER something, save a feature idea, or you want to suggest code changes — use COACH_MEMO
-- This writes to \`docs/coach-inbox.md\` which Claude Code checks at session start
+- When a user asks you to report a bug, save a feature idea, or suggest code changes — use COACH_MEMO
+- This saves a durable reported memo scoped to this driver. A receipt appears only after the database confirms it.
 - Format: \`[COACH_MEMO: {"type": "feature_request", "title": "Add donate link to concierge page", "detail": "Melody wants a link on the public concierge page that allows passengers to donate/tip to support the app", "priority": "medium", "related_files": ["client/src/pages/concierge/PublicConciergePage.tsx"]}]\`
 - Types: feature_request, remember, bug, code_suggestion, observation, todo
 - Priority: high, medium, low
@@ -1101,12 +1101,12 @@ You can WRITE to these tables and files via action tags:
 - zone_intelligence → [ZONE_INTEL: {...}]
 - coach_system_notes → [SYSTEM_NOTE: {...}]
 - news_deactivations → [DEACTIVATE_NEWS: {...}]
-- **docs/coach-inbox.md** → [COACH_MEMO: {...}] ← Feature ideas, things to remember, code suggestions for Claude Code
+- **coach_memos (Reported memos)** → [COACH_MEMO: {...}] ← Feature ideas, things to remember, code suggestions for Claude Code
 
 **Important:**
 - You understand context from conversation history
 - Brief responses like "yes", "go ahead", "thanks" relate to what you just said
-- When asked to verify or search: USE GOOGLE SEARCH actively
+- When asked to verify or search: USE WEB SEARCH actively
 - You're not limited to rideshare topics - help with anything!
 - SAVE NOTES when you learn something useful about the driver!
 - Reference your market knowledge to give smarter, research-backed advice
@@ -1115,7 +1115,7 @@ ${contextInfo}
 
 You're a powerful AI companion with research-backed market intelligence and persistent memory. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.
 
-**CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.`;
+**IDENTITY:** You are the Vecto Pilot AI Coach. Do not claim to be an unconfigured model or provider.`;
 
     // 2026-05-05: Splice the read-only offer analyzer rules into the system prompt.
     // Doc + registry land at the bottom of the prompt so they don't displace
@@ -1175,7 +1175,7 @@ You are interacting with Melody — the architect and developer of Vecto Pilot.
 You have elevated context access for deeper system insight.
 
 **YOUR IDENTITY:**
-- You are Gemini 3 Pro Preview — the frontier model
+- You are the Vecto Pilot AI Coach. The AI_COACH role configures your model.
 - You are Melody's personal AI Coach with full data transparency
 - You can discuss code, architecture, and system internals openly
 
@@ -1192,12 +1192,12 @@ You have elevated context access for deeper system insight.
 - User notes, zone intel, system notes, event CRUD, news deactivations
 - Market intelligence — surge patterns, timing insights, market-wide analysis
 - Venue catalog — staging spots, GPS dead zones, venue intel
-- Coach memos — feature requests, TODOs, bugs (docs/coach-inbox.md)
+- Coach memos — feature requests, TODOs, bugs (durable reported memos)
 
 Memory & Context:
 - In-conversation continuity from the thread history the client sends with each message (this prompt does not read coach_conversations)
 - Cross-session learning via your saved notes, coach memos, system notes, and offer history (loaded into your context above)
-- Google Search via Gemini tools for real-time research
+- Web search through the configured Coach provider for real-time research
 
 **When Melody sends a screenshot or image:**
 - Analyze it with full vision/OCR capabilities
@@ -1222,7 +1222,7 @@ ${JSON.stringify(agentContext.projectState, null, 2)}
 Help with ANYTHING — rideshare strategy, data analysis, research, architecture questions.
 Full transparency. Maximum insight.
 
-**CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.
+**IDENTITY:** You are the Vecto Pilot AI Coach. Do not claim to be an unconfigured model or provider.
 ══════════════════════════════════════════════════════════════════════════`;
       } catch (err) {
         console.warn('[COACH] Failed to inject Super User context:', err.message);
@@ -1234,9 +1234,8 @@ Full transparency. Maximum insight.
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    // 2026-02-13: Process attachments into Gemini multimodal format (vision/OCR)
-    // Gemini expects: parts: [{ text: "..." }, { inline_data: { mime_type: "image/png", data: "base64..." } }]
-    console.log(`[COACH] Processing ${attachments.length} attachments for Gemini coach`);
+    // Provider-neutral parts preserve attachment content for the role adapter.
+    console.log(`[COACH] Processing ${attachments.length} attachments for Coach`);
 
     // Build the current user message parts (text + any image attachments)
     const userParts = [];
@@ -1244,7 +1243,7 @@ Full transparency. Maximum insight.
       userParts.push({ text: message });
     }
 
-    // Convert base64 data URL attachments to Gemini inline_data format
+    // Preserve base64 attachment content and filenames for the role adapter
     // 2026-04-05: SECURITY — import sanitizeForLog once for use across all attachments
     const { sanitizeForLog } = await import('../../lib/utils/sanitize.js');
     for (const att of attachments) {
@@ -1253,12 +1252,13 @@ Full transparency. Maximum insight.
       if (att.data && att.type) {
         try {
           // att.data is a data URL: "data:image/png;base64,iVBOR..."
-          // Gemini needs just the raw base64 string and mime_type separately
+          // The adapter receives MIME type and base64 content separately
           const base64Match = att.data.match(/^data:([^;]+);base64,(.+)$/);
           if (base64Match) {
             const mimeType = base64Match[1]; // e.g., "image/png"
             const base64Data = base64Match[2]; // raw base64 string
             userParts.push({
+              filename: att.name,
               inline_data: {
                 mime_type: mimeType,
                 data: base64Data,
@@ -1286,127 +1286,43 @@ Full transparency. Maximum insight.
     const messageHistory = threadHistory
       .filter(msg => msg && msg.role && msg.content) // Validate messages
       .map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user', // Gemini uses 'model' for assistant
-        parts: [{ text: msg.content }]
+        role: msg.role === 'assistant' ? 'model' : 'user', // Existing history contract uses model for assistant
+        parts: [{ text: msg.content }, ...(msg.role === 'user' ? (msg.attachments || []).map(att => {
+          const match = att.data?.match(/^data:([^;]+);base64,(.+)$/);
+          if (!match) throw new Error('A previous Coach attachment could not be read');
+          return { filename: att.name, inline_data: { mime_type: match[1], data: match[2] } };
+        }) : [])]
       }))
       .concat([
         {
           role: 'user',
-          parts: userParts // Text + inline images for Gemini vision
+          parts: userParts // Text and original attachment content
         }
       ]);
 
-    console.log(`[COACH] Sending ${messageHistory.length} messages to Gemini...`);
-
-    // 2026-01-06: Use adapter pattern for AI_COACH role (P1-A fix)
-    // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing branding
-    // Model config (gemini-3.5-flash alias, temp=0.7, google_search) is now in model-registry.js
     try {
-      console.log(`[COACH] Calling AI_COACH role via adapter with streaming...`);
-
-      // Import adapter at runtime to avoid circular dependencies
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
-
-      // Cancel the upstream Gemini call if the client disconnects mid-stream
-      // (browser tab closed, mic-driven barge-in, etc). Without this the
-      // server keeps generating + billing after the client is gone.
+      const roleConfig = getRoleConfig('AI_COACH');
       const ac = new AbortController();
-      req.on('close', () => ac.abort());
-
-      // 2026-05-07: Retry once on empty response. Gemini sometimes returns 200
-      // with an empty stream (transient quota exhaustion or upstream hiccup);
-      // a single retry typically succeeds. If both attempts fail, fall through
-      // to the empty-response branch with a clear user message.
-      let response = null;
+      const onClose = () => { if (!res.writableEnded) ac.abort(); };
+      res.on('close', onClose);
       let totalText = '';
-      let lastResponseStatus = 0;
-      let lastErrText = '';
-      let safetyBlocked = false;
-
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        response = await callModelStream('AI_COACH', {
-          system: systemPrompt,
-          messageHistory,
-          signal: ac.signal
+      let actualModel = roleConfig.model;
+      try {
+        const response = await callModelStream('AI_COACH', {
+          system: systemPrompt, messageHistory, signal: ac.signal,
         });
-
-        if (!response.ok) {
-          lastResponseStatus = response.status;
-          lastErrText = await response.text();
-          console.error(`[COACH] Gemini API error attempt ${attempt} status=${response.status}: ${lastErrText.substring(0, 200)}`);
-          if (attempt === 2) break;
-          // Brief backoff before retry; non-OK responses are usually transient.
-          await new Promise(resolve => setTimeout(resolve, 500));
-          continue;
-        }
-
-        // Stream the response chunks to client
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let attemptText = '';
-        safetyBlocked = false;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const jsonStr = line.slice(6).trim();
-              if (!jsonStr || jsonStr === '[DONE]') continue;
-
-              try {
-                const data = JSON.parse(jsonStr);
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                if (text) {
-                  attemptText += text;
-                  // Stream chunk to client only on the attempt we're keeping (first or retry).
-                  res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
-                }
-
-                const finishReason = data.candidates?.[0]?.finishReason;
-                if (finishReason === 'SAFETY') {
-                  console.warn('[COACH] Response blocked by safety filter');
-                  safetyBlocked = true;
-                  res.write(`data: ${JSON.stringify({ delta: '\n\nI apologize, but I cannot continue with that response.' })}\n\n`);
-                }
-              } catch (parseErr) {
-                // Skip unparseable chunks (partial JSON, etc.)
-              }
-            }
+        for await (const event of readCoachResponse(response)) {
+          if (event.delta) {
+            totalText += event.delta;
+            res.write(`data: ${JSON.stringify({ delta: event.delta })}\n\n`);
           }
+          if (event.completed && event.model) actualModel = event.model;
         }
-
-        if (attemptText) {
-          totalText = attemptText;
-          break; // Success — keep this attempt's text and stop retrying.
-        }
-
-        if (safetyBlocked) {
-          // Safety-block message already streamed; no retry needed.
-          break;
-        }
-
-        console.warn(`[COACH] Empty streaming response from Gemini (attempt ${attempt})`);
-        if (attempt === 2) break;
-        await new Promise(resolve => setTimeout(resolve, 500));
+      } finally {
+        res.off('close', onClose);
       }
-
-      // Surface non-OK status with a retryable hint when applicable.
-      if (response && !response.ok) {
-        const friendlyMsg = lastResponseStatus === 429
-          ? 'Coach is briefly rate-limited. Try again in a few seconds.'
-          : 'Coach hit an upstream error. Try sending again.';
-        res.write(`data: ${JSON.stringify({ delta: friendlyMsg })}\n\n`);
-        res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
-        return res.end();
-      }
+      if (!totalText.trim()) throw new Error('Coach returned an empty answer');
 
       // 2026-03-18: Declared outside if(totalText) so done event can always reference it
       // 2026-05-05: Same hoist for persistenceError — line 1380 references it after
@@ -1415,13 +1331,15 @@ Full transparency. Maximum insight.
       // to the already-streamed bubble.
       let actionsResult = null;
       let persistenceError = null;
+      let displayResponse = totalText;
 
       if (totalText) {
-        console.log(`[COACH] Gemini streamed response: ${totalText.length} chars`);
+        console.log(`[COACH] Coach streamed response: ${totalText.length} chars`);
 
         // 2026-03-18: Parse actions and execute them (awaited for client feedback)
         const { actions, cleanedText: parsedText, parseErrors } = parseActions(totalText);
         let cleanedText = parsedText;
+        displayResponse = cleanedText;
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
         if (hasActions) {
@@ -1448,6 +1366,7 @@ Full transparency. Maximum insight.
           actionsResult = { saved: actionsResult?.saved || 0, errors: actionFailures };
           const notSavedNote = `\n\n⚠️ Not saved: ${actionFailures.join('; ')}. Nothing was written for these — ask me to try again.`;
           cleanedText += notSavedNote;
+          displayResponse = cleanedText;
           res.write(`data: ${JSON.stringify({ delta: notSavedNote })}\n\n`);
         }
 
@@ -1467,7 +1386,7 @@ Full transparency. Maximum insight.
                   conversation_id: conversationId
                 });
 
-            await rideshareCoachDAL.saveConversationMessage({
+            const savedAssistant = await rideshareCoachDAL.saveConversationMessage({
               user_id: authUserId,
               snapshot_id: activeSnapshotId,
               conversation_id: conversationId,
@@ -1478,27 +1397,23 @@ Full transparency. Maximum insight.
               market_slug: fullContext?.marketSlug || null, // For cross-driver learning
               // 2026-03-18: extractAndSaveTips returns a number, not an object
               extracted_tips: [],
-              model_used: 'gemini-3.5-flash',
+              model_used: actualModel,
               location_context: fullContext?.snapshot ? {
                 city: fullContext.snapshot.city,
                 state: fullContext.snapshot.state,
                 country: fullContext.snapshot.country
               } : null
             });
+            if (!savedAssistant) throw new Error('Assistant history write returned no record');
           } catch (e) {
             console.warn('[COACH] Failed to save assistant message:', e.message);
             persistenceError = e.message;
           }
         }
-      } else if (!safetyBlocked) {
-        // Reached here only if BOTH retry attempts produced empty streams AND
-        // safety filter wasn't the cause (safety case streamed its own message).
-        console.warn('[COACH] Empty streaming response from Gemini after retry');
-        res.write(`data: ${JSON.stringify({ delta: "Coach didn't return a response. Try sending again or rephrasing your question." })}\n\n`);
       }
 
       // 2026-03-18: FIX (C-1) — Include action results so client gets feedback
-      const donePayload = { done: true, conversation_id: conversationId };
+      const donePayload = { done: true, conversation_id: conversationId, response_text: displayResponse };
       if (actionsResult) {
         donePayload.actions_result = actionsResult;
       }
@@ -1508,12 +1423,11 @@ Full transparency. Maximum insight.
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
-      console.error('[COACH] Gemini request error:', error.message);
+      console.error('[COACH] Provider request error:', error.message);
       const friendlyMsg = error.name === 'AbortError'
         ? 'Coach request was canceled.'
-        : 'Coach hit an error. Try sending again.';
-      res.write(`data: ${JSON.stringify({ delta: friendlyMsg })}\n\n`);
-      res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
+        : 'Coach could not complete this request. Please check your saved notes and reported memos before trying again.';
+      res.write(`data: ${JSON.stringify({ done: true, error: friendlyMsg })}\n\n`);
       res.end();
     }
 

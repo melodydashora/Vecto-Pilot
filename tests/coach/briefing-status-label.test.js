@@ -13,11 +13,12 @@ const wrap = row => ({ exists: true, status: row.status ?? null, generated_at: r
 
 describe('describeBriefingStatus', () => {
   test('missing row is Unavailable, never Complete', () => {
-    const label = describeBriefingStatus({ exists: false, status: 'missing', readiness: { ready: false, failed: false, issues: {} }, events: [], traffic: [], news: [] });
+    const label = describeBriefingStatus({ exists: false, status: 'pending', source_state: 'missing', source_record: null, readiness: { ready: false, failed: false, issues: {} }, events: [], traffic: [], news: [] });
     expect(label).toMatch(/^Unavailable — no Briefing row/);
     expect(label).not.toMatch(/Complete/);
   });
   test('read failure is reported as such', () => {
+    expect(describeBriefingStatus({ exists: false, status: 'error', source_state: 'read_failed', source_record: null, error: 'boom' })).toMatch(/read failed \(boom\)/);
     expect(describeBriefingStatus({ exists: false, status: 'read_failed', error: 'boom' })).toMatch(/read failed \(boom\)/);
   });
   test('undefined / legacy empty object is Unavailable', () => {

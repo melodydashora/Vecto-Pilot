@@ -59,7 +59,7 @@ import { formatOfferPatterns } from '../offers/offer-patterns.js';
 // called out as unverified rather than promoted to complete.
 export function describeBriefingStatus(briefing) {
   if (!briefing || briefing.exists === false) {
-    if (briefing?.status === 'read_failed') {
+    if (briefing?.source_state === 'read_failed' || briefing?.status === 'read_failed') {
       return `Unavailable — Briefing read failed (${briefing.error || 'unknown error'}); do not present Briefing facts as current`;
     }
     return 'Unavailable — no Briefing row for this snapshot; do not present Briefing facts as current';
@@ -131,25 +131,7 @@ export class RideshareCoachDAL {
   async getHeaderSnapshot(snapshotId) {
     try {
       const [snap] = await db
-        .select({
-          snapshot_id: snapshots.snapshot_id,
-          user_id: snapshots.user_id,
-          created_at: snapshots.created_at,
-          weather: snapshots.weather,
-          air: snapshots.air,
-          // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
-          // TIME CONTEXT - READ FROM SNAPSHOT (authoritative)
-          dow: snapshots.dow,
-          hour: snapshots.hour,
-          day_part_key: snapshots.day_part_key,
-          timezone: snapshots.timezone,
-          // LOCATION FROM SNAPSHOT
-          lat: snapshots.lat,
-          lng: snapshots.lng,
-          city: snapshots.city,
-          state: snapshots.state,
-          formatted_address: snapshots.formatted_address,
-        })
+        .select()
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
         .limit(1);
@@ -178,6 +160,7 @@ export class RideshareCoachDAL {
         console.warn('[COACH] Snapshot missing timezone - coach context may be inaccurate');
       }
       return {
+        ...snap,
         snapshot_id: snap.snapshot_id,
         user_id: snap.user_id,
         iso_timestamp: snap.created_at?.toISOString() || null,
@@ -287,11 +270,13 @@ export class RideshareCoachDAL {
         .limit(1);
 
       if (!briefingRecord) {
-        // 2026-09-11 (desktop-coach-review item 4): a missing row is reported as such
-        // instead of an empty object that the prompt used to label "Complete".
+        // 2026-09-11: a missing row is reported as such (desktop-coach-review item 4) AND
+        // carries the candidate's source contract (status pending, no source_record).
         return {
           exists: false,
-          status: 'missing',
+          status: 'pending',
+          source_state: 'missing',
+          source_record: null,
           readiness: { ready: false, failed: false, issues: {} },
           events: [],
           traffic: [],
@@ -301,7 +286,9 @@ export class RideshareCoachDAL {
 
       return {
         // 2026-09-11: real completion state for the prompt summary (see describeBriefingStatus)
+        // plus the full saved record for the Coach's source context (candidate contract).
         exists: true,
+        source_record: briefingRecord,
         status: briefingRecord.status || null,
         generated_at: briefingRecord.generated_at || null,
         readiness: getBriefingReadiness(briefingRecord, snapshotId),
@@ -322,10 +309,12 @@ export class RideshareCoachDAL {
       };
     } catch (error) {
       console.error('[COACH] getComprehensiveBriefing error:', error);
-      // 2026-09-11: a read failure is not "no data" — say so in the summary.
+      // 2026-09-11: a read failure is not "no data" — say so in the summary and the source contract.
       return {
         exists: false,
-        status: 'read_failed',
+        status: 'error',
+        source_state: 'read_failed',
+        source_record: null,
         error: error.message,
         readiness: { ready: false, failed: false, issues: {} },
         events: [],

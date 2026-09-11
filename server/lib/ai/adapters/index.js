@@ -281,6 +281,12 @@ export async function callModelStream(role, { system, messageHistory, signal }) 
 
   aiLog.debug(`STREAM Role=${canonicalRole} Model=${model} Provider=${provider}`);
 
+  if (canonicalRole === 'AI_COACH') {
+    if (provider !== 'openai') throw new Error('AI_COACH requires the OpenAI Responses transport');
+    const { callCoachResponses } = await import('./coach-responses.js');
+    return callCoachResponses(config, { system, messageHistory, signal });
+  }
+
   // 2. Currently only Gemini supports streaming via this adapter
   if (!model.startsWith('gemini-')) {
     throw new Error(`Streaming not supported for provider: ${provider}. Only Gemini models support streaming via callModelStream()`);

@@ -198,29 +198,16 @@ export const MODEL_ROLES = {
   // ==========================
   // 4. COACH_CONVERSATIONS
   // ==========================
-  // 2026-02-13: Gemini 3 Pro Preview — vision, OCR, Google Search, multimodal
-  // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing "AI Coach" branding
-  // 2026-02-26: Upgraded to Gemini 3.1 Pro — 2x reasoning over 3.0 Pro (ARC-AGI-2: 77.1%)
-  // 2026-08-11: gemini-3.5-flash → gemini-3.6-flash (GA 2026-07-21) at Melody's
-  // "update adapters, verify live" direction. Verified this session: listed in
-  // /v1beta/models AND a live streamGenerateContent SSE ping succeeded. Text-role
-  // win only: 17% fewer output tokens, $7.50/M out (vs $9), better agentic scores.
-  // Vision roles (OFFER_ANALYZER*) stay on 3.5 — 3.6 regresses object detection.
   AI_COACH: {
+    // Melody, 2026-09-10: one canonical Coach for typed and spoken requests.
     envKey: 'AI_COACH_MODEL',
-    default: 'gemini-3.6-flash',
-    purpose: 'AI Coach conversation (streaming, multimodal)',
-    maxTokens: 8192,
-    temperature: 0.7,
-    // 2026-08-11: Melody: "the coach is the cost" — the Coach is the flagship
-    // and gets maximum reasoning. Known tradeoff: HIGH thinking delays the
-    // first streamed token (and therefore first TTS audio); drop to MEDIUM if
-    // the pause reads as lag in voice use.
-    thinkingLevel: 'HIGH',
-    features: ['google_search', 'vision', 'ocr'],
-    // 2026-02-17: AI_COACH uses callModelStream() which only supports Gemini.
-    // Non-Gemini overrides are rejected by the streaming guard below.
+    default: 'gpt-6-astra',
+    purpose: 'AI Coach conversation and confirmed actions',
+    maxTokens: 16384,
+    reasoningEffort: 'low',
+    features: ['web_search', 'vision', 'ocr'],
     requiresStreaming: true,
+    streamingProvider: 'openai',
   },
 
   // ==========================
@@ -600,11 +587,13 @@ export function getRoleConfig(role) {
     sourceInfo = 'default';
   }
 
-  // 2026-02-17: Streaming guard — roles with requiresStreaming MUST use Gemini.
-  // If an env override resolved to a non-Gemini model, reject it and use the default.
-  // This prevents AI_COACH_OVERRIDE_MODEL=claude-opus-4-6 from breaking AI_COACH streaming.
-  if (roleConfig.requiresStreaming && !model.startsWith('gemini-')) {
-    registryLog.warn(0, `${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
+  // Coach declares its Responses transport and never silently changes provider.
+  if (roleConfig.streamingProvider && getProviderForModel(model) !== roleConfig.streamingProvider) {
+    throw new Error(`${canonicalRole} requires the ${roleConfig.streamingProvider} streaming transport; configured model is unsupported`);
+  }
+  // Preserve the existing Gemini-only behavior of unrelated streaming roles.
+  if (roleConfig.requiresStreaming && !roleConfig.streamingProvider && !model.startsWith('gemini-')) {
+    registryLog.warn(0, `${canonicalRole} requires Gemini streaming; using its configured default`);
     model = roleConfig.default;
     sourceInfo = 'default (streaming fallback)';
   }

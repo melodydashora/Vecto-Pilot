@@ -11,7 +11,9 @@ import { useMemory } from '@/hooks/useMemory';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { applyDonePayload } from '@/utils/coach/actionsResult';
-import { stripActionTags } from '@/utils/coach/stripActionTags';
+import { readCoachEvents } from '@/utils/coach/readCoachEvents';
+import { confirmedCoachReply } from '@/utils/coach/confirmedReply';
+import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
 
 export interface CoachAttachment {
   name: string;
@@ -374,26 +376,15 @@ export function useCoachChat({
         return;
       }
 
-      const reader = res.body!.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
       let fullResponse = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (stale()) {
-          // Identity changed / unmounted mid-stream: release the body and drop
-          // everything that arrived late. No state, storage or callback writes.
-          void reader.cancel().catch(() => { /* already closed */ });
-          return;
-        }
-        if (done) break;
-        acc += dec.decode(value, { stream: true });
-
-        for (const line of acc.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const msg = JSON.parse(line.slice(5).trim());
+      // 2026-09-11: the candidate's line-boundary-safe reader (readCoachEvents) replaces the
+      // hand-rolled loop; the sprint's identity fence (desktop-coach-review item 3) stays: a
+      // stale generation drops every late event. Returning out of the for-await runs the
+      // reader's finally (cancel + release), so no state, storage or callback writes happen.
+      let completion: DonePayloadMeta | undefined;
+      for await (const msg of readCoachEvents(res.body)) {
+            if (stale()) return;
+            if (msg.done) completion = msg;
             if (msg.delta) {
               fullResponse += msg.delta;
               setMsgs((m) => {
@@ -432,29 +423,19 @@ export function useCoachChat({
                 },
               });
             }
-          } catch (_err) {
-            // Ignore parse errors for partial SSE data
-          }
-        }
-        const lastNl = acc.lastIndexOf("\n");
-        if (lastNl >= 0) acc = acc.slice(lastNl + 1);
       }
 
       if (stale()) return;
-      if (fullResponse) {
-        // Deltas streamed raw tag JSON into the visible message — replace the
-        // displayed content with the tag-stripped text now the stream is done.
-        const displayText = stripActionTags(fullResponse);
-        if (displayText !== fullResponse) {
-          setMsgs((m) => {
-            const copy = [...m];
-            const last = copy[copy.length - 1];
-            if (last?.role === 'assistant') last.content = displayText;
-            return copy;
-          });
-        }
-        onStreamComplete?.(displayText, { userMessage: messageText });
-      }
+      // 2026-09-11: displayed/spoken text comes from the server's durable receipts and
+      // action errors (confirmedCoachReply), never from the model's own "saved" prose.
+      const displayText = confirmedCoachReply(fullResponse, completion);
+      setMsgs(m => {
+        const copy = [...m];
+        const last = copy[copy.length - 1];
+        if (last?.role === 'assistant') copy[copy.length - 1] = { ...last, content: displayText };
+        return copy;
+      });
+      onStreamComplete?.(displayText, { userMessage: messageText });
     } catch (err: unknown) {
       if (stale()) return;
       const error = err as Error;

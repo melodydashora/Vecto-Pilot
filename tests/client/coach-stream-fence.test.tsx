@@ -39,6 +39,8 @@ function makeStream() {
       return d.promise;
     },
     cancel,
+    // 2026-09-11: the candidate's readCoachEvents releases the lock in its finally.
+    releaseLock: () => {},
   };
   const enc = new TextEncoder();
   const push = (chunk: Chunk) => {
@@ -201,6 +203,9 @@ describe('useCoachChat identity fence', () => {
     expect(JSON.parse(fetchCalls[1].init.body as string).userId).toBe('driver-b');
     expect(result.current.isStreaming).toBe(true);
     await act(async () => { fetchCalls[1].stream.sse({ delta: 'B reply' }); await Promise.resolve(); });
+    await flush();
+    // 2026-09-11: a reply is confirmed only by a done payload (confirmedCoachReply).
+    await act(async () => { fetchCalls[1].stream.sse({ done: true, conversation_id: 'c2' }); await Promise.resolve(); });
     await flush();
     await act(async () => { fetchCalls[1].stream.end(); await Promise.resolve(); });
     await flush();

@@ -1,3 +1,6 @@
+import { useCanonicalVoiceSend } from '@/hooks/coach/useCanonicalVoiceSend';
+import { ReportedMemos } from '@/components/coach/ReportedMemos';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +15,9 @@ import { stripActionTags } from "@/utils/coach/stripActionTags";
 import { CoachStopBar } from "@/components/coach/CoachStopBar";
 import { CameraCaptureModal } from "@/components/coach/CameraCaptureModal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-// 2026-08-14 (Melody, A/B verdict): "not two different coaches, just Gemini
+// 2026-09-10: Melody restored the canonical brain for all voice requests.
+// The classic controls below now own normal voice input/output.
+// Historical 2026-08-14 (Melody, A/B verdict): "not two different coaches, just Gemini
 // Live that can also pause for uploads." The three-way engine dropdown is
 // gone — Gemini Live IS the Coach voice (auto-started on tab entry).
 // Classic STT/TTS survives as a devtools escape hatch (COACH_VOICE_MODE =
@@ -163,6 +168,7 @@ export default function RideshareCoach({
   const [notes, setNotes] = useState<UserNote[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [memoRevision, setMemoRevision] = useState(0);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
@@ -184,6 +190,7 @@ export default function RideshareCoach({
   // 2026-01-05: Notes CRUD functions with optimistic UI — defined before useCoachChat
   // so the hook's onNotesSaved callback can reference fetchNotes directly.
   const fetchNotes = useCallback(async () => {
+    setMemoRevision(value => value + 1);
     setNotesLoading(true);
     try {
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -241,27 +248,17 @@ export default function RideshareCoach({
     }
     if (!readAloudEnabled && !sentViaVoiceRef.current) return;
 
-    if (COACH_STREAMING_TTS_ENABLED) {
-      streaming.flush();
-    } else {
-      const spokenText = cleanTextForTTS(fullResponse);
-      if (spokenText.length > 0) {
-        console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars at ${playbackSpeed}×`);
-        speak(spokenText.slice(0, 4000), 'en', playbackSpeed);
-      }
-    }
+    // Speak only after the server confirms action/persistence outcomes.
+    const spokenText = cleanTextForTTS(fullResponse);
+    if (spokenText.length > 0) void speak(spokenText.slice(0, 4000), 'en', playbackSpeed);
     sentViaVoiceRef.current = false;
   }, [voice.isLive, voice.sayText, readAloudEnabled, speak, streaming, playbackSpeed]);
 
   // 2026-04-27 (Step 5): per-delta hook for chunked TTS. Same gate as
   // handleStreamComplete — duplication is intentional (keeps streaming hook
   // generic; coach UX policy stays in the component).
-  const handleStreamDelta = useCallback((delta: string) => {
-    if (voice.isLive) return; // live mouth owns audio — no streamed TTS chunks
-    if (!COACH_STREAMING_TTS_ENABLED) return;
-    if (!readAloudEnabled && !sentViaVoiceRef.current) return;
-    streaming.pushDelta(delta);
-  }, [voice.isLive, readAloudEnabled, streaming]);
+  // No pre-confirmation speech: generated prose may claim a write before
+  // validation/database execution has finished. Text still streams visibly.
 
   // 2026-04-26: Step 3 — chat lifecycle (SSE stream, action tags, persistence,
   // attachments, abort) extracted to useCoachChat. Component now owns only
@@ -288,11 +285,16 @@ export default function RideshareCoach({
     snapshot,
     strategyReady,
     onStreamComplete: handleStreamComplete,
-    onStreamDelta: handleStreamDelta,
     onNotesSaved: fetchNotes,
     // Unified voice thread: typed sends reuse the live session's conversation
     // id (null when no session — server mints per message as before).
     conversationIdRef: voice.conversationIdRef,
+  });
+
+  const sendVoiceTurn = useCanonicalVoiceSend(send, () => {
+    sentViaVoiceRef.current = true;
+    latestTranscriptRef.current = '';
+    clearTranscript();
   });
 
   // Committed voice turns become normal thread messages (persisted via
@@ -363,8 +365,9 @@ export default function RideshareCoach({
       warmUp();
       stopMic();
       setTimeout(() => {
-        sentViaVoiceRef.current = true;
-        send(text);
+        // Read after final recognition events. Other finalizers clear this ref
+        // synchronously when claiming the turn, so an old timer cannot resend it.
+        void sendVoiceTurn(latestTranscriptRef.current);
         clearTranscript();
       }, 300);
     }
@@ -509,8 +512,7 @@ export default function RideshareCoach({
       setTimeout(() => {
         const text = latestTranscriptRef.current.trim();
         if (text) {
-          sentViaVoiceRef.current = true;
-          send(text);
+          void sendVoiceTurn(text);
         }
         clearTranscript();
       }, 300);
@@ -525,7 +527,7 @@ export default function RideshareCoach({
       clearTranscript();
       startMic('en');
     }
-  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
+  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, sendVoiceTurn, streaming]);
 
   // 2026-08-14 (Melody): Coach voice picker lives in the header — she's
   // actively voice-shopping and Settings round-trips were too slow. Changing
@@ -628,12 +630,11 @@ export default function RideshareCoach({
     setTimeout(() => {
       const text = latestTranscriptRef.current.trim();
       if (text) {
-        sentViaVoiceRef.current = true;
-        send(text);
+        void sendVoiceTurn(text);
       }
       clearTranscript();
     }, 300);
-  }, [transcript, isListening, isSpeaking, warmUp, stopMic, send, clearTranscript]);
+  }, [transcript, isListening, isSpeaking, warmUp, stopMic, sendVoiceTurn, clearTranscript]);
 
   // 2026-05-04 (COACH-V1): "stop replying" stop phrase. Only acts while TTS is
   // speaking. Cancels TTS; mic stays listening so the driver can immediately
@@ -919,7 +920,7 @@ export default function RideshareCoach({
             onClick={() => setNotesOpen(false)}
           />
           {/* Panel */}
-          <div className="relative ml-auto w-80 h-full bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-gray-700 flex flex-col shadow-xl animate-slide-in-right">
+          <div className="relative ml-auto w-80 max-w-full h-full bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-gray-700 flex flex-col shadow-xl animate-slide-in-right">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-amber-500 to-orange-500 text-white">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
@@ -934,9 +935,16 @@ export default function RideshareCoach({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <p className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
-              Things I've learned about you from our chats
-            </p>
+            <Tabs defaultValue="personal" className="flex min-h-0 flex-1 flex-col">
+              <TabsList aria-label="Coach notes" className="mx-3 mt-2 grid grid-cols-2">
+                <TabsTrigger value="personal">Personal notes</TabsTrigger>
+                <TabsTrigger value="memos">Reported memos</TabsTrigger>
+              </TabsList>
+              <TabsContent value="memos" className="min-h-0 flex-1 overflow-auto p-3">
+                <ReportedMemos key={userId} userId={userId} refreshVersion={memoRevision} />
+              </TabsContent>
+              <TabsContent value="personal" className="min-h-0 flex-1 overflow-auto">
+                <p className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">Things I've learned about you from our chats</p>
             <div className="flex-1 overflow-auto p-3 space-y-2">
               {notesLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -1026,6 +1034,8 @@ export default function RideshareCoach({
                 ))
               )}
             </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       )}

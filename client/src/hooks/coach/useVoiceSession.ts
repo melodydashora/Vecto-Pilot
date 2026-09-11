@@ -25,21 +25,11 @@ import { askCoachBrain, type CoachBrainParams } from '@/lib/voice/coachBrain';
 import { applyDonePayload } from '@/utils/coach/actionsResult';
 import type { ThreadTurn, VoiceMode, VoiceSession, VoiceSessionStatus } from '@/lib/voice/types';
 
-const VALID_MODES: VoiceMode[] = ['classic', 'gemini', 'openai'];
-
-// 2026-08-14 (Melody, A/B verdict): "not two different coaches, just Gemini
-// Live that can also pause for uploads." Gemini Live IS the Coach voice:
-// - default is 'gemini' (was 'classic')
-// - a stored 'openai' migrates to 'gemini' (the dropdown that set it is gone)
-// - 'classic' is honored ONLY as a deliberate devtools escape hatch
-//   (localStorage.setItem(COACH_VOICE_MODE, 'classic')) — no UI sets it.
+// Melody, 2026-09-10: speech is input/output for the canonical Coach.
+// Retain live transports for historical reference, but normal app sessions
+// never let a second model decide whether to invoke durable actions.
 export function getStoredVoiceMode(): VoiceMode {
-  const stored = localStorage.getItem(STORAGE_KEYS.COACH_VOICE_MODE) as VoiceMode | null;
-  if (stored === 'openai') {
-    localStorage.setItem(STORAGE_KEYS.COACH_VOICE_MODE, 'gemini');
-    return 'gemini';
-  }
-  return stored && VALID_MODES.includes(stored) ? stored : 'gemini';
+  return 'classic';
 }
 
 // 2026-08-14: verbal controls, DETERMINISTIC (client-side regex on committed
