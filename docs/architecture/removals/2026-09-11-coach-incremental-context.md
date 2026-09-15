@@ -1,0 +1,19 @@
+# Coach saved context and source status — September 11, 2026
+
+Provenance: Astra, implementing Melody's request for Coach to use available data before Strategy finishes, including later Offer Analyzer evidence. Base: `a4d3ab92ac0e14b96df6afec824caa44ff6a34a1`. No schema change or provider/model change.
+
+1. `server/lib/ai/rideshare-coach-dal.js`, `getLatestStrategy`: removed the partial five-column SELECT and the auxiliary snapshot/holiday queries. The removed block is preserved at base lines 198–250. Removed comments included “Fetch strategy and snapshot together (location/time context now in snapshot)”, “Use created_at for ordering instead”, and “holiday from briefings.holiday jsonb section (normalized to string|null: name when verified holiday, else null)”. Reason: Strategy now retains its complete persisted row, including phase, failure, creation and update times; a failed auxiliary Briefing read must not hide an already saved Strategy. Snapshot and Briefing remain separate full sources. No consumer outside this projection used its duplicate `holiday`/`user_address`/`user_city`/`user_state` fields.
+
+2. Strategy prompt: replaced `IMMEDIATE STRATEGY (Next 1hr)` and truthy-text `Ready` labels with saved-source wording, actual update time and explicit complete/partial/failed/read-failed state. Reason: reading an old or failed row does not make it freshly generated advice. No freshness TTL is invented; `read_at` is expressly the time of the data read, never a replacement generation time.
+
+3. `getOfferHistory`: removed the limited column projection at base lines 1399–1419. Full owned rows now retain second-pass `parsed_data_json`, `raw_ai_response`, provenance, ruleset and `updated_at`. The prompt includes the bounded recent window (20 rows by default, maximum 50) in full alongside its summary. This is stored analysis evidence, not permission for Coach to OCR an offer or issue a new verdict. Offer Analyzer's original decision remains unchanged. Current inputs and stored user text are data, not prompt instructions.
+
+4. Removed stale comments claiming the JSONB blob “was never selected” and “the SELECT no longer pulls parsed_data_json” in the offer formatter/statistics. Reason: the full row now includes these fields. Exact originals remain in `a4d3ab92` at `rideshare-coach-dal.js` lines 1302–1305 and 1430–1433. Numeric database strings are converted before averages; zero remains valid.
+
+5. `getLatestStrategy` and `getOfferHistory` read failures no longer return the same shape as a successful empty read. The Coach page polls the authenticated, snapshot-owned summary endpoint every 15 seconds while visible; no provider calls or writes occur. Each new chat turn independently reloads the saved sources. Data written after a model request starts is available on the next turn, not injected into an already running provider request.
+
+6. The original snapshot row is retained as `source_record`, so derived header aliases cannot overwrite the evidence supplied to Coach. Snapshot completeness uses the shared persisted-snapshot readiness contract. Source failures are visible independently; a complete Briefing still uses its existing readiness contract.
+
+7. `getHeaderSnapshot`: removed “Fetch user location data (for current coordinates if they've moved)” and “Build context: Snapshot is ground truth for time/location, user table for current position”, the extra users-table query, and `new_lat`/`new_lng` fallbacks (base lines 142–179). Reason: the users schema has no such location fields; saved snapshot coordinates are authoritative. Missing hour/day no longer fabricate midnight/Sunday. This also prevents an unrelated users read from hiding a valid saved snapshot.
+
+Validation: focused mocked Coach route, DAL, completion, status rendering and account identity tests; no database, paid provider calls or live user messages. Runtime/browser acceptance remains with the coordinating session.
