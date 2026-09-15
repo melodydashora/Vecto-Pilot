@@ -2,6 +2,7 @@
 // query cache and A/B shortlist filter. Synthetic HTTP only. Auth/location/
 // co-pilot data and unrelated map/grid/greeting/events/traffic/pipeline status
 // are fixtures; feature flags match current feedback-independent defaults.
+import { jest } from '@jest/globals';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';

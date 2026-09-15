@@ -1,5 +1,6 @@
 // Actual component/session boundary: only auth/location and chart drawing are
 // fixtures. Deferred transport deliberately ignores AbortSignal at both stages.
+import { jest } from '@jest/globals';
 import React, { useLayoutEffect, useRef } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';

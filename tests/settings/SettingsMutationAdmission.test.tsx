@@ -1,5 +1,6 @@
 // Real AuthProvider survives real Settings route remounts. Deferred HTTP models
 // server commit order without opening a gateway, database or provider connection.
+import { jest } from '@jest/globals';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

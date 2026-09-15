@@ -19,7 +19,7 @@
     "agent": "node agent-server.js",
     "mcp": "node mcp-server.js",
     "mcp:stdio": "node mcp-server.js --stdio",
-    "test": "npm run test:unit && npm run test:client && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:client && npm run test:client:harness && npm run test:e2e",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest tests/ --verbose",
     "test:client": "NODE_OPTIONS='--experimental-vm-modules' jest -c jest.client.config.js",
     "test:e2e": "playwright test tests/e2e/copilot.spec.ts",
@@ -36,7 +36,8 @@
     "devtools": "npx react-devtools",
     "guard:models": "node scripts/check-model-pins.mjs",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.integration.config.js --runInBand",
-    "check:schema": "node scripts/check-schema.mjs"
+    "check:schema": "node scripts/check-schema.mjs",
+    "test:client:harness": "jest -c tests/offers/jest.ui.config.cjs && jest -c tests/feedback/jest.ui.config.cjs && jest -c tests/settings/jest.settings.config.cjs && jest -c tests/briefing/jest.airport-ui.config.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

@@ -1,19 +1,24 @@
 # Tests
 
-Updated September 13, 2026. Run commands from the checkout you are verifying.
+Updated September 15, 2026. Run commands from the checkout you are verifying.
 Jest excludes nested `.worktrees/` and `.config/` copies relative to that checkout.
 
 ```sh
 npm run test:unit -- --runInBand
 npm run test:client -- --runInBand
+npm run test:client:harness
 npm run lint
 npm run typecheck
 npm run guard:json
 ```
 
 `test:unit` runs JavaScript tests. `test:client` runs TypeScript/TSX tests with
-jsdom, Vite environment support, and the application's path aliases. `npm test`
-runs those two groups followed by the existing Playwright end-to-end suite.
+jsdom, Vite environment support, and the application's path aliases.
+`test:client:harness` runs the four UI suites that rely on CommonJS `jest.mock`
+hoisting (`offers/*.ui`, `feedback/*.ui`, `settings/*`, `briefing/airport-status.ui`)
+under their own `tests/*/jest.*.config.cjs` harnesses; the ESM client config
+deliberately ignores those paths because `jest.mock` is a no-op there. `npm test`
+runs those three groups followed by the existing Playwright end-to-end suite.
 
 | Area | Coverage |
 | --- | --- |

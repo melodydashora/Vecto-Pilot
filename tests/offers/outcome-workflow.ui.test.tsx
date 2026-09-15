@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import OfferOutcomeRow, { type AnalyzedOffer } from '../../client/src/components/offer-analyzer/OfferOutcomeRow';

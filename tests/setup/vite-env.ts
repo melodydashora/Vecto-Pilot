@@ -7,3 +7,9 @@
   PROD: false,
   ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('VITE_'))),
 };
+
+// 2026-09-15: jsdom does not define TextEncoder/TextDecoder; react-router's init needs them.
+import { TextEncoder, TextDecoder } from 'node:util';
+const g = globalThis as any;
+if (typeof g.TextEncoder === 'undefined') g.TextEncoder = TextEncoder;
+if (typeof g.TextDecoder === 'undefined') g.TextDecoder = TextDecoder;

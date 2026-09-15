@@ -31,6 +31,14 @@ export default {
   testPathIgnorePatterns: [
     '/node_modules/',
     '/.worktrees/',
+    // 2026-09-15: AI-session coordination bundles under .config/ carry test copies too.
+    '/.config/',
+    // 2026-09-15: these suites use CommonJS `jest.mock` hoisting and run under their own
+    // harness configs (tests/*/jest.*.config.cjs) via `npm run test:client:harness`.
+    // Under this ESM config `jest.mock` is a no-op, so they only fail spuriously here.
+    '/tests/offers/.*\\.ui\\.test\\.tsx$',
+    '/tests/feedback/.*\\.ui\\.test\\.tsx$',
+    '/tests/settings/',
   ],
   collectCoverageFrom: [
     'client/src/**/*.{ts,tsx}',

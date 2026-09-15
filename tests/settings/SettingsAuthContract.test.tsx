@@ -1,5 +1,6 @@
 // 2026-09-11: real SettingsPage + AuthProvider + query cache; synthetic HTTP only.
-// Only unrelated connection controls, debug flags, and toast display are fixtures.
+// Only unrelated debug flags and toast display are fixtures.
+import { jest } from '@jest/globals';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -129,7 +130,7 @@ test.each(['profile PUT', 'profile refresh'])('a late account-A %s cannot change
 test('custom-market creation carries the authenticated identity required by its existing route', async () => {
   const fixture = account(); fixture.profile!.market = '__OTHER__';
   await mount(fixture);
-  fireEvent.mouseDown(screen.getByRole('tab', { name: 'Location', exact: true }), { button: 0, ctrlKey: false });
+  fireEvent.mouseDown(screen.getByRole('tab', { name: /^Location$/ }), { button: 0, ctrlKey: false });
   fireEvent.change(screen.getByRole('textbox', { name: 'Custom market name' }), { target: { value: 'Synthetic New Market' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
   await waitFor(() => expect(marketWrites).toHaveLength(1));
