@@ -119,8 +119,8 @@ export async function mountRoutes(app, server) {
     // per-IP rate limiting (20 req / 10 min) at the route level.
     { path: '/api/welcome-ai', module: './server/api/welcome-ai/welcome-ai.js', desc: 'Welcome AI Co-Pilot' },
 
-    // Translation (server/api/translate/) - 2026-03-16: Real-time rider translation
-    { path: '/api/translate', module: './server/api/translate/index.js', desc: 'Translation API' },
+    // 2026-09-13: /api/translate (browser Translator) retired. The Siri hook below and
+    // server/api/translate/translation-prompt.js remain.
 
     // Claude Memory (server/api/memory/) — 2026-04-14: Persistent knowledge base for Claude Code
     { path: '/api/memory', module: './server/api/memory/index.js', desc: 'Claude Memory API' },

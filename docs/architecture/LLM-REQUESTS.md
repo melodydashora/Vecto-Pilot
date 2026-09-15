@@ -330,28 +330,13 @@ Shortcut sends: JSON { text } and/or multipart { image (File) } + source + devic
 
 ---
 
-## 8. Translation
+## 8. Siri Translation
 
-**Route:** `POST /api/translate`
-**File:** `server/api/translate/` (line 28)
-**Auth:** `requireAuth`
+The browser Translator and its dedicated API were retired on 2026-09-13 at Melody's request. The separate Siri shortcut still calls POST /api/hooks/translate in server/api/hooks/translate.js with text, device_id, and optional source_lang/target_lang.
 
-```
-Client sends: { text, sourceLang, targetLang }
-  │
-  ├─ callModel('UTIL_TRANSLATION', { system: translationPrompt, user: text })
-  │   └─ Gemini 3.1 Flash Lite Preview (fastest, cheapest)
-  │
-  └─ Return { translatedText, detectedLang, targetLang, confidence }
-```
+This public hook requires a device_id identifier and uses translationLimiter (30 requests/minute per IP + device_id). The field is not a credential. It calls the registry's UTIL_TRANSLATION role through callModel and uses server/api/translate/translation-prompt.js for the shared prompt and response parser. The response includes translatedText, detectedLang, targetLang, confidence and a voice field for Siri.
 
-**Supported languages:** English, Spanish, Polish, Ukrainian, Swedish, Albanian, Portuguese, French, German, Japanese, Korean, Arabic, Hindi, Mandarin, Italian, Russian, Turkish, Vietnamese, Thai, Filipino/Tagalog.
-
-**Optimized for:** FIFA World Cup 2026 demographics.
-
-### Mid-Request Auth Expiry
-
-Translation is a single fast call (~500ms). If auth expired just before the call, the middleware catches it. If auth expires during the call, the response completes normally.
+See [browser Translator retirement](removals/2026-09-13-browser-translator.md) for scope. No provider or shortcut migration was performed as part of the retirement.
 
 ---
 
@@ -523,7 +508,7 @@ All read from `process.env`. No values stored in code.
 | `server/api/concierge/concierge.js` | Public concierge endpoints |
 | `server/lib/concierge/concierge-service.js` | Concierge search + chat logic |
 | `server/api/hooks/analyze-offer.js` | Offer analysis (Siri) |
-| `server/api/translate/` | Translation endpoint |
+| `server/api/hooks/translate.js` | Siri translation endpoint |
 | `server/api/chat/tts.js` | TTS endpoint |
 | `server/lib/ai/rideshare-coach-dal.js` | Context injection for AI prompts |
 | `scripts/ask-gemini.mjs` | CLI bridge to Gemini |

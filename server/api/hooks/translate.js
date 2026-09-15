@@ -29,10 +29,9 @@ import {
 // (device_id header) — Siri Shortcuts cannot send JWT tokens" — that
 // constraint still holds today, and adding requireAuth here would break the
 // live "Vecto Translate" Siri Shortcut Melody is actively demoing. The
-// in-app translator tab (client/src/components/co-pilot/TranslationOverlay.tsx)
-// runs through the JWT-authed /api/translate sibling mount, NOT
-// /api/hooks/translate, so this hook has no legitimate non-Siri consumer
-// today and migration scope is bounded. The follow-up workstream is tracked
+// browser Translator and its dedicated API were retired at Melody's request
+// on 2026-09-13. This independently used Siri hook remains; its identity migration
+// remains a separate workstream. The follow-up workstream is tracked
 // in claude_memory (session_id auth-hardening-pass-2026-05-13, tags
 // auth-hardening + item-7 + deferred) on a parallel migration path to
 // analyze-offer.js: migrate the Siri Shortcut to attach a per-user token,

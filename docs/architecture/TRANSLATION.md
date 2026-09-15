@@ -1,6 +1,6 @@
-# TRANSLATION.md — Internationalization and Translation System
+# TRANSLATION.md — Historical Browser Translation Architecture
 
-> **Canonical reference** for the real-time driver-rider translation feature, language support, speech recognition, TTS, and UI localization status.
+> **Historical reference.** The browser Translator tab and its dedicated API were retired on 2026-09-13 at Melody's request. The descriptions below preserve the prior implementation and are not current route/UI contracts. Siri translation, the shared prompt/parser, and Coach speech/TTS remain. See [retirement scope](removals/2026-09-13-browser-translator.md) and [current request flows](LLM-REQUESTS.md#8-siri-translation).
 > Last updated: 2026-04-10
 
 ---

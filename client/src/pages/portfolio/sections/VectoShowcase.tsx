@@ -1,6 +1,6 @@
 import { motion, type Variants } from 'framer-motion';
 import {
-  Navigation, Coffee, FileText, BarChart2, Languages, QrCode,
+  Navigation, Coffee, FileText, BarChart2, MessageSquare, QrCode,
   Map, Smartphone, Cloud, Thermometer, Car, MapPin, Star,
   TrendingUp, Zap, Clock,
 } from 'lucide-react';
@@ -20,7 +20,7 @@ const FEATURES = [
   { icon: FileText, label: 'Daily Briefing', color: 'text-slate-400' },
   { icon: Map, label: 'Strategic Map', color: 'text-green-400' },
   { icon: BarChart2, label: 'Market Intel', color: 'text-amber-400' },
-  { icon: Languages, label: 'Live Translation', color: 'text-blue-400' },
+  { icon: MessageSquare, label: 'Voice Coach', color: 'text-blue-400' },
   { icon: QrCode, label: 'In-Car Concierge', color: 'text-teal-400' },
 ];
 

@@ -76,7 +76,7 @@ All wrapped in `CoPilotLayout` — require auth.
 | `/co-pilot/briefing` | BriefingPage | Briefing |
 | `/co-pilot/map` | MapPage | Map |
 | `/co-pilot/intel` | IntelPage | Intel |
-| `/co-pilot/translate` | TranslationPage | Translate |
+| `/co-pilot/translate` | — (redirects to `/co-pilot/coach`) | Translate — browser Translator retired 2026-09-13; Siri hook `/api/hooks/translate` remains |
 | `/co-pilot/concierge` | ConciergePage | Concierge |
 | `/co-pilot/settings` | SettingsPage | (hamburger) |
 | `/co-pilot/schedule` | SchedulePage | (hamburger) |
@@ -103,7 +103,7 @@ All wrapped in `CoPilotLayout` — require auth.
 | Briefing | MessageSquare | Indigo | /co-pilot/briefing |
 | Map | Map | Green | /co-pilot/map |
 | Intel | Target | Amber | /co-pilot/intel |
-| Translate | Languages | Sky | /co-pilot/translate |
+| ~~Translate~~ | Languages | Sky | /co-pilot/translate — retired 2026-09-13 (redirects to Coach) |
 | Concierge | QrCode | Teal | /co-pilot/concierge |
 
 Active tab: icon color + background color + bottom border. Bars tab has animated green pulse indicator.

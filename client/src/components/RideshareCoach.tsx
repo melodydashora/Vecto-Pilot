@@ -440,7 +440,7 @@ export default function RideshareCoach({
   };
 
   // 2026-05-04 (COACH-V1): Hands-free auto-listen on Coach tab mount.
-  // Pre-flight mic permission (TranslationOverlay pattern), then auto-start
+  // Request microphone permission before starting voice input
   // listening so the driver doesn't tap anything when entering the Coach tab.
   // Tab leave (component unmount) stops the mic via cleanup. Default on;
   // opt out by setting localStorage[COACH_AUTO_LISTEN_ENABLED] = 'false'.
@@ -566,7 +566,7 @@ export default function RideshareCoach({
   // Server path (chat.js → coach-dal.js) handles DEACTIVATE_EVENT with Zod validation. See RIDESHARE_COACH.md §3.
 
   // 2026-04-13: Mic toggle — start/stop speech recognition, auto-send transcript
-  // Same pattern as TranslationOverlay: latestTranscriptRef avoids stale closure in setTimeout
+  // latestTranscriptRef avoids a stale closure in setTimeout
   const handleMicToggle = useCallback(() => {
     manualStopRef.current = false;
     if (isListening) {

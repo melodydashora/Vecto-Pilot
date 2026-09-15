@@ -322,8 +322,7 @@ Add: E2E journeys, load testing, coach integration
 6. POST /api/blocks-fast → 202 or 200
 7. GET /api/briefing/weather/:snapshotId → 200
 8. GET /events/strategy → SSE connection opens
-9. POST /api/translate → 200 + translated text
-10. GET /api/intelligence/markets-dropdown → 200 + markets
+9. GET /api/intelligence/markets-dropdown → 200 + markets
 ```
 
 ---

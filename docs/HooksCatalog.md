@@ -162,7 +162,6 @@ The following rows are the actual external registry entries that define what bec
 | 103 | `/api/intelligence` | `server/api/intelligence/index.js` |
 | 106 | `/api/vehicle` | `server/api/vehicle/vehicle.js` |
 | 109 | `/api/concierge` | `server/api/concierge/concierge.js` |
-| 112 | `/api/translate` | `server/api/translate/index.js` |
 | 115 | `/api/memory` | `server/api/memory/index.js` |
 | 118 | `/api/hooks` | `server/api/hooks/analyze-offer.js` |
 | 119 | `/api/hooks` | `server/api/hooks/translate.js` |

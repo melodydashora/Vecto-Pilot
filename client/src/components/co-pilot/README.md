@@ -1,38 +1,7 @@
-> **Last Verified:** 2026-01-06
+# Co-Pilot navigation components
 
-# Co-Pilot Sub-Components (`client/src/components/co-pilot/`)
+`BottomTabNavigation.tsx` renders Strategy, Coach, Lounges & Bars, Briefing, and Concierge using React Router. `CoPilotLayout` owns the navigation mount.
 
-## Purpose
+September 13, 2026, at Melody's explicit request: the broken Translator tab, page, overlay, and quick phrases were removed. Old `/co-pilot/translate` bookmarks redirect to Coach. Coach keeps its speech recognition, TTS, and live voice features for language help.
 
-Sub-components extracted from the main co-pilot page for better organization.
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `BottomTabNavigation.tsx` | Tab switcher (Strategy, Briefing, Map, etc.) |
-| `GreetingBanner.tsx` | Holiday/greeting banner display |
-
-## Usage
-
-```tsx
-import { BottomTabNavigation } from './co-pilot/BottomTabNavigation';
-import { GreetingBanner } from './co-pilot/GreetingBanner';
-
-// In co-pilot.tsx
-<GreetingBanner holiday={holiday} />
-<BottomTabNavigation activeTab={tab} onTabChange={setTab} />
-```
-
-## GreetingBanner Logic
-
-```
-holiday = 'none' or falsy → Time-based greeting ("Good morning, driver!")
-holiday = 'Happy Holidays' → "Happy Happy Holidays!" banner
-holiday = 'Christmas' → "Happy Christmas!" banner
-```
-
-## Connections
-
-- **Used by:** `../pages/co-pilot.tsx`
-- **Data from:** `holiday` prop (from LocationContext/API)
+`GreetingBanner.tsx` provides the greeting/holiday display where used.

@@ -87,7 +87,6 @@ Component-by-component migration:
 | `AICoach` (streaming) | Native SSE + message UI |
 | `BarsMainTab` | Native list with Core Location |
 | `BriefingPage` | Native cards |
-| `TranslationOverlay` | SFSpeechRecognizer + native TTS |
 | `BottomTabNavigation` | UITabBarController / TabView |
 
 ---
@@ -129,7 +128,6 @@ The React web app communicates via REST API (`/api/*`). Native apps use the **ex
 | `GET /events/*` | SSE streams | None (stateless) |
 | `POST /api/chat` | Coach (SSE streaming) | Bearer token |
 | `POST /api/hooks/analyze-offer` | Offer analysis | X-Shortcut-Token (optional per-user token; no JWT) |
-| `POST /api/translate` | Translation | Bearer token |
 | `POST /api/tts` | Text-to-speech | Bearer token |
 
 ---

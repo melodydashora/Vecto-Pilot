@@ -60,7 +60,7 @@ All roles follow the `{TABLE}_{FUNCTION}` naming convention defined in `model-re
 
 | Role Name | Default Model | Owning File | Entrypoint Function | Data Input | Output Field/Table |
 |-----------|--------------|-------------|--------------------|-----------|--------------------|
-| `UTIL_TRANSLATION` | Google (Gemini Flash) | `server/api/translate/index.js:50` + `server/api/hooks/translate.js:61` | POST `/api/translate`, Siri hook | Source text, target language | Returns translated text (in-memory → client) |
+| `UTIL_TRANSLATION` | Google (Gemini Flash) | `server/api/hooks/translate.js` | POST `/api/hooks/translate` (Siri) | Source text, target language | Returns translated text (in-memory → client) |
 | `UTIL_RESEARCH` | Google (Gemini Flash) | `server/api/research/research.js:25, 62` | GET/POST `/api/research` | Research query | Returns research results (in-memory → client) |
 | `UTIL_MARKET_PARSER` | OpenAI (GPT-5 reasoning) | `server/scripts/parse-market-research.js:188` | `extractIntelligence()` | Raw market research text | Returns structured data (script output) |
 

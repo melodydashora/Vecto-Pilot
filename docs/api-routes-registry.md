@@ -134,10 +134,9 @@ Response: { strategy_for_now, blocks }
 
 | Method | Path | Handler | Auth | Purpose |
 |--------|------|---------|------|---------|
-| POST | `/api/translate`; GET `/api/translate/languages` | `translate/index.js` | Yes (+ limiter) | Translation API |
-| POST | `/api/hooks/translate` | `hooks/translate.js` | No (device-based + limiter) | Siri translation hook |
+| POST | `/api/hooks/translate` | `hooks/translate.js` | No (device_id field + limiter) | Siri translation hook |
 | POST | `/api/strategy/tactical-plan` | `strategy/tactical-plan.js` | Yes | Tactical plan |
-| GET | `/api/memory` (+ `/stats`, `/rules`, `/session/:sessionId`); POST `/api/memory`; PATCH `/api/memory/:id` | `memory/index.js` | Yes (whole router) | Claude memory table API |
+| GET | `/api/memory` (+ `/stats`, `/rules`, `/session/:sessionId`); POST `/api/memory`; PATCH `/api/memory/:id` | `memory/index.js` | Operator/service account after authentication | Claude memory table API |
 | GET | `/api/traffic/incidents` | `traffic/index.js` | Yes | discovered_traffic cache read |
 | GET | `/api/admin/offer-monitor`; POST `/api/admin/query` | `admin/monitor.js` | Agent bridge token only | Read-only prod monitor / query bridge |
 | POST | `/api/welcome-ai/icebreaker`, `/ask` | `welcome-ai/welcome-ai.js` | No (public limiter) | Welcome AI co-pilot |
