@@ -80,7 +80,7 @@ iPhone Shortcut / Android automation                    (docs: SIRI_/ANDROID_SHO
         ▼  server/api/hooks/analyze-offer.js  (public, offerHookLimiter 20/min, multer 5MB)
   normalizeOfferBody (alias table) → mode: multipart | JSON
   parseOfferText (regex, <1ms)      → preParsed {price, pairs, per_mile, product_type, confidence}
-  resolveRuleset(token)             → { ruleset, userId, version, hash }   (15s cache; DEFAULT if none)
+  resolveRuleset(token)             → { ruleset, userId, version, hash, status }   (15s cache; personal lookup failures block analysis)
   classifyTier(product, ruleset)    → share | standard | premium | comfort | xl
         │
         ├─ share (auto_reject) ──────────────────────────────► "Reject. Share tier."  (~ms)
@@ -195,14 +195,17 @@ Field contracts:
 | `notices` | Up to 4 strings ≤40 chars from `NOTICE_LABELS`: `Verified Rider`, `Filter Detected`, `Deadhead Reduction Pickup` — empty unless the driver enabled them |
 | `response_time_ms` | Wall-clock from arrival to `res.json()` (on a replay: this request's own wall-clock, typically 0-3 ms) |
 | `duplicate` | `true` only on a replayed/joined answer (§4.1 idempotency) — the payload is otherwise the first request's Phase-1 JSON verbatim. Absent on a fresh analysis. |
+| `personal_rules_verified` | True only when the supplied token resolved a known driver's saved or profile-derived rules. False for anonymous defaults and personal-rule failures. |
+| `ruleset_version` | Saved rules version, or null for profile-derived/anonymous rules. |
+| `analyzed_at` | ISO timestamp of the original Phase-1 reply; replays retain it. |
 
 ### 4.4 Companion hook endpoints (token-REQUIRED)
 
 `requireShortcutUser` (`analyze-offer.js:64-80`) reads `x-shortcut-token` header, or
 `shortcut_token` in body/query **raw** (no alias normalization on these routes — `token` /
 `shortcuttoken` work only on `/analyze-offer`); missing → 401 `shortcut_token required…`;
-unknown → 401 `invalid shortcut token`. (`resolveRuleset` never throws — it fail-opens — so
-the 500 `token_resolution_failed` branch is unreachable; a DB outage surfaces as 401.) All use
+unknown → 401 `invalid shortcut token`. Resolution returns an explicit failure status;
+these companion endpoints currently also return 401 when no identity is available during an outage. All use
 `offerHookLimiter`. `device_id` is **not** an ownership scope (multi-user sweep 2026-08-11).
 
 | Route | Purpose | Contract |
@@ -230,7 +233,9 @@ Control flow in `analyze-offer.js` (line refs at commit `97cd2d3b`):
    `ruleset.share.auto_reject === false` → treated as `standard`.
 8. **Prompt** (`:306-308`): text → `buildPhase1Prompt(tier, ruleset)`; image-only →
    `buildPhase1VisionPrompt(ruleset)` (multi-tier; the model identifies the product).
-9. **Share short-circuit** (`:311-327`): returns immediately, no model.
+9. **Share quick rejection**: the spoken decision is deterministic with no synchronous
+   model call. A verified driver's rejection continues through Phase 2 for Coach/history;
+   an anonymous Share response returns immediately without enrichment.
 9b. **SANITY TRIPWIRE — text lane, seat (2)** (v3.2, 2026-08-26): when the pre-parse
     carries a price, `checkSanity(preParsed, ruleset)` (§6.3) runs **before any model
     call**. A breach answers `NO DATA` with `reason "$163.04/mi implausible — decide
@@ -501,7 +506,7 @@ Zod, `.strict()` everywhere, v3-exact (`schema_version` literal 3). Bounds: mone
 minutes 0–600 int, miles 0–500; ladder ≤12 rungs; `avoid` ≤25 places (`corridor_deg`
 5–90); `tier_products` lists ≤20; `rating_floor` 0–5. `validateRuleset(config)` →
 `{ ok, config }` or `{ ok:false, errors:['path: message', …] }` (PUT returns 422 with
-`details`). Read path never validates — it fail-opens (§7).
+`details`). The token read path validates migrated saved rules and fails closed if they cannot be verified (§7).
 
 ### 6.7 Spec → v3 mapping (Melody's verbatim spec → editable keys)
 
@@ -542,24 +547,35 @@ user, shared by all their devices.
 
 **Resolution (`ruleset-store.js:resolveRuleset(token)`):** `driver_profiles.shortcut_token`
 → `user_id` LEFT JOIN `offer_rulesets` → `migrateRuleset(config)` →
-`{ ruleset, userId, version, hash }`.
+`{ ruleset, userId, version, hash, status }`.
 
 | Situation | Result | Log |
 |---|---|---|
 | No token | `DEFAULT_RULESET`, `userId:null`, `version/hash:null` | — |
-| Unknown token | defaults (not cached — attacker input must not grow the map) | `[ruleset-store] Unknown shortcut token — applying DEFAULT_RULESET…` (warn) |
-| Known driver, no saved rules | defaults **with identity** (offer stored under `user_id`, `ruleset_hash NULL`) | — |
+| Unknown token | null rules/identity, `invalid_token`; ingest speaks NO DATA before analysis (not cached) | Unknown shortcut token warning |
+| Known driver, no saved rules | defaults with compatible profile preferences, identity and computed hash; `profile_defaults` | — |
 | Known driver + rules | their v3 ruleset + version + `config_hash` | — |
-| DB error | defaults; fail-open LOUD | `[ruleset-store] Ruleset load failed (…) — applying DEFAULT_RULESET` (error) |
+| DB error or invalid saved rules | null rules/identity, `rules_unavailable`; ingest speaks NO DATA before analysis | Personal rules could not be verified error |
 
 Cache: in-process `Map`, TTL **15 s**, max 500 entries (oldest evicted); `invalidateUser`
-after PUT/regenerate. Cloud Run multi-instance edits converge within TTL.
+after rules PUT, profile PUT, or token regeneration. Cloud Run multi-instance edits converge within TTL.
 **Tokens are per deployment** (dev ≠ prod DB): a dev-minted token sent to prod is an unknown
-token → default rules, `ruleset_hash NULL`, and (with no GPS) no stored row — silently
-except for the `[ruleset-store] Unknown shortcut token` warn.
+token → spoken NO DATA; no substitute default verdict, model work, or stored offer.
+
+**Profile linkage (2026-09-11, Melody's must-haves):** when no saved ruleset exists,
+`pref_shared` maps to the inverse of `share.auto_reject`, and a valid integer
+`max_deadhead_mi` maps to `global.pickup_limits.max_miles` (empty distance to pickup,
+not radius from home). Zero is an explicit limit. Missing values keep existing defaults.
+GET `/rules` and token ingestion use the same pure projection. Existing saved analyzer
+rules always win; profile changes never rewrite them. Earnings goals, vehicle eligibility,
+and other service willingness do not become unsupported automatic offer gates.
+
+Phase-1 replies carry `personal_rules_verified`, `ruleset_version`, and `analyzed_at`.
+Only a supplied token with resolved personal rules is verified. Anonymous legacy defaults
+remain unverified. Replayed replies retain the original analysis timestamp.
 
 **Provenance stamps** on every stored offer: `user_id`, `ruleset_version`, `ruleset_hash`
-(`NULL` hash = defaults applied — visible, never silent). Hash = sha256 of canonical
+(`NULL` hash identifies the anonymous legacy path; inherited profile defaults have a hash). Hash = sha256 of canonical
 sorted-key JSON (`hashRuleset`).
 
 ---
@@ -657,8 +673,11 @@ not parse it — no reason to send it to the big model").** A `NO DATA` verdict 
 Phase 1: no deep model, no geocode / Places / Timezone calls, **no row** (log line
 `NO DATA — Phase 2 skipped`). One exception: on the **vision** lane when the fast model did
 not deliver (`phase1Authoritative=false` — timeout / unparseable reply) the screenshot may
-still be a real offer, so Phase 2 runs and the deep model gets to read it. Share
-auto-rejects already returned before Phase 2 (todo #55).
+still be a real offer, so Phase 2 runs and the deep model gets to read it.
+As of September 11, verified Share auto-rejections also enter the second sweep after
+the immediate spoken rejection. The stored verdict stays REJECT even if the deep model
+disagrees. Anonymous Share responses skip enrichment. Storage still requires a real
+timezone from the existing GPS, trusted pickup, or owned current-snapshot ladder.
 
 ### 10.1 Deep call
 
@@ -908,7 +927,7 @@ executors (todo #38) — the analyzer never writes it.
 
 | Method | Route | Behavior |
 |---|---|---|
-| GET | `/rules` | `{ config (migrated v3), version, hash, is_default }`; defaults when no row |
+| GET | `/rules` | `{ config (migrated v3), version, hash, is_default }`; without a saved row, compatible profile defaults plus `source` and `source_fields` |
 | PUT | `/rules` `{ config, expected_version? }` | `migrateRuleset` → Zod `validateRuleset` (422 `{ error:'Invalid ruleset', details:[…] }`) → upsert (`version = version + 1` on conflict) → `invalidateUser` → `{ success, version, hash, config }` (canonical stored config). **Optimistic concurrency (2026-08-17):** when `expected_version` is present (the version the editor loaded; `null` = "no saved row yet") the update applies only if the stored version still matches (`IS NOT DISTINCT FROM`), else **409** `{ error:'version_conflict', message, current:{ config, version, hash } }` — never last-write-wins across tabs/devices. Absent → unconditional (older clients). Anything but a JSON non-negative int4 or `null` → 400 (no coercion). |
 | GET | `/shortcut-token` | get-or-create → `{ token, created_at, device_label }` (404 if no driver profile). Mint writes only into a still-NULL slot (`… AND shortcut_token IS NULL RETURNING`); a raced second request returns the winner's token instead of overwriting it (2026-08-17). |
 | POST | `/shortcut-token/regenerate` | rotate → `{ token, created_at }`; old token dead immediately |
@@ -1120,7 +1139,7 @@ with the same 7 pre-existing failing suites as the todo #19 baseline.
 | `server/api/hooks/analyze-offer.js` | Ingest endpoint, Phase 1 + Phase 2, hook companions, `buildVoiceLine`, `terseReason` |
 | `server/lib/offers/rules-engine.js` | `DEFAULT_RULESET`, `migrateRuleset`, `classifyTier`, `evaluateDeterministic`, prompt renderers, `NOTICE_LABELS`, `evaluateGeoRules` |
 | `server/lib/offers/ruleset-schema.js` | Zod write gate |
-| `server/lib/offers/ruleset-store.js` | token → user → ruleset (15 s cache, fail-open loud), `invalidateUser` |
+| `server/lib/offers/ruleset-store.js` | token → user → verified ruleset (15 s cache, personal lookup failure blocks analysis), `invalidateUser` |
 | `server/lib/offers/ruleset-hash.js` | `hashRuleset`, `generateShortcutToken` (pure) |
 | `server/lib/offers/parse-offer-text.js` | regex pre-parser, canonical products, `PREMIUM_PRODUCTS`, `formatPerMileForVoice` |
 | `server/lib/offers/normalize-offer-body.js` | body-key alias table |
@@ -1198,6 +1217,11 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 **Claude-authored, adopted (2026-07-03):** two-lane engine; write-strict / read-fail-open
 posture with NULL-hash visibility; decision = spoken; ARP-defers-floors semantics; ON
 DELETE RESTRICT on user FKs; token format.
+
+**Melody-directed implementation (2026-09-11):** the historical personal-rule fail-open
+posture above is superseded by §7. A supplied token must resolve its actual rules before
+analysis; failures speak NO DATA. Canonical signup preferences initialize only compatible
+unsaved analyzer settings, and the existing saved analyzer rules retain priority.
 
 **Claude-authored, adopted (2026-08-17, Melody: "take the lead"):** an identical request
 inside 60 s (105 s at storage) is ONE offer — replayed, never re-analyzed or re-stored;

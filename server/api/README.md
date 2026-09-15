@@ -89,9 +89,10 @@ api/
 Key location endpoints:
 ```
 GET  /api/location/resolve       - Geocode + city/state/timezone
-GET  /api/location/weather       - Current weather + 6hr forecast
+GET  /api/location/weather       - Verified current weather (forecast belongs to Briefing)
 GET  /api/location/airquality    - AQI data
 POST /api/location/snapshot      - Save location snapshot
+PATCH /api/location/snapshot/:snapshotId/enrich - Fetch and save provider data for owned snapshot
 GET  /api/users/me               - Current user session (via snapshot)
 ```
 

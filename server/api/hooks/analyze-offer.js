@@ -52,6 +52,7 @@ import { haversineDistanceMiles } from '../../lib/location/geo.js';
 // 2026-02-17: Shared utilities for structured analytics columns
 import { getDayPartKey, getLocalHour, getLocalDow, getLocalDateString } from '../../lib/location/daypart.js';
 import { coordsKey } from '../../lib/location/coords-key.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { latLngToCell } from 'h3-js';
 // 2026-04-16: FIX — resolve driver timezone from coords so temporal columns are local, not UTC
 // 2026-08-17: also from the geocoded pickup address (first address on the card) — see Phase 2
@@ -161,12 +162,14 @@ function stripServerOwnedKeys(value) {
 
 // The one honest answer when a verdict cannot be rendered: say so, cache nothing that
 // claims more than we know, and skip Phase 2 (there is nothing to enrich).
-function respondNoData(res, startTime, dedupClaim, priorReason) {
+function respondNoData(res, startTime, dedupClaim, priorReason, ruleReceipt) {
   const payload = {
     success: true,
     voice: 'No data. Decide manually.',
     notification: 'NO DATA: no data',
     decision: 'NO DATA',
+    ...ruleReceipt,
+    analyzed_at: new Date().toISOString(),
     response_time_ms: Date.now() - startTime,
     reason: 'no data',
     notices: [],
@@ -354,8 +357,8 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
           : 'image/jpeg');
       text = null;
       device_id = req.query.device_id;
-      latitude = req.query.latitude ? parseFloat(req.query.latitude) : undefined;
-      longitude = req.query.longitude ? parseFloat(req.query.longitude) : undefined;
+      latitude = req.query.latitude;
+      longitude = req.query.longitude;
       source = req.query.source || 'android_vision';
       console.log(`[HOOKS] Raw image upload: ${Math.round(b.length / 1024)}KB ${image_type} (file-body mode)`);
     } else if (req.file) {
@@ -366,8 +369,8 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       // Form fields come through req.body even with multer
       text = offerBody.text || null;
       device_id = offerBody.device_id;
-      latitude = offerBody.latitude ? parseFloat(offerBody.latitude) : undefined;
-      longitude = offerBody.longitude ? parseFloat(offerBody.longitude) : undefined;
+      latitude = offerBody.latitude;
+      longitude = offerBody.longitude;
       source = offerBody.source || 'siri_vision';
       const sizeKB = Math.round(req.file.size / 1024);
       console.log(`[HOOKS] Multipart upload: ${sizeKB}KB ${image_type} (server-encoded base64 in <1ms)`);
@@ -379,7 +382,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-07-03 (todo #10): identity bridge — an unguessable per-user token
     // resolves user_id + per-driver ruleset. Header preferred; form field
     // accepted (Shortcuts dictionaries are easier to edit than headers).
-    // No/invalid token → DEFAULT_RULESET + null user_id (legacy behavior).
+    // No token retains anonymous defaults; a provided invalid token blocks analysis.
     const shortcutToken = req.get('x-shortcut-token') || offerBody.shortcut_token || req.query?.shortcut_token || null;
     // 2026-08-26 (Melody 2026-08-24): self-reported client signature — provenance for
     // forensics ("which OCR client sent this?"), never identity. Header, field or query.
@@ -390,16 +393,40 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     if (!text && !image) {
       return res.status(400).json({ error: 'Missing text or image payload' });
     }
+    const suppliedCoordinates = latitude !== undefined || longitude !== undefined;
+    const offerCoordinates = normalizeCoordinates(latitude, longitude);
+    if (suppliedCoordinates && !offerCoordinates) {
+      return res.status(400).json({
+        success: false, decision: 'NO DATA', reason: 'Invalid coordinates',
+        reason_kind: 'invalid_coordinates', personal_rules_verified: false,
+        ruleset_version: null, analyzed_at: new Date().toISOString(),
+        voice: 'No data. Location could not be verified. Retry when safe.',
+        notification: 'NO DATA: invalid location. Retry when safe.',
+      });
+    }
 
     // 2026-07-03 (todo #10): the per-user ruleset bridge. Token → user + rules;
-    // no token → DEFAULT_RULESET (zero change for un-migrated devices). The
-    // store fail-opens loudly and caches 15s, so this read is hot-path safe
-    // (measured Phase-1 p50 is 5.3s; this is ~10ms once per burst).
+    // no token → anonymous DEFAULT_RULESET. A provided token must resolve its
+    // actual personal rules; a failure returns a spoken NO DATA before analysis.
     // 2026-08-17: resolved BEFORE the idempotency gate — the ruleset hash is part of
     // the fingerprint, so "same card, rules just changed" is a NEW analysis, not a replay
     // (review: the documented test-before-you-drive loop re-sends the same card after a
     // rules edit).
-    const { ruleset, userId, version: rulesetVersion, hash: rulesetHash } = await resolveRuleset(shortcutToken);
+    const { ruleset, userId, version: rulesetVersion, hash: rulesetHash, status: rulesStatus } = await resolveRuleset(shortcutToken);
+    if (shortcutToken && (!ruleset || !userId)) {
+      return res.json({
+        success: false, decision: 'NO DATA', reason: 'Personal rules unavailable',
+        personal_rules_verified: false, ruleset_version: null, analyzed_at: new Date().toISOString(),
+        reason_kind: rulesStatus || 'rules_unavailable',
+        voice: 'No data. Your personal rules could not be verified. Decide manually and retry when safe.',
+        notification: 'NO DATA: personal rules unavailable. Retry when safe.',
+        response_time_ms: Date.now() - startTime, notices: [],
+      });
+    }
+    const ruleReceipt = {
+      personal_rules_verified: Boolean(shortcutToken && userId && ruleset),
+      ruleset_version: rulesetVersion ?? null,
+    };
     if (userId) console.log(`[HOOKS] Ruleset resolved: user=${userId} v${rulesetVersion ?? 'default'}`);
 
     // ═══ IDEMPOTENCY GATE ═════════════════════════════════════════════════════
@@ -442,13 +469,12 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
 
     console.log(`[HOOKS] 📱 Incoming from ${device_id || 'anonymous'} (${source}${shortcutSystem ? ` via ${shortcutSystem}` : ''})`);
 
-    // 2026-02-16: Use 6-decimal precision (~11cm) per codebase standard (coords-key.js)
-    // Previous 3-decimal (~110m) was too imprecise for algorithm learning
-    const lat = latitude ? Math.round(latitude * 1000000) / 1000000 : null;
-    const lng = longitude ? Math.round(longitude * 1000000) / 1000000 : null;
+    // Six-decimal representation does not claim sensor accuracy. Zero is valid.
+    const lat = offerCoordinates?.lat ?? null;
+    const lng = offerCoordinates?.lng ?? null;
 
     // Market slug uses coarse 1-decimal buckets for geographic clustering
-    const market = (lat && lng) ? `${lat.toFixed(1)}_${lng.toFixed(1)}` : null;
+    const market = offerCoordinates ? `${lat.toFixed(1)}_${lng.toFixed(1)}` : null;
 
     // 1. PRE-PARSE OCR text server-side — regex extraction of price, miles, times
     // 2026-02-16: Deterministic, <1ms, more reliable than LLM math.
@@ -522,12 +548,15 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       ? buildPhase1Prompt(tier, ruleset)
       : buildPhase1VisionPrompt(ruleset);
 
-    // Share = instant reject, skip AI call entirely
-    if (tier === 'share') {
+    // Anonymous Share decisions need no enrichment. Verified drivers continue
+    // through the normal second sweep so their Coach can see the rejected offer.
+    if (tier === 'share' && !userId) {
       const responseTimeMs = Date.now() - startTime;
       console.log(`[HOOKS] Share tier auto-reject (${responseTimeMs}ms)`);
       const sharePayload = {
         success: true,
+        ...ruleReceipt,
+        analyzed_at: new Date().toISOString(),
         // 2026-04-16: TTS line for Siri "Speak Text" — no per-mile data on share path.
         voice: 'Reject. Share tier.',
         notification: 'REJECT: share',
@@ -576,7 +605,9 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // rules. parse_confidence 'full' required: as the PRIMARY decider the
     // pre-parse must have price + both leg pairs (stricter than the fallback role).
     let phase1Response = null;
-    let phase1Result = null;
+    let phase1Result = tier === 'share'
+      ? { ...preParsed, decision: 'REJECT', reason: 'share', reason_kind: 'share', confidence: 100 }
+      : null;
     // false when the model was asked and did not deliver a usable verdict (timeout / failure /
     // unparseable / no decision) and the engine answered instead — the answer is still spoken
     // (always-answer contract) but NOT cached for replay (idempotency gate).
@@ -872,7 +903,9 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-04-16: TTS line for Siri "Speak Text" — composes decision + spoken $/mi
     // + miles + optional reason qualifier. Uses formatPerMileForVoice() for the dollar
     // amount and falls back to a bare decision word when pre-parse data is unavailable.
-    let voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText, { delivery: isDelivery });
+    let voice = decision === 'REJECT' && phase1Result.reason_kind === 'share'
+      ? 'Reject. Share tier.'
+      : buildVoiceLine(decision, perMileValue, totalMi, terseReasonText, { delivery: isDelivery });
     // 2026-08-17 (Melody: "as long as ARP is in the voice, it tells me to take it and I do"):
     // the notification label keys on the `fallback` FLAG, but the spoken tail was sniffed
     // from the reason TEXT — the engine's reason says "fallback", a model-marked fallback
@@ -902,11 +935,13 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // honest resolution is the one the driver already heard.
     if (decision !== 'NO DATA' && /^No data\./.test(voice)) {
       console.warn(`[HOOKS] Decision ${decision} has no renderable numbers (per_mile=${perMileValue}, miles=${totalMi}) — the spoken line is "no data", so the verdict is NO DATA (reason was: ${terseReasonText || '-'})`);
-      return respondNoData(res, startTime, dedupClaim, terseReasonText);
+      return respondNoData(res, startTime, dedupClaim, terseReasonText, ruleReceipt);
     }
 
     const phase1Payload = {
       success: true,
+      ...ruleReceipt,
+      analyzed_at: new Date().toISOString(),
       voice,
       notification,
       decision,
@@ -959,7 +994,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     (async () => {
       try {
         // Build rich context for Phase 2 deep analysis
-        const locationContext = (lat && lng)
+        const locationContext = offerCoordinates
           ? `\nDriver GPS: ${lat}, ${lng} (market: ${market}).`
           : '';
 
@@ -1000,15 +1035,16 @@ PRE-PARSED DATA (server-verified):
           || (phase1Response?.success ? 'gemini-3.5-flash' : 'rules-engine-deterministic');
         let phase2RawText = null;
 
+        let phase2Timer;
         try {
           const phase2Promise = callModel('OFFER_ANALYZER_DEEP', {
             system: phase2System,
             user: phase2UserMessage,
             images,
           });
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Phase 2 timed out after ${PHASE2_TIMEOUT_MS / 1000}s`)), PHASE2_TIMEOUT_MS)
-          );
+          const timeoutPromise = new Promise((_, reject) => {
+            phase2Timer = setTimeout(() => reject(new Error(`Phase 2 timed out after ${PHASE2_TIMEOUT_MS / 1000}s`)), PHASE2_TIMEOUT_MS);
+          });
           const phase2Response = await Promise.race([phase2Promise, timeoutPromise]);
 
           if (phase2Response.success) {
@@ -1023,6 +1059,8 @@ PRE-PARSED DATA (server-verified):
           }
         } catch (phase2Err) {
           console.warn(`[HOOKS] Phase 2 error: ${phase2Err.message} — falling back to Phase 1 result`);
+        } finally {
+          clearTimeout(phase2Timer);
         }
 
         // Use deep result for EXTRACTION, but the stored decision is what Siri
@@ -1060,8 +1098,8 @@ PRE-PARSED DATA (server-verified):
         };
 
         // 2026-02-17: Compute geographic columns
-        const coordKeyValue = (lat && lng) ? coordsKey(lat, lng) : null;
-        const h3Index = (lat && lng) ? latLngToCell(lat, lng, 8) : null;
+        const coordKeyValue = offerCoordinates ? coordsKey(lat, lng) : null;
+        const h3Index = offerCoordinates ? latLngToCell(lat, lng, 8) : null;
 
         // ═══ TIMEZONE + CARD-ADDRESS GEOCODE ═════════════════════════════════════
         // 2026-04-16: FIX — temporal columns must reflect driver's local time, not UTC.
@@ -1132,7 +1170,7 @@ PRE-PARSED DATA (server-verified):
         }
         // ANCHOR = the driver's last known position + how old that knowledge is: GPS (age 0)
         // else a fresh snapshot. It biases the geocoder and bounds what is physically plausible.
-        const geoBias = (lat && lng) ? { lat, lng, ageHours: 0 }
+        const geoBias = offerCoordinates ? { lat, lng, ageHours: 0 }
           : (snapshot?.fresh && Number.isFinite(snapshot.lat) && Number.isFinite(snapshot.lng)) ? { lat: snapshot.lat, lng: snapshot.lng, ageHours: snapshot.ageHours }
           : null;
         // Every Google call on this path is bounded (review 2026-08-17): a hung request must
@@ -1198,7 +1236,7 @@ PRE-PARSED DATA (server-verified):
 
         let driverTimezone = null;
         let timezoneSource = null;
-        if (lat && lng) {
+        if (offerCoordinates) {
           try {
             driverTimezone = await timezoneMemoized(lat, lng);
             if (driverTimezone) timezoneSource = 'gps';
@@ -1231,7 +1269,7 @@ PRE-PARSED DATA (server-verified):
         }
         if (!driverTimezone) {
           console.error(
-            `[HOOKS] ❌ No timezone derivable (coords: ${lat && lng ? 'present but API failed' : 'absent'}, ` +
+            `[HOOKS] ❌ No timezone derivable (coords: ${offerCoordinates ? 'present but API failed' : 'absent'}, ` +
             `pickup address: ${pickupAddr ? (pickupPoint ? 'resolved but Timezone API failed' : 'unresolvable (no trusted geocode/place)') : 'absent'}, ` +
             `user: ${userId ? 'tokened but no session snapshot' : 'un-tokened device'}) — offer NOT stored. ` +
             'No fallbacks: a row without real local-time context is bad waterfall data.'
@@ -1313,7 +1351,7 @@ PRE-PARSED DATA (server-verified):
           dropoff_geo_corroboration: dropoffPoint?.corroboration ?? null,
           dropoff_geo_precise: dropoffPoint ? dropoffPoint.precise : null,
           dropoff_anchor_distance_mi: dropoffPoint?.distance_mi ?? null,
-          anchor_source: geoBias ? ((lat && lng) ? 'gps' : 'snapshot') : null,
+          anchor_source: geoBias ? (offerCoordinates ? 'gps' : 'snapshot') : null,
           anchor_age_hours: geoBias ? Math.round((geoBias.ageHours ?? 0) * 10) / 10 : null,
           pickup_partial_match: puGeo ? puGeo.partial_match : null,   // raw Geocoding flags
           dropoff_partial_match: drGeo ? drGeo.partial_match : null,
@@ -1502,6 +1540,8 @@ PRE-PARSED DATA (server-verified):
     dedupClaim?.fail(error); // never replay a failure — the next identical request analyzes fresh
     res.status(500).json({
       success: false,
+      personal_rules_verified: false, ruleset_version: null,
+      analyzed_at: new Date().toISOString(),
       // 2026-04-16: TTS line for Siri — em-dash in notification doesn't speak well, so use period.
       voice: 'Analysis failed. Decide manually.',
       notification: 'Analysis failed — decide manually',

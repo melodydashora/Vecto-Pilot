@@ -9,7 +9,7 @@ let profile;
 const writes = [];
 const marketLookup = jest.fn(async () => [{ market_anchor: 'Auto market' }]);
 const db = {
-  query: { driver_profiles: { findFirst: async () => profile } },
+  query: { driver_profiles: { findFirst: async () => profile }, driver_vehicles: { findFirst: async () => null } },
   update: table => ({ set: values => ({ where: async () => {
     writes.push({ table: getTableName(table), values });
     Object.assign(profile, values);
@@ -17,9 +17,11 @@ const db = {
   select: () => ({ from: () => ({ where: () => ({ limit: marketLookup }) }) }),
 };
 const geocodeAddress = jest.fn();
+const invalidateUser = jest.fn();
 const forbidden = jest.fn(async () => { throw new Error('Unexpected external transport'); });
 const log = new Proxy({}, { get: () => jest.fn() });
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
+jest.unstable_mockModule('../../server/lib/offers/ruleset-store.js', () => ({ invalidateUser }));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({
   requireAuth: (req, _res, next) => { req.auth = { userId: 'fixture-owner' }; next(); },
 }));
@@ -103,4 +105,40 @@ test('geocoding failure remains nonfatal for a genuine address change', async ()
   expect((await save({ city: 'Changed City' })).status).toBe(200);
   expect(profile.city).toBe('Changed City');
   expect(profile.home_lat).toBe(33.123456);
+});
+
+test('existing economics round-trip through profile PUT and GET with explicit zero and null', async () => {
+  const result = await save({ fuelEconomyMpg: 31, earningsGoalDaily: 0, shiftHoursTarget: 7.5, maxDeadheadMi: 0 });
+  expect(result.status).toBe(200);
+  expect(profile).toMatchObject({ fuel_economy_mpg: 31, earnings_goal_daily: 0, shift_hours_target: 7.5, max_deadhead_mi: 0 });
+  // PostgreSQL numeric values arrive as strings; the API has a numeric contract.
+  profile.earnings_goal_daily = '0.00';
+  profile.shift_hours_target = '7.5';
+  const read = await request(app).get('/api/auth/me');
+  expect(read.status).toBe(200);
+  expect(read.body.profile).toMatchObject({ fuelEconomyMpg: 31, earningsGoalDaily: 0, shiftHoursTarget: 7.5, maxDeadheadMi: 0 });
+  expect((await save({ fuelEconomyMpg: null })).status).toBe(200);
+  expect(profile.fuel_economy_mpg).toBeNull();
+  expect(profile.max_deadhead_mi).toBe(0);
+  expect(geocodeAddress).not.toHaveBeenCalled();
+});
+
+test('saving service and empty-pickup preferences invalidates the offer projection before responding', async () => {
+  const result = await save({ prefShared: false, maxDeadheadMi: 0 });
+  expect(result.status).toBe(200);
+  expect(profile).toMatchObject({ pref_shared: false, max_deadhead_mi: 0 });
+  expect(invalidateUser).toHaveBeenCalledTimes(1);
+  expect(invalidateUser).toHaveBeenCalledWith('fixture-owner');
+});
+
+test.each([
+  ['fuelEconomyMpg', 0], ['fuelEconomyMpg', 25.5], ['earningsGoalDaily', -1],
+  ['earningsGoalDaily', 0.001], ['earningsGoalDaily', '250'], ['earningsGoalDaily', true],
+  ['shiftHoursTarget', 25], ['shiftHoursTarget', 7.55], ['maxDeadheadMi', 1.5], ['maxDeadheadMi', 501],
+])('invalid %s=%s rejects the entire update before any write', async (field, value) => {
+  const result = await save({ nickname: 'Must not save', [field]: value });
+  expect(result.status).toBe(400);
+  expect(result.body.error).toBe('INVALID_PREFERENCE');
+  expect(writes).toHaveLength(0);
+  expect(invalidateUser).not.toHaveBeenCalled();
 });

@@ -23,6 +23,12 @@ export interface DriverProfile {
   market: string;
   ridesharePlatforms: string[];
 
+  // Existing canonical profile preferences. Null is unknown; zero stays explicit.
+  fuelEconomyMpg?: number | null;
+  earningsGoalDaily?: number | null;
+  shiftHoursTarget?: number | null;
+  maxDeadheadMi?: number | null; // Empty distance to pickup, not distance from home.
+
   // Home location (from registration geocoding)
   homeLat?: number;
   homeLng?: number;

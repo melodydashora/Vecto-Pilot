@@ -120,9 +120,12 @@ export function extractProductType(text) {
 
 
   // Uber products — match raw, then canonicalize
-  const uberMatch = normalized.match(/Uber\s*X{0,2}\s*L?\s*(?:Priority|Exclusive)?/i);
+  const uberMatch = normalized.match(/Uber\s*X{0,2}\s*L?\s*(?:Priority|Exclusive|Share)?/i);
   if (uberMatch) {
     const raw = uberMatch[0].replace(/\s+/g, ' ').trim().toLowerCase();
+    // 2026-09-11: recognize the observed product modifier before generic UberX;
+    // otherwise a driver's explicit shared-ride rejection gate is bypassed.
+    if (/uber\s*x\s*share\b/i.test(raw)) return 'Share';
     // 2026-03-29: Canonical mapping — eliminates "Uberx", "uberx Exclusive", etc.
     if (/uberxl\s*exclusive/i.test(raw)) return 'UberXL Exclusive';
     if (/uberxl/i.test(raw)) return 'UberXL';

@@ -11,10 +11,11 @@ import { Router } from 'express';
 import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
-import { DEFAULT_RULESET, migrateRuleset } from '../../lib/offers/rules-engine.js';
+import { migrateRuleset } from '../../lib/offers/rules-engine.js';
 import { validateRuleset } from '../../lib/offers/ruleset-schema.js';
 import { hashRuleset, generateShortcutToken, invalidateUser } from '../../lib/offers/ruleset-store.js';
 import { parseOutcomeInput, offerPeriod } from '../../lib/offers/outcome-input.js';
+import { initialRulesetFromProfile } from '../../lib/offers/profile-ruleset.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -31,11 +32,18 @@ router.get('/rules', async (req, res) => {
     `);
     const row = result.rows?.[0];
     if (!row) {
+      const profiles = await db.execute(sql`
+        SELECT pref_shared, max_deadhead_mi FROM driver_profiles
+        WHERE user_id = ${req.auth.userId} LIMIT 1
+      `);
+      const { config, sourceFields } = initialRulesetFromProfile(profiles.rows?.[0]);
       return res.json({
-        config: migrateRuleset(DEFAULT_RULESET),
+        config,
         version: null,
-        hash: null,
+        hash: hashRuleset(config),
         is_default: true,
+        source: sourceFields.length ? 'profile' : 'defaults',
+        source_fields: sourceFields,
       });
     }
     return res.json({

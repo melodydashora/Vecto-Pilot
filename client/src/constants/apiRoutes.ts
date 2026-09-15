@@ -178,6 +178,9 @@ export const API_ROUTES = {
   // =========================================================================
   // Realtime voice (todo #33 switcher: OpenAI WebRTC arm + Gemini Live arm)
   // =========================================================================
+  COACH_LIVE: {
+    SESSION: '/api/coach-live/session',
+  },
   REALTIME: {
     TOKEN: '/api/realtime/token',
   },
@@ -205,6 +208,8 @@ export const API_ROUTES = {
   // Concierge (QR code sharing + public event discovery)
   // =========================================================================
   CONCIERGE: {
+    SESSION: '/api/concierge/session',
+    PUBLIC_CONTEXT: (token: string, lat: number, lng: number) => `/api/concierge/p/${encodeURIComponent(token)}/context?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`,
     TOKEN: '/api/concierge/token',
     PREVIEW: '/api/concierge/preview',
     PUBLIC_PROFILE: (token: string) => `/api/concierge/p/${token}`,
@@ -222,6 +227,7 @@ export const API_ROUTES = {
   // 2026-07-03 (todo #10): docs/architecture/OFFER_ANALYZER.md §12
   // =========================================================================
   OFFER_ANALYZER: {
+    ANALYZE: '/api/hooks/analyze-offer',
     RULES: '/api/offer-analyzer/rules',
     SHORTCUT_TOKEN: '/api/offer-analyzer/shortcut-token',
     SHORTCUT_TOKEN_REGENERATE: '/api/offer-analyzer/shortcut-token/regenerate',

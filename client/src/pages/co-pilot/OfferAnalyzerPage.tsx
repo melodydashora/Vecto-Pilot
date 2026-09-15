@@ -37,6 +37,7 @@ import { ArrowLeft, Gauge, Loader2, Save } from 'lucide-react';
 interface RulesMeta {
   version: number | null; // null = defaults (no saved row yet)
   isDefault: boolean;
+  fromProfile?: boolean;
 }
 
 export default function OfferAnalyzerPage() {
@@ -73,6 +74,7 @@ export default function OfferAnalyzerPage() {
         setMeta({
           version: data.version == null ? null : Number(data.version),
           isDefault: Boolean(data.is_default),
+          fromProfile: data.source === 'profile',
         });
         setLoadState('ready');
       } catch (err) {
@@ -175,7 +177,7 @@ export default function OfferAnalyzerPage() {
             <Gauge className="h-6 w-6 text-blue-500" />
             Offer Analyzer
           </h1>
-          <p className="text-gray-500 text-sm">Your rules for the 3-second accept/reject call</p>
+          <p className="text-gray-500 text-sm">Your rules for the spoken accept/reject call</p>
         </div>
       </div>
 
@@ -203,12 +205,14 @@ export default function OfferAnalyzerPage() {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">Your rules</span>
             {meta?.version != null && <Badge variant="secondary">v{meta.version}</Badge>}
-            {meta?.isDefault && <Badge variant="outline">using defaults</Badge>}
+            {meta?.isDefault && <Badge variant="outline">{meta.fromProfile ? 'from your profile' : 'using defaults'}</Badge>}
           </div>
           {meta?.isDefault && (
             <Alert>
               <AlertDescription>
-                You're on default rules — save any change to create your own.
+                {meta?.fromProfile
+                  ? 'Available shared-ride and pickup preferences from your profile initialize these rules. Save your analyzer rules here to keep a separate set of offer limits; later profile edits will not overwrite them.'
+                  : 'You are using initial rules. Review and save your own limits before relying on an offer decision.'}
               </AlertDescription>
             </Alert>
           )}

@@ -38,6 +38,8 @@ import { matrixLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
 import { validateAddress } from '../../lib/location/address-validation.js';
 import { signJWT } from '../../lib/jwt.js';
+import { economicPreferencesForApi, parseEconomicPreferenceUpdates } from '../../lib/driver-preferences.js';
+import { invalidateUser } from '../../lib/offers/ruleset-store.js';
 
 const router = Router();
 
@@ -595,6 +597,7 @@ router.post('/register', async (req, res) => {
         country: profile.country,
         market: profile.market,
         ridesharePlatforms: profile.rideshare_platforms || [],
+        ...economicPreferencesForApi(profile),
         // Home location (from registration geocoding)
         homeLat: profile.home_lat,
         homeLng: profile.home_lng,
@@ -863,6 +866,7 @@ router.post('/login', async (req, res) => {
         country: profile.country,
         market: profile.market,
         ridesharePlatforms: profile.rideshare_platforms || [],
+        ...economicPreferencesForApi(profile),
         // Home location (from registration geocoding)
         homeLat: profile.home_lat,
         homeLng: profile.home_lng,
@@ -1200,6 +1204,7 @@ router.get('/me', requireAuth, async (req, res) => {
         country: profile.country,
         market: profile.market,
         ridesharePlatforms: profile.rideshare_platforms || [],
+        ...economicPreferencesForApi(profile),
 
         // Home location (from registration geocoding)
         homeLat: profile.home_lat,
@@ -1287,7 +1292,11 @@ router.put('/profile', requireAuth, async (req, res) => {
     }
 
     // Build update object
-    const profileUpdates = {};
+    const economics = parseEconomicPreferenceUpdates(updates);
+    if (!economics.ok) {
+      return res.status(400).json({ error: 'INVALID_PREFERENCE', field: economics.field, message: economics.message });
+    }
+    const profileUpdates = { ...economics.values };
 
     // Personal info (note: firstName/lastName intentionally not editable via profile update)
     if (updates.nickname !== undefined) profileUpdates.driver_nickname = updates.nickname?.trim() || null;
@@ -1438,6 +1447,9 @@ router.put('/profile', requireAuth, async (req, res) => {
     await db.update(driver_profiles)
       .set(profileUpdates)
       .where(eq(driver_profiles.user_id, userId));
+    // Unsaved analyzer defaults inherit compatible profile preferences; a saved
+    // ruleset remains untouched. Invalidate this instance's token cache.
+    invalidateUser(userId);
 
     // 2026-02-13: Update or INSERT vehicle if provided
     // Google OAuth users may not have a vehicle record yet, so check first
@@ -1882,6 +1894,7 @@ router.post('/google/exchange', async (req, res) => {
         country: activeProfile.country,
         market: activeProfile.market,
         ridesharePlatforms: activeProfile.rideshare_platforms || [],
+        ...economicPreferencesForApi(activeProfile),
         homeLat: activeProfile.home_lat,
         homeLng: activeProfile.home_lng,
         homeTimezone: activeProfile.home_timezone,

@@ -1,5 +1,15 @@
 # ANDROID_SHORTCUT_ANALYZE.md — Offer Analyzer on Android (no Vecto app required)
 
+> **Current entry path (2026-09-11):** Phone Setup now downloads an actual HTTP
+> Shortcuts Android **browser launcher** JSON file. It opens the current deployment's
+> guarded quick analyzer, where a fresh precise GPS fix, screenshot, verified
+> personal rules, and current decision timestamp are required. Screenshot selection
+> remains explicit; this is not automatic cross-app capture. See
+> [mobile implementation and official import-source verification](MOBILE_CONCIERGE_2026-09-11.md).
+> The older direct-upload recipes below are historical setup references. They do
+> not enforce today's GPS freshness or verified-response checks and should not be
+> used as the current driver setup instructions.
+
 > **Who this is for:** drivers on Android who want the same spoken ACCEPT/REJECT the
 > iPhone shortcuts give, and whoever maintains these instructions. Android has no
 > Shortcuts app, so a free automation app does the job. The server is identical
