@@ -6,68 +6,72 @@ import { briefingLog, OP } from '../../logger/workflow.js';
 import { titlesMatch } from '../events/pipeline/deduplicateEventsSemantic.js';
 
 /**
- * Deactivate past events in discovered_events.
- * Soft-deactivates (is_active = false) events that have ended, preserving
- * historical data for audit/analysis while preventing stale events from
- * appearing in briefings and AI Coach queries.
+ * Soft-deactivate events two hours after their venue-local end time.
+ * 2026-09-13: The previous global UPDATE interpreted every event in the
+ * requesting driver's timezone. Resolve each row through its existing
+ * venue_id -> venue_catalog.timezone instead. No geography or UTC fallback.
+ * Missing/invalid timezone or timing is preserved and reported for repair.
+ * Compare absolute instants for the two-hour buffer. PostgreSQL resolves an
+ * ambiguous fall-back clock to the later (standard-time) occurrence, preserving
+ * either possible event until both are old enough; stored clocks lack offsets.
  *
- * 2026-02-17: Rewritten from DELETE to soft-deactivate for data preservation.
- * 2026-02-17: Removed default timezone — NO FALLBACKS rule (CLAUDE.md).
- * 2026-02-17: Added deactivated_at timestamp for lifecycle tracking.
- *
- * Logic:
- * - Computes cutoff = now - 2h (matches POST_EVENT_SURGE_MS in strategy-utils.js so
- *   the deactivation window aligns with the read-side freshness window — events
- *   stay visible for ~2hr post-end to capture driver pickup surge).
- * - Deactivate if event_end_date < cutoffDate
- * - Deactivate if event_end_date == cutoffDate AND event_end_time < cutoffTime
- * - Only targets events where is_active = true (skip already-deactivated)
- *
- * @param {string} timezone - IANA timezone (e.g. 'America/Chicago') — REQUIRED
  * @returns {Promise<number>} Number of events deactivated
  */
-export async function deactivatePastEvents(timezone) {
-  if (!timezone) {
-    throw new Error('deactivatePastEvents requires timezone parameter — NO FALLBACKS');
-  }
-
+export async function deactivatePastEvents() {
   try {
-    // 2026-05-02: Workstream 6 commit 8.5 — apply 2-hour post-event surge buffer so
-    // deactivation aligns with the read-side freshness window in strategy-utils.js
-    // (POST_EVENT_SURGE_MS). Events stay is_active=true for 2 hours after their
-    // event_end_time, giving drivers ride opportunities from attendees leaving.
-    const POST_EVENT_BUFFER_MS = 2 * 60 * 60 * 1000;
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - POST_EVENT_BUFFER_MS); // 2 hours before now
-    // Derive date/time strings from cutoff, not now. Format guarantees:
-    //   en-CA → "YYYY-MM-DD" (sortable as string)
-    //   en-GB → "HH:MM" 24-hour with leading zeros (sortable as string,
-    //     assumes event_end_time is also stored in 24-hour HH:MM format —
-    //     pre-existing assumption upstream of this commit)
-    const cutoffDateStr = cutoff.toLocaleDateString('en-CA', { timeZone: timezone });
-    const cutoffTimeStr = cutoff.toLocaleTimeString('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit' });
-
+    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const result = await db.execute(sql`
-      UPDATE discovered_events
-      SET is_active = false,
-          deactivated_at = NOW(),
-          updated_at = NOW()
-      WHERE is_active = true
-        AND (
-          event_end_date < ${cutoffDateStr}
-          OR (event_end_date = ${cutoffDateStr} AND event_end_time < ${cutoffTimeStr})
-        )
+      WITH event_context AS MATERIALIZED (
+        SELECT de.id, de.event_end_date, de.event_end_time,
+          tz.name AS resolved_timezone,
+          CASE
+            WHEN de.event_end_date ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+            THEN CASE WHEN substring(de.event_end_date, 1, 4)::integer = 0 THEN false
+              ELSE substring(de.event_end_date, 9, 2)::integer <= extract(day FROM (
+                make_date(substring(de.event_end_date, 1, 4)::integer,
+                          substring(de.event_end_date, 6, 2)::integer, 1)
+                + interval '1 month - 1 day'
+              )) END
+            ELSE false
+          END AS valid_date,
+          COALESCE(de.event_end_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$', false) AS valid_time
+        FROM discovered_events de
+        LEFT JOIN venue_catalog vc ON vc.venue_id = de.venue_id
+        LEFT JOIN pg_timezone_names tz ON tz.name = vc.timezone
+        WHERE de.is_active = true
+      ), end_instants AS MATERIALIZED (
+        SELECT id, CASE
+          WHEN resolved_timezone IS NOT NULL AND valid_date AND valid_time
+          THEN (event_end_date || ' ' || event_end_time)::timestamp AT TIME ZONE resolved_timezone
+          ELSE NULL
+        END AS end_at
+        FROM event_context
+      ), expired AS (
+        UPDATE discovered_events de
+        SET is_active = false, deactivated_at = NOW(), updated_at = NOW()
+        FROM end_instants ei
+        WHERE de.id = ei.id AND de.is_active = true
+          AND ei.end_at < ${cutoff}::timestamptz
+        RETURNING de.id
+      )
+      SELECT (SELECT count(*)::integer FROM expired) AS deactivated_count,
+        (SELECT count(*)::integer FROM event_context WHERE resolved_timezone IS NULL) AS unresolved_timezone_count,
+        (SELECT count(*)::integer FROM event_context WHERE NOT valid_date OR NOT valid_time) AS invalid_timing_count
     `);
 
-    const deactivatedCount = result.rowCount || result.count || 0;
-
-    if (deactivatedCount > 0) {
-      briefingLog.phase(1, `Deactivated ${deactivatedCount} past events (tz=${timezone})`, OP.DB);
+    const counts = result.rows?.[0];
+    const deactivatedCount = counts?.deactivated_count || 0;
+    if (counts?.unresolved_timezone_count || counts?.invalid_timing_count) {
+      briefingLog.warn(1,
+        `Event cleanup preserved unresolved records: timezone=${counts.unresolved_timezone_count}, timing=${counts.invalid_timing_count}`,
+        OP.DB);
     }
-
+    if (deactivatedCount > 0) {
+      briefingLog.phase(1, `Deactivated ${deactivatedCount} past events using venue timezones`, OP.DB);
+    }
     return deactivatedCount;
   } catch (error) {
-    // Non-fatal — cleanup failure shouldn't block event discovery
+    // Cleanup failure preserves data and does not block fresh discovery.
     briefingLog.error(1, `Failed to deactivate past events: ${error.message}`, error, OP.DB);
     return 0;
   }

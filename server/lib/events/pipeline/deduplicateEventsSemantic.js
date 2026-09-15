@@ -81,13 +81,14 @@ export function normalizeTitleForComparison(title) {
   if (!title) return '';
 
   let t = title
+    .normalize('NFC')
     .toLowerCase()
     .replace(/["'"']/g, '')                              // Remove quotes
     .replace(/\s*\([^)]*\)\s*/g, ' ')                   // Remove (parenthetical)
     .replace(/\s+(at|in|@)\s+.+$/i, '')                 // Remove "at Venue" suffix
     .replace(/\s*[-–—]\s+[A-Z][A-Za-z\s&']+$/i, '')    // Remove " - Venue Name" suffix
     .replace(/^(live music|live band|dj set|acoustic):\s*/i, '') // Remove prefixes
-    .replace(/[^a-z0-9\s]/g, ' ')                       // Remove special chars
+    .replace(/[^\p{L}\p{N}\p{M}\s]/gu, ' ')                       // Remove special chars
     .replace(/\s+/g, ' ')                               // Collapse spaces
     .trim();
 

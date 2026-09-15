@@ -17,7 +17,7 @@
 import { eventsLog, OP } from '../../../logger/workflow.js';
 // 2026-04-05: Import normalizeCategory for fuzzy rescue — if the AI returns an unmapped
 // category value, remap it before rejecting. This makes the pipeline self-healing.
-import { normalizeCategory } from './normalizeEvent.js';
+import { normalizeCategory, normalizeDate, normalizeTime } from './normalizeEvent.js';
 
 /**
  * Current schema version for validation tracking.
@@ -39,7 +39,9 @@ import { normalizeCategory } from './normalizeEvent.js';
 // unchanged (a correctly-tz'd event validates identically); only the missing-tz error path
 // changed. Stored rows were written with tz via the events.js write path, so v6 rows remain
 // correct and need no forced revalidation.
-export const VALIDATION_SCHEMA_VERSION = 6;
+// 2026-09-13: v7 rejects out-of-range clocks and impossible calendar dates.
+// Existing v6 rows need read-time validation; this is a data marker, not a schema change.
+export const VALIDATION_SCHEMA_VERSION = 7;
 
 /**
  * Patterns that indicate incomplete/invalid data
@@ -128,6 +130,10 @@ export function validateEvent(event, context = {}) {
     return { valid: false, reason: 'tbd_in_start_time', field: 'event_start_time' };
   }
 
+  if (!normalizeTime(event.event_start_time)) {
+    return { valid: false, reason: 'invalid_start_time', field: 'event_start_time' };
+  }
+
   // Rule 8: Must have event_end_time
   // 2026-01-10: Added to enforce frontend contract (BriefingTab.tsx requires both times)
   // Events without end times are not useful for rideshare drivers (can't predict pickup surge)
@@ -140,14 +146,26 @@ export function validateEvent(event, context = {}) {
     return { valid: false, reason: 'tbd_in_end_time', field: 'event_end_time' };
   }
 
+  if (!normalizeTime(event.event_end_time)) {
+    return { valid: false, reason: 'invalid_end_time', field: 'event_end_time' };
+  }
+
   // Rule 10: Must have event_start_date (2026-01-10: renamed from event_date)
   if (!event.event_start_date) {
     return { valid: false, reason: 'missing_start_date', field: 'event_start_date' };
   }
 
   // Rule 11: Date must be valid format (YYYY-MM-DD)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(event.event_start_date)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(event.event_start_date) || normalizeDate(event.event_start_date) !== event.event_start_date) {
     return { valid: false, reason: 'invalid_date_format', field: 'event_start_date' };
+  }
+
+  if (event.event_end_date != null && (
+    !/^\d{4}-\d{2}-\d{2}$/.test(event.event_end_date) ||
+    normalizeDate(event.event_end_date) !== event.event_end_date ||
+    event.event_end_date < event.event_start_date
+  )) {
+    return { valid: false, reason: 'invalid_end_date', field: 'event_end_date' };
   }
 
   // Rule 12: Category is REQUIRED and must be from allowed list

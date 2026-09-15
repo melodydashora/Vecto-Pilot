@@ -4,6 +4,9 @@
 // Called by blocks-fast.js during initial pipeline.
 
 import crypto from 'crypto';
+import { fromZonedTime } from 'date-fns-tz';
+import { getLocalDateString } from '../../../../shared/dayparts.js';
+import { normalizeTime } from '../../events/pipeline/normalizeEvent.js';
 import { db } from '../../../db/drizzle.js';
 import { assertBriefingReady } from '../../briefing/briefing-readiness.js';
 import { assertSnapshotReady } from '../../location/snapshot-readiness.js';
@@ -393,10 +396,9 @@ function parseJsonField(field) {
 export function filterEventsToTimeWindow(events, timezone) {
   if (!events || !Array.isArray(events)) return [];
 
-  // Compute today's date in driver's timezone for date-gating
-  const todayLocal = timezone
-    ? new Date().toLocaleDateString('en-CA', { timeZone: timezone })
-    : new Date().toISOString().split('T')[0];
+  // Compute today's date in driver's timezone for date-gating.
+  // 2026-09-13: timezone is required (throws) — no server-clock/UTC fallback.
+  const todayLocal = getLocalDateString(new Date(), timezone);
 
   return events.filter(event => {
     // HARD GATE — 2026-08-11 (todo #29): end-date aware. The previous gate compared
@@ -422,16 +424,28 @@ export function filterEventsToTimeWindow(events, timezone) {
     // above already established it is active today — include it.
     if (startDate && startDate < todayLocal) return true;
 
-    // Time window check: try to build a parseable timestamp
-    const eventStart = event.event_start
-      || (event.event_start_date && event.event_start_time
-        ? `${event.event_start_date}T${event.event_start_time.replace(/\s*(AM|PM)/i, ' $1')}`
-        : null)
-      || event.start_time || event.time;
-    if (!eventStart) return true; // No time info — include (date already gated above)
-
-    const parsed = new Date(eventStart);
-    if (isNaN(parsed.getTime())) return true; // Can't parse — include (date already gated)
+    // 2026-09-13: Date/time columns are local wall-clock values, never server
+    // time. Use the existing IANA conversion dependency, including DST offsets.
+    let parsed;
+    if (startDate && event.event_start_time) {
+      const time = normalizeTime(event.event_start_time);
+      if (!time) return false;
+      parsed = fromZonedTime(`${startDate}T${time}:00`, timezone);
+    } else {
+      const eventStart = event.event_start || event.start_time || event.time;
+      if (!eventStart) return true; // Retain the established date-only gate behavior.
+      const text = String(eventStart);
+      if (/T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)) {
+        parsed = new Date(text); // Explicit offset already identifies the instant.
+      } else if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+        parsed = fromZonedTime(text, timezone);
+      } else {
+        const time = normalizeTime(text);
+        if (!startDate || !time) return false;
+        parsed = fromZonedTime(`${startDate}T${time}:00`, timezone);
+      }
+    }
+    if (isNaN(parsed.getTime())) return false;
 
     const now = new Date();
     const windowStart = new Date(now.getTime() - 60 * 60 * 1000);  // now - 1h
@@ -982,6 +996,15 @@ function estimateEventCapacity(event) {
   return 1000; // medium default
 }
 
+/** Production comparator shared with the near-event ranking regression suite. */
+export function compareNearEventImpact(a, b) {
+  // Impact-weighted sort: capacity / (1 + distance) — higher score = better event
+  // A stadium at 7mi (1875) beats karaoke at 3mi (87). See Memory #106.
+  const scoreA = (a.estimated_attendance || 1000) / (1 + a.distance_mi);
+  const scoreB = (b.estimated_attendance || 1000) / (1 + b.distance_mi);
+  return scoreB - scoreA; // descending — highest impact first
+}
+
 /**
  * Annotate events with distance and capacity, then bucket into NEAR / FAR /
  * unknown-distance groups. NEAR events are sorted closest-first; FAR events
@@ -1000,13 +1023,7 @@ function annotateAndBucketEvents(events, driverLat, driverLng) {
 
   const near = annotated
     .filter(e => Number.isFinite(e.distance_mi) && e.distance_mi <= NEAR_EVENT_RADIUS_MILES)
-    .sort((a, b) => {
-      // Impact-weighted sort: capacity / (1 + distance) — higher score = better event
-      // A stadium at 7mi (1875) beats karaoke at 3mi (87). See Memory #106.
-      const scoreA = (a.estimated_attendance || 1000) / (1 + a.distance_mi);
-      const scoreB = (b.estimated_attendance || 1000) / (1 + b.distance_mi);
-      return scoreB - scoreA; // descending — highest impact first
-    });
+    .sort(compareNearEventImpact);
 
   const far = annotated
     .filter(e => Number.isFinite(e.distance_mi) && e.distance_mi > NEAR_EVENT_RADIUS_MILES)

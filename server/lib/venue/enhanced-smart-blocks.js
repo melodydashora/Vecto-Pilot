@@ -77,7 +77,7 @@ import { generateTacticalPlan } from '../strategy/tactical-planner.js';
 import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
-import { matchVenuesToEvents } from './event-matcher.js';
+import { matchVenuesToEvents, getVenueEventKey } from './event-matcher.js';
 // 2026-04-28: Step 4 — planner-grade gate predicate (spec §5.3)
 import { upsertVenue, isPlannerGradeVenue } from './venue-cache.js';
 import { venuesLog } from '../../logger/workflow.js';
@@ -318,7 +318,7 @@ export async function fetchTodayDiscoveredEventsWithVenue(
  *
  * @param {Array} enrichedVenues - Output from enrichVenues()
  * @param {Object} snapshot - Snapshot context (city, state for upsertVenue)
- * @returns {Promise<Map<string, string>>} Map of venue name -> venue_id (UUID)
+ * @returns {Promise<Map<string, string>>} Map of stable venue identity (getVenueEventKey) -> venue_id (UUID)
  */
 async function promoteToVenueCatalog(enrichedVenues, snapshot) {
   // 2026-04-02: FIX - Also require a valid address to avoid NOT NULL constraint violations.
@@ -359,7 +359,7 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
   const venueIdMap = new Map();
   results.forEach((result, index) => {
     if (result.status === 'fulfilled' && result.value?.venue_id) {
-      venueIdMap.set(promotable[index].name, result.value.venue_id);
+      venueIdMap.set(getVenueEventKey(promotable[index]), result.value.venue_id);
     } else if (result.status === 'fulfilled') {
       // 2026-05-08: Fulfilled but no venue_id — rare race (UPDATE matched 0 rows
       // because the existing row was deleted between lookup and update, or
@@ -580,7 +580,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
       // Get matched events for this venue
       // 2026-01-14: Filter to only time-relevant events (within 2h future or 4h past start)
-      const allMatchedEvents = eventMatches.get(enriched.name) || [];
+      const allMatchedEvents = eventMatches.get(getVenueEventKey(enriched)) || [];
       const matchedEvents = allMatchedEvents.filter(evt =>
         isEventTimeRelevant(evt.event_start_time, snapshot.timezone)
       );
@@ -607,7 +607,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
         // Canonical identity
         place_id: enriched.placeId,
-        venue_id: venueIdMap.get(enriched.name) || null,
+        venue_id: venueIdMap.get(getVenueEventKey(enriched)) || null,
         distance_miles: distanceMiles,
         drive_minutes: driveMinutes,
         value_per_min: valuePerMin,

@@ -10,7 +10,7 @@ const matcherLog = createWorkflowLogger('VENUES');
 //
 // PURPOSE: Given a list of venues (from enrichVenues) and a list of today's
 //          discovered events (pre-fetched by caller with venue_catalog join),
-//          produce a Map<venueName, matchedEvents> using strong identity keys.
+//          produce a Map<venueIdentity, matchedEvents> using strong identity keys.
 //
 // 2026-04-11: Rewrote matching logic to use strong identity keys
 //   (place_id → venue_id → name fallback) and removed the internal DB query.
@@ -49,12 +49,11 @@ const matcherLog = createWorkflowLogger('VENUES');
 //                  vc_address, vc_city, vc_lat, vc_lng).
 //
 // OUTPUT:
-//   - Map<string venueName, Array<EventMatch>>
+//   - Map<string venueIdentity, Array<EventMatch>>
 //     where EventMatch = { title, venue_name, event_start_time,
 //                          event_end_time, category, expected_attendance }
-//   The shape is preserved from the old API so enhanced-smart-blocks.js's
-//   candidate-assembly code (which reads venue_events[0].title for badges)
-//   does not need to change.
+//   EventMatch objects preserve their prior shape; callers use the same
+//   getVenueEventKey helper for matching and lookup.
 //
 // ============================================================================
 
@@ -112,6 +111,11 @@ function toEventMatch(event) {
   };
 }
 
+/** Return the same stable venue identity for match insertion and lookup. */
+export function getVenueEventKey(venue) {
+  return venue.placeId || venue.venue_id || venue.name;
+}
+
 /**
  * Match enriched venues against pre-fetched discovered events using strong
  * identity keys.
@@ -133,7 +137,7 @@ function toEventMatch(event) {
  *
  * @param {Array<Object>} venues - Enriched venues from enrichVenues()
  * @param {Array<Object>} todayEvents - State-scoped discovered_events with venue_catalog join
- * @returns {Map<string, Array<Object>>} Map keyed by venue.name
+ * @returns {Map<string, Array<Object>>} Map keyed by getVenueEventKey(venue)
  */
 export function matchVenuesToEvents(venues, todayEvents) {
   if (!venues?.length || !todayEvents?.length) {
@@ -149,11 +153,14 @@ export function matchVenuesToEvents(venues, todayEvents) {
       let matchType = null;
 
       // Primary: place_id (Google Places (NEW) API identity on both sides)
-      if (venue.placeId && event.vc_place_id && venue.placeId === event.vc_place_id) {
+      if (venue.placeId && event.vc_place_id) {
+        // A different authoritative ID is evidence of a different venue.
+        if (venue.placeId !== event.vc_place_id) continue;
         matchType = 'place_id';
       }
       // Secondary: venue_id (both in venue_catalog — dormant at current call site)
-      else if (venue.venue_id && event.venue_id && venue.venue_id === event.venue_id) {
+      else if (venue.venue_id && event.venue_id) {
+        if (venue.venue_id !== event.venue_id) continue;
         matchType = 'venue_id';
       }
       // Tertiary: substantial name match against catalog name or discovered name
@@ -168,7 +175,7 @@ export function matchVenuesToEvents(venues, todayEvents) {
     }
 
     if (matches.length > 0) {
-      matchMap.set(venue.name, matches);
+      matchMap.set(getVenueEventKey(venue), matches);
     }
   }
 

@@ -147,13 +147,14 @@ export function deduplicateEvents(events) {
   function normalizeEventName(name) {
     if (!name) return '';
     return name
+      .normalize('NFC')
       .toLowerCase()
       .replace(/["'"]/g, '')                          // Remove quotes
       // 2026-01-31: Strip common event prefixes that create duplicates
       .replace(/^(live music|live band|concert|show|event|performance|dj set|acoustic):\s*/i, '')
       .replace(/\s*\([^)]*\)\s*/g, ' ')              // Remove (parenthetical content)
       .replace(/\s+(at|in|from|@)\s+.+$/i, '')       // Remove "at Cosm", "in Shared Reality" suffixes
-      .replace(/[^a-z0-9\s]/g, ' ')                  // Remove special chars
+      .replace(/[^\p{L}\p{N}\p{M}\s]/gu, ' ')                  // Remove special chars (Unicode-safe, 2026-09-13)
       .replace(/\s+/g, ' ')                          // Collapse spaces
       .trim();
   }
@@ -332,7 +333,7 @@ RULES:
 - For SINGLE-day events: event_start_date and event_end_date are both ${date}.
 - place_id: Google Places ID for the venue (starts with "ChIJ"). Use your knowledge of Google Places to provide this. If truly unknown, use "unknown".
 - category: MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community
-- ALL 4 date/time fields REQUIRED — estimate times if unknown (Sports=3h, Concert=3h, Festival=4h, Nightlife=4h)
+- ALL 4 date/time fields REQUIRED — use the published schedule. Never estimate missing start/end times or durations. Omit an event if its schedule cannot be verified.
 - Search the ENTIRE ${searchArea.toUpperCase()} metro, not just ${city}
 - Prioritize high-attendance events that generate rideshare demand
 - Return [] if no events active today.`;
@@ -572,13 +573,13 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
   // 2026-02-17: FIX Issue 3 — Deactivate past events before discovery
   // Soft-deactivates events that have ended (is_active = false, deactivated_at = NOW())
-  // Uses snapshot timezone for accurate "now" calculation — NO FALLBACKS
+  // 2026-09-13: Each event resolves through its own venue_catalog.timezone; one driver's
+  // timezone can no longer expire (or preserve) events in other markets.
   // Non-fatal: cleanup failure doesn't block event discovery
   // 2026-03-28: ARCHITECTURE NOTE — Cleanup is intentionally opportunistic (per-briefing-fetch).
   // No cron dependency. If scheduled cleanup is needed later for dashboard accuracy when
-  // no users are active, add a cron job calling deactivatePastEvents() per market timezone.
-  // 2026-06-11: timezone is guaranteed non-null by the guard above (was `if (timezone)`).
-  const deactivated = await deactivatePastEvents(timezone);
+  // no users are active, call the same per-venue-timezone cleanup from that scheduler.
+  const deactivated = await deactivatePastEvents();
   if (deactivated > 0) {
     briefingLog.phase(2, `Cleaned up ${deactivated} past events`, OP.DB);
   }
