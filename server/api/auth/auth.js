@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, isNull } from 'drizzle-orm';
 import {
   users,
   driver_profiles,
@@ -1051,6 +1051,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     let userId;
+    let usedCodeId = null;
 
     if (token) {
       // Token-based reset (email link)
@@ -1099,10 +1100,9 @@ router.post('/reset-password', async (req, res) => {
         });
       }
 
-      // Mark code as used
-      await db.update(verification_codes)
-        .set({ used_at: new Date() })
-        .where(eq(verification_codes.id, verificationCode.id));
+      // 2026-09-13: the code is consumed inside the reset transaction below (conditional
+      // UPDATE … RETURNING), not here — two concurrent requests could both pass this read.
+      usedCodeId = verificationCode.id;
 
       userId = profile.user_id;
 
@@ -1116,23 +1116,61 @@ router.post('/reset-password', async (req, res) => {
     // Hash new password
     const passwordHash = await hashPassword(newPassword);
 
-    // Update credentials
-    await db.update(auth_credentials)
-      .set({
-        password_hash: passwordHash,
-        password_reset_token: null,
-        password_reset_expires: null,
-        password_changed_at: new Date(),
-        failed_login_attempts: 0,
-        locked_until: null,
-        updated_at: new Date()
-      })
-      .where(eq(auth_credentials.user_id, userId));
+    // 2026-09-13: Recheck and consume the reset credential in the same transaction as the
+    // password change and session revocation. The preliminary reads above can race with
+    // another request; only a conditional UPDATE may authorize the reset.
     // 2026-09-10 (security finding [9], verified): a password reset left the existing session
-    // (and any token issued for it) valid for up to 2 h. Same UPDATE logout uses.
-    await db.update(users)
-      .set({ session_id: null, current_snapshot_id: null, updated_at: new Date() })
-      .where(eq(users.user_id, userId));
+    // (and any token issued for it) valid for up to 2 h — the users UPDATE below revokes it.
+    const resetApplied = await db.transaction(async (tx) => {
+      const now = new Date();
+      if (usedCodeId) {
+        const [claimedCode] = await tx.update(verification_codes)
+          .set({ used_at: now })
+          .where(and(
+            eq(verification_codes.id, usedCodeId),
+            eq(verification_codes.user_id, userId),
+            eq(verification_codes.code, code),
+            eq(verification_codes.code_type, 'password_reset_sms'),
+            gt(verification_codes.expires_at, now),
+            isNull(verification_codes.used_at)
+          ))
+          .returning({ id: verification_codes.id });
+        if (!claimedCode) return false;
+      }
+
+      const [changedCredentials] = await tx.update(auth_credentials)
+        .set({
+          password_hash: passwordHash,
+          password_reset_token: null,
+          password_reset_expires: null,
+          password_changed_at: new Date(),
+          failed_login_attempts: 0,
+          locked_until: null,
+          updated_at: new Date()
+        })
+        .where(and(
+          eq(auth_credentials.user_id, userId),
+          token ? eq(auth_credentials.password_reset_token, token) : undefined,
+          token ? gt(auth_credentials.password_reset_expires, now) : undefined
+        ))
+        .returning({ user_id: auth_credentials.user_id });
+      if (!changedCredentials) {
+        if (token) return false;
+        // Roll back the SMS claim too if its account is no longer available.
+        throw new Error('Password reset account unavailable');
+      }
+      await tx.update(users)
+        .set({ session_id: null, current_snapshot_id: null, updated_at: new Date() })
+        .where(eq(users.user_id, userId));
+      return true;
+    });
+
+    if (!resetApplied) {
+      return res.status(400).json({
+        error: token ? 'INVALID_TOKEN' : 'INVALID_CODE',
+        message: token ? 'Invalid or expired reset token' : 'Invalid or expired verification code'
+      });
+    }
 
     matrixLog.info({
       category: 'AUTH',
@@ -1527,13 +1565,15 @@ router.post('/logout', requireAuth, async (req, res) => {
     // DELETE causes CASCADE delete of driver_profiles and auth_credentials.
     // This was destroying all user data on logout!
     // Instead, we clear the session_id to invalidate the session while preserving user data.
+    // 2026-09-13: Match the session captured by requireAuth — a delayed logout must not
+    // clear a newer login that completed after this request was authenticated.
     await db.update(users)
       .set({
         session_id: null,
         current_snapshot_id: null,
         updated_at: new Date()
       })
-      .where(eq(users.user_id, userId));
+      .where(and(eq(users.user_id, userId), eq(users.session_id, req.auth.sessionId)));
 
     matrixLog.info({
       category: 'AUTH',
@@ -1541,7 +1581,7 @@ router.post('/logout', requireAuth, async (req, res) => {
       action: 'LOGOUT',
       tableName: 'USERS',
       location: 'auth.js:logout',
-    }, `User logged out, session cleared (user ${userId.substring(0, 8)})`);
+    }, `Logout completed for requested session (user ${userId.substring(0, 8)})`);
     res.json({ ok: true, message: 'Logged out successfully' });
   } catch (err) {
     matrixLog.error({
