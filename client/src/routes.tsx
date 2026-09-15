@@ -30,9 +30,6 @@ import {
   ResetPasswordPage,
   TermsPage,
 } from '@/pages/auth';
-// 2026-05-23 (Path B): Uber callback handled entirely server-side at
-// GET /api/auth/uber/callback (server/api/auth/uber.js). No client-side
-// landing page; the server handler 302s directly to the post-OAuth destination.
 import { GoogleCallbackPage } from '@/pages/auth/google/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
 // 2026-08-21: Route-level error boundary — without an errorElement, a throw under
@@ -63,8 +60,8 @@ export const router = createBrowserRouter([
   // Public Routes (no authentication required)
   // ═══════════════════════════════════════════════════════════════════════════
   {
-    // 2026-05-23: Uber verification requires the privacy policy at the canonical /privacy URL.
-    // /policy retained as an alias so existing in-app links (AboutPage, GoogleCallback) stay valid.
+    // /privacy is the canonical privacy-policy URL; /policy retained as an alias so
+    // existing in-app links (AboutPage, GoogleCallback) stay valid.
     path: '/privacy',
     element: <PolicyPage />,
   },
@@ -73,14 +70,6 @@ export const router = createBrowserRouter([
     element: <PolicyPage />,
   },
   
-  // 2026-05-23 (Path B): No client-side /auth/uber/callback route. Uber redirects
-  // to the server endpoint GET /api/auth/uber/callback (server/api/auth/uber.js),
-  // which exchanges the code, encrypts tokens, persists to uber_connections, and
-  // 302s the browser directly to the post-OAuth destination. Removed the prior
-  // client landing page (Callback.tsx) and its client-side code-exchange helper
-  // (uberAuth.ts) — both depended on a /api/auth/uber/exchange server endpoint
-  // that does not exist. Path A (asymmetric-key JWT) deferred to a follow-up sprint.
-
   // 2026-02-13: Google OAuth Callback (PUBLIC - user is NOT authenticated when arriving from Google)
   {
     path: '/auth/google/callback',

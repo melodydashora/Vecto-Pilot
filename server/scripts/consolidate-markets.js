@@ -120,7 +120,7 @@ async function step1_fixDuplicates() {
     // Move FK references
     const tables = [
       'market_intelligence', 'venue_catalog', 'zone_intelligence',
-      'user_intel_notes', 'coach_conversations', 'staging_saturation'
+      'user_intel_notes', 'coach_conversations'
     ];
 
     for (const table of tables) {

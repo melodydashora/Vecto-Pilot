@@ -14,7 +14,7 @@ export class DocGenerator {
    * @param {string} filePath - Path of the changed code file
    * @param {string} codeContent - New content of the code file
    * @param {string} currentDocContent - Current content of the documentation file
-   * @param {string} context - Additional context (e.g., "Added Uber OAuth")
+   * @param {string} context - Additional context (e.g., "Added Google OAuth")
    * @returns {Promise<string>} - Updated documentation content
    */
   async generateUpdate(filePath, codeContent, currentDocContent, context) {

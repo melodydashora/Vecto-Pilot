@@ -438,8 +438,6 @@ All read from `process.env`. No values stored in code.
 | `TOMTOM_API_KEY` | TomTom | Traffic data | `lib/traffic/tomtom.js` |
 | `GOOGLE_CLIENT_ID` | Google | OAuth | `auth.js` |
 | `GOOGLE_CLIENT_SECRET` | Google | OAuth | `auth.js` |
-| `UBER_CLIENT_ID` | Uber | OAuth (platform data) | `uber-oauth.js` |
-| `UBER_CLIENT_SECRET` | Uber | OAuth (platform data) | `uber-oauth.js` |
 | `SENDGRID_API_KEY` | SendGrid | Password reset emails | `lib/auth/email.js` |
 | `TWILIO_ACCOUNT_SID` | Twilio | Password reset SMS | `lib/auth/sms.js` |
 | `TWILIO_AUTH_TOKEN` | Twilio | Password reset SMS | `lib/auth/sms.js` |

@@ -78,18 +78,13 @@
 
 **Config env vars:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 
-### 1c. Uber OAuth (IMPLEMENTED — for platform data, NOT login)
+### 1c. Uber OAuth (REMOVED 2026-09-13)
 
-**File:** `server/lib/auth/oauth/uber-oauth.js`
-
-Uber OAuth connects the driver's Uber account for trip/payment data — it does NOT authenticate the user. Separate from login flow.
-
-**Token storage:** AES-256-GCM encrypted at rest in `uber_connections` table
-- Format: `iv:authTag:ciphertext` (all base64)
-- Fields: `access_token_encrypted`, `refresh_token_encrypted`, `token_expires_at`
-
-**Scopes:** `partner.payments`, `partner.trips`, `profile`
-**Config env vars:** `UBER_CLIENT_ID`, `UBER_CLIENT_SECRET`, `UBER_REDIRECT_URI`
+Vecto Pilot has no Uber API relationship, so the Uber OAuth integration (route
+`/api/auth/uber`, `server/lib/auth/oauth/uber-oauth.js`, `server/lib/external/uber-client.js`,
+the `uber_connections` table, the client Settings "Uber Integration" section and the
+`UBER_*` / `TOKEN_ENCRYPTION_KEY` env vars) was removed at Melody's direction. `generateState()`
+now lives in `google-oauth.js`. `oauth_states` remains (used by Google sign-in).
 
 ### 1d. Apple OAuth (NOT IMPLEMENTED)
 
@@ -372,7 +367,7 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 |------|--------|
 | Email/password login | Working, production-tested |
 | Google OAuth | Working, production-tested |
-| Uber OAuth | Working (platform data integration, not login) |
+| Uber OAuth | Removed 2026-09-13 (no Uber API relationship) |
 | Apple OAuth | Stub only — redirects to sign-in with error param |
 | Token format | Standard JWT (HS256) — claims `sub`/`iat`/`exp`/`iss`/`aud`. Migrated 2026-05-03 (AUTH-003). Legacy 2-segment HMAC tokens still accepted during transition (Phase 1.5 PR removes legacy path). |
 | Session TTL (60 min sliding + 2 hr hard) | Enforced in middleware |
@@ -428,7 +423,6 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 | `server/api/auth/auth.js` | All auth routes (login, register, logout, OAuth, reset). `generateAuthToken` calls `signJWT`. |
 | `server/lib/auth/password.js` | bcrypt hash/verify, password strength validation |
 | `server/lib/auth/oauth/google-oauth.js` | Google OAuth utilities |
-| `server/lib/auth/oauth/uber-oauth.js` | Uber OAuth + AES-256-GCM token encryption |
 | `server/lib/auth/email.js` | SendGrid email service |
 | `server/lib/auth/sms.js` | Twilio SMS service |
 | `server/middleware/rate-limit.js` | Global API rate limiter |

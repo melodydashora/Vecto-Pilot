@@ -188,10 +188,10 @@ Worker startup shall occur after server startup logic is established and shall n
 The gateway shall not start event sync during server startup.
 
 #### FR-BG-006
-The system shall conditionally load and run snapshot workflow observation only when autoscale mode is inactive.
+Retired 2026-09-11 at Melody's request: the gateway shall not load or run the obsolete optional snapshot workflow observer. The observer script is already absent; application snapshot/event handling is unchanged.
 
 #### FR-BG-007
-Snapshot observer import failures and runtime failures shall be logged as warnings and shall not terminate the process.
+Retired with FR-BG-006: the removed optional observer has no import or runtime-failure handling in gateway startup. Preserve existing application ownership tests, standalone dump helpers and historical observer evidence.
 
 ---
 
@@ -336,7 +336,7 @@ HTTP server errors shall terminate the process with exit status `1`.
 ### 6.2 Degraded operation
 
 #### REL-008
-Failures in snapshot observer loading or execution shall not prevent core gateway availability.
+Retired 2026-09-11 with the optional snapshot observer; see FR-BG-006/007.
 
 #### REL-009
 Failures in periodic unified AI health checks shall not terminate the application.
@@ -376,7 +376,7 @@ The bootstrap process shall expose a global application reference for test acces
 ### 7.4 Availability
 
 #### NFR-AVAIL-001
-Core HTTP serving shall start independently of optional background observer workloads.
+Core HTTP serving shall start independently of optional background workloads.
 
 #### NFR-AVAIL-002
 Optional background and monitoring failures shall degrade gracefully where explicitly designed to do so.
@@ -404,7 +404,7 @@ The implementation shall follow this startup order:
 15. start listening when running as entrypoint
 16. start monitoring after listen
 17. evaluate and start worker if eligible
-18. start snapshot observer only when allowed
+18. (Retired 2026-09-11) optional snapshot observer startup; see FR-BG-006/007
 
 ---
 

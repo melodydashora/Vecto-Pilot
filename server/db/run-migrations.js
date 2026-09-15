@@ -27,6 +27,13 @@
 //    (Melody chose this tradeoff explicitly).
 //  - Checksum drift on an already-applied file logs a loud warning but does
 //    NOT re-run (applied history is immutable; fix forward with a new file).
+//  - BASELINE FILE (2026-09-13): migrations/00000_baseline.sql is a full
+//    pg_dump of the schema carrying a `-- BASELINE_THROUGH: <file>` marker.
+//    On an EMPTY database (no public.snapshots) it is executed and every file
+//    up to and including the marker is recorded as baselined; on an existing
+//    database it is recorded as baselined and never executed. This is the only
+//    path from an empty database to the real schema (38 tables have no other
+//    CREATE DDL in the repo — DB_SCHEMA_EVALUATION_2026-09-13 §1.1).
 //
 // Deliberately dependency-free (raw pg, no drizzle, no app logger) so the
 // runner cannot be broken by app-layer changes.
@@ -47,6 +54,8 @@ const DEFAULT_MIGRATIONS_DIR = path.join(__dirname, '..', '..', 'migrations');
 const BASELINE_CUTOFF = '20260703';
 
 const ADVISORY_LOCK_KEY = 'vecto_pilot_migrations';
+const BASELINE_FILE = '00000_baseline.sql';
+const BASELINE_THROUGH_RE = /^--\s*BASELINE_THROUGH:\s*(\S+)/m;
 
 function log(msg) {
   console.log(`[GATEWAY] [MIGRATIONS] ${msg}`);
@@ -100,6 +109,26 @@ export async function runMigrations({ migrationsDir = DEFAULT_MIGRATIONS_DIR } =
     const { rows } = await client.query('SELECT filename, checksum FROM schema_migrations');
     const recorded = new Map(rows.map((r) => [r.filename, r.checksum]));
 
+    // Empty database = the core table does not exist. Only then may the
+    // baseline file execute; everywhere else it is recorded and skipped.
+    const { rows: fresh } = await client.query("SELECT to_regclass('public.snapshots') IS NULL AS is_fresh");
+    const isFreshDb = fresh[0].is_fresh === true && recorded.size === 0;
+
+    // Filenames covered by the baseline (only consulted on an empty database).
+    let baselineThrough = null;
+    if (files.includes(BASELINE_FILE)) {
+      const marker = (await fs.readFile(path.join(migrationsDir, BASELINE_FILE), 'utf8')).match(BASELINE_THROUGH_RE);
+      if (!marker) throw new Error(`[MIGRATIONS] ${BASELINE_FILE} is missing its "-- BASELINE_THROUGH: <file>" marker`);
+      baselineThrough = marker[1];
+      if (!files.includes(baselineThrough)) {
+        throw new Error(`[MIGRATIONS] ${BASELINE_FILE} claims BASELINE_THROUGH ${baselineThrough}, which is not in ${migrationsDir}`);
+      }
+    }
+    if (isFreshDb) {
+      if (!baselineThrough) throw new Error(`[MIGRATIONS] empty database and no ${BASELINE_FILE} — cannot build the schema from migrations/ alone`);
+      log(`empty database detected — ${BASELINE_FILE} will be executed and files through ${baselineThrough} recorded as baselined`);
+    }
+
     for (const filename of files) {
       const filePath = path.join(migrationsDir, filename);
       const content = await fs.readFile(filePath, 'utf8');
@@ -116,7 +145,13 @@ export async function runMigrations({ migrationsDir = DEFAULT_MIGRATIONS_DIR } =
         continue;
       }
 
-      if (filename < BASELINE_CUTOFF) {
+      const isBaselineFile = filename === BASELINE_FILE;
+      // Record-without-executing cases:
+      //   * the baseline file itself on an existing database
+      //   * on an empty database, every file the baseline already covers
+      //   * legacy first-run bootstrapping of an existing database (BASELINE_CUTOFF)
+      const coveredByBaseline = isFreshDb && !isBaselineFile && baselineThrough !== null && filename <= baselineThrough;
+      if ((isBaselineFile && !isFreshDb) || coveredByBaseline || (!isFreshDb && !isBaselineFile && filename < BASELINE_CUTOFF)) {
         await client.query(
           'INSERT INTO schema_migrations (filename, checksum, baseline) VALUES ($1, $2, true)',
           [filename, checksum]
@@ -144,7 +179,7 @@ export async function runMigrations({ migrationsDir = DEFAULT_MIGRATIONS_DIR } =
     }
 
     if (baselined.length > 0) {
-      log(`baselined ${baselined.length} pre-${BASELINE_CUTOFF} file(s) as already-applied (first run)`);
+      log(`baselined ${baselined.length} file(s) as already-applied without executing (${isFreshDb ? 'covered by ' + BASELINE_FILE : 'pre-' + BASELINE_CUTOFF + ' or baseline file'})`);
     }
     log(`up to date — ${applied.length} applied, ${baselined.length} baselined, ${skipped} already recorded`);
     return { applied, baselined, skipped };

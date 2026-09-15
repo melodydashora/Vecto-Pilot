@@ -54,7 +54,7 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 - **Action System**: Coach can write notes, deactivate irrelevant events/news, and contribute zone intelligence — all stored in the database. The Coach never analyzes live offers (that's the Offer Analyzer's lane)
 
 ### Security & Authentication
-- **Multi-Provider OAuth**: Email/password + Google OAuth + Uber OAuth (in progress)
+- **Multi-Provider OAuth**: Email/password + Google OAuth
 - **Standard JWT Auth Tokens (HS256)**: 3-segment JWTs via `server/lib/jwt.js` (AUTH-003); legacy `userId.signature` HMAC accepted only during the transition window — see [SECURITY.md](docs/architecture/SECURITY.md)
 - **9 Previously Unprotected Routes Secured**: Full auth audit completed Feb 2026
 - **Public endpoint exceptions**: `/api/hooks/analyze-offer` (phone shortcuts — identity is a per-driver shortcut token, rate-limited 20/min; the read/mutate hook routes require the token), `/api/platform/*` (reference data), health/monitoring — see SECURITY.md for full list
@@ -149,9 +149,9 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 **Backend**
 - **Runtime**: Node.js 18+
 - **Server**: Express.js (gateway-server.js)
-- **Database**: PostgreSQL 16 (Replit Helium) with Drizzle ORM (66 tables)
+- **Database**: PostgreSQL 16 (Replit Helium) with Drizzle ORM (54 tables)
 - **Real-time**: Server-Sent Events (SSE) for strategy updates, WebSocket for Voice
-- **Auth**: Standard JWT (HS256) + Google OAuth + Uber OAuth
+- **Auth**: Standard JWT (HS256) + Google OAuth
 - **Workers**: Background strategy generator
 
 **AI & APIs** (see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) for current model assignments)
@@ -196,8 +196,6 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 | `/auth/forgot-password` | ForgotPasswordPage | Password reset request |
 | `/auth/reset-password` | ResetPasswordPage | Reset with token |
 
-> Uber OAuth is handled server-side at GET /api/auth/uber/callback (no client route).
-
 ---
 
 ## Setup & Installation
@@ -232,8 +230,6 @@ GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY"
 # OAuth (optional)
 GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID"
 GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET"
-UBER_CLIENT_ID="$UBER_CLIENT_ID"
-UBER_CLIENT_SECRET="$UBER_CLIENT_SECRET"
 ```
 
 ```bash

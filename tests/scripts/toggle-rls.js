@@ -48,7 +48,6 @@ const TABLES = [
   'eidolon_memory',
   'cross_thread_memory',
   'agent_memory',
-  'llm_venue_suggestions',
   'http_idem',
   'ranking_candidates',
   'places_cache',

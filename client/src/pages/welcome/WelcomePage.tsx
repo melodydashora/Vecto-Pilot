@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, Mic, MicOff, Volume2, VolumeX,
-  Maximize, RotateCcw, Heart, Hand, QrCode, Home, Star,
+  Maximize, RotateCcw, Heart, Hand, QrCode, Home,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -32,13 +32,12 @@ import {
 // 2026-05-15: QR triptych targets — all PUBLIC, no auth required.
 // donate:    Public Vecto Pilot donate page (Square link + cost breakdown + future scope)
 // concierge: /c/:token PublicConciergePage (rider companion)
-// uber:      https://m.uber.com/ — Universal Link opens Uber app if installed,
-//            else mobile web. (iOS Safari blocks uber:// URIs from QR scans.)
+// 2026-09-13: the "Rate Your Driver → open Uber" tile was removed — Vecto Pilot is
+//            platform-neutral and links to no rideshare platform.
 // ─────────────────────────────────────────────────────────────────────────
 const QR_LINKS = {
   donate:    '/welcome/support',
   concierge: '/c/welcome',
-  uber:      'https://m.uber.com/',
 };
 
 const QUIZ_CORRECT: Record<string, string> = {
@@ -61,11 +60,10 @@ function buildAbsoluteURL(pathOrUrl: string): string {
 // ════════════════════════════════════════════════════════════════════════
 function FarewellTriptych({ onRestart }: { onRestart: () => void }) {
   // 2026-05-15: Vecto Pilot brand colors (blue-600/violet-600 gradient on cards).
-  // QRs: support (donate page), concierge (rider companion), Uber (mobile web → app).
+  // QRs: support (donate page), concierge (rider companion).
   const cards = [
     { icon: Heart, label: 'Support Vecto Pilot', sub: 'Help cover API costs + future development', url: QR_LINKS.donate,    gradient: 'from-blue-600 to-purple-600' },
     { icon: QrCode,   label: 'Ask the Concierge',  sub: 'AI assistant for your ride',                 url: QR_LINKS.concierge, gradient: 'from-purple-600 to-blue-600' },
-    { icon: Star,     label: 'Rate Your Driver',   sub: 'Open Uber → tap profile → Ratings',         url: QR_LINKS.uber,      gradient: 'from-blue-500 to-purple-500' },
   ];
   return (
     <div className="w-full max-w-6xl text-center">

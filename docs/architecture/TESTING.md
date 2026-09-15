@@ -89,7 +89,6 @@
 | `tests/schema-validation.test.js` | DB schema contracts | Schema field types/constraints |
 | `tests/auth-token-validation.test.js` | Token verification | HMAC-SHA256 sign/verify |
 | `tests/blocksApi.test.js` | Blocks API contract | Response shape validation |
-| `tests/auth/uber-oauth.test.js` | Uber OAuth | Token exchange flow |
 | `tests/coach-schema.test.js` | Coach schema metadata | Schema field exposure |
 | `tests/coach-validation.test.js` | Coach Zod schemas | All 11 action tag types |
 | `tests/events/pipeline.test.js` | Event pipeline | Discovery + deactivation |

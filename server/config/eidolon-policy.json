@@ -94,8 +94,7 @@
   "memory": {
     "backend": "postgres",
     "tables": {
-      "state": "eidolon_memory",
-      "snapshots": "eidolon_snapshots"
+      "state": "eidolon_memory"
     },
     "ttl_days": 730
   },

@@ -17,17 +17,15 @@ const OUTPUT_FILE = 'docs/DATA_FLOW_MAP.json';
 
 // Tables from the schema (we'll detect these from imports)
 const DRIZZLE_TABLES = [
-  'actions', 'agent_changes', 'agent_memory', 'app_feedback', 'assistant_memory',
-  'auth_credentials', 'block_jobs', 'briefings', 'coach_conversations',
+  'actions', 'agent_memory', 'app_feedback', 'assistant_memory',
+  'auth_credentials', 'briefings', 'coach_conversations',
   'coach_system_notes', 'connection_audit', 'coords_cache', 'countries',
   'cross_thread_memory', 'discovered_events', 'driver_profiles', 'driver_vehicles',
-  'eidolon_memory', 'eidolon_snapshots', 'events_facts', 'http_idem',
-  'llm_venue_suggestions', 'market_intelligence', 'markets', 'nearby_venues',
-  'news_deactivations', 'places_cache', 'platform_data', 'ranking_candidates',
-  'rankings', 'snapshots', 'strategies', 'strategy_feedback', 'traffic_zones',
-  'travel_disruptions', 'triad_jobs', 'user_intel_notes', 'users',
-  'vehicle_makes_cache', 'vehicle_models_cache', 'venue_cache', 'venue_catalog',
-  'venue_events', 'venue_feedback', 'venue_metrics', 'verification_codes',
+  'eidolon_memory', 'http_idem',
+  'market_intelligence', 'markets', 'news_deactivations', 'places_cache', 'platform_data', 'ranking_candidates',
+  'rankings', 'snapshots', 'strategies', 'strategy_feedback', 'travel_disruptions', 'triad_jobs', 'user_intel_notes', 'users',
+  'vehicle_makes_cache', 'vehicle_models_cache', 'venue_catalog',
+  'venue_feedback', 'venue_metrics', 'verification_codes',
   'zone_intelligence'
 ];
 

@@ -350,7 +350,7 @@ export default function OffersCard() {
     },
     staleTime: 30 * 1000,
     // 2026-08-17 (race/SSE review finding #2): the headline flow runs the Shortcut
-    // FROM the Uber app — this tab is backgrounded, iOS drops the EventSource, and
+    // FROM the rideshare app — this tab is backgrounded, iOS drops the EventSource, and
     // the offer_analyzed event fires while it is down. Coming back must refresh:
     // window focus (when stale) + the server's `state` handshake on SSE reconnect
     // (below). Was `false`, which left the card stale until a manual Refresh.

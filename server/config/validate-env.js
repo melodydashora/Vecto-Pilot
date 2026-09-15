@@ -70,27 +70,6 @@ export function validateEnvironment() {
     warnings.push('GOOGLEAQ_API_KEY not set - air quality data will be unavailable');
   }
 
-  // 2026-02-19: Uber OAuth validation (only when Uber integration is configured)
-  // 2026-04-09: Promoted to production errors. If Uber is configured but deps are missing,
-  // that's not a "warning" — Uber auth is BROKEN and users will hit a wall at runtime.
-  const hasAnyUberConfig = !!(process.env.UBER_CLIENT_ID || process.env.UBER_CLIENT_SECRET || process.env.UBER_REDIRECT_URI);
-  if (hasAnyUberConfig) {
-    if (!process.env.TOKEN_ENCRYPTION_KEY) {
-      if (isDeployment) {
-        errors.push('TOKEN_ENCRYPTION_KEY not set — Uber OAuth is configured but token encryption will fail');
-      } else {
-        warnings.push('TOKEN_ENCRYPTION_KEY not set - Uber auth will fail');
-      }
-    }
-    if (!process.env.UBER_CLIENT_ID || !process.env.UBER_CLIENT_SECRET || !process.env.UBER_REDIRECT_URI) {
-      if (isDeployment) {
-        errors.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured — Uber integration is broken');
-      } else {
-        warnings.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured');
-      }
-    }
-  }
-
   // Port validation
   // 2026-05-13: EIDOLON_PORT fallback dropped (Phase 2 v2 §7 D2). EIDOLON_PORT is the
   // SDK port (3102), not the gateway port (5000); including it as a fallback here was

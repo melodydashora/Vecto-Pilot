@@ -17,7 +17,7 @@ const queryClient = new QueryClient({
       retry: 1,
       staleTime: 5 * 60 * 1000,
       gcTime: 30 * 60 * 1000, // Keep data in cache for 30 min
-      refetchOnWindowFocus: false, // Don't refetch when switching back from Uber app
+      refetchOnWindowFocus: false, // Don't refetch when switching back from the rideshare app
     },
   },
 });

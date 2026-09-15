@@ -19,7 +19,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/useToast';
 import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase } from 'lucide-react';
-import { UberSettingsSection } from '@/components/settings/UberSettingsSection';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import type { MarketOption } from '@/types/auth';
 
@@ -877,9 +876,6 @@ export default function SettingsPage() {
               />
             </CardContent>
           </Card>
-
-          {/* Uber Integration Section */}
-          <UberSettingsSection />
 
           {/* Rideshare Platforms Section */}
           <Card className="bg-white border-gray-200 shadow-sm">

@@ -192,7 +192,6 @@ All standard security headers enabled via Helmet middleware.
 | `SENDGRID_API_KEY` | SendGrid | Password reset emails |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | Twilio | Password reset SMS |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google | OAuth |
-| `UBER_CLIENT_ID`, `UBER_CLIENT_SECRET` | Uber | Platform data OAuth |
 | `JWT_SECRET` | Internal | Token signing |
 | `VECTO_AGENT_SECRET` | Internal | Service account auth |
 

@@ -77,9 +77,6 @@ export async function mountRoutes(app, server) {
     { path: '/api/traffic', module: './server/api/traffic/index.js', desc: 'Traffic Incidents Cache' },
 
     // Auth (server/api/auth/)
-    // 2026-02-03: Uber OAuth. Mounted BEFORE /api/auth (specific-before-general):
-    // a later route added to auth.js can never shadow the /uber sub-mount.
-    { path: '/api/auth/uber', module: './server/api/auth/uber.js', desc: 'Uber OAuth' },
     { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
 
     // Location (server/api/location/)

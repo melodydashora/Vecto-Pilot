@@ -60,7 +60,6 @@ ErrorBoundary
 | `/auth/forgot-password` | ForgotPasswordPage | Password reset request |
 | `/auth/reset-password` | ResetPasswordPage | Reset confirmation |
 | `/auth/google/callback` | GoogleCallbackPage | Google OAuth return |
-| `/auth/uber/callback` | UberCallbackPage | Uber OAuth return |
 | `/auth/terms` | TermsPage | Terms of service |
 | `/policy` | PolicyPage | Privacy policy |
 | `/demo` | LandingPage | Feature showcase |

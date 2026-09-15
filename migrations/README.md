@@ -11,7 +11,8 @@ in Drizzle" note, which never matched practice — see _Manual vs Drizzle_ below
 
 | Path | What it is |
 |------|-----------|
-| `migrations/*.sql` | **Canonical** hand-written migrations, applied by `npm run db:migrate` (all DDL — tables, columns, indexes, triggers, RLS, functions). |
+| `migrations/*.sql` | **Canonical** hand-written migrations, applied at boot by `server/db/run-migrations.js` (and by `npm run db:migrate`) — all DDL: tables, columns, indexes, triggers, RLS, functions. |
+| `migrations/00000_baseline.sql` | **Full-schema baseline** (pg_dump of dev, 2026-09-13, `BASELINE_THROUGH: 20260913_schema_repair.sql`). Executed ONLY on an empty database; recorded-and-skipped everywhere else. The only path from an empty DB to the real schema — 38 tables have no other CREATE DDL in the repo. Regenerate by re-dumping after a migration lands and bumping the marker; verified to rebuild dev exactly (0 diffs) on 2026-09-13. |
 | `migrations/manual/` | **Legacy** drizzle-kit-generated migrations (`0000`–`0012`, auto-named) plus a `meta/` journal of snapshot JSON. Not part of the `db:migrate` run; kept for history. |
 | `drizzle/` | The output dir configured in `drizzle.config.*` (`out: "./drizzle"`). **Currently empty/unused** — no live `.sql` files; new schema work goes through `migrations/*.sql`. |
 
@@ -66,6 +67,14 @@ YYYYMMDD_description.sql   # Date-prefixed for manual migrations (current style)
 | `20260506_drop_device_id_from_users_snapshots_traffic.sql` | Drop `device_id` columns |
 | `20260512_coach_memos.sql` | `coach_memos` table |
 | `20260529_add_todo_lessons_definitions.sql` | Repo-clarity tables: `todo`, `lessons_learned`, `definitions` (purely additive — creates 3 new tables, touches no existing table) |
+| `20260703_offer_rulesets_outcomes.sql` | `offer_rulesets` + `offer_outcomes` tables, `shortcut_token` columns |
+| `20260706_airports_table.sql` | `airports` table |
+| `20260706_app_rules_table.sql` | `app_rules` table |
+| `20260706_daypart_taxonomy_rename.sql` | Daypart taxonomy rename |
+| `20260706_holiday_to_briefing.sql` | Move holiday detection from snapshots to briefings |
+| `20260806_seed_airports_data.sql` | Seed airports data |
+| `00000_baseline.sql` | Full-schema baseline for empty databases (see Structure) |
+| `20260913_schema_repair.sql` | Drop 12 verified-dead tables (row-count guarded), drop legacy `events_facts` functions, drop `discovered_events.zip/lat/lng` for real, `rankings.snapshot_id` cascade, `venue_catalog.market_slug` FK, 87 indexes + 5 unique constraints that `shared/schema.js` had declared but never existed, `fn_deactivate_ended_events()`. See `docs/architecture/audits/DB_SCHEMA_EVALUATION_2026-09-13.md` |
 
 ## Running Migrations
 
@@ -91,6 +100,15 @@ psql $DATABASE_URL -f migrations/001_init.sql
 
 `shared/schema.js` (Drizzle schema) remains the runtime source of truth the app reads from;
 schema *changes* are shipped as `migrations/*.sql`, with `shared/schema.js` updated to match.
+
+**Source-of-truth decision (2026-09-13):** `migrations/*.sql` is the DDL source of truth;
+`shared/schema.js` is a mirror that MUST be kept equal to the live database and is
+verified, not trusted. Every index, unique and check in `shared/schema.js` is declared with
+Drizzle builders (`index()`, `uniqueIndex()`, `unique()`, `check()`) so `drizzle-kit
+generate` sees them — raw `sql\`create index …\`` templates in the extra-config object are
+silently ignored by Drizzle and were the cause of 124 phantom indexes (lessons_learned #40).
+Parity check: `docs/architecture/audits/DB_SCHEMA_EVALUATION_2026-09-13.md` describes the
+method (getTableConfig vs information_schema); 0 diffs is the required state.
 
 ## See Also
 

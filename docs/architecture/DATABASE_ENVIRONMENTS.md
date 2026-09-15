@@ -83,6 +83,18 @@ The application code reads `process.env.DATABASE_URL` and connects. That's it. N
   deterministically. Migrations MUST be idempotent/additive (`IF NOT EXISTS`,
   `ON CONFLICT`, type guards) — the runner re-executes post-cutoff files on any
   DB that hasn't recorded them.
+- **Empty-database path (2026-09-13):** `migrations/00000_baseline.sql` (full pg_dump
+  of dev, marker `BASELINE_THROUGH`) is executed by the runner only when
+  `public.snapshots` does not exist; on dev/prod it is recorded as baselined and never
+  runs. Verified: an empty Helium database built through the runner matched dev with 0
+  diffs across tables, columns, constraints, indexes, functions, triggers and policies.
+- **Pre-publish check for `20260913_schema_repair.sql` (prod has not run it yet):** it
+  drops 11 tables ONLY if they are empty and RAISES (boot fails loud) otherwise. Before
+  publishing, open Database Studio → Production Database and confirm zero rows in
+  `block_jobs, llm_venue_suggestions, eidolon_snapshots, venue_events, traffic_zones,
+  market_intel, driver_goals, driver_tasks, safe_zones, staging_saturation,
+  uber_connections`. If any has rows, decide (delete them, or keep the table) before
+  publishing; the error message names the table.
 - **History (kept so the lesson survives):** from the death of the original
   drizzle-kit pipeline (its artifacts live in `migrations/manual/`) until
   2026-08-06, parity was manual, and this doc falsely claimed "Replit runs

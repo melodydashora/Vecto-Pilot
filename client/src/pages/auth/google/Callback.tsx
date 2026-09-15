@@ -1,6 +1,6 @@
 // client/src/pages/auth/google/Callback.tsx
 // 2026-02-13: Google OAuth callback handler
-// Follows the same pattern as client/src/pages/auth/uber/Callback.tsx
+// Google OAuth landing page (2026-09-13: Uber OAuth integration removed).
 //
 // Flow: Google redirects here with ?code=XXX&state=YYY
 // This page sends code+state to the server for token exchange,

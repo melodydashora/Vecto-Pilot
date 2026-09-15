@@ -30,14 +30,14 @@ import { classifyDayPart, getLocalDow, getLocalIso } from '@/lib/daypart';
 // ═══════════════════════════════════════════════════════════════════════════
 
 // SessionStorage persistence for snapshot data
-// Prevents data loss when switching between apps (Uber ↔ Vecto)
+// Prevents data loss when switching between apps (rideshare app ↔ Vecto)
 // 2026-01-09: P1-6 - Use centralized constant
 const SNAPSHOT_STORAGE_KEY = SESSION_KEYS.SNAPSHOT;
 // TTL for session storage - KEEP SHORT for real-time intelligence
-// 2 minutes allows quick app switches (Uber ↔ Vecto) but ensures fresh data otherwise
+// 2 minutes allows quick app switches (rideshare app ↔ Vecto) but ensures fresh data otherwise
 // LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
 // 2026-01-06: P3-B - Extended TTL for resume support
-// Previous: 2 min (too short - driver switches to Uber for 5 min, loses everything)
+// Previous: 2 min (too short - driver switches to the rideshare app for 5 min, loses everything)
 // Previous: 1 hour (too long - stale traffic/events data)
 // New: 15 min - reasonable for app switching during active shift
 // The server has its own 60-min TTL for snapshot reuse, this is for CLIENT-side resume

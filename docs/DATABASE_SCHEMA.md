@@ -1,12 +1,12 @@
 # Database Schema Reference
 
-> Auto-generated database schema documentation for Vecto Pilot — **from the live database** (`scripts/generate-schema-docs.sh`, reads `information_schema` of `$DATABASE_URL`; generated against the DEV database — dev and prod share the same migrations via the boot runner). Regenerate: `bash scripts/generate-schema-docs.sh`. The former `scripts/generate-schema-docs.js` (source-regex) was retired 2026-08-17: it mis-attributed comments and skipped tables with index callbacks.
+> Auto-generated database schema documentation for Vecto Pilot.
 
 | Metric | Value |
 |--------|-------|
-| **Generated** | 2026-08-17 11:05:30 |
-| **Tables** | 66 |
-| **Total Columns** | 965 |
+| **Generated** | 2026-09-13 18:45:06 |
+| **Tables** | 55 |
+| **Total Columns** | 823 |
 | **Database** | PostgreSQL |
 
 ---
@@ -20,7 +20,6 @@
 - [app_rules](#app_rules)
 - [assistant_memory](#assistant_memory)
 - [auth_credentials](#auth_credentials)
-- [block_jobs](#block_jobs)
 - [briefings](#briefings)
 - [claude_memory](#claude_memory)
 - [coach_conversations](#coach_conversations)
@@ -35,19 +34,14 @@
 - [definitions](#definitions)
 - [discovered_events](#discovered_events)
 - [discovered_traffic](#discovered_traffic)
-- [driver_goals](#driver_goals)
 - [driver_profiles](#driver_profiles)
-- [driver_tasks](#driver_tasks)
 - [driver_vehicles](#driver_vehicles)
 - [eidolon_memory](#eidolon_memory)
-- [eidolon_snapshots](#eidolon_snapshots)
 - [http_idem](#http_idem)
 - [intercepted_signals](#intercepted_signals)
 - [lessons_learned](#lessons_learned)
-- [llm_venue_suggestions](#llm_venue_suggestions)
 - [market_cities](#market_cities)
 - [market_intelligence](#market_intelligence)
-- [market_intel](#market_intel)
 - [markets](#markets)
 - [news_deactivations](#news_deactivations)
 - [oauth_states](#oauth_states)
@@ -58,23 +52,18 @@
 - [platform_data](#platform_data)
 - [ranking_candidates](#ranking_candidates)
 - [rankings](#rankings)
-- [safe_zones](#safe_zones)
 - [schema_migrations](#schema_migrations)
 - [snapshots](#snapshots)
-- [staging_saturation](#staging_saturation)
 - [strategies](#strategies)
 - [strategy_feedback](#strategy_feedback)
 - [todo](#todo)
-- [traffic_zones](#traffic_zones)
 - [travel_disruptions](#travel_disruptions)
 - [triad_jobs](#triad_jobs)
-- [uber_connections](#uber_connections)
 - [user_intel_notes](#user_intel_notes)
 - [users](#users)
 - [vehicle_makes_cache](#vehicle_makes_cache)
 - [vehicle_models_cache](#vehicle_models_cache)
 - [venue_catalog](#venue_catalog)
-- [venue_events](#venue_events)
 - [venue_feedback](#venue_feedback)
 - [venue_metrics](#venue_metrics)
 - [verification_codes](#verification_codes)
@@ -203,23 +192,9 @@
 | 11 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
 | 12 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
 
-## block_jobs
-
-**Columns:** 7
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `` |  |
-| 2 | `status` | text(NO) | ✓ | `` |  |
-| 3 | `request_body` | jsonb(NO) | ✓ | `` |  |
-| 4 | `result` | jsonb(YES) | ✓ | `` |  |
-| 5 | `error` | text(YES) | ✓ | `` |  |
-| 6 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 7 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-
 ## briefings
 
-**Columns:** 14
+**Columns:** 15
 
 | # | Column | Type | Null | Default | Constraints |
 |--:|--------|------|:----:|---------|-------------|
@@ -237,6 +212,7 @@
 | 12 | `holiday` | jsonb(YES) | ✓ | `` |  |
 | 13 | `status` | text(YES) | ✓ | `` |  |
 | 14 | `generated_at` | timestamp with time zone(YES) | ✓ | `` |  |
+| 15 | `generation_token` | uuid(YES) | ✓ | `` |  |
 
 ## claude_memory
 
@@ -462,7 +438,7 @@
 
 ## discovered_events
 
-**Columns:** 25
+**Columns:** 22
 
 | # | Column | Type | Null | Default | Constraints |
 |--:|--------|------|:----:|---------|-------------|
@@ -487,9 +463,6 @@
 | 19 | `deactivated_at` | timestamp with time zone(YES) | ✓ | `` |  |
 | 20 | `deactivated_by` | text(YES) | ✓ | `` |  |
 | 21 | `venue_id` | uuid(YES) | ✓ | `` |  |
-| 22 | `zip` | text(YES) | ✓ | `` |  |
-| 23 | `lat` | double precision(YES) | ✓ | `` |  |
-| 24 | `lng` | double precision(YES) | ✓ | `` |  |
 | 25 | `schema_version` | integer(NO) | ✓ | `` |  |
 
 ## discovered_traffic
@@ -514,26 +487,6 @@
 | 15 | `lng` | double precision(NO) | ✓ | `` |  |
 | 16 | `raw_payload` | jsonb(YES) | ✓ | `` |  |
 | 17 | `fetched_at` | timestamp with time zone(NO) | ✓ | `` |  |
-
-## driver_goals
-
-**Columns:** 13
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `user_id` | uuid(NO) | ✓ | `` |  |
-| 3 | `goal_type` | text(NO) | ✓ | `` |  |
-| 4 | `deadline` | timestamp with time zone(YES) | ✓ | `` |  |
-| 5 | `is_active` | boolean(YES) | ✓ | `` |  |
-| 6 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 7 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 8 | `target_amount` | double precision(YES) | ✓ | `` |  |
-| 9 | `target_unit` | text(YES) | ✓ | `` |  |
-| 10 | `min_hourly_rate` | double precision(YES) | ✓ | `` |  |
-| 11 | `urgency` | text(YES) | ✓ | `` |  |
-| 12 | `progress_amount` | double precision(YES) | ✓ | `` |  |
-| 13 | `completed_at` | timestamp with time zone(YES) | ✓ | `` |  |
 
 ## driver_profiles
 
@@ -599,30 +552,6 @@
 | 56 | `shortcut_token_created_at` | timestamp with time zone(YES) | ✓ | `` |  |
 | 57 | `shortcut_device_label` | text(YES) | ✓ | `` |  |
 
-## driver_tasks
-
-**Columns:** 17
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `user_id` | uuid(NO) | ✓ | `` |  |
-| 3 | `title` | text(NO) | ✓ | `` |  |
-| 4 | `description` | text(YES) | ✓ | `` |  |
-| 5 | `due_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 6 | `duration_minutes` | integer(YES) | ✓ | `` |  |
-| 7 | `location` | text(YES) | ✓ | `` |  |
-| 8 | `place_id` | text(YES) | ✓ | `` |  |
-| 9 | `lat` | double precision(YES) | ✓ | `` |  |
-| 10 | `lng` | double precision(YES) | ✓ | `` |  |
-| 11 | `is_hard_stop` | boolean(YES) | ✓ | `` |  |
-| 12 | `priority` | integer(YES) | ✓ | `` |  |
-| 13 | `is_complete` | boolean(YES) | ✓ | `` |  |
-| 14 | `completed_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 15 | `recurrence` | text(YES) | ✓ | `` |  |
-| 16 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 17 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-
 ## driver_vehicles
 
 **Columns:** 12
@@ -656,23 +585,6 @@
 | 6 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
 | 7 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
 | 8 | `expires_at` | timestamp with time zone(YES) | ✓ | `` |  |
-
-## eidolon_snapshots
-
-**Columns:** 10
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `snapshot_id` | uuid(YES) | ✓ | `` |  |
-| 3 | `user_id` | uuid(YES) | ✓ | `` |  |
-| 4 | `session_id` | text(YES) | ✓ | `` |  |
-| 5 | `scope` | text(NO) | ✓ | `` |  |
-| 6 | `state` | jsonb(NO) | ✓ | `` |  |
-| 7 | `metadata` | jsonb(YES) | ✓ | `` |  |
-| 8 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 9 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 10 | `expires_at` | timestamp with time zone(YES) | ✓ | `` |  |
 
 ## http_idem
 
@@ -721,26 +633,6 @@
 | 5 | `severity` | text(YES) | ✓ | `` |  |
 | 6 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
 
-## llm_venue_suggestions
-
-**Columns:** 13
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `suggestion_id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `suggested_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 3 | `model_name` | text(NO) | ✓ | `` |  |
-| 4 | `ranking_id` | uuid(YES) | ✓ | `` |  |
-| 5 | `venue_name` | text(NO) | ✓ | `` |  |
-| 6 | `suggested_category` | text(YES) | ✓ | `` |  |
-| 7 | `llm_reasoning` | text(YES) | ✓ | `` |  |
-| 8 | `validation_status` | text(NO) | ✓ | `` |  |
-| 9 | `place_id_found` | text(YES) | ✓ | `` |  |
-| 10 | `venue_id_created` | uuid(YES) | ✓ | `` |  |
-| 11 | `validated_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 12 | `rejection_reason` | text(YES) | ✓ | `` |  |
-| 13 | `llm_analysis` | jsonb(YES) | ✓ | `` |  |
-
 ## market_cities
 
 **Columns:** 12
@@ -759,32 +651,6 @@
 | 10 | `timezone` | text(YES) | ✓ | `` |  |
 | 11 | `market_slug` | text(NO) | ✓ | `` |  |
 | 12 | `country_code` | character varying(2) | ✗ | `'US'::character varying` |  |
-
-## market_intel
-
-**Columns:** 19
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `market_name` | text(NO) | ✓ | `` |  |
-| 3 | `intel_type` | text(NO) | ✓ | `` |  |
-| 4 | `title` | text(NO) | ✓ | `` |  |
-| 5 | `content` | text(NO) | ✓ | `` |  |
-| 6 | `insight_data` | jsonb(YES) | ✓ | `` |  |
-| 7 | `valid_from` | timestamp with time zone(YES) | ✓ | `` |  |
-| 8 | `valid_until` | timestamp with time zone(YES) | ✓ | `` |  |
-| 9 | `day_of_week` | text(YES) | ✓ | `` |  |
-| 10 | `time_of_day` | text(YES) | ✓ | `` |  |
-| 11 | `source` | text(NO) | ✓ | `` |  |
-| 12 | `source_model` | text(YES) | ✓ | `` |  |
-| 13 | `contributed_by` | uuid(YES) | ✓ | `` |  |
-| 14 | `priority` | integer(NO) | ✓ | `` |  |
-| 15 | `confidence_score` | double precision(YES) | ✓ | `` |  |
-| 16 | `is_active` | boolean(NO) | ✓ | `` |  |
-| 17 | `view_count` | integer(NO) | ✓ | `` |  |
-| 18 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 19 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
 
 ## market_intelligence
 
@@ -937,7 +803,7 @@
 
 ## offer_outcomes
 
-**Columns:** 13
+**Columns:** 14
 
 | # | Column | Type | Null | Default | Constraints |
 |--:|--------|------|:----:|---------|-------------|
@@ -954,6 +820,7 @@
 | 11 | `outcome_source` | text(NO) | ✓ | `` |  |
 | 12 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
 | 13 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
+| 14 | `revision` | integer(NO) | ✓ | `` |  |
 
 ## offer_rulesets
 
@@ -1078,29 +945,6 @@
 | 14 | `formatted_address` | text(YES) | ✓ | `` |  |
 | 15 | `state` | text(YES) | ✓ | `` |  |
 
-## safe_zones
-
-**Columns:** 16
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `user_id` | uuid(NO) | ✓ | `` |  |
-| 3 | `zone_name` | text(NO) | ✓ | `` |  |
-| 4 | `zone_type` | text(NO) | ✓ | `` |  |
-| 5 | `geometry` | text(YES) | ✓ | `` |  |
-| 6 | `center_lat` | double precision(YES) | ✓ | `` |  |
-| 7 | `center_lng` | double precision(YES) | ✓ | `` |  |
-| 8 | `radius_miles` | double precision(YES) | ✓ | `` |  |
-| 9 | `neighborhoods` | text(YES) | ✓ | `` |  |
-| 10 | `risk_level` | integer(YES) | ✓ | `` |  |
-| 11 | `risk_notes` | text(YES) | ✓ | `` |  |
-| 12 | `is_active` | boolean(YES) | ✓ | `` |  |
-| 13 | `applies_at_night` | boolean(YES) | ✓ | `` |  |
-| 14 | `applies_at_day` | boolean(YES) | ✓ | `` |  |
-| 15 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 16 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-
 ## schema_migrations
 
 **Columns:** 4
@@ -1142,23 +986,6 @@
 | 25 | `market` | text(YES) | ✓ | `` |  |
 | 26 | `status` | text(YES) | ✓ | `` |  |
 
-## staging_saturation
-
-**Columns:** 10
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `h3_cell` | text(NO) | ✓ | `` |  |
-| 3 | `venue_name` | text(YES) | ✓ | `` |  |
-| 4 | `window_start` | timestamp with time zone(NO) | ✓ | `` |  |
-| 5 | `window_end` | timestamp with time zone(NO) | ✓ | `` |  |
-| 6 | `suggestion_count` | integer(NO) | ✓ | `` |  |
-| 7 | `active_drivers` | integer(YES) | ✓ | `` |  |
-| 8 | `market_slug` | text(YES) | ✓ | `` |  |
-| 9 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 10 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-
 ## strategies
 
 **Columns:** 11
@@ -1186,7 +1013,7 @@
 | 1 | `id` | uuid(NO) | ✓ | `PK` |  |
 | 2 | `user_id` | uuid(YES) | ✓ | `` |  |
 | 3 | `snapshot_id` | uuid(NO) | ✓ | `` |  |
-| 4 | `ranking_id` | uuid(NO) | ✓ | `` |  |
+| 4 | `ranking_id` | uuid(NO) | ✓ | `UNIQUE` |  |
 | 5 | `sentiment` | text(NO) | ✓ | `` |  |
 | 6 | `comment` | text(YES) | ✓ | `` |  |
 | 7 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
@@ -1208,26 +1035,6 @@
 | 6 | `source_memory_id` | integer(YES) | ✓ | `` |  |
 | 7 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
 | 8 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-
-## traffic_zones
-
-**Columns:** 13
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `lat` | double precision(NO) | ✓ | `` |  |
-| 3 | `lng` | double precision(NO) | ✓ | `` |  |
-| 4 | `city` | text(YES) | ✓ | `` |  |
-| 5 | `state` | text(YES) | ✓ | `` |  |
-| 6 | `traffic_density` | integer(YES) | ✓ | `` |  |
-| 7 | `density_level` | text(YES) | ✓ | `` |  |
-| 8 | `congestion_areas` | jsonb(YES) | ✓ | `` |  |
-| 9 | `high_demand_zones` | jsonb(YES) | ✓ | `` |  |
-| 10 | `driver_advice` | text(YES) | ✓ | `` |  |
-| 11 | `sources` | jsonb(YES) | ✓ | `` |  |
-| 12 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 13 | `expires_at` | timestamp with time zone(YES) | ✓ | `` |  |
 
 ## travel_disruptions
 
@@ -1264,24 +1071,6 @@
 | 6 | `formatted_address` | text(YES) | ✓ | `` |  |
 | 7 | `city` | text(YES) | ✓ | `` |  |
 | 8 | `state` | text(YES) | ✓ | `` |  |
-
-## uber_connections
-
-**Columns:** 11
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `user_id` | uuid(NO) | ✓ | `UNIQUE` |  |
-| 3 | `access_token_encrypted` | text(NO) | ✓ | `` |  |
-| 4 | `refresh_token_encrypted` | text(YES) | ✓ | `` |  |
-| 5 | `token_expires_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 6 | `scopes` | ARRAY(YES) | ✓ | `` |  |
-| 7 | `is_active` | boolean(YES) | ✓ | `` |  |
-| 8 | `connected_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 9 | `last_sync_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 10 | `created_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 11 | `updated_at` | timestamp with time zone(YES) | ✓ | `` |  |
 
 ## user_intel_notes
 
@@ -1411,25 +1200,6 @@
 | 53 | `phone_number` | text(YES) | ✓ | `` |  |
 | 54 | `venue_quality_tier` | text(YES) | ✓ | `` |  |
 
-## venue_events
-
-**Columns:** 12
-
-| # | Column | Type | Null | Default | Constraints |
-|--:|--------|------|:----:|---------|-------------|
-| 1 | `id` | uuid(NO) | ✓ | `PK` |  |
-| 2 | `venue_id` | uuid(YES) | ✓ | `` |  |
-| 3 | `place_id` | text(YES) | ✓ | `` |  |
-| 4 | `title` | text(NO) | ✓ | `` |  |
-| 5 | `starts_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 6 | `ends_at` | timestamp with time zone(YES) | ✓ | `` |  |
-| 7 | `lat` | double precision(YES) | ✓ | `` |  |
-| 8 | `lng` | double precision(YES) | ✓ | `` |  |
-| 9 | `source` | text(NO) | ✓ | `` |  |
-| 10 | `radius_m` | integer(YES) | ✓ | `` |  |
-| 11 | `created_at` | timestamp with time zone(NO) | ✓ | `` |  |
-| 12 | `updated_at` | timestamp with time zone(NO) | ✓ | `` |  |
-
 ## venue_feedback
 
 **Columns:** 12
@@ -1439,7 +1209,7 @@
 | 1 | `id` | uuid(NO) | ✓ | `PK` |  |
 | 2 | `user_id` | uuid(YES) | ✓ | `` |  |
 | 3 | `snapshot_id` | uuid(NO) | ✓ | `` |  |
-| 4 | `ranking_id` | uuid(NO) | ✓ | `` |  |
+| 4 | `ranking_id` | uuid(NO) | ✓ | `UNIQUE` |  |
 | 5 | `place_id` | text(YES) | ✓ | `` |  |
 | 6 | `venue_name` | text(NO) | ✓ | `` |  |
 | 7 | `sentiment` | text(NO) | ✓ | `` |  |

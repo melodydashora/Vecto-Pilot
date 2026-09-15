@@ -172,7 +172,7 @@ export const SlideStats: FC = () => {
   ];
   return (
     <SlideShell theme="navy">
-      <TitleBlock eyebrow="Verified Uber driver statistics" title="My Current Stats" />
+      <TitleBlock eyebrow="Verified rideshare driver statistics" title="My Current Stats" />
       <div className="grid grid-cols-2 gap-3 md:gap-6 mb-3 md:mb-6">
         {big.map(s => (
           <div key={s.label} className="rounded-2xl p-4 md:p-10" style={{ backgroundColor: T.burgundy }}>

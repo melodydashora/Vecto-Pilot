@@ -95,7 +95,7 @@ export function isStrategyTerminal(status) {
 // ============================================================================
 
 /**
- * Job queue status values (triad_jobs, block_jobs)
+ * Job queue status values (triad_jobs)
  * @readonly
  * @enum {string}
  */

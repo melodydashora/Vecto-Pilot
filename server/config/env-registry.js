@@ -210,28 +210,6 @@ export const ENV_VARS = {
     description: 'Dev-only fallback for JWT_SECRET when unset. Auto-injected by Replit IDE in workspace; absent in deployment. Read by validate-env.js:43, server/lib/jwt.js.',
     sensitive: true,
   },
-  TOKEN_ENCRYPTION_KEY: {
-    required: false,
-    description: 'AES key for Uber OAuth token encryption at rest. Required if any UBER_* var is set. Hard error in APP_RUNTIME=deployment (Uber auth breaks). Warning otherwise. Read by validate-env.js:71.',
-    sensitive: true,
-  },
-
-  // === Uber Integration ===
-  UBER_CLIENT_ID: {
-    required: false,
-    description: 'Uber OAuth client ID. If set, CLIENT_SECRET and REDIRECT_URI must also be set. Read by validate-env.js:69,78.',
-    sensitive: true,
-  },
-  UBER_CLIENT_SECRET: {
-    required: false,
-    description: 'Uber OAuth client secret. Required if UBER_CLIENT_ID is set.',
-    sensitive: true,
-  },
-  UBER_REDIRECT_URI: {
-    required: false,
-    description: 'Uber OAuth redirect URI. Required if UBER_CLIENT_ID is set.',
-  },
-
   // === Deployment ===
   REPLIT_DEPLOYMENT: {
     required: false,

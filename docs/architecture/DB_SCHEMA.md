@@ -207,10 +207,6 @@ Key fields: `user_id`, `code`, `code_type`, `expires_at`.
 
 Key fields: `state`, `provider`, `user_id`, `redirect_uri`, `expires_at`, `created_at`.
 
-### `uber_connections` — Uber OAuth Tokens
-
-Key fields: `user_id`, `access_token_encrypted`, `refresh_token_encrypted`, `token_expires_at`.
-
 ---
 
 ## 8. Cache Tables

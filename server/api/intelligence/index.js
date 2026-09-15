@@ -28,7 +28,8 @@
 import express from 'express';
 import { db } from '../../db/drizzle.js';
 // 2026-02-17: Renamed us_market_cities → market_cities (market consolidation)
-import { market_intelligence, platform_data, ranking_candidates, market_cities, market_intel, markets } from '../../../shared/schema.js';
+// 2026-09-13: market_intel removed (never populated; table dropped by 20260913_schema_repair.sql)
+import { market_intelligence, platform_data, ranking_candidates, market_cities, markets } from '../../../shared/schema.js';
 import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 // 2026-02-12: Added requireAuth - intelligence routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
@@ -353,7 +354,6 @@ router.post('/add-market', async (req, res) => {
  * Returns:
  *   - The resolved market for the city
  *   - Market intelligence items
- *   - Market-level intel from market_intel table
  *
  * Example: GET /api/intelligence/for-location?city=Frisco&state=TX
  *   → Returns Dallas market intel (Frisco is a satellite of Dallas)
@@ -451,17 +451,6 @@ router.get('/for-location', async (req, res) => {
       .orderBy(desc(market_intelligence.priority))
       .limit(Math.min(parseInt(limit) || 20, 50));
 
-    // Also fetch from market_intel (our new simplified intel table)
-    const marketInsights = await db
-      .select()
-      .from(market_intel)
-      .where(and(
-        eq(market_intel.is_active, true),
-        ilike(market_intel.market_name, market_name)
-      ))
-      .orderBy(asc(market_intel.priority))
-      .limit(Math.min(parseInt(limit) || 20, 50));
-
     // Get all cities in this market (for context)
     const marketCities = await db
       .select({
@@ -503,11 +492,8 @@ router.get('/for-location', async (req, res) => {
       },
       // Intelligence data
       intel_count: intelligence.length,
-      insights_count: marketInsights.length,
       by_type: byType,
       intelligence,
-      // Market-level insights from market_intel table
-      market_insights: marketInsights,
     });
   } catch (error) {
     console.error('Error fetching intelligence for location:', error);

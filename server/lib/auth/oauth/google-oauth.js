@@ -2,14 +2,22 @@
  * Google OAuth Integration
  * 2026-02-13: Implements OAuth 2.0 Authorization Code flow for Google Sign-In
  *
- * Follows the same pattern as uber-oauth.js:
- * - generateState() for CSRF protection (reused from uber-oauth.js)
+ * - generateState() for CSRF protection
  * - Code exchange via Google's token endpoint
  * - ID token verification via google-auth-library
  */
 
 import { OAuth2Client } from 'google-auth-library';
-import { generateState } from './uber-oauth.js';
+import crypto from 'crypto';
+
+/**
+ * Generate a random CSRF state token for the OAuth flow.
+ * 2026-09-13: moved here from uber-oauth.js when the Uber integration was removed.
+ * @returns {string} 64-char hex string
+ */
+export function generateState() {
+  return crypto.randomBytes(32).toString('hex');
+}
 
 // Google OAuth endpoints
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -132,9 +140,6 @@ export async function verifyGoogleIdToken(idToken) {
     picture: payload.picture || '',
   };
 }
-
-// Re-export generateState for convenience (from uber-oauth.js)
-export { generateState };
 
 export default {
   getGoogleAuthUrl,

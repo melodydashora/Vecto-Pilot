@@ -161,9 +161,6 @@ All app paths ultimately run `gateway-server.js`; the MCP server (and `agent-ser
 | `GEMINI_API_KEY` | Yes (at least 1 AI key) | `GOOGLE_AI_API_KEY` alias | Gemini models |
 | `GOOGLE_CLIENT_ID` | Optional | None (Google OAuth disabled) | Google OAuth consent |
 | `GOOGLE_CLIENT_SECRET` | Optional | None | Google OAuth exchange |
-| `TOKEN_ENCRYPTION_KEY` | If Uber OAuth configured | None (Uber auth fails) | Uber token AES encryption |
-| `UBER_CLIENT_ID` | Optional | None (Uber OAuth disabled) | Uber OAuth |
-| `UBER_CLIENT_SECRET` | Optional | None | Uber OAuth |
 | `PERPLEXITY_API_KEY` | Optional | None (web research disabled) | Perplexity Sonar Pro |
 
 See `server/config/validate-env.js` for the full validation logic. In production, missing required secrets cause startup errors (not warnings).

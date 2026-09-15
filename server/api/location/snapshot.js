@@ -317,10 +317,10 @@ router.post('/drop', requireAuth, async (req, res) => {
       return res.json({ ok: true, dropped: false, reason: 'no_current_snapshot' });
     }
 
-    // 2026-05-05: rankings.snapshot_id FK at shared/schema.js:139 lacks onDelete:'cascade'
-    // (the only snapshot FK in the schema without cascade — all others cascade or set-null).
-    // So we MUST delete rankings first; ranking_candidates auto-cascades from rankings.
-    // Schema migration to add cascade is a follow-up; explicit delete is the immediate fix.
+    // 2026-05-05: rankings.snapshot_id FK lacked onDelete:'cascade', so rankings had to be
+    // deleted first. 2026-09-13: migrations/20260913_schema_repair.sql adds the cascade; this
+    // explicit delete is KEPT until that migration is confirmed applied to prod (todo #25) —
+    // it is harmless once the cascade exists.
     await db.delete(rankings).where(eq(rankings.snapshot_id, currentSnapshotId));
 
     // DELETE the current snapshot; cascade handles all other dependent rows.

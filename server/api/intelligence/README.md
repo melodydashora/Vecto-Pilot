@@ -133,7 +133,6 @@ GET /api/intelligence/for-location?city=Frisco&state=Texas
 | Table | Purpose |
 |-------|---------|
 | `us_market_cities` | Maps 700+ US cities to their market anchors |
-| `market_intel` | Simplified market-level insights (new) |
 | `market_intelligence` | Rich intel with zones, neighborhoods, tags |
 
 ## Query Parameters
