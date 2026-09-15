@@ -29,6 +29,10 @@ const settingsSchema = z.object({
   // Personal Info (nickname only editable)
   nickname: z.string().optional(),
   phone: z.string().min(10, 'Please enter a valid phone number'),
+  fuelEconomyMpg: z.number().int().min(1).max(2147483647).nullable(),
+  earningsGoalDaily: z.number().min(0).max(99999999.99).multipleOf(0.01).nullable(),
+  shiftHoursTarget: z.number().min(0).max(24).multipleOf(0.1).nullable(),
+  maxDeadheadMi: z.number().int().min(0).max(500).nullable(),
 
   // Base Location (home address)
   address1: z.string().min(1, 'Address is required'),
@@ -78,6 +82,10 @@ function profileSettingsValues(profile: DriverProfile, vehicle?: DriverVehicle |
   return {
     nickname: profile.nickname || profile.firstName,
     phone: profile.phone || '',
+    fuelEconomyMpg: profile.fuelEconomyMpg ?? null,
+    earningsGoalDaily: profile.earningsGoalDaily ?? null,
+    shiftHoursTarget: profile.shiftHoursTarget ?? null,
+    maxDeadheadMi: profile.maxDeadheadMi ?? null,
     address1: profile.address1 || '',
     address2: profile.address2 || '',
     city: profile.city || '',
@@ -164,6 +172,10 @@ function SettingsEditor() {
     defaultValues: {
       nickname: '',
       phone: '',
+      fuelEconomyMpg: null,
+      earningsGoalDaily: null,
+      shiftHoursTarget: null,
+      maxDeadheadMi: null,
       address1: '',
       address2: '',
       city: '',
@@ -408,6 +420,10 @@ function SettingsEditor() {
       const result = await updateProfile({
         nickname: data.nickname,
         phone: data.phone,
+        fuelEconomyMpg: data.fuelEconomyMpg,
+        earningsGoalDaily: data.earningsGoalDaily,
+        shiftHoursTarget: data.shiftHoursTarget,
+        maxDeadheadMi: data.maxDeadheadMi,
         address1: data.address1,
         address2: data.address2,
         city: data.city,
@@ -538,7 +554,7 @@ function SettingsEditor() {
           </div>
           {validationMessage && <Alert role="alert"><AlertDescription>{validationMessage}</AlertDescription></Alert>}
           <Tabs value={section} onValueChange={value => setSection(value as SettingsSection)}>
-            <TabsList aria-label="Settings sections" className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-5">
+            <TabsList aria-label="Settings sections" className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
               <TabsTrigger value="profile" className="whitespace-normal">Profile</TabsTrigger>
               <TabsTrigger value="location" className="whitespace-normal">Location</TabsTrigger>
               <TabsTrigger value="vehicle" className="whitespace-normal">Vehicle</TabsTrigger>
@@ -630,6 +646,30 @@ function SettingsEditor() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Work preferences</CardTitle>
+              <CardDescription>Used by your Coach and Strategy. Leave a field blank when it is unknown.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {([
+                ['fuelEconomyMpg', 'Fuel economy (mpg)', 1, 2147483647, 1],
+                ['earningsGoalDaily', 'Daily earnings goal', 0, 99999999.99, 0.01],
+                ['shiftHoursTarget', 'Target shift (hours)', 0, 24, 0.1],
+                ['maxDeadheadMi', 'Maximum empty pickup distance (miles)', 0, 500, 1],
+              ] as const).map(([name, label, min, max, step]) => (
+                <FormField key={name} control={form.control} name={name} render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{label}</FormLabel>
+                    <FormControl><Input {...field} type="number" inputMode="decimal" min={min} max={max} step={step}
+                      value={field.value ?? ''} onChange={event => field.onChange(event.target.value === '' ? null : event.target.valueAsNumber)} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              ))}
+              <p className="text-sm text-muted-foreground sm:col-span-2">Your shared-ride preference and pickup limit initialize Offer Analyzer rules until you save rules there. Saved analyzer rules take priority. Other service preferences remain available to your Coach; they are not additional automatic offer gates.</p>
+            </CardContent>
+          </Card>
           </TabsContent>
           <TabsContent value="location" forceMount hidden={section !== 'location'}>
           {/* Base Location Section */}
