@@ -29,7 +29,8 @@ const part = getDayPart(); // "morning" | "afternoon" | "evening" | "night"
 ```typescript
 import { apiRequest } from '@/lib/queryClient';
 
-const data = await apiRequest('/api/strategy/123');
+const response = await apiRequest('POST', '/api/feedback/app', { sentiment: 'up' });
+const data = await response.json();
 ```
 
 ### Class Name Merging

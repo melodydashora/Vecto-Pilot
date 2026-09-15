@@ -15,15 +15,14 @@ LESSONS_LEARNED.md documents a production incident caused by using different loc
 |------|---------|
 | `storageKeys.ts` | localStorage and sessionStorage key constants |
 | `events.ts` | Custom DOM event name constants |
-| `queryKeys.ts` | React Query key factory functions |
-| `apiRoutes.ts` | API endpoint URL constants |
+| `apiRoutes.ts` | API endpoint URLs and React Query key factories |
 | `index.ts` | Barrel export for convenience |
 
 ## Usage
 
 ```typescript
 // Import from barrel
-import { STORAGE_KEYS, EVENTS, queryKeys, API_ROUTES } from '@/constants';
+import { STORAGE_KEYS, EVENTS, QUERY_KEYS, API_ROUTES } from '@/constants';
 
 // Storage
 localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -34,12 +33,12 @@ window.dispatchEvent(new CustomEvent(EVENTS.SNAPSHOT_SAVED, { detail: {...} }));
 window.addEventListener(EVENTS.MANUAL_REFRESH, handler);
 
 // Query keys
-useQuery({ queryKey: queryKeys.strategy(snapshotId), ... });
-queryClient.invalidateQueries({ queryKey: queryKeys.briefing.weather(snapshotId) });
+useQuery({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(snapshotId), ... });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId) });
 
 // API routes
 fetch(API_ROUTES.BLOCKS.FAST, { method: 'POST', ... });
-fetch(API_ROUTES.BRIEFING.WEATHER(snapshotId));
+fetch(API_ROUTES.BRIEFING.AGGREGATE(snapshotId));
 ```
 
 ## Rules
