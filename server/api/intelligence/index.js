@@ -34,6 +34,7 @@ import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 // 2026-02-12: Added requireAuth - intelligence routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
 import { requireOperator } from '../../middleware/require-operator.js';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { ensureMarket } from '../../lib/markets/ensure-market.js';
 
 const router = express.Router();
@@ -592,30 +593,6 @@ router.get('/coach/:market', async (req, res) => {
 });
 
 /**
- * GET /api/intelligence/:id
- * Get a specific intelligence item by ID
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const [item] = await db
-      .select()
-      .from(market_intelligence)
-      .where(eq(market_intelligence.id, id));
-
-    if (!item) {
-      return res.status(404).json({ error: 'Intelligence item not found' });
-    }
-
-    res.json(item);
-  } catch (error) {
-    console.error('Error fetching intelligence item:', error);
-    res.status(500).json({ error: 'Failed to fetch intelligence item' });
-  }
-});
-
-/**
  * POST /api/intelligence
  * Create a new intelligence item
  * Used by AI Coach and admin to add new intelligence
@@ -1050,6 +1027,11 @@ router.get('/staging-areas', async (req, res) => {
       return res.status(400).json({ error: 'snapshotId is required' });
     }
 
+    // 2026-09-13: staging areas are per-snapshot driver data — reject an unowned
+    // snapshot (404, no enumeration) before reading ranking_candidates.
+    const owned = await verifySnapshotOwnership(snapshotId, req.auth.userId);
+    if (!owned.ok) return res.status(owned.status).json(owned.body);
+
     // Fetch staging areas from ranking_candidates that have staging coordinates
     const stagingAreas = await db
       .select({
@@ -1415,6 +1397,34 @@ router.get('/demand-patterns', async (req, res) => {
   } catch (error) {
     console.error('Error fetching demand patterns:', error);
     res.status(500).json({ error: 'Failed to fetch demand patterns' });
+  }
+});
+
+/**
+ * GET /api/intelligence/:id
+ * Get a specific intelligence item by ID
+ *
+ * 2026-09-13: registered LAST. Declared earlier it shadowed every later fixed-path
+ * GET (/types, /lookup, /staging-areas, /demand-patterns) — Express matched ':id'
+ * first and returned 404 'Intelligence item not found'.
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [item] = await db
+      .select()
+      .from(market_intelligence)
+      .where(eq(market_intelligence.id, id));
+
+    if (!item) {
+      return res.status(404).json({ error: 'Intelligence item not found' });
+    }
+
+    res.json(item);
+  } catch (error) {
+    console.error('Error fetching intelligence item:', error);
+    res.status(500).json({ error: 'Failed to fetch intelligence item' });
   }
 });
 
