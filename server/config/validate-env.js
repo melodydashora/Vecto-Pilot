@@ -62,9 +62,6 @@ export function validateEnvironment() {
   }
 
   // WARNINGS: Optional but recommended services
-  if (!process.env.OPENWEATHER_API_KEY) {
-    warnings.push('OPENWEATHER_API_KEY not set - weather data will be unavailable');
-  }
 
   if (!process.env.GOOGLEAQ_API_KEY) {
     warnings.push('GOOGLEAQ_API_KEY not set - air quality data will be unavailable');

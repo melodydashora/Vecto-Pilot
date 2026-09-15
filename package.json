@@ -24,7 +24,7 @@
     "test:client": "NODE_OPTIONS='--experimental-vm-modules' jest -c jest.client.config.js",
     "test:e2e": "playwright test tests/e2e/copilot.spec.ts",
     "test:seed": "node scripts/seed-dev.js && npm run test:unit",
-    "guard": "npm-run-all -s guard:json guard:deps guard:js",
+    "guard": "npm-run-all -s guard:json guard:deps guard:js guard:models",
     "guard:json": "jsonlint -q \"**/*.json\"",
     "guard:deps": "npm ls --all --omit=dev > /dev/null",
     "guard:js": "npm run lint",
@@ -33,7 +33,8 @@
     "build:deploy": "npm run guard && npm run build:client",
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
     "research:models": "echo 'Removed 2026-02-26: Model research now done via Claude Code. See docs/preflight/ai-models.md'",
-    "devtools": "npx react-devtools"
+    "devtools": "npx react-devtools",
+    "guard:models": "node scripts/check-model-pins.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

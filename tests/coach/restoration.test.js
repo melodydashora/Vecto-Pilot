@@ -68,11 +68,9 @@ describe('Canonical Coach Responses contract', () => {
     await callCoachResponses(config, { system: 's', messageHistory: history, signal: controller.signal }, { apiKey: 'synthetic', fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
-  test('role default is Astra; incompatible overrides fail instead of reverting to Gemini', () => {
-    delete process.env.AI_COACH_MODEL; delete process.env.AI_COACH_OVERRIDE_MODEL;
-    expect(getRoleConfig('AI_COACH')).toMatchObject({ model: 'gpt-6-astra', reasoningEffort: 'low' });
-    process.env.AI_COACH_MODEL = 'gemini-synthetic';
-    expect(() => getRoleConfig('AI_COACH')).toThrow('requires the openai streaming transport');
+  test('role is pinned to Astra in the registry; env cannot change it (2026-09-15 pin policy)', () => {
+    process.env.AI_COACH_MODEL = 'gemini-synthetic'; process.env.AI_COACH_OVERRIDE_MODEL = 'gemini-synthetic';
+    expect(getRoleConfig('AI_COACH')).toMatchObject({ model: 'gpt-6-astra', reasoningEffort: 'low', provider: 'openai' });
   });
 });
 

@@ -46,8 +46,7 @@ export const MODEL_ROLES = {
   // into actionable "Driver Advice". Pro's reasoning is needed for accurate spatial analysis.
   // 2026-02-11: Added thinkingLevel HIGH + bumped tokens 4096→8192 (thinking consumes output tokens)
   BRIEFING_TRAFFIC: {
-    envKey: 'BRIEFING_TRAFFIC_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Traffic conditions analysis (TomTom JSON → Driver Advice)',
     maxTokens: 8192,
     temperature: 0.2,
@@ -56,8 +55,7 @@ export const MODEL_ROLES = {
   },
   // 2026-01-10: Added thinkingLevel HIGH for news analysis
   BRIEFING_NEWS: {
-    envKey: 'BRIEFING_NEWS_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Local news research (last 7 days) - Gemini + Google Search',
     maxTokens: 8192,
     temperature: 0.4,
@@ -73,11 +71,8 @@ export const MODEL_ROLES = {
   // sibling briefings). Event discovery is grounded retrieval, not deep reasoning, and
   // Pro + HIGH thinking + google_search was blowing the 90s cap ("[BRIEFING] Event search
   // … timed out after 90000ms"). Flash 3.5 keeps grounding + HIGH thinking but is ~4× faster.
-  // NOTE: the controlling env var is BRIEFING_EVENTS_MODEL (the envKey below) — NOT
-  // BRIEFING_EVENTS_DISCOVERY_MODEL, which does not match this key and is silently ignored.
   BRIEFING_EVENTS_DISCOVERY: {
-    envKey: 'BRIEFING_EVENTS_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Event discovery (parallel category search)',
     maxTokens: 8192,
     temperature: 0.4,
@@ -88,8 +83,7 @@ export const MODEL_ROLES = {
   // Validation happens via validateEventsHard() at store time in briefing-service.js.
   // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_FALLBACK: {
-    envKey: 'BRIEFING_FALLBACK_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'General fallback for failed briefing calls',
     maxTokens: 8192,
     temperature: 0.3,
@@ -98,8 +92,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_SCHOOLS: {
-    envKey: 'BRIEFING_SCHOOLS_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'School closures and calendar lookup',
     maxTokens: 8192,
     temperature: 0.2,
@@ -107,8 +100,7 @@ export const MODEL_ROLES = {
     features: ['google_search'],
   },
   BRIEFING_AIRPORT: {
-    envKey: 'BRIEFING_AIRPORT_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Airport conditions and flight status',
     // 2026-07-06 (todo #22): 4096 truncated the per-terminal schema mid-JSON
     // (2 airports × 5 terminals × checkpoints × 3 lanes is a much larger
@@ -121,8 +113,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-13: Registered — was previously a direct callGemini in holiday-detector.js
   BRIEFING_HOLIDAY: {
-    envKey: 'BRIEFING_HOLIDAY_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Holiday detection with real-time search verification',
     maxTokens: 1024,
     temperature: 0.1,
@@ -135,16 +126,14 @@ export const MODEL_ROLES = {
   // ==========================
   // 2026-02-13: Claude Opus 4.6 — best reasoning model for core strategy generation
   STRATEGY_CORE: {
-    envKey: 'STRATEGY_CORE_MODEL',
-    default: 'claude-opus-4-8',
+    model: 'claude-opus-4-8',
     purpose: 'Core strategic plan generation',
     maxTokens: 8192,
     temperature: 0.7,
   },
   // 2026-01-10: Added thinkingLevel HIGH for deeper analysis (token budget sufficient)
   STRATEGY_CONTEXT: {
-    envKey: 'STRATEGY_CONTEXT_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Real-time context gathering for strategy pipeline',
     maxTokens: 8192,
     temperature: 0.4,
@@ -153,8 +142,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-26: Switched GPT-5.2 → Claude Opus 4.6 — all strategy roles use Claude
   STRATEGY_TACTICAL: {
-    envKey: 'STRATEGY_TACTICAL_MODEL',
-    default: 'claude-opus-4-8',
+    model: 'gpt-5.5-2026-04-23',
     purpose: 'Immediate 1-hour tactical strategy consolidation',
     maxTokens: 16000,
     temperature: 0.5,
@@ -164,32 +152,28 @@ export const MODEL_ROLES = {
   // ==========================
   // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23 (verified live via /v1/models + chat completion ping)
   VENUE_SCORER: {
-    envKey: 'VENUE_SCORER_MODEL',
-    default: 'gpt-5.5-2026-04-23',
+    model: 'gpt-5.5-2026-04-23',
     purpose: 'SmartBlocks venue scoring and selection',
     maxTokens: 16000,
     reasoningEffort: 'medium',
   },
   VENUE_FILTER: {
-    envKey: 'VENUE_FILTER_MODEL',
     // 2026-01-14: Claude Haiku primary, Gemini Flash fallback (see FALLBACK_CONFIG)
-    default: 'claude-haiku-4-5-20251001',
+    model: 'claude-haiku-4-5-20251001',
     // 2026-02-18: Enhanced from binary keep/remove to quality classification (P/S/X)
     purpose: 'Fast low-cost venue classification (premium/standard/remove)',
     maxTokens: 300,
     temperature: 0,
   },
   VENUE_TRAFFIC: {
-    envKey: 'VENUE_TRAFFIC_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Venue-specific traffic intelligence',
     maxTokens: 4096,
     temperature: 0.1,
     features: ['google_search'],
   },
   VENUE_EVENT_VERIFIER: {
-    envKey: 'VENUE_EVENT_VERIFIER_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Verify venue events during SmartBlocks enrichment',
     maxTokens: 256,
     temperature: 0.1,
@@ -200,8 +184,7 @@ export const MODEL_ROLES = {
   // ==========================
   AI_COACH: {
     // Melody, 2026-09-10: one canonical Coach for typed and spoken requests.
-    envKey: 'AI_COACH_MODEL',
-    default: 'gpt-6-astra',
+    model: 'gpt-6-astra',
     purpose: 'AI Coach conversation and confirmed actions',
     maxTokens: 16384,
     reasoningEffort: 'low',
@@ -222,12 +205,11 @@ export const MODEL_ROLES = {
   // grounding + function calling combine in ONE Live session on both Gemini
   // lines; every live model is Preview — pin dated IDs, expect ~6mo migrations.
   COACH_VOICE_LIVE: {
-    envKey: 'COACH_VOICE_LIVE_MODEL',
     // gemini-3.1-flash-live-preview: newest live line, Google's designated
     // replacement for all prior live models; sync-only function calling.
     // (gemini-2.5-flash-native-audio-preview-12-2025 has NON_BLOCKING function
     // calls but is already slated for replacement BY this model.)
-    default: 'gemini-3.1-flash-live-preview',
+    model: 'gemini-3.1-flash-live-preview',
     purpose: 'Coach voice mouth: Gemini Live bidirectional audio (WebSocket, ephemeral tokens)',
     temperature: 0.7,
     features: ['google_search'],
@@ -241,18 +223,15 @@ export const MODEL_ROLES = {
     thinkingBudgetEnvKey: 'GEMINI_LIVE_THINKING_BUDGET',
   },
   // 2026-08-11: role moved out of realtime.js, which read process.env.VOICE_MODEL
-  // directly (registry-bypass doctrine violation). envKey stays VOICE_MODEL —
-  // it is the already-documented env var for this concern (env-registry.js).
+  // directly (registry-bypass doctrine violation). 2026-09-15: pinned here like every role.
   COACH_VOICE_OPENAI_LIVE: {
-    envKey: 'OPENAI_LIVE_MODEL',
-    default: 'gpt-live-1',
+    model: 'gpt-live-1',
     purpose: 'Coach conversational voice with canonical GPT Coach delegation',
     requiresLive: true,
     liveModelPrefix: 'gpt-live-',
   },
   COACH_VOICE_REALTIME: {
-    envKey: 'VOICE_MODEL',
-    default: 'gpt-realtime-2.1',
+    model: 'gpt-realtime-2.1',
     purpose: 'Coach voice mouth: OpenAI Realtime session (WebRTC, ephemeral client_secrets)',
     requiresLive: true,
   },
@@ -261,8 +240,7 @@ export const MODEL_ROLES = {
   // 5. UTILITIES (no direct DB write)
   // ==========================
   UTIL_RESEARCH: {
-    envKey: 'UTIL_RESEARCH_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Internet-powered research via API',
     maxTokens: 2000,
     temperature: 0.3,
@@ -273,8 +251,7 @@ export const MODEL_ROLES = {
   // in consolidation Phase 1 (docs/architecture/audits/2026-07-06 audit).
   // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23
   UTIL_MARKET_PARSER: {
-    envKey: 'UTIL_PARSER_MODEL',
-    default: 'gpt-5.5-2026-04-23',
+    model: 'gpt-5.5-2026-04-23',
     purpose: 'Parsing unstructured market research data',
     maxTokens: 16000,
     reasoningEffort: 'low',
@@ -285,8 +262,7 @@ export const MODEL_ROLES = {
   // ==========================
   // 2026-02-13: Public-facing event search for Concierge QR code page
   CONCIERGE_SEARCH: {
-    envKey: 'CONCIERGE_SEARCH_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.1-pro-preview',
     purpose: 'Public concierge event/venue discovery (no auth required)',
     maxTokens: 4096,
     temperature: 0.3,
@@ -295,8 +271,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-13: Public-facing AI Q&A for passenger concierge page
   CONCIERGE_CHAT: {
-    envKey: 'CONCIERGE_CHAT_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.1-pro-preview',
     purpose: 'Public concierge Q&A — passengers ask about local area',
     maxTokens: 2048,
     temperature: 0.5,
@@ -313,8 +288,7 @@ export const MODEL_ROLES = {
   // high-volume low-latency text tasks. Standard REST API, no integration changes.
   // Flash Live (audio WebSocket) was considered but is wrong fit for text-to-text.
   UTIL_TRANSLATION: {
-    envKey: 'UTIL_TRANSLATION_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Real-time text translation for driver-rider communication',
     maxTokens: 512,
     temperature: 0.1, // Near-deterministic for consistent translations
@@ -362,8 +336,7 @@ export const MODEL_ROLES = {
   //   docs/architecture/removals/2026-08-14-offer-analyzer-thinking-stepdown.md and
   //   docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md.
   OFFER_ANALYZER: {
-    envKey: 'OFFER_ANALYZER_MODEL',
-    default: 'gemini-3.5-flash-lite',
+    model: 'gemini-3.5-flash-lite',
     purpose: 'Phase 1: Real-time fast analysis (visual screenshot OR parsed text) from phone shortcuts (ACCEPT/REJECT)',
     maxTokens: 1024,
     temperature: 0.1, // near-deterministic; honored by gemini-adapter (min with the JSON cap)
@@ -388,8 +361,7 @@ export const MODEL_ROLES = {
   //    Phase 1 and turning analyze-offer.js:541 aiModelUsed into a lie for ~12 days.
   //  ⚠️ PINNED, NOT FLOATING: never gemini-pro-latest / *-latest (see OFFER_ANALYZER + #342).
   OFFER_ANALYZER_DEEP: {
-    envKey: 'OFFER_ANALYZER_DEEP_MODEL',
-    default: 'gemini-3.1-pro-preview',
+    model: 'gemini-3.1-pro-preview',
     purpose: 'Phase 2: Async deep analysis (visual + text) for offer_intelligence enrichment — runs after Siri response',
     maxTokens: 2048,
     temperature: 0.2,
@@ -401,13 +373,22 @@ export const MODEL_ROLES = {
   // 10. INTERNAL AGENTS
   // ==========================
   DOCS_GENERATOR: {
-    envKey: 'DOCS_GENERATOR_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Autonomous documentation generation',
     maxTokens: 8192,
     temperature: 0.7,
     thinkingLevel: 'HIGH',
     skipJsonExtraction: true,
+  },
+
+  // 2026-09-15: Agent / Assistant / Eidolon override LLM and Anthropic web-search
+  // research. Previously read AGENT_MODEL / ANTHROPIC_MODEL / CLAUDE_MODEL from env in
+  // four places (registry-bypass). One pin here now.
+  AGENT_TASK: {
+    model: 'claude-opus-4-8',
+    purpose: 'Agent/Assistant/Eidolon override LLM (Anthropic) and Anthropic web-search research',
+    maxTokens: 8192,
+    temperature: 0.1,
   },
 };
 
@@ -557,42 +538,12 @@ export function getRoleConfig(role) {
     throw new Error(`Unknown model role: ${role} (resolved to: ${canonicalRole})`);
   }
 
-  // 1. Role-specific Env (Highest Priority)
-  let model = process.env[roleConfig.envKey];
-  let sourceInfo = `env:${roleConfig.envKey}`;
-
-  // 2. Service Override (Medium Priority)
-  // Check if this role belongs to a service that has a global override
-  if (!model) {
-    // Agent roles (excluding DOCS_GENERATOR — it has specific model requirements)
-    // 2026-02-26: DOCS_GENERATOR removed from AGENT_OVERRIDE_MODEL fallback.
-    // Reason: DOCS_GENERATOR needs Gemini (Google Search, prompt format). Inheriting
-    // claude-opus-4-6 from AGENT_OVERRIDE causes 9-char responses and validation failures.
-    if (canonicalRole === 'AGENT_TASK') {
-      if (process.env.AGENT_OVERRIDE_MODEL) {
-        model = process.env.AGENT_OVERRIDE_MODEL;
-        sourceInfo = 'env:AGENT_OVERRIDE_MODEL';
-      }
-    }
-    // AI Coach roles
-    // 2026-02-17: Renamed ASSISTANT_OVERRIDE → AI_COACH_OVERRIDE
-    else if (canonicalRole === 'AI_COACH' || (canonicalRole.startsWith('COACH_') && !roleConfig.requiresLive)) {
-      if (process.env.AI_COACH_OVERRIDE_MODEL) {
-        model = process.env.AI_COACH_OVERRIDE_MODEL;
-        sourceInfo = 'env:AI_COACH_OVERRIDE_MODEL';
-      }
-    }
-    // Strategy roles
-    else if (canonicalRole.startsWith('STRATEGY_')) {
-      // Optional: Could have STRATEGY_OVERRIDE_MODEL, but usually defaults or role-specific are fine
-    }
-  }
-
-  // 3. Registry Default (Lowest Priority)
-  if (!model) {
-    model = roleConfig.default;
-    sourceInfo = 'default';
-  }
+  // 2026-09-15 (Melody's decision): model names live HERE and only here. There is no
+  // env override and no Replit Secret for a model name — dev and prod resolve identically,
+  // every change is a reviewed commit, and scripts/check-model-pins.mjs verifies each pin
+  // against the live provider model lists (curl first, then edit — never from memory).
+  const model = roleConfig.model;
+  const sourceInfo = 'registry';
 
   // Coach declares its Responses transport and never silently changes provider.
   if (roleConfig.streamingProvider && getProviderForModel(model) !== roleConfig.streamingProvider) {
@@ -600,9 +551,7 @@ export function getRoleConfig(role) {
   }
   // Preserve the existing Gemini-only behavior of unrelated streaming roles.
   if (roleConfig.requiresStreaming && !roleConfig.streamingProvider && !model.startsWith('gemini-')) {
-    registryLog.warn(0, `${canonicalRole} requires Gemini streaming; using its configured default`);
-    model = roleConfig.default;
-    sourceInfo = 'default (streaming fallback)';
+    throw new Error(`${canonicalRole} requires a Gemini streaming model; pinned model ${model} is not one`);
   }
 
   // 2026-08-11: Live guard — COACH_VOICE_* roles must resolve to a live/realtime-
@@ -612,9 +561,7 @@ export function getRoleConfig(role) {
   // catches every COACH_* role above — a text-model override must not silently
   // break voice session minting.
   if (roleConfig.requiresLive && !roleConfig.liveModelPrefix && !/(^gpt-realtime)|(-live)|(-native-audio)/.test(model)) {
-    registryLog.warn(0, `${canonicalRole} requires a live/realtime-class model, but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
-    model = roleConfig.default;
-    sourceInfo = 'default (live fallback)';
+    throw new Error(`${canonicalRole} requires a live/realtime-class model; pinned model ${model} is not one`);
   }
 
   if (roleConfig.liveModelPrefix && !model.startsWith(roleConfig.liveModelPrefix)) {
@@ -815,28 +762,23 @@ export function getLLMDiagnostics() {
 
   // Check Anthropic
   if (process.env.ANTHROPIC_API_KEY) {
-    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
-    providers.push({ key: 'anthropic', model });
+    providers.push({ key: 'anthropic', model: MODEL_ROLES.STRATEGY_CORE.model });
   }
 
   // Check OpenAI
   if (process.env.OPENAI_API_KEY) {
-    const model = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
-    providers.push({ key: 'openai', model });
+    providers.push({ key: 'openai', model: MODEL_ROLES.VENUE_SCORER.model });
   }
 
   // Check Gemini
   if (process.env.GEMINI_API_KEY) {
-    const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-    providers.push({ key: 'google', model });
+    providers.push({ key: 'google', model: MODEL_ROLES.BRIEFING_FALLBACK.model });
   }
 
   return {
     providers,
-    preferred: process.env.PREFERRED_MODEL || 'google:gemini-3.5-flash',
-    // 2026-08-11: anthropic fallback claude-opus-4-8 → claude-sonnet-5 (Claude 5
-    // family GA; live-verified via /v1/models + a messages ping this session)
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-sonnet-5',
+    preferred: `google:${MODEL_ROLES.BRIEFING_FALLBACK.model}`,
+    fallbacks: `openai:${MODEL_ROLES.VENUE_SCORER.model},anthropic:${MODEL_ROLES.STRATEGY_CORE.model}`,
   };
 }
 

@@ -18,7 +18,7 @@ jest.unstable_mockModule('../../server/lib/ai/providers/consolidator.js', () => 
   loadDriverPreferences: async () => preferences,
   buildDriverPreferencesSection: () => 'Saved maximum empty pickup distance: 1 mile.',
 }));
-jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ venuesLog: log, matrixLog: log, briefingLog: log }));
+jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ venuesLog: log, matrixLog: log, briefingLog: log, createWorkflowLogger: () => log }));
 const { generateTacticalPlan } = await import('../../server/lib/strategy/tactical-planner.js');
 
 test('changing home distance cannot flag or reorder equally near current-location venues as beyond the pickup limit', async () => {

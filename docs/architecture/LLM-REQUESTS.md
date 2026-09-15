@@ -141,8 +141,10 @@ Provides cross-provider fallback:
 
 ### Override Env Vars
 
-- `AGENT_OVERRIDE_MODEL` — Override model for agent roles
-- `AI_COACH_OVERRIDE_MODEL` — Override for Rideshare Coach (streaming-aware)
+None. 2026-09-15: `AGENT_OVERRIDE_MODEL`, `AI_COACH_OVERRIDE_MODEL` and every per-role
+`*_MODEL` key were removed. Model names are pinned in `server/lib/ai/model-registry.js`
+and verified by `scripts/check-model-pins.mjs`. The model columns in the tables above
+are descriptive; the registry is authoritative.
 
 ---
 

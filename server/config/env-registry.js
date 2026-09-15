@@ -1,6 +1,7 @@
 // server/config/env-registry.js
 // Centralized environment variable registry
-// Single source of truth for all env vars used by the system
+// Single source of truth for all env vars used by the system.
+// 2026-09-15: model names are NOT env vars — they are pinned in server/lib/ai/model-registry.js.
 
 /**
  * Environment variable definitions
@@ -89,11 +90,6 @@ export const ENV_VARS = {
     description: 'Google Gemini API key',
     sensitive: true,
   },
-  GOOGLE_AI_API_KEY: {
-    required: false,
-    description: 'DEPRECATED — use GEMINI_API_KEY. Accepted by validate-env.js:23 as a Gemini auth alias with deprecation warning at validate-env.js:29-31 when set without GEMINI_API_KEY. Hard removal was attempted in Step 2 (Manifesto §7 D4) but Codex review on PR #33 caught that the operator surface (Replit Secrets, .env files) had not been verified as migrated; deprecation cycle restored in Step 8. Hard removal deferred until the warning cycle surfaces operator-side migration completion.',
-    sensitive: true,
-  },
 
   // === Google APIs ===
   GOOGLE_MAPS_API_KEY: {
@@ -103,31 +99,6 @@ export const ENV_VARS = {
   },
 
   // === Strategy Model Configuration ===
-  STRATEGY_STRATEGIST: {
-    required: false,
-    default: 'claude-opus-4-8',
-    description: 'Model for main strategy generation',
-  },
-  STRATEGY_BRIEFER: {
-    required: false,
-    default: 'gemini-3.5-flash',
-    description: 'Model for briefing (events, traffic, news)',
-  },
-  STRATEGY_CONSOLIDATOR: {
-    required: false,
-    default: 'gpt-5.5-2026-04-23',
-    description: 'Model for immediate strategy consolidation',
-  },
-  STRATEGY_EVENT_VALIDATOR: {
-    required: false,
-    default: 'claude-opus-4-8',
-    description: 'Model for event validation (with web search)',
-  },
-  STRATEGY_VENUE_PLANNER: {
-    required: false,
-    default: 'gpt-5.5-2026-04-23',
-    description: 'Model for venue planning',
-  },
 
   // === Timeouts ===
   TRIAD_TIMEOUT_MS: {
@@ -147,25 +118,10 @@ export const ENV_VARS = {
   },
 
   // === Voice ===
-  OPENAI_LIVE_MODEL: {
-    required: false,
-    default: 'gpt-live-1',
-    description: 'OpenAI GPT-Live conversational voice; canonical Coach handles reasoning and actions',
-  },
   // 2026-04-25: Realtime API requires a realtime-class model, not a chat model.
   // Previous default 'gpt-5.4' was wrong-class and would 4xx against /v1/realtime/sessions.
   // 2026-08-11: now the envKey of registry role COACH_VOICE_REALTIME (guarded).
-  VOICE_MODEL: {
-    required: false,
-    default: 'gpt-realtime-2.1',
-    description: 'OpenAI Realtime voice-to-voice model (must be realtime class; envKey of COACH_VOICE_REALTIME)',
-  },
   // 2026-08-11 (todo #33): Gemini arm of the Coach voice switcher.
-  COACH_VOICE_LIVE_MODEL: {
-    required: false,
-    default: 'gemini-3.1-flash-live-preview',
-    description: 'Gemini Live bidirectional voice model (must be live class; envKey of COACH_VOICE_LIVE)',
-  },
   GEMINI_LIVE_API_VERSION: {
     required: false,
     default: 'v1alpha',
@@ -181,11 +137,6 @@ export const ENV_VARS = {
   PERPLEXITY_API_KEY: {
     required: false,
     description: 'Perplexity API key (holiday detection)',
-    sensitive: true,
-  },
-  OPENWEATHER_API_KEY: {
-    required: false,
-    description: 'OpenWeather API key. Warning if missing — weather data degrades gracefully (validate-env.js:58).',
     sensitive: true,
   },
   GOOGLEAQ_API_KEY: {

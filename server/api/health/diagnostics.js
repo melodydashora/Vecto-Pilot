@@ -1,4 +1,5 @@
 import express from 'express';
+import { getRoleConfig } from '../../lib/ai/model-registry.js';
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
 import { sql, eq } from 'drizzle-orm';
@@ -437,7 +438,7 @@ router.get('/model-ping', requireAuth, requireOperator, async (req, res) => {
 
       try {
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-8';
+        const modelId = getRoleConfig('STRATEGY_CORE').model;
         const response = await anthropic.messages.create({
           model: modelId,
           max_tokens: 10,
@@ -478,7 +479,7 @@ router.get('/model-ping', requireAuth, requireOperator, async (req, res) => {
 
       try {
         const ai = new GoogleGenAI({ apiKey });
-        const modelId = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+        const modelId = getRoleConfig('BRIEFING_FALLBACK').model;
         const result = await ai.models.generateContent({
           model: modelId,
           contents: 'ping'
@@ -517,7 +518,7 @@ router.get('/model-ping', requireAuth, requireOperator, async (req, res) => {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const modelId = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
+        const modelId = getRoleConfig('VENUE_SCORER').model;
         // 2026-01-07: GPT-5 family requires max_completion_tokens (not max_tokens)
         // See LESSONS_LEARNED.md: "max_tokens is DEPRECATED - use max_completion_tokens"
         const response = await openai.chat.completions.create({
@@ -605,7 +606,7 @@ router.get('/workflow-dry-run', requireAuth, requireOperator, async (req, res) =
     try {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-8';
+      const modelId = getRoleConfig('STRATEGY_CORE').model;
       
       await anthropic.messages.create({
         model: modelId,

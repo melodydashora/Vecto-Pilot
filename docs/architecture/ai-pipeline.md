@@ -158,15 +158,15 @@ Fallbacks are cross-provider: Google-primary roles fall back to GPT-5.5 (gpt-5.5
 
 ## Environment Variables
 
-```bash
-# Model configuration
-STRATEGY_CORE_MODEL=claude-opus-4-8
-STRATEGY_CONTEXT_MODEL=gemini-3.5-flash
-STRATEGY_TACTICAL_MODEL=claude-opus-4-8
-BRIEFING_HOLIDAY_MODEL=gemini-3.5-flash
-# (per-role overrides; see envKey fields in server/lib/ai/model-registry.js)
+Model names are **not** environment variables (2026-09-15, Melody's decision). Every
+role is pinned in `server/lib/ai/model-registry.js` (`MODEL_ROLES[role].model`); there is
+no env override and no Replit Secret for a model name, so dev and prod resolve identically
+and every change is a reviewed commit. `node scripts/check-model-pins.mjs` verifies each pin
+against the live provider `/models` lists (also runs in `npm run guard`). Curl first, then
+edit — never pin a name from memory.
 
-# API keys
+```bash
+# API keys (the only model-related env)
 ANTHROPIC_API_KEY=...
 OPENAI_API_KEY=...
 GEMINI_API_KEY=...

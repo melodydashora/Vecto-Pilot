@@ -131,6 +131,27 @@ The application code reads `process.env.DATABASE_URL` and connects. That's it. N
 
 ---
 
+## Environment files and precedence (2026-09-15)
+
+Only two env files exist: `.env.local` (gitignored, workspace-only) and its tracked template
+`.env.local.example`. The old `.env` and `.env.example` copies were deleted; nothing loaded
+them for the app (the agent config-manager's `.env` editor is the one reader, now pointing at
+an absent file — treat it as legacy).
+
+| Where | Precedence, highest first |
+|---|---|
+| Workspace (Run button, workflows) | `.env.local` (sourced with `set -a` by `.replit` run), then Replit Secrets, then code defaults |
+| Deployment | Replit Secrets, then `.env.local` if present (loader fills only unset keys), then code defaults |
+
+`.env.local` was trimmed on 2026-09-15 to the keys the code actually reads (a repo-wide
+`process.env.X` / `import.meta.env.X` scan, 216 → 80 keys). Model names are never env
+keys — see `server/lib/ai/model-registry.js`. Replit Secrets were trimmed to the same
+consumed set; the app-required ones are `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`,
+`GOOGLE_MAPS_API_KEY`, `GOOGLEAQ_API_KEY`, `TOMTOM_API_KEY`, `VITE_GOOGLE_MAPS_API_KEY`,
+`VITE_GOOGLE_MAPS_MAP_ID`, `JWT_SECRET`, `VECTO_AGENT_SECRET`, `CLAUDE_BRIDGE_TOKEN`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CLIENT_URL`, `MCP_TOKEN` (+ `SENDGRID_API_KEY`
+for email, unset as of this date). `DATABASE_URL` is Replit-managed and stays the only DB selector.
+
 ## Key Files
 
 | File | Purpose |

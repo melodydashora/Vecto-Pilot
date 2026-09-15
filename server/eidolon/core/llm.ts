@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getRoleConfig } from '../../lib/ai/model-registry.js';
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createAnthropicClient } from '../../lib/anthropic-extended.js';
@@ -35,7 +36,7 @@ export class LLMClient {
 
   async chat(messages: LLMMessage[], systemPrompt?: string): Promise<LLMResponse> {
     try {
-      const model = this.config.model || process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
+      const model = this.config.model || (getRoleConfig('AGENT_TASK') as { model: string }).model; // 2026-09-15: registry pin
       
       // Claude Sonnet 4.5-20250929 - Verified API configuration
       const result = await this.client.messages.create({

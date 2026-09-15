@@ -18,12 +18,10 @@ function fixture(extra = {}) {
   return { app, ownership, fetchImpl };
 }
 describe('GPT-Live Coach connection boundary', () => {
-  test('new voice role ignores a text-brain override and rejects an incompatible explicit pin', () => {
-    delete process.env.OPENAI_LIVE_MODEL;
+  test('voice role is pinned in the registry; env overrides are ignored (2026-09-15 pin policy)', () => {
     process.env.AI_COACH_OVERRIDE_MODEL = 'gemini-legacy-pin';
-    expect(getRoleConfig('COACH_VOICE_OPENAI_LIVE').model).toBe('gpt-live-1');
     process.env.OPENAI_LIVE_MODEL = 'gpt-realtime-2.1';
-    expect(() => getRoleConfig('COACH_VOICE_OPENAI_LIVE')).toThrow('requires a gpt-live- model');
+    expect(getRoleConfig('COACH_VOICE_OPENAI_LIVE')).toMatchObject({ model: 'gpt-live-1', provider: 'openai' });
   });
   test('keeps reasoning, fresh source data and action execution on the canonical backend', () => {
     const body = buildCoachLiveSession({ sdp, history: [{ role: 'assistant', content: 'Earlier answer' }] }, 'gpt-live-1');

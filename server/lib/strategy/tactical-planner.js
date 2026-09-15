@@ -34,6 +34,7 @@
 // ============================================================================
 
 import { callModel } from "../ai/adapters/index.js";
+import { getRoleConfig } from "../ai/model-registry.js";
 import { z } from "zod";
 import { safeJsonParse } from "../../api/utils/http-helpers.js";
 import { formatBriefingForPrompt } from "../briefing/filter-for-planner.js";
@@ -798,7 +799,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       degradedReason,
       cache_metrics,
       metadata: {
-        model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.5-2026-04-23",
+        model: getRoleConfig('VENUE_SCORER').model,
         duration_ms: Date.now() - startTime, // includes resolution time
         venues_from_llm: llmVenues.length,
         venues_resolved: resolvedVenues.length,
