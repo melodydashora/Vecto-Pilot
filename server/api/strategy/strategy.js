@@ -6,16 +6,17 @@ import { db } from '../../db/drizzle.js';
 import { strategies, briefings, snapshots } from '../../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
-// 2026-01-14: Import shared snapshot validation to prevent incomplete snapshots
-import { validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
 import { safeElapsedMs } from '../utils/safeElapsedMs.js';
-import crypto from 'crypto';
 import { validateBody } from '../../middleware/validate.js';
 import { strategyRequestSchema } from '../../validation/schemas.js';
 // 2026-02-12: Added requireAuth - all strategy routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
 import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
+import { readStrategySource } from '../../lib/strategy/strategy-source-store.js';
+import { strategyMatchesBriefing, STRATEGY_SOURCE_RETRY } from '../../lib/strategy/strategy-source.js';
+import { getBriefingReadiness } from '../../lib/briefing/briefing-readiness.js';
+import { getSnapshotReadiness } from '../../lib/location/snapshot-readiness.js';
 
 const router = Router();
 
@@ -81,7 +82,7 @@ router.get('/:snapshotId', requireSnapshotOwnership, async (req, res) => {
   
   try {
     console.log(`[STRATEGY] GET /api/strategy/${snapshotId} - Fetching from DB...`);
-    const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    const { strategy: row, briefing: briefingRow } = await readStrategySource(snapshotId);
 
     if (!row) {
       console.log(`[STRATEGY] Strategy not found for snapshot ${snapshotId}`);
@@ -93,9 +94,16 @@ router.get('/:snapshotId', requireSnapshotOwnership, async (req, res) => {
     const hasStrategyForNow = !!(row.strategy_for_now && row.strategy_for_now.trim().length);
 
     // Check briefing from separate briefings table (not from strategies)
-    const [briefingRow] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-    const hasBriefing = !!briefingRow;
+    const readiness = getBriefingReadiness(briefingRow, snapshotId);
+    const hasBriefing = readiness.ready;
+    const snapshotReady = getSnapshotReadiness(req.snapshot, snapshotId).ready;
+    const current = snapshotReady && hasStrategyForNow && hasBriefing && strategyMatchesBriefing(row, briefingRow, snapshotId);
+    if (['failed', 'error'].includes(row.status) || readiness.failed || !snapshotReady || (hasStrategyForNow && hasBriefing && !current)) {
+      return res.json({ status: 'error', snapshot_id: snapshotId, strategyFresh: false,
+        error: ['failed', 'error'].includes(row.status) ? 'strategy_failed' : !snapshotReady ? 'snapshot_incomplete' : readiness.failed ? 'briefing_failed' : 'strategy_source_changed',
+        message: !snapshotReady ? 'Refresh location to complete the saved location data.' : STRATEGY_SOURCE_RETRY,
+        retry: 'new_snapshot', strategy_for_now: '' });
+    }
 
     const waitFor = [];
     if (!hasStrategyForNow) waitFor.push('strategy_for_now');
@@ -108,9 +116,10 @@ router.get('/:snapshotId', requireSnapshotOwnership, async (req, res) => {
     // 2026-07-06: Holiday now lives in briefings.holiday (jsonb section
     // { holiday, is_holiday, detectedAt }, errorMarker on failure)
     res.json({
-      status: hasStrategyForNow ? 'ok' : 'pending',
+      status: current ? 'ok' : 'pending',
+      strategyFresh: current,
       snapshot_id: snapshotId,
-      strategy_for_now: hasStrategyForNow ? row.strategy_for_now : '',
+      strategy_for_now: current ? row.strategy_for_now : '',
       briefing: briefingRow ? {
         events: briefingRow.events || [],
         news: briefingRow.news || { items: [] },
@@ -209,100 +218,13 @@ router.get('/briefing/:snapshotId', requireSnapshotOwnership, async (req, res) =
   }
 });
 
-/** POST /api/strategy/:snapshotId/retry - Retry strategy generation with same location context */
+/** Legacy retry cannot re-date old GPS and measurements as a new observation. */
 router.post('/:snapshotId/retry', requireSnapshotOwnership, async (req, res) => {
-  const { snapshotId } = req.params;
-  
-  try {
-    console.log(`[STRATEGY] POST /api/strategy/${snapshotId}/retry - Retrying strategy generation...`);
-    
-    // Fetch the original snapshot and strategy
-    const [originalSnapshot] = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    if (!originalSnapshot) {
-      return res.status(404).json({ error: 'original_snapshot_not_found', snapshot_id: snapshotId });
-    }
-    
-    // Create new snapshot with same location context but new timestamp
-    // Location data references user_id; only API-enriched fields are stored
-    const newSnapshotId = crypto.randomUUID();
-    const now = new Date();
-    
-    // Calculate "today" in the driver's local timezone (not server timezone)
-    // This ensures Hawaii, Alaska, etc. get the correct date
-    // NO FALLBACK - timezone is required from original snapshot
-    if (!originalSnapshot.timezone) {
-      return res.status(400).json({
-        ok: false,
-        error: 'timezone_required',
-        message: 'Original snapshot missing timezone - cannot regenerate strategy'
-      });
-    }
-    const driverTimezone = originalSnapshot.timezone;
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: driverTimezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    const parts = formatter.formatToParts(now);
-    const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-    
-    // 2026-01-14: Build snapshot record with ALL required fields before validation
-    // Previous code was missing local_iso, dow, hour, day_part_key which caused SNAPSHOT_INCOMPLETE errors
-    const snapshotRecord = {
-      snapshot_id: newSnapshotId,
-      created_at: now,
-      date: today,
-      user_id: originalSnapshot.user_id,
-      session_id: originalSnapshot.session_id,
-      lat: originalSnapshot.lat,
-      lng: originalSnapshot.lng,
-      city: originalSnapshot.city,
-      state: originalSnapshot.state,
-      country: originalSnapshot.country,
-      formatted_address: originalSnapshot.formatted_address,
-      timezone: originalSnapshot.timezone,
-      // 2026-01-14: FIX - Copy time context fields (were missing, causing validation failures)
-      local_iso: originalSnapshot.local_iso,
-      dow: originalSnapshot.dow,
-      hour: originalSnapshot.hour,
-      day_part_key: originalSnapshot.day_part_key,
-      // Optional fields
-      h3_r8: originalSnapshot.h3_r8,
-      weather: originalSnapshot.weather,
-      air: originalSnapshot.air,
-      // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
-      // 2026-07-06: holiday dropped - detected fresh by the briefing pipeline
-      device: originalSnapshot.device,
-      permissions: originalSnapshot.permissions
-    };
-
-    // 2026-01-14: Validate ALL required fields BEFORE insert (prevents incomplete snapshots)
-    validateSnapshotFields(snapshotRecord);
-
-    await db.insert(snapshots).values(snapshotRecord);
-
-    // Create strategy row for new snapshot
-    // 2026-01-14: Lean strategies - trigger_reason column dropped (unused)
-    await ensureStrategyRow(newSnapshotId);
-
-    // Retry uses the same blocks-fast pipeline
-    console.log(`[STRATEGY] ℹ️  Retry: Use POST /api/blocks-fast with snapshot_id=${newSnapshotId} for complete pipeline`);
-    
-    console.log(`[STRATEGY] Retry triggered: new snapshot ${newSnapshotId}`);
-    
-    res.status(202).json({ 
-      ok: true,
-      new_snapshot_id: newSnapshotId,
-      original_snapshot_id: snapshotId,
-      status: 'pending'
-    });
-  } catch (error) {
-    console.error(`[STRATEGY] Retry error:`, error);
-    res.status(500).json({ error: 'internal_error', message: error.message });
-  }
+  return res.status(409).json({
+    ok: false, error: 'fresh_location_required', retry: 'new_snapshot',
+    snapshot_id: req.params.snapshotId,
+    message: 'Refresh location for a fresh snapshot before retrying Strategy.',
+  });
 });
 
 export default router;

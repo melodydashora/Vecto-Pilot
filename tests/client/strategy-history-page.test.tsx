@@ -2,29 +2,31 @@
 // is supplied explicitly here; the actual provider's A→B/identity transitions are
 // covered separately in previous-strategy.test.tsx. No DB, app or provider calls.
 import React from 'react';
+import { jest, beforeEach, afterEach, describe, it, test, expect } from '@jest/globals';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/jest-globals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockAuth = { user: { userId: 'driver-history-a' }, token: 'synthetic-history-token' };
-const mockMap = jest.fn(() => <div data-testid="current-map-fixture" />);
+const mockMap = jest.fn((_props: unknown) => <div data-testid="current-map-fixture" />);
 const mockLogAction = jest.fn();
 const mockRefreshBlocks = jest.fn();
 const mockRefreshGPS = jest.fn();
 let mockState: Record<string, any>;
-jest.mock('@/contexts/auth-context', () => ({ useAuth: () => mockAuth }));
-jest.mock('@/contexts/location-context-clean', () => ({ useLocation: () => ({ refreshGPS: mockRefreshGPS, isLoading: false }) }));
-jest.mock('@/contexts/co-pilot-context', () => ({ useCoPilot: () => mockState }));
-jest.mock('@/components/strategy/StrategyMap', () => ({ __esModule: true, default: (props: unknown) => mockMap(props) }));
-jest.mock('@/components/BarsDataGrid', () => ({ __esModule: true, default: () => <div data-testid="current-grid-fixture" /> }));
-jest.mock('@/components/co-pilot/GreetingBanner', () => ({ GreetingBanner: () => null }));
-jest.mock('@/components/SmartBlocksStatus', () => ({ SmartBlocksStatus: () => <div data-testid="current-pipeline-status">Current pipeline fixture</div> }));
-jest.mock('@/hooks/useBriefingQueries', () => ({ useActiveEventsQuery: () => ({ data: { events: [] } }) }));
-jest.mock('@/hooks/useTrafficIncidents', () => ({ useTrafficIncidents: () => [] }));
-jest.mock('@/hooks/useStrategyLoadingMessages', () => ({ useStrategyLoadingMessages: () => ({ badge: 'Current snapshot pending', text: 'Preparing current snapshot B', icon: '', step: 'Current Briefing', messageCount: 1, currentIndex: 0 }) }));
-jest.mock('@/utils/co-pilot-helpers', () => ({ ...jest.requireActual('@/utils/co-pilot-helpers'), logAction: (...args: unknown[]) => mockLogAction(...args) }));
-jest.mock('@/constants/featureFlags', () => ({ COACH_STREAMING_TTS_ENABLED: true, DEBUG_MAP_ENABLED: false, DEBUG_VENUES_ENABLED: false, DEBUG_SSE_ENABLED: false, DEBUG_BLOCKS_ENABLED: false }));
-import StrategyPage from '@/pages/co-pilot/StrategyPage';
+jest.unstable_mockModule('@/contexts/auth-context', () => ({ useAuth: () => mockAuth }));
+jest.unstable_mockModule('@/contexts/location-context-clean', () => ({ useLocation: () => ({ refreshGPS: mockRefreshGPS, isLoading: false }) }));
+jest.unstable_mockModule('@/contexts/co-pilot-context', () => ({ useCoPilot: () => mockState }));
+jest.unstable_mockModule('@/components/strategy/StrategyMap', () => ({ __esModule: true, default: (props: unknown) => mockMap(props) }));
+jest.unstable_mockModule('@/components/BarsDataGrid', () => ({ __esModule: true, default: () => <div data-testid="current-grid-fixture" /> }));
+jest.unstable_mockModule('@/components/co-pilot/GreetingBanner', () => ({ GreetingBanner: () => null }));
+jest.unstable_mockModule('@/components/SmartBlocksStatus', () => ({ SmartBlocksStatus: () => <div data-testid="current-pipeline-status">Current pipeline fixture</div> }));
+jest.unstable_mockModule('@/hooks/useBriefingQueries', () => ({ useActiveEventsQuery: () => ({ data: { events: [] } }) }));
+jest.unstable_mockModule('@/hooks/useTrafficIncidents', () => ({ useTrafficIncidents: () => [] }));
+jest.unstable_mockModule('@/hooks/useStrategyLoadingMessages', () => ({ useStrategyLoadingMessages: () => ({ badge: 'Current snapshot pending', text: 'Preparing current snapshot B', icon: '', step: 'Current Briefing', messageCount: 1, currentIndex: 0 }) }));
+const actualHelpers = await import('@/utils/co-pilot-helpers');
+jest.unstable_mockModule('@/utils/co-pilot-helpers', () => ({ ...actualHelpers, logAction: (...args: unknown[]) => mockLogAction(...args) }));
+jest.unstable_mockModule('@/constants/featureFlags', () => ({ COACH_STREAMING_TTS_ENABLED: true, DEBUG_MAP_ENABLED: false, DEBUG_VENUES_ENABLED: false, DEBUG_SSE_ENABLED: false, DEBUG_BLOCKS_ENABLED: false }));
+const { default: StrategyPage } = await import('@/pages/co-pilot/StrategyPage');
 
 const receivedAt = '2026-09-11T03:00:00.000Z';
 const history = {
@@ -88,7 +90,7 @@ test('missing GPS retains previous text while keeping the actual current GPS pro
   render(<Page />);
   expect(screen.getByTestId('previous-strategy-card')).toHaveTextContent(history.text);
   expect(screen.getByTestId('strategy-needs-gps')).toHaveTextContent('GPS Required for Strategy');
-  expect(screen.getByRole('button', { name: 'Enable GPS', exact: true })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Enable GPS' })).toBeEnabled();
   expect(screen.queryByTestId('current-map-fixture')).not.toBeInTheDocument();
 });
 
@@ -126,4 +128,23 @@ test('an account with no prior guidance keeps the existing pending page without 
   render(<Page />);
   expect(screen.queryByTestId('previous-strategy-card')).not.toBeInTheDocument();
   expect(screen.getByTestId('strategy-pending-card')).toBeInTheDocument();
+});
+
+test('legacy home-radius flags cannot mark current nearby venues as outside a driver limit', () => {
+  mockState.blocks = Array.from({ length: 6 }, (_, index) => ({
+    name: `Current fixture venue ${index}`, placeId: `current-venue-${index}`,
+    coordinates: { lat: 41 + index * 0.02, lng: -87 }, valueGrade: 'A',
+    estimatedDistanceMiles: 1, driveTimeMinutes: 3, beyondDeadhead: true, distanceFromHomeMi: 200,
+  }));
+  mockState.strategyData = { status: 'ok' };
+  mockState.immediateStrategy = 'Use verified demand near the current location.';
+  mockState.isStrategyFetching = false;
+  render(<Page />);
+  const cards = screen.getByTestId('blocks-list');
+  expect(cards.querySelectorAll('[data-block-index]')).toHaveLength(3);
+  for (const index of [0, 1, 2]) {
+    expect(screen.getByTestId(`block-${index}`)).toBeVisible();
+    expect(screen.getByTestId(`block-${index}`)).not.toHaveClass('bg-amber-50/30');
+  }
+  expect(within(cards).queryByText(/from home|Beyond range/)).not.toBeInTheDocument();
 });

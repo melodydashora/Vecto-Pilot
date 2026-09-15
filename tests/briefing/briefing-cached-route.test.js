@@ -1,8 +1,10 @@
 import { jest, beforeEach, test, expect } from '@jest/globals';
 import { getTableName } from 'drizzle-orm';
+import { completeSnapshot } from '../fixtures/complete-snapshot.js';
+import { completeBriefing } from '../fixtures/complete-briefing.js';
 
 const snapshotId = '11111111-1111-4111-8111-111111111111';
-const snapshot = { snapshot_id: snapshotId, user_id: 'owner', status: 'ok', formatted_address: '123 Test Street' };
+let snapshot;
 const strategy = { status: 'ok', strategy_for_now: 'Previous guidance', updated_at: new Date() };
 let briefing, hasRanking, claimRace, briefingReads;
 const statusWrites = [];
@@ -11,11 +13,13 @@ jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ sseLog: log
 const mustNotGenerate = jest.fn(async () => { throw new Error('Unexpected provider work'); });
 const db = {
   select: () => {
-    let table;
+    let table, joined = false;
     const chain = {
       from: value => { table = getTableName(value); return chain; }, where: () => chain,
+      leftJoin: () => { joined = true; return chain; },
       limit: async () => {
-        if (table === 'briefings' && claimRace && ++briefingReads === 3) briefing = { ...briefing, status: 'pending' };
+        if ((table === 'briefings' || joined) && claimRace && ++briefingReads === 3) briefing = { ...briefing, status: 'pending' };
+        if (joined) return [{ strategy, briefing }];
         return ({ snapshots: [snapshot], strategies: [strategy], briefings: [briefing], rankings: hasRanking ? [{ ranking_id: 'saved-ranking' }] : [] })[table] || [];
       },
       orderBy: async () => [{ name: 'Saved venue' }],
@@ -57,9 +61,26 @@ const invoke = async method => {
   return { body, code };
 };
 beforeEach(() => {
+  snapshot = completeSnapshot({ snapshot_id: snapshotId, user_id: 'owner', formatted_address: '123 Test Street' });
   briefing = { snapshot_id: snapshotId, status: 'pending', generation_token: 'active-owner', updated_at: new Date() }; hasRanking = true;
   claimRace = false; briefingReads = 0; statusWrites.length = 0; strategy.status = 'ok';
+  strategy.venue_cache_metrics = null;
   mustNotGenerate.mockClear();
+});
+test.each([
+  ['missing weather', { weather: null }], ['incorrect coordinate key', { coord_key: '1.000000_1.000000' }],
+  ['incorrect local time', { local_iso: new Date('2026-09-13T01:00:00.000Z') }],
+])('GET rejects stored-ok snapshot with %s before cached reuse or provider work', async (_label, invalid) => {
+  briefing = completeBriefing(snapshotId);
+  Object.assign(snapshot, invalid);
+  for (const exists of [true, false]) {
+    hasRanking = exists;
+    const { body, code } = await invoke('get');
+    expect(code).toBe(503); expect(body.error).toBe('snapshot_incomplete');
+    expect(body.strategyFresh).toBe(false); expect(body.retry).toBe('new_snapshot');
+    expect(body.blocks).toEqual([]); expect(body.strategy).toBeUndefined();
+    expect(mustNotGenerate).not.toHaveBeenCalled(); expect(statusWrites).toEqual([]);
+  }
 });
 test.each(['get', 'post'])('%s cached route keeps saved results pending while Briefing is incomplete', async method => {
   const { body, code } = await invoke(method);
@@ -80,6 +101,15 @@ test.each(['get', 'post'])('%s cached route surfaces failed Briefing over old te
   expect(code).toBe(500); expect(body.error).toBe('briefing_failed'); expect(body.status).toBe('error');
   expect(body.message).toContain('timed out'); expect(body.strategy).toBeUndefined();
   expect(mustNotGenerate).not.toHaveBeenCalled();
+});
+
+test.each(['get', 'post'])('%s rejects old Strategy after the replacement Briefing completes without dispatching providers', async method => {
+  briefing = completeBriefing(snapshotId, { generation_token: 'generation-B' });
+  strategy.updated_at = new Date(Date.now() + 1000);
+  strategy.venue_cache_metrics = { strategy_source: { snapshot_id: snapshotId, briefing_generation_token: 'generation-A', briefing_generated_at: '2026-09-11T08:00:00Z', strategy_generated_at: '2026-09-11T08:01:00Z' } };
+  const { body, code } = await invoke(method);
+  expect(code).toBe(500); expect(body).toMatchObject({ status: 'error', error: 'strategy_source_changed', retry: 'new_snapshot', strategyFresh: false });
+  expect(body.strategy).toBeUndefined(); expect(mustNotGenerate).not.toHaveBeenCalled();
 });
 test.each(['get', 'post'])('%s legacy cached context requests a new snapshot instead of endless pending', async method => {
   briefing.generation_token = null;
@@ -102,6 +132,8 @@ test.each(['get', 'post'])('%s replacement after the venue claim prevents provid
     school_closures: { items: [], reason: 'None found' }, airport_conditions: { airports: [], verifiedEmpty: true, reason: 'No nearby airports' },
     holiday: { holiday: 'none', is_holiday: false },
   };
+  strategy.venue_cache_metrics = { strategy_source: { snapshot_id: snapshotId, briefing_generation_token: briefing.generation_token,
+    briefing_generated_at: briefing.generated_at.toISOString(), strategy_generated_at: briefing.generated_at.toISOString() } };
   const { body, code } = await invoke(method);
   expect(code).toBe(500); expect(body.error).toBe('briefing_failed');
   expect(statusWrites).toEqual(['pending_blocks', 'ok']); expect(strategy.status).toBe('ok');

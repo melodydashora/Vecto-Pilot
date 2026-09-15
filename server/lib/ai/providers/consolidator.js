@@ -6,10 +6,14 @@
 import crypto from 'crypto';
 import { db } from '../../../db/drizzle.js';
 import { assertBriefingReady } from '../../briefing/briefing-readiness.js';
+import { assertSnapshotReady } from '../../location/snapshot-readiness.js';
+import { strategyMatchesBriefing, StrategySourceChangedError } from '../../strategy/strategy-source.js';
+import { readStrategySource, writeStrategySource } from '../../strategy/strategy-source-store.js';
+import { formatDriverEconomics, formatDriverServicePreferences } from '../../driver-preferences.js';
 // 2026-04-11: Added driver_profiles for STRATEGIST_ENRICHMENT_PLAN (driver preferences,
 // home base, vehicle class derivation, EV detection). See
 // server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md for the design rationale.
-import { strategies, briefings, news_deactivations, venue_catalog, driver_profiles } from '../../../../shared/schema.js';
+import { snapshots, news_deactivations, venue_catalog, driver_profiles } from '../../../../shared/schema.js';
 import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
 // 2026-02-13: Removed direct callAnthropic import — now uses callModel adapter
 // @ts-ignore
@@ -153,9 +157,7 @@ async function filterDeactivatedNews(newsData, userId) {
  * (vehicle class, fuel economy, earnings goal), full traffic intel (incidents,
  * closures, high-demand zones), NEAR/FAR event distance annotation, 6-hour
  * weather forecast timeline, event capacity estimates, home base context, and
- * pre-computed earnings math. See server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md
- * for the full design. All enrichments are ADDITIVE — if a field is null or a
- * schema migration hasn't applied, helpers fall back to sensible defaults.
+ * saved economic targets. Missing preferences and prices remain unknown.
  *
  * @param {Object} snapshot - Full snapshot row from DB
  * @param {Object} briefing - Briefing data { traffic, events, weather, weather_forecast, news, school_closures, airport }
@@ -166,9 +168,7 @@ async function generateImmediateStrategy({ snapshot, briefing }) {
   const localTime = formatLocalTime(snapshot);
 
   try {
-    // 2026-04-11: Fetch driver preferences (single indexed lookup, defensive defaults).
-    // Returns a well-formed prefs object even when user_id is null, profile is
-    // missing, or the migration hasn't run yet.
+    // Read saved preferences; unavailable fields stay unknown in the prompt.
     const prefs = await loadDriverPreferences(snapshot.user_id);
 
     // 2026-04-11: Event distance annotation + NEAR/FAR bucketing via the
@@ -184,7 +184,7 @@ async function generateImmediateStrategy({ snapshot, briefing }) {
     // (already populated upstream, previously unused).
     const weatherBlock = formatWeatherForStrategist(briefing.weather, briefing.weather_forecast, snapshot.timezone);
 
-    // 2026-04-11: Driver preference summary + pre-computed earnings math.
+    // Saved preferences and explicit targets, without invented fare/energy rates.
     const driverPrefBlock = buildDriverPreferencesSection(prefs);
     const earningsBlock = buildEarningsContextSection(prefs);
     const homeBaseLine = buildHomeBaseLine(snapshot, prefs);
@@ -241,42 +241,40 @@ Think about WHAT drives demand at ${localTime}:
 
 === OUTPUT FORMAT (no asterisks or bold in content — only section labels are bold) ===
 
-**GO:** Where to position — cluster near events/venues, not isolated spots. Quote expected earnings: "$X-Y in surge rides" where appropriate.
+**GO:** Where to position — cluster near events/venues, not isolated spots. Explain demand using the supplied evidence.
 **AVOID:** Roads/areas with incidents or competition — name specific road names from the TRAFFIC block.
 **WHEN:** Hour-by-hour timing window — consider event END times for exit surge, not just starts. Phase the night if multiple events have different exit windows.
 **WHY:** Which specific event/condition is driving this recommendation — reference the NEAR event or the FAR event whose surge flow you're catching.
-**IF NO PING:** Wait X minutes, then backup plan — nearby cluster, or head home with destination filter on. Include a fuel-cost sanity check: "Drive to X (12mi, ~$2.40 fuel) for $40-60 surge rides."
+**IF NO PING:** Wait X minutes, then a nearby backup plan. Consider unpaid distance; quote a fuel cost only when the supplied evidence includes a sourced price and the driver's recorded efficiency.
 **INTEL:** 2-3 sentences of additional context — competitive landscape, upcoming demand shifts, airport opportunities, weather changes, or anything from news that affects the next few hours.
 
 PRINCIPLES:
-- DOLLAR-SPECIFIC ADVICE: You have the driver's vehicle class, fuel cost per mile, and earnings goal. Quote dollar figures. "Drive to X (~$2.40 fuel) for $40-60 surge rides" beats "go north."
+- ECONOMIC EVIDENCE: Driver goals are targets, not expected earnings. Never invent fare rates, surge multipliers, net earnings, fuel prices, or energy costs. Omit monetary estimates when their inputs are unavailable.
 - NEAR vs FAR EVENTS: Events tagged [NEAR] are within 15mi — recommend them directly with pickup/drop-off pro-tips. Events tagged [FAR] are beyond 15mi — treat as SURGE FLOW INTELLIGENCE only: fans travel FROM hotels/dining/residential clusters near the driver TO the distant event, and that outflow creates pickup demand near the driver. Recommend the closest high-impact venues in the 15-mile radius that benefit from the outflow. NEVER recommend a [FAR] event venue as a destination.
 - HOUR-BY-HOUR PHASING: When multiple events have different start/end times, phase the advice. "7-8pm: [NEAR] theater at 7:30 — drop-off surge. 9-10pm: stage at hotel cluster for the [FAR] sports game end — fans from the hotels will ride back."
 - ROAD-SPECIFIC AVOID: Name the specific roads and distances from the TRAFFIC block. "Avoid I-35 near exit 428 (3.2mi, closed)."
-- FUEL-COST REPOSITIONING: Before recommending a long reposition, compute whether it's worth it: drive distance × fuel cost/mi should be << expected surge revenue.
+- REPOSITIONING: Use measured distance and current demand evidence. Only calculate fuel or energy cost when source prices and vehicle consumption are supplied; otherwise discuss distance without a dollar estimate.
 - NEVER include raw latitude/longitude coordinates in the strategy text. Always refer to locations by name — venue names, neighborhood names, intersection names ("Preston Road and Coit Road"), or landmark names. Coordinates are for internal use only and must never appear in user-facing text.
 - Verify timing: cross-reference news published dates against current time — yesterday's surge is over, do not recommend stale opportunities.
 - Event END times create bigger surge than start times — crowds leaving = ride demand.
 - Stay in clusters (nightlife districts, hotel zones, event complexes) — do not send the driver to isolated one-off venues.
-- If nothing is nearby and demand is low, it is OK to recommend heading home with destination filter on — especially if that's within the driver's max_deadhead radius and fuel cost is material.
+- If nothing is nearby and demand is low, it is OK to recommend heading home when fuel cost is material. The driver's max_deadhead_mi limits unpaid pickup miles; it is not a radius from home or an instruction to infer the driver's destination.
 - Factor in competitive landscape — if autonomous vehicles or new services operate in specific zones, note the impact on demand.
 - Reference specific data from the briefing (event names, road names, times).
 - Do not use asterisks, bold, or markdown formatting inside the content text — only the section labels (GO, AVOID, WHEN, WHY, IF NO PING, INTEL) should be bold.`;
 
 
     // 2026-02-26: Uses STRATEGY_TACTICAL role via callModel adapter (Claude Opus)
-    // 2026-04-11: System prompt expanded with the 5 owner directives (dollar-specific
-    // advice, NEAR/FAR event reasoning, hour-by-hour phasing, specific roads, fuel-cost
-    // repositioning math).
+    // Both prompt layers require economic claims to have supplied evidence.
     const response = await callModel('STRATEGY_TACTICAL', {
-      system: `You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. You have access to real-time traffic, events, weather, airport conditions, news, AND the driver's preferences (vehicle type, fuel costs, earnings goal, home base). Every recommendation must be actionable, specific, and dollar-aware.
+      system: `You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. Use the supplied traffic, events, weather, airport conditions, news, and recorded driver preferences. A missing preference or price is unknown. Every recommendation must be actionable, specific, and supported by that evidence.
 
 CORE DIRECTIVES:
-- You have the driver's vehicle type, fuel costs, and earnings goal. Use these to give DOLLAR-SPECIFIC advice. Quote expected earnings and fuel costs in your recommendations. "Drive to X (12mi, ~$2.40 fuel) for $40-60 in surge rides" beats "go north for surge."
+- Recorded earnings goals are targets, not predicted income. Do not invent fare cards, surge multipliers, earnings ranges, or fuel/energy prices. Vehicle eligibility is capability, not willingness to accept a service; follow the separately recorded service preferences.
 - Every event has a distance from the driver. Events tagged [NEAR] are within 15 miles — recommend them directly as destinations with event-specific pro-tips. Events tagged [FAR] are beyond 15 miles — use them as SURGE FLOW INTELLIGENCE only: fans travel FROM hotels, dining clusters, and residential areas near the driver TO the distant event, and that outflow creates pickup demand NEAR the driver at the departure end. Recommend the closest high-impact venues within 15 miles that will benefit from the outflow. NEVER recommend a [FAR] event venue as a destination — it violates the closest-first invariant.
 - Give hour-by-hour phased advice when multiple events have different start/end times. Phase the shift: what to do now, at 7pm, at 9pm, at 11pm.
 - Name specific roads and intersections to avoid and specific named areas to stage. Use the TRAFFIC block's AVOID and CLOSURES rows verbatim when relevant.
-- Include fuel cost estimates for any repositioning move. A 12-mile drive at 25 mpg and $3.50/gal costs ~$1.70 in fuel — factor that against expected surge revenue before recommending the drive.
+- Include a fuel or energy cost only when a sourced price and recorded vehicle consumption are supplied. Otherwise explain unpaid travel distance without a dollar claim.
 - Attendance numbers are heuristic estimates only — never cite attendance numbers, crowd sizes, or capacity figures to the driver. Reason about event impact qualitatively using the high/medium/low demand signal. Use phrases like 'high-demand concert' or 'private event energy' instead of fabricated numbers.
 
 You understand demand patterns: events create surge at END times (exit crowds), airports follow flight schedules, nightlife clusters outperform isolated venues, and sometimes the smartest move is heading home with destination filter on. Every recommendation directly impacts someone's livelihood. Be precise, be honest, be actionable, be dollar-aware.`,
@@ -745,8 +743,7 @@ function optimizeAirportForLLM(airport) {
 //
 // The schema migration (add 4 columns to driver_profiles) is documented in
 // the plan file section 5 and docs/review-queue/pending.md as follow-up work.
-// Until it runs, all new preference fields fall through to owner-specified
-// defaults. After it runs, real values are picked up automatically.
+// Missing columns or values remain unknown; no economic defaults are supplied.
 // ============================================================================
 
 /**
@@ -765,53 +762,30 @@ function haversineMiles(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Sensible defaults for driver preferences (plan file section 4). */
+/** Unknown values retain the shared shape without inventing driver preferences. */
 // 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)
 export const DRIVER_PREF_DEFAULTS = Object.freeze({
-  fuel_economy_mpg: 25,
+  fuel_economy_mpg: null,
   earnings_goal_daily: null,
   shift_hours_target: null,
-  max_deadhead_mi: 15,
-  vehicle_class: 'UberX',
+  max_deadhead_mi: null,
+  vehicle_class: null,
 });
 
-/**
- * Default rate cards by vehicle class. Illustrative baselines labeled as
- * "estimated" in the prompt — replaceable whenever live market rates are wired
- * in. Keys match the vehicle_class values deriveVehicleClass() returns.
- */
-const RATE_DEFAULTS = Object.freeze({
-  'UberX':          { perMile: 0.80, perMin: 0.20 },
-  'Uber Comfort':   { perMile: 1.20, perMin: 0.25 },
-  'UberXL':         { perMile: 1.00, perMin: 0.22 },
-  'UberXXL':        { perMile: 1.10, perMin: 0.24 },
-  'Uber Black':     { perMile: 2.50, perMin: 0.50 },
-  'Uber Black SUV': { perMile: 3.50, perMin: 0.70 },
-});
-
-// Default gas price per gallon for fuel cost math (replaceable via env var).
-const DEFAULT_GAS_PRICE = Number(process.env.GAS_PRICE_DEFAULT || 3.50);
-// Electric vehicle cost per mile (covers typical electricity cost for rideshare EVs).
-const EV_COST_PER_MILE = 0.04;
 // NEAR/FAR distance threshold — matches VENUE_SCORER's 15-mile rule so the
 // strategist and Smart Blocks pipeline share a consistent mental model.
 const NEAR_EVENT_RADIUS_MILES = 15;
 
-/**
- * Derive the driver's primary vehicle class from driver_profiles.elig_*
- * booleans. Highest-tier-eligible wins. The class name is also the key into
- * RATE_DEFAULTS, so earnings math lines up with whatever class we derive.
- */
-function deriveVehicleClass(profile) {
-  if (!profile) return DRIVER_PREF_DEFAULTS.vehicle_class;
-  if (profile.elig_luxury_suv)   return 'Uber Black SUV';
-  if (profile.elig_luxury_sedan) return 'Uber Black';
-  if (profile.elig_xxl)          return 'UberXXL';
-  if (profile.elig_xl)           return 'UberXL';
-  if (profile.elig_comfort)      return 'Uber Comfort';
-  if (profile.elig_economy)      return 'UberX';
-  return DRIVER_PREF_DEFAULTS.vehicle_class;
-}
+const VEHICLE_ELIGIBILITY = [
+  ['elig_economy', 'economy'], ['elig_xl', 'large group'], ['elig_xxl', 'extra-large group'],
+  ['elig_comfort', 'comfort'], ['elig_luxury_sedan', 'luxury sedan'], ['elig_luxury_suv', 'luxury SUV'],
+];
+const SERVICE_PREFERENCES = ['pref_pet_friendly', 'pref_teen', 'pref_assist', 'pref_shared'];
+const savedNumber = (value, min = 0, max = Infinity) => {
+  if ((typeof value !== 'number' && typeof value !== 'string') || (typeof value === 'string' && !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max ? number : null;
+};
 
 /**
  * Load a normalized driver_preferences object for a user. Always returns a
@@ -821,8 +795,7 @@ function deriveVehicleClass(profile) {
  *   - schema migration hasn't applied (new columns missing, PG error 42703)
  *   - any other DB error
  *
- * Defaults are applied for fields that are null or unavailable. Callers get a
- * consistent shape regardless of schema state.
+ * Null represents unavailable data. Eligibility and willingness remain separate.
  */
 // 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)
 export async function loadDriverPreferences(userId) {
@@ -832,7 +805,7 @@ export async function loadDriverPreferences(userId) {
     earnings_goal_daily: DRIVER_PREF_DEFAULTS.earnings_goal_daily,
     shift_hours_target: DRIVER_PREF_DEFAULTS.shift_hours_target,
     max_deadhead_mi: DRIVER_PREF_DEFAULTS.max_deadhead_mi,
-    is_electric: false,
+    is_electric: null,
     home_lat: null,
     home_lng: null,
     home_formatted_address: null,
@@ -840,6 +813,8 @@ export async function loadDriverPreferences(userId) {
     rideshare_platforms: null,
     profile_loaded: false,
     migration_applied: false,
+    source_state: 'unavailable',
+    ...Object.fromEntries([...VEHICLE_ELIGIBILITY.map(([key]) => key), ...SERVICE_PREFERENCES].map(key => [key, null])),
   };
 
   if (!userId) return prefs;
@@ -875,6 +850,10 @@ export async function loadDriverPreferences(userId) {
           elig_luxury_sedan: driver_profiles.elig_luxury_sedan,
           elig_luxury_suv: driver_profiles.elig_luxury_suv,
           attr_electric: driver_profiles.attr_electric,
+          pref_pet_friendly: driver_profiles.pref_pet_friendly,
+          pref_teen: driver_profiles.pref_teen,
+          pref_assist: driver_profiles.pref_assist,
+          pref_shared: driver_profiles.pref_shared,
         }).from(driver_profiles)
           .where(eq(driver_profiles.user_id, userId))
           .limit(1);
@@ -888,8 +867,12 @@ export async function loadDriverPreferences(userId) {
     if (!row) return prefs;
 
     prefs.profile_loaded = true;
-    prefs.vehicle_class = deriveVehicleClass(row);
-    prefs.is_electric = !!row.attr_electric;
+    prefs.source_state = 'available';
+    for (const key of [...VEHICLE_ELIGIBILITY.map(([key]) => key), ...SERVICE_PREFERENCES]) {
+      prefs[key] = typeof row[key] === 'boolean' ? row[key] : null;
+    }
+    prefs.vehicle_class = VEHICLE_ELIGIBILITY.filter(([key]) => row[key] === true).map(([, label]) => label).join(', ') || null;
+    prefs.is_electric = typeof row.attr_electric === 'boolean' ? row.attr_electric : null;
     prefs.home_lat = row.home_lat;
     prefs.home_lng = row.home_lng;
     prefs.home_formatted_address = row.home_formatted_address;
@@ -898,76 +881,49 @@ export async function loadDriverPreferences(userId) {
 
     // New preference fields — only present when migration has applied.
     if (prefs.migration_applied) {
-      if (row.fuel_economy_mpg != null) prefs.fuel_economy_mpg = row.fuel_economy_mpg;
-      if (row.earnings_goal_daily != null) prefs.earnings_goal_daily = Number(row.earnings_goal_daily);
-      if (row.shift_hours_target != null) prefs.shift_hours_target = Number(row.shift_hours_target);
-      if (row.max_deadhead_mi != null) prefs.max_deadhead_mi = row.max_deadhead_mi;
+      prefs.fuel_economy_mpg = savedNumber(row.fuel_economy_mpg, 1);
+      prefs.earnings_goal_daily = savedNumber(row.earnings_goal_daily);
+      prefs.shift_hours_target = savedNumber(row.shift_hours_target, 0, 24);
+      prefs.max_deadhead_mi = savedNumber(row.max_deadhead_mi, 0, 500);
     }
 
     return prefs;
   } catch (err) {
     aiLog.warn(1, `[strategist-enrichment] loadDriverPreferences failed for ${userId}: ${err.message}`, OP.DB);
+    prefs.source_state = 'read_failed';
     return prefs;
   }
 }
 
-/**
- * Compute per-mile fuel/energy cost based on vehicle type and preference data.
- * Returns the cost as a number (dollars per mile).
- */
-function computeFuelCostPerMile(prefs) {
-  if (prefs.is_electric) return EV_COST_PER_MILE;
-  const mpg = Math.max(prefs.fuel_economy_mpg, 1);
-  return DEFAULT_GAS_PRICE / mpg;
-}
-
-/**
- * Build the DRIVER PREFERENCES prompt section (single compact line).
- * Token budget: ~80 tokens.
- */
+/** Show only recorded capability, willingness and economic targets. */
 // 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)
 export function buildDriverPreferencesSection(prefs) {
-  const fuelType = prefs.is_electric ? 'electric' : 'gas';
-  const mpgDisplay = prefs.is_electric ? 'n/a (EV)' : `${prefs.fuel_economy_mpg} mpg`;
-  const perMileCost = computeFuelCostPerMile(prefs);
-  const goalDisplay = prefs.earnings_goal_daily != null
-    ? `$${prefs.earnings_goal_daily.toFixed(0)}`
-    : 'not set';
-  const hoursDisplay = prefs.shift_hours_target != null ? `${prefs.shift_hours_target}` : 'not set';
-
-  return `Vehicle: ${prefs.vehicle_class} | Fuel economy: ${mpgDisplay} (${fuelType}) | Cost/mile: ~$${perMileCost.toFixed(2)} | Today's goal: ${goalDisplay} in ${hoursDisplay} hours | Max deadhead: ${prefs.max_deadhead_mi} mi from home`;
+  const eligibility = VEHICLE_ELIGIBILITY.map(([key, label]) =>
+    `${label}: ${prefs[key] === true ? 'eligible' : prefs[key] === false ? 'not eligible' : 'not specified'}`).join('; ');
+  return [
+    `Saved profile: ${prefs.source_state || 'unavailable'}`,
+    `Vehicle eligibility (capability only): ${eligibility}`,
+    `Service willingness: ${formatDriverServicePreferences(prefs)}`,
+    formatDriverEconomics(prefs),
+    `Electric vehicle: ${prefs.is_electric === true ? 'yes' : prefs.is_electric === false ? 'no' : 'not specified'}`,
+    'Eligibility does not imply willingness. The pickup-distance limit is unpaid travel to collect a rider, not a radius from home.',
+  ].join('\n');
 }
 
-/**
- * Build the EARNINGS CONTEXT prompt section — pre-computed economics the
- * strategist can quote directly. Omits the required-$/hr line when goal/hours
- * are not set. Token budget: ~180 tokens.
- */
-function buildEarningsContextSection(prefs) {
-  const rate = RATE_DEFAULTS[prefs.vehicle_class] || RATE_DEFAULTS['UberX'];
-  const perMileCost = computeFuelCostPerMile(prefs);
-  const netPerMile = rate.perMile - perMileCost;
-
-  const lines = [];
-  lines.push(`Vehicle class: ${prefs.vehicle_class} | Estimated rate: ~$${rate.perMile.toFixed(2)}/mi + $${rate.perMin.toFixed(2)}/min`);
-  if (prefs.is_electric) {
-    lines.push(`Fuel cost: ~$${EV_COST_PER_MILE.toFixed(2)}/mi (electric)`);
-  } else {
-    lines.push(`Fuel cost: $${DEFAULT_GAS_PRICE.toFixed(2)}/gal ÷ ${prefs.fuel_economy_mpg} mpg = ~$${perMileCost.toFixed(2)}/mi (gas)`);
+/** Goal/hour arithmetic is a target, never an expected earnings estimate. */
+export function buildEarningsContextSection(prefs) {
+  const lines = ['No fare card or sourced fuel/energy price is supplied by this profile. Do not invent fare rates, surge multipliers, net earnings or fuel/energy costs.'];
+  const goal = savedNumber(prefs.earnings_goal_daily);
+  const hours = savedNumber(prefs.shift_hours_target, 0, 24);
+  if (goal !== null && hours !== null && hours > 0) {
+    lines.push(`Recorded goal: ${goal} in ${hours} hours. Target pace: ${(goal / hours).toFixed(2)} per hour in the driver account currency. This is a driver target, not expected earnings or a guarantee.`);
   }
-  lines.push(`Net per mile: ~$${netPerMile.toFixed(2)}/mi`);
-  if (prefs.earnings_goal_daily != null && prefs.shift_hours_target != null && prefs.shift_hours_target > 0) {
-    const perHourGross = prefs.earnings_goal_daily / prefs.shift_hours_target;
-    lines.push(`To earn $${prefs.earnings_goal_daily.toFixed(0)} in ${prefs.shift_hours_target}hrs: need ~$${perHourGross.toFixed(0)}/hr gross`);
-  }
-  lines.push(`Surge multiplier on event nights: typically 1.5-3x in the first 30 min after major event end times`);
   return lines.join('\n');
 }
 
 /**
  * Build the home-base context line. Returns null when home fields are not
- * populated (caller omits the line entirely). The strategist should interpret
- * absence as "use current position as home."
+ * populated (caller omits the line entirely). Missing home information is unknown.
  */
 function buildHomeBaseLine(snapshot, prefs) {
   if (prefs.home_lat == null || prefs.home_lng == null) return null;
@@ -1351,6 +1307,7 @@ async function batchLookupVenueHours(venueNames, timezone) {
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
+  let briefingToken;
   triadLog.phase(3, `Strategist: Starting immediate strategy`);
 
   try {
@@ -1369,12 +1326,21 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     // Final shared guard for every caller, including diagnostics. Re-read the
     // persisted row: a supplied object or progressive SSE event cannot prove that
     // the final atomic write succeeded or that a refresh is complete.
-    const [briefingRow] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    const { strategy: strategyRow, briefing: briefingRow } = await readStrategySource(snapshotId);
     assertBriefingReady(briefingRow, snapshotId);
+    briefingToken = briefingRow.generation_token;
+    if (!briefingToken) throw new StrategySourceChangedError();
+
+    // Re-read the authoritative snapshot immediately before any Strategy dispatch.
+    // A caller's earlier object and a stored 'ok' flag cannot prove row quality.
+    const [persistedSnapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    snapshot = assertSnapshotReady(persistedSnapshot, snapshotId);
 
     // Check if immediate strategy already exists
-    const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    if (strategyRow?.strategy_for_now && !strategyMatchesBriefing(strategyRow, briefingRow, snapshotId)) {
+      throw new StrategySourceChangedError();
+    }
     if (strategyRow?.strategy_for_now && strategyRow?.status === 'ok') {
       triadLog.info(`Immediate strategy already exists - skipping`);
       return { ok: true, skipped: true, reason: 'already_exists' };
@@ -1417,11 +1383,19 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     // Write to strategies table
     const totalDuration = Date.now() - startTime;
 
-    await db.update(strategies).set({
+    const stored = await writeStrategySource(snapshotId, briefingToken, {
       strategy_for_now: result.strategy,
       status: 'ok',
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
+      error_message: null,
+    });
+    if (!stored) {
+      const latest = await readStrategySource(snapshotId);
+      if (latest.briefing?.generation_token === briefingToken && latest.strategy?.strategy_for_now &&
+          strategyMatchesBriefing(latest.strategy, latest.briefing, snapshotId)) {
+        return { ok: true, skipped: true, reason: 'already_completed' };
+      }
+      throw new StrategySourceChangedError();
+    }
 
     triadLog.done(3, `Strategist: Immediate strategy saved`, totalDuration);
 
@@ -1435,11 +1409,12 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     triadLog.error(3, `Immediate strategy failed after ${totalDuration}ms`, error);
 
     // Write error to DB (error_code is INTEGER, use error_message for details)
-    await db.update(strategies).set({
-      status: 'error',
-      error_message: `immediate_failed: ${error.message}`.slice(0, 500),
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
+    if (!(error instanceof StrategySourceChangedError)) {
+      await writeStrategySource(snapshotId, briefingToken, {
+        status: 'error',
+        error_message: `immediate_failed: ${error.message}`.slice(0, 500),
+      });
+    }
 
     throw error;
   }

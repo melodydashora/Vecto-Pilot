@@ -66,7 +66,6 @@ export const API_ROUTES = {
 
   STRATEGY: {
     TACTICAL_PLAN: '/api/strategy/tactical-plan',
-    RETRY: (snapshotId: string) => `/api/strategy/${snapshotId}/retry`,
     HISTORY: '/api/strategy/history',
     // Legacy — prefer BLOCKS.STRATEGY for polling, BRIEFING.* for section data
     LEGACY_GET: (snapshotId: string) => `/api/strategy/${snapshotId}`,

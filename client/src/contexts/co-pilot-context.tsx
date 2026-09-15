@@ -17,6 +17,7 @@ import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Critical error component for unrecoverable states
 import CriticalError, { type CriticalErrorType } from '@/components/CriticalError';
 import { PreviousStrategyCard } from '@/components/strategy/PreviousStrategyCard';
+import { hasStrategySourceTimes } from '@/lib/strategy-source-time';
 
 // 2026-09-11: Unique only within this running module; no token in cache keys/storage.
 let nextStrategySession = 0;
@@ -100,7 +101,7 @@ export function useCoPilot() {
   return context;
 }
 
-export function CoPilotProvider({ children }: { children: React.ReactNode }) {
+export function CoPilotProvider({ children, allowPartialCoach = false }: { children: React.ReactNode; allowPartialCoach?: boolean }) {
   const locationContext = useLocationContext();
   const queryClient = useQueryClient();
   // 2026-04-05: Gate all queries on auth state — stop polling after logout
@@ -595,7 +596,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       const status = query.state.data?.status;
       if (status === 'error') return false;
       if (status === 'ok' && query.state.data?.briefingStatus === 'complete' &&
-        query.state.data?.strategyFresh !== false && query.state.data?.snapshotId === lastSnapshotId) return false;
+        query.state.data?.strategyFresh !== false && query.state.data?.snapshotId === lastSnapshotId &&
+        hasStrategySourceTimes(query.state.data)) return false;
       return 3000;
     },
     staleTime: 5 * 60 * 1000,
@@ -607,7 +609,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const responseMatches = !!authScope && !!lastSnapshotId &&
     strategyResponse?._sessionRevision === authScope.revision &&
     strategyResponse?._snapshotId === lastSnapshotId && strategyResponse?.snapshotId === lastSnapshotId;
-  const strategyReady = responseMatches && strategyResponse?.briefingStatus === 'complete' &&
+  const strategyReady = !!locationContext?.isLocationResolved && responseMatches && hasStrategySourceTimes(strategyResponse) && strategyResponse?.briefingStatus === 'complete' &&
     strategyResponse?.strategyFresh !== false &&
     (strategyResponse?.status === 'ok' || strategyResponse?.status === 'pending_blocks');
   const immediateStrategy = strategyReady && typeof strategyResponse?.strategy?.strategyForNow === 'string' &&
@@ -632,23 +634,28 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     setCompletedStrategy(previous => {
       const city = typeof snapshotData?.city === 'string' ? snapshotData.city : null;
       const timezone = typeof snapshotData?.timezone === 'string' ? snapshotData.timezone : null;
+      const sourceUpdatedAt = strategyData.strategyUpdatedAt ?? null;
+      const snapshotCreatedAt = strategyData.snapshotCreatedAt ?? null;
       if (previous?.scope === authScope && previous.record.sourceSnapshotId === lastSnapshotId &&
         previous.record.text === immediateStrategy) {
         // The owned snapshot GET may finish after Strategy. Fill absent metadata
         // from that same snapshot, preserving receipt time and known source fields.
         if ((previous.record.city !== null || city === null) &&
-          (previous.record.timezone !== null || timezone === null)) return previous;
+          (previous.record.timezone !== null || timezone === null) &&
+          previous.record.sourceUpdatedAt === sourceUpdatedAt && previous.record.snapshotCreatedAt === snapshotCreatedAt) return previous;
         return { scope: authScope, record: {
           ...previous.record, city: previous.record.city ?? city, timezone: previous.record.timezone ?? timezone,
+          sourceUpdatedAt, snapshotCreatedAt,
         } };
       }
       return { scope: authScope, record: {
         ownerId: authScope.ownerId, sourceSnapshotId: lastSnapshotId, text: immediateStrategy,
         receivedAt: new Date().toISOString(),
+        sourceUpdatedAt, snapshotCreatedAt,
         city, timezone,
       } };
     });
-  }, [authScope, lastSnapshotId, immediateStrategy, strategyData?.status, snapshotData?.city, snapshotData?.timezone]);
+  }, [authScope, lastSnapshotId, immediateStrategy, strategyData?.status, strategyData?.strategyUpdatedAt, strategyData?.snapshotCreatedAt, snapshotData?.city, snapshotData?.timezone]);
 
   // Fetch blocks
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
@@ -990,7 +997,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
   // 2026-01-15: FAIL HARD - Render CriticalError modal when in error state
   // This completely blocks the dashboard UI - no partial rendering allowed
-  if (criticalError) {
+  if (criticalError && (!allowPartialCoach || criticalError.type === 'auth_failed')) {
     return (
       <CoPilotContext.Provider value={value}>
         <CriticalError
@@ -1001,6 +1008,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         >
           {previousStrategy && criticalError.type !== 'auth_failed' && (
             <PreviousStrategyCard strategy={previousStrategy} waiting={false} />
+          )}
+          {criticalError.type !== 'auth_failed' && authScope && (
+            <a href="/co-pilot/coach" className="mt-4 inline-block rounded-md bg-white px-4 py-3 font-medium text-slate-900">Open Coach</a>
           )}
         </CriticalError>
       </CoPilotContext.Provider>

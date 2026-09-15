@@ -47,7 +47,7 @@ import { normalizeDistrictSlug } from "../venue/district-detection.js";
 import { db } from "../../db/drizzle.js";
 import { venue_catalog, claudeMemory } from "../../../shared/schema.js";
 import { and, eq, ilike } from "drizzle-orm";
-// 2026-04-16: Import driver preferences for prompt injection + deadhead flagging
+// Driver preferences supply prompt context; pickup limits are not home radii.
 import { loadDriverPreferences, buildDriverPreferencesSection } from "../ai/providers/consolidator.js";
 // 2026-04-27 (Commit 6 of CLEAR_CONSOLE_WORKFLOW): emoji-prefixed raw console.log
 // migrated to venuesLog (renders as [VENUE] per UPPERCASE COMPONENT_LABELS).
@@ -279,7 +279,8 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       "DRIVER PREFERENCES (tiebreaker — do NOT override demand-based ranking):",
       buildDriverPreferencesSection(prefs),
       "- Use these preferences to break ties between venues with similar demand levels",
-      "- If the driver has a home base, prefer venues that minimize empty deadhead miles",
+      "- Minimize empty travel from the driver's CURRENT location; max_deadhead_mi limits empty travel to a ride pickup",
+      "- A saved home base is optional context, not a work radius or a reason to penalize venues near the current location",
       "- Vehicle class may affect which venue types generate the best match quality",
       "- These are soft signals for ordering, not hard constraints — never drop a high-demand venue for a preference",
       "",
@@ -754,25 +755,20 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       } catch { /* non-blocking */ }
     }
 
-    // 2026-04-16: Flag venues beyond driver's max deadhead distance from home.
-    // Does NOT drop venues (preserves always-6). Annotates for client transparency.
-    // Skipped entirely if home coords are missing (new driver, incomplete profile).
-    if (prefs.home_lat != null && prefs.home_lng != null && prefs.max_deadhead_mi != null) {
+    // Preserve optional home-distance context without treating a pickup-distance
+    // preference as a home radius. No venue is flagged beyond_deadhead here.
+    if (prefs.home_lat != null && prefs.home_lng != null) {
       for (const venue of resolvedVenues) {
         const distFromHome = haversineDistanceMiles(prefs.home_lat, prefs.home_lng, venue.lat, venue.lng);
         venue.distance_from_home_mi = Math.round(distFromHome * 10) / 10;
-        if (distFromHome > prefs.max_deadhead_mi) {
-          venue.beyond_deadhead = true;
-        }
       }
     }
 
     venuesLog.info(`${resolvedVenues.length} venues resolved${degraded ? ' (DEGRADED)' : ''}:`);
     resolvedVenues.forEach((v, i) => {
       const tag = v.catalog_fallback ? ' [catalog]' : v.llm_replacement ? ' [replacement]' : '';
-      const deadheadTag = v.beyond_deadhead ? ' BEYOND DEADHEAD' : '';
       const districtInfo = v.district ? ` @ ${v.district}` : '';
-      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category})${tag}${deadheadTag}`);
+      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category})${tag}`);
     });
 
     // 2026-05-03 Workstream 6 Step 3: compute final cache-hit rate. NULL when no
@@ -830,7 +826,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
 /**
  * Haversine distance in miles between two lat/lng points.
- * Used for beyond_deadhead flagging — straight-line, not driving distance.
+ * Optional home-distance context only; straight-line, not a pickup constraint.
  */
 function haversineDistanceMiles(lat1, lng1, lat2, lng2) {
   const R = 3959; // Earth radius in miles

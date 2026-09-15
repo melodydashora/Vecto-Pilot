@@ -32,6 +32,7 @@
 //
 // ============================================================================
 import { Router } from 'express';
+import { getSnapshotReadiness } from '../../lib/location/snapshot-readiness.js';
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
 import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings } from '../../../shared/schema.js';
@@ -48,6 +49,8 @@ import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
 import { getBriefingReadiness, BriefingNotReadyError, assertBriefingReady, cachedBriefingRetryReason } from '../../lib/briefing/briefing-readiness.js';
 import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
+import { readStrategySource, assertCurrentStrategySource } from '../../lib/strategy/strategy-source-store.js';
+import { strategyMatchesBriefing, StrategySourceChangedError, STRATEGY_SOURCE_RETRY } from '../../lib/strategy/strategy-source.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
 import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
 import { isPlusCode } from '../utils/http-helpers.js';
@@ -223,6 +226,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     assertBriefingReady(persistedBriefing, snapshotId);
     briefingRow = persistedBriefing;
+    await assertCurrentStrategySource(snapshotId);
     // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
     await generateEnhancedSmartBlocks({
       snapshotId,
@@ -238,6 +242,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
     if (newRanking) {
+      await assertCurrentStrategySource(snapshotId);
       venuesLog.done(4, `Venue cards generated for ${snapshotId.slice(0, 8)}`);
       await updatePhase(snapshotId, 'complete', { phaseEmitter: options.phaseEmitter });
       return { ranking: newRanking, generated: true, error: null };
@@ -252,7 +257,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       status: STRATEGY_STATUS.OK,
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId)).catch(() => {});
-    if (err instanceof BriefingNotReadyError) throw err;
+    if (err instanceof BriefingNotReadyError || err instanceof StrategySourceChangedError) throw err;
     return { ranking: null, generated: false, error: err.message };
   }
 }
@@ -408,8 +413,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     }
 
     // Fetch strategy row (model-agnostic columns)
-    const [strategyRow] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    const { strategy: strategyRow, briefing: currentBriefing } = await readStrategySource(snapshotId);
 
     const briefing = strategyRow ? {
       strategyForNow: strategyRow.strategy_for_now || null
@@ -432,8 +436,17 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
-    const [currentBriefing] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    // Cached results and missing-ranking generation share the same source gate.
+    const snapshotReadiness = getSnapshotReadiness(snapshot, snapshotId);
+    if (!snapshotReadiness.ready) {
+      return res.status(503).json({
+        ok: false, status: 'error', error: 'snapshot_incomplete', snapshotId,
+        message: 'Current location data is incomplete. Refresh your location before using Strategy.',
+        missingFields: snapshotReadiness.missingFields, strategyFresh: false,
+        retry: 'new_snapshot', blocks: [],
+      });
+    }
+
     const readiness = getBriefingReadiness(currentBriefing, snapshotId);
     if (readiness.failed) throw new BriefingNotReadyError(currentBriefing, snapshotId);
     const retryReason = cachedBriefingRetryReason(currentBriefing, snapshotId);
@@ -463,6 +476,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     }
 
     // GATE 2: Ensure blocks exist (generate if missing)
+    if (!strategyMatchesBriefing(strategyRow, currentBriefing, snapshotId)) throw new StrategySourceChangedError();
     // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
     const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
       strategyRow,
@@ -520,6 +534,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       { step: 'sorting', method: 'value_desc_distance_asc' }
     ];
 
+    await assertCurrentStrategySource(snapshotId);
     return res.json({ ...feedbackState, blocks, rankingId: ranking.ranking_id, briefing, audit });
   } catch (error) {
     matrixLog.error({
@@ -527,7 +542,9 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       action: 'GET_REQUEST_FAIL',
       location: 'blocks-fast.js:getHandler',
     }, 'GET request failed', error);
-    return res.status(500).json(error instanceof BriefingNotReadyError
+    return res.status(500).json(error instanceof StrategySourceChangedError
+      ? { status: 'error', error: error.code, message: error.message, snapshotId, retry: 'new_snapshot', strategyFresh: false, blocks: [] }
+      : error instanceof BriefingNotReadyError
       ? { status: 'error', error: 'briefing_failed', message: error.message, snapshotId, blocks: [] }
       : { error: 'internal_error', blocks: [] });
   }
@@ -632,18 +649,15 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // Client exponential backoff (co-pilot-context.tsx) sends header on each retry; server returns
     // 503 once count >= MAX instead of the indefinite 202 loop. Required-field list mirrors the
     // enrichment endpoint (location.js §Phase 3 resolution) for diagnostic symmetry.
-    if (snapshot.status !== 'ok') {
+    const snapshotReadiness = getSnapshotReadiness(snapshot, snapshotId);
+    if (!snapshotReadiness.ready) {
       const MAX_SNAPSHOT_RETRIES = 5;
-      const SNAPSHOT_REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
 
       const retryHeader = req.headers['x-snapshot-retry-count'];
       const retryCountParsed = retryHeader != null ? parseInt(String(retryHeader), 10) : 0;
       const retryCount = Number.isFinite(retryCountParsed) ? retryCountParsed : 0;
 
-      const missingFields = SNAPSHOT_REQUIRED_FIELDS.filter(f => {
-        const v = snapshot[f];
-        return v === null || v === undefined || v === '';
-      });
+      const missingFields = snapshotReadiness.missingFields;
 
       if (retryCount >= MAX_SNAPSHOT_RETRIES) {
         console.error(`[VENUE] HARD FAIL: snapshot ${snapshotId.slice(0, 8)} still pending after ${retryCount} retries. Missing: ${missingFields.join(', ') || '(unknown)'}`);
@@ -743,13 +757,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     }
 
     // Re-fetch strategy after potential reset
-    const [currentStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    const { strategy: currentStrategy, briefing: currentBriefing } = await readStrategySource(snapshotId);
 
     // If strategy is COMPLETE/OK/PENDING_BLOCKS, generate SmartBlocks if not already done
     // 2026-01-10: S-004 FIX - Use isStrategyComplete() which handles legacy 'complete' value
     if (currentStrategy && isStrategyComplete(currentStrategy.status)) {
-      const [currentBriefing] = await db.select().from(briefings)
-        .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
       const readiness = getBriefingReadiness(currentBriefing, snapshotId);
       const retryReason = cachedBriefingRetryReason(currentBriefing, snapshotId);
       if (retryReason) {
@@ -763,6 +775,10 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           ok: false, status: 'error', error: 'briefing_failed', snapshotId,
           message: new BriefingNotReadyError(currentBriefing, snapshotId).message,
         });
+      }
+      if (readiness.ready && !strategyMatchesBriefing(currentStrategy, currentBriefing, snapshotId)) {
+        return sendOnce(500, { status: 'error', error: 'strategy_source_changed', snapshotId,
+          message: STRATEGY_SOURCE_RETRY, retry: 'new_snapshot', strategyFresh: false });
       }
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
@@ -781,6 +797,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         const blocks = readiness.ready && feedbackState.scope_revision === 0
           ? await mapCandidatesToBlocks(candidates, { isHoliday: false, hasSpecialHours: false })
           : feedbackState.blocks;
+        if (readiness.ready) await assertCurrentStrategySource(snapshotId);
         return sendOnce(readiness.ready ? 200 : 202, {
           ok: readiness.ready,
           status: readiness.ready ? 'ok' : 'pending',
@@ -1132,7 +1149,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         location: 'blocks-fast.js:postHandler',
       }, 'Waterfall error', jobErr);
       return sendOnce(500, {
-        error: jobErr instanceof BriefingNotReadyError ? 'briefing_failed' : 'waterfall_failed',
+        error: jobErr instanceof StrategySourceChangedError ? jobErr.code : jobErr instanceof BriefingNotReadyError ? 'briefing_failed' : 'waterfall_failed',
+        ...(jobErr instanceof StrategySourceChangedError ? { status: 'error', snapshotId, retry: 'new_snapshot', strategyFresh: false } : {}),
         ...(jobErr instanceof BriefingNotReadyError ? { status: 'error', snapshotId } : {}),
         message: jobErr.message
       });

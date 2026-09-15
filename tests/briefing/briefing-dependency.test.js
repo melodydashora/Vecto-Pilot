@@ -1,6 +1,8 @@
 import { jest, describe, test, beforeEach, expect } from '@jest/globals';
 import { getTableName } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
+import { completeSnapshot } from '../fixtures/complete-snapshot.js';
+import { SNAPSHOT_REQUIRED_FIELDS } from '../../server/lib/location/snapshot-readiness.js';
 
 // Every provider and DB connection boundary is mocked BEFORE importing production
 // orchestration. Running this file never loads the real connection manager.
@@ -10,7 +12,7 @@ const model = jest.fn(async () => { throw new Error('Unexpected model dispatch')
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: model }));
 jest.unstable_mockModule('../../server/lib/briefing/dump-last-briefing.js', () => ({ dumpLastBriefingRow: async () => {} }));
 
-let row, writes, finalWrite, beforeUpdate, lockAvailable, transactionDepth;
+let row, writes, finalWrite, beforeUpdate, lockAvailable, transactionDepth, storedSnapshot;
 const connect = jest.fn(() => { throw new Error('Briefing must not open an extra pool connection or read another URL'); });
 jest.unstable_mockModule('../../server/db/connection-manager.js', () => ({ getPool: connect }));
 const dialect = new PgDialect();
@@ -30,8 +32,8 @@ const db = {
     let table, joined = false;
     const query = {
       from: value => { table = getTableName(value); return query; },
-      where: () => query, innerJoin: () => { joined = true; return query; }, orderBy: () => query,
-      limit: async () => joined ? [] : table === 'briefings' ? (row ? [{ ...row }] : []) : [],
+      where: () => query, innerJoin: () => { joined = true; return query; }, leftJoin: () => { joined = true; return query; }, for: () => query, orderBy: () => query,
+      limit: async () => joined ? [] : table === 'briefings' ? (row ? [{ ...row }] : []) : table === 'snapshots' ? (storedSnapshot ? [{ ...storedSnapshot }] : []) : [],
     };
     return query;
   },
@@ -72,12 +74,13 @@ const { writeSectionAndNotify, CHANNELS } = await import('../../server/lib/brief
 const { withBriefingGeneration, writeBriefingGeneration } = await import('../../server/lib/briefing/briefing-generation.js');
 const { runBriefing } = await import('../../server/lib/ai/providers/briefing.js');
 const { runImmediateStrategy } = await import('../../server/lib/ai/providers/consolidator.js');
-const snapshot = { snapshot_id: 'test-snapshot', city: 'Test City', state: 'Test State', timezone: 'Etc/UTC' };
+const snapshot = completeSnapshot({ snapshot_id: 'test-snapshot', city: 'Test City', state: 'Test State', timezone: 'Etc/UTC' });
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 beforeEach(() => {
   row = null; writes = []; finalWrite = async () => {}; beforeUpdate = async () => {}; lockAvailable = true; transactionDepth = 0;
+  storedSnapshot = { ...snapshot };
   jest.clearAllMocks();
   db.execute.mockImplementation(async () => ({ rows: [{ acquired: lockAvailable }] }));
   sections.weather.mockResolvedValue({ weather_current: { temperature: 20, conditions: 'Cloudy' }, weather_forecast: [{ temperature: 20, conditions: 'Cloudy' }] });
@@ -90,6 +93,18 @@ beforeEach(() => {
 });
 
 describe('Briefing before Strategy orchestration', () => {
+  test.each(SNAPSHOT_REQUIRED_FIELDS)('Strategy refuses saved snapshot with invalid %s despite complete supplied object', async field => {
+    await generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });
+    storedSnapshot[field] = null;
+    await expect(runImmediateStrategy(snapshot.snapshot_id, { snapshot })).rejects.toThrow('Snapshot is not complete');
+    expect(model).not.toHaveBeenCalled();
+  });
+  test('Strategy refuses failed snapshot measurements even with stored status ok', async () => {
+    await generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });
+    storedSnapshot.weather = {};
+    await expect(runImmediateStrategy(snapshot.snapshot_id, { snapshot })).rejects.toThrow('weather');
+    expect(model).not.toHaveBeenCalled();
+  });
   test('same-process callers share one generation and wait for final persistence', async () => {
     const gate = deferred(); finalWrite = () => gate.promise;
     const first = generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });

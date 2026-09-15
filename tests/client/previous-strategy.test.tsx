@@ -26,6 +26,7 @@ jest.unstable_mockModule('@/hooks/useBarsQuery', () => ({ useBarsQuery: () => ({
 const { CoPilotProvider, useCoPilot } = await import('@/contexts/co-pilot-context');
 let current: ReturnType<typeof useCoPilot>;
 let layoutReads: string[] = [];
+let allowPartialCoach = false;
 function LayoutProbe({ stamp }: { stamp: string }) {
   React.useLayoutEffect(() => { layoutReads.push(document.body.textContent ?? ''); }, [stamp]);
   return null;
@@ -42,6 +43,7 @@ function Probe() {
 const clients: QueryClient[] = [];
 const body = (id = 'snapshot-A', text = 'Completed A', overrides = {}) => ({
   snapshotId: id, status: 'ok', briefingStatus: 'complete', strategyFresh: true,
+  strategyUpdatedAt: '2026-09-12T12:00:10Z', snapshotCreatedAt: '2026-09-12T12:00:00Z',
   strategy: { strategyForNow: text }, ...overrides,
 });
 const response = (data: unknown, status = 200) => ({ ok: status < 400, status, json: async () => data }) as Response;
@@ -50,7 +52,7 @@ let payloads: Record<string, unknown>;
 let venueBlocks: unknown[];
 let strategyFetch: (id: string, init?: RequestInit) => Promise<Response>;
 let snapshotFetch: () => Promise<Response>;
-function app(client: QueryClient) { return <QueryClientProvider client={client}><CoPilotProvider><Probe /></CoPilotProvider><LayoutProbe stamp={`${auth.token}:${auth.isAuthenticated}`} /></QueryClientProvider>; }
+function app(client: QueryClient) { return <QueryClientProvider client={client}><CoPilotProvider allowPartialCoach={allowPartialCoach}><Probe /></CoPilotProvider><LayoutProbe stamp={`${auth.token}:${auth.isAuthenticated}`} /></QueryClientProvider>; }
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } }); clients.push(client);
   return { client, ...render(app(client)) };
@@ -60,6 +62,7 @@ async function refetch(client: QueryClient, id = 'snapshot-A') {
   await act(async () => { await client.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(id), type: 'active' }); await new Promise(resolve => setTimeout(resolve, 0)); });
 }
 beforeEach(() => {
+  allowPartialCoach = false;
   auth = { isAuthenticated: true, user: { userId: 'driver-A' }, token: 'synthetic-A' };
   location = { ...location, lastSnapshotId: 'snapshot-A', city: 'Fort Worth', timeZone: 'America/Chicago' };
   payloads = { 'snapshot-A': body(), 'snapshot-B': body('snapshot-B', 'Retained server text', { status: 'pending', briefingStatus: 'pending', strategyFresh: false }) };
@@ -106,6 +109,8 @@ describe('completed strategy history and current scope', () => {
     { status: 'ok', briefingStatus: 'complete', snapshotId: 'wrong-snapshot' },
     { status: 'ok', briefingStatus: undefined },
     { strategy: { strategyForNow: '   \n   ' } },
+    { strategyUpdatedAt: null },
+    { snapshotCreatedAt: 'not-a-time' },
   ])('never promotes unready initial text: %j', async overrides => {
     payloads['snapshot-A'] = body('snapshot-A', 'Must not become current', overrides);
     const { client } = mount(); await refetch(client);
@@ -218,5 +223,15 @@ describe('completed strategy history and current scope', () => {
     mount(); await waitFor(() => expect(current.previousStrategy?.text).toBe('Completed A'));
     fireEvent.click(screen.getByRole('button', { name: 'Fail auth' }));
     expect(screen.getByRole('alert')).not.toHaveTextContent('Completed A'); expect(screen.queryByRole('main')).toBeNull();
+  });
+  it('keeps the Coach route available during a data failure while still blocking authentication failure', async () => {
+    allowPartialCoach = true;
+    payloads['snapshot-A'] = { snapshotId: 'snapshot-A', status: 'error', error: 'briefing_failed', message: 'Weather provider failed' };
+    mount(); await waitFor(() => expect(current.criticalError?.type).toBe('briefing_failed'));
+    expect(screen.getByRole('main')).toBeInTheDocument();
+    expect(screen.getByTestId('current')).toBeEmptyDOMElement();
+    fireEvent.click(screen.getByRole('button', { name: 'Fail auth' }));
+    expect(screen.queryByRole('main')).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent('Authentication Required');
   });
 });

@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import type { PreviousStrategy } from '@/types/co-pilot';
 import { StrategyText } from './StrategyText';
+import { StrategySourceTime } from './StrategySourceTime';
 
 export function PreviousStrategyCard({ strategy, waiting = true }: { strategy: PreviousStrategy; waiting?: boolean }) {
   const received = new Date(strategy.receivedAt);
@@ -20,6 +21,7 @@ export function PreviousStrategyCard({ strategy, waiting = true }: { strategy: P
             {strategy.city && <span>{strategy.city} · </span>}
             {receivedLabel && <>Last received <time dateTime={strategy.receivedAt}>{receivedLabel}</time></>}
           </p>
+          <StrategySourceTime updatedAt={strategy.sourceUpdatedAt} snapshotCreatedAt={strategy.snapshotCreatedAt} timezone={strategy.timezone} />
         </div>
         <StrategyText text={strategy.text} className="text-sm leading-relaxed text-slate-800" />
       </CardContent>

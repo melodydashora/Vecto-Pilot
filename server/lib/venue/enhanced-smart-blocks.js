@@ -24,6 +24,8 @@
 
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
+import { mergeVenueCacheMetrics, assertCurrentStrategySource } from '../strategy/strategy-source-store.js';
+import { StrategySourceChangedError } from '../strategy/strategy-source.js';
 // 2026-04-11: Added discovered_events + venue_catalog for fetchTodayDiscoveredEventsWithVenue —
 // the Smart Blocks pipeline now fetches today's events at the top of the try block
 // and passes them to both filterBriefingForPlanner and matchVenuesToEvents.
@@ -407,12 +409,13 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     throw new Error('blocks_input_missing_immediate_strategy');
   }
 
-  // NOTE: Briefing is now OPTIONAL - blocks generation proceeds even without briefing content
-  // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
-  // Holiday info lives in briefings.holiday (jsonb: { holiday, is_holiday, detectedAt } on success, errorMarker on failure)
-  if (!briefing) {
-    briefing = { events: [], news: [], traffic: {}, school_closures: [] };
-  }
+  const currentSource = await assertCurrentStrategySource(snapshotId);
+  if (currentSource.strategy.strategy_for_now !== immediateStrategy ||
+      (briefing && briefing.generation_token !== currentSource.briefing.generation_token)) throw new StrategySourceChangedError();
+  briefing = currentSource.briefing;
+
+  // The persisted complete Briefing above is the source for this Strategy and
+  // its venue plan. Empty fabricated sections cannot stand in for that receipt.
 
   venuesLog.phase(1, `Input ready: strategy=${immediateStrategy.length}chars, briefing=${Object.keys(briefing).filter(k => briefing[k]).length} fields`);
 
@@ -478,7 +481,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     if (venuesPlan.cache_metrics) {
       try {
         await db.update(strategies)
-          .set({ venue_cache_metrics: venuesPlan.cache_metrics })
+          .set({ venue_cache_metrics: mergeVenueCacheMetrics(venuesPlan.cache_metrics) })
           .where(eq(strategies.snapshot_id, snapshotId));
       } catch (err) {
         venuesLog.warn(1, `Failed to persist venue_cache_metrics for snapshot ${snapshotId}: ${err.message}`);

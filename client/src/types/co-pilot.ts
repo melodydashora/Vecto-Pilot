@@ -118,6 +118,8 @@ export interface PreviousStrategy {
   sourceSnapshotId: string;
   text: string;
   receivedAt: string;
+  sourceUpdatedAt?: string | null;
+  snapshotCreatedAt?: string | null;
   city: string | null;
   timezone: string | null;
 }
@@ -130,6 +132,9 @@ export interface StrategyData {
   snapshotId?: string;
   briefingStatus?: string;
   strategyFresh?: boolean;
+  strategyUpdatedAt?: string | null;
+  snapshotCreatedAt?: string | null;
+  strategyCreatedAt?: string | null;
   status?: string;
   phase?: PipelinePhase;
   strategy?: {
