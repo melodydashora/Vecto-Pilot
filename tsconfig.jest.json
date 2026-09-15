@@ -1,7 +1,7 @@
 {
   "extends": "./client/tsconfig.json",
   "compilerOptions": {
-    "types": ["jest", "@testing-library/jest-dom", "node"],
+    "types": ["jest", "@testing-library/jest-dom", "node", "google.maps"],
     "noEmit": true
   },
   "include": ["client/src", "shared", "tests/**/*.ts", "tests/**/*.tsx"]

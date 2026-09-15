@@ -1,58 +1,27 @@
+import { describe, test, expect } from '@jest/globals';
+import { pgTable, serial, text, varchar, timestamp } from 'drizzle-orm/pg-core';
+import { compareSchemaMetadata } from '../scripts/lib/schema-drift.mjs';
 
-// tests/schema-validation.test.js
-// Validates that Drizzle schema matches actual database schema
-import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from '../shared/schema.js';
-import { getPool } from '../server/db/connection-manager.js';
+const fixture = pgTable('db_name', { id: serial('id').primaryKey(), title: varchar('title', { length: 80 }).notNull(), when: timestamp('when'), tags: text('tags').array() });
+const rows = [
+  { column_name: 'id', data_type: 'integer', is_nullable: 'NO' },
+  { column_name: 'title', data_type: 'character varying', is_nullable: 'NO' },
+  { column_name: 'when', data_type: 'timestamp without time zone', is_nullable: 'YES' },
+  { column_name: 'tags', data_type: 'ARRAY', is_nullable: 'YES' },
+].map(row => ({ table_name: 'db_name', ...row }));
 
-const pool = getPool();
-const db = drizzle(pool, { schema });
-
-async function validateSchema() {
-  console.log('[schema-validation] Starting schema drift detection...');
-  
-  try {
-    // Check that all tables exist
-    const tables = Object.keys(schema);
-    console.log(`[schema-validation] Checking ${tables.length} tables...`);
-    
-    for (const tableName of tables) {
-      const result = await pool.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = $1
-        );
-      `, [tableName]);
-      
-      if (!result.rows[0].exists) {
-        throw new Error(`Table ${tableName} missing from database!`);
-      }
-    }
-    
-    console.log('[schema-validation] ✅ All tables exist');
-    
-    // Try a sample query on each table
-    for (const tableName of tables) {
-      await pool.query(`SELECT COUNT(*) FROM ${tableName} LIMIT 1`);
-    }
-    
-    console.log('[schema-validation] ✅ All tables queryable');
-    console.log('[schema-validation] ✅ No schema drift detected');
-    
-    return { ok: true, tables: tables.length };
-    
-  } catch (error) {
-    console.error('[schema-validation] ❌ Schema validation failed:', error.message);
-    return { ok: false, error: error.message };
-  }
-}
-
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  validateSchema().then(result => {
-    process.exit(result.ok ? 0 : 1);
+describe('Schema drift detection without database side effects', () => {
+  test('uses SQL names, ignores relationship exports, and accepts PostgreSQL type aliases', () => {
+    const result = compareSchemaMetadata({ javascriptName: fixture, relationship: {} }, rows);
+    expect(result).toEqual({ declaredTables: 1, declaredColumns: 4, missingDeclaredColumns: [], looserDatabaseNullability: [], typeDifferences: [] });
   });
-}
-
-export default validateSchema;
+  test('reports absent columns instead of querying application records', () => {
+    expect(compareSchemaMetadata({ fixture }, rows.slice(1)).missingDeclaredColumns).toEqual(['db_name.id']);
+  });
+  test('reports incompatible types and weaker database nullability', () => {
+    const changed = rows.map(row => row.column_name === 'title' ? { ...row, data_type: 'integer', is_nullable: 'YES' } : row);
+    const result = compareSchemaMetadata({ fixture }, changed);
+    expect(result.looserDatabaseNullability).toEqual(['db_name.title']);
+    expect(result.typeDifferences).toEqual([{ column: 'db_name.title', expected: 'character varying', actual: 'integer' }]);
+  });
+});

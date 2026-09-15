@@ -19,13 +19,13 @@
     "agent": "node agent-server.js",
     "mcp": "node mcp-server.js",
     "mcp:stdio": "node mcp-server.js --stdio",
-    "test": "npm run test:unit && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:client && npm run test:e2e",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest tests/ --verbose",
     "test:client": "NODE_OPTIONS='--experimental-vm-modules' jest -c jest.client.config.js",
     "test:e2e": "playwright test tests/e2e/copilot.spec.ts",
     "test:seed": "node scripts/seed-dev.js && npm run test:unit",
     "guard": "npm-run-all -s guard:json guard:deps guard:js guard:models",
-    "guard:json": "jsonlint -q \"**/*.json\"",
+    "guard:json": "node scripts/check-json.mjs",
     "guard:deps": "npm ls --all --omit=dev > /dev/null",
     "guard:js": "npm run lint",
     "check:ts": "npm run typecheck || true",
@@ -34,7 +34,9 @@
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
     "research:models": "echo 'Removed 2026-02-26: Model research now done via Claude Code. See docs/preflight/ai-models.md'",
     "devtools": "npx react-devtools",
-    "guard:models": "node scripts/check-model-pins.mjs"
+    "guard:models": "node scripts/check-model-pins.mjs",
+    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.integration.config.js --runInBand",
+    "check:schema": "node scripts/check-schema.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
