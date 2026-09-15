@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/auth-context';
@@ -23,14 +24,23 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  console.log('[App] Rendering App component with React Router');
+  const pathname = useSyncExternalStore(
+    router.subscribe,
+    () => router.state.location.pathname,
+    () => router.state.location.pathname,
+  );
+  // Public guests must never mount driver identity, snapshots, or briefing providers,
+  // including when a signed-in driver opens their guest link in the same browser.
+  if (pathname === '/c' || pathname.startsWith('/c/')) {
+    return <ErrorBoundary fallback={<SafeScaffold />}><RouterProvider router={router} /></ErrorBoundary>;
+  }
   return (
     <ErrorBoundary fallback={<SafeScaffold />}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <LocationProvider>
             {/* CoPilotProvider wraps router so it persists across route changes */}
-            <CoPilotProvider>
+            <CoPilotProvider allowPartialCoach={pathname === '/co-pilot/coach'}>
               <RouterProvider router={router} />
             </CoPilotProvider>
           </LocationProvider>

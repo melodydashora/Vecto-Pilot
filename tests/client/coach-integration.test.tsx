@@ -268,7 +268,10 @@ describe('mounted Coach canonical input and confirmed output', () => {
     if (finalizer === 'silence') scheduleVoice('Unsent voice draft');
     else {
       act(() => updateHardware({ transcript: finalizer === 'stop-phrase' ? 'Unsent voice draft send it' : 'Unsent voice draft', isListening: true }));
-      if (finalizer === 'manual') fireEvent.click(screen.getByTestId('button-coach-stop-bar'));
+      // 2026-09-15: the default voice mode is gpt-live, which does not render the classic
+      // CoachStopBar; the listening indicator's "Done" button calls the same handleMicToggle
+      // (manual finalizer) in every mode, so the case still exercises the manual path.
+      if (finalizer === 'manual') fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     }
     view.unmount();
     const startsBefore = startMic.mock.calls.length;

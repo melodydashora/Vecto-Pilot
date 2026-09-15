@@ -29,16 +29,12 @@ import {
 } from './hooks';
 
 // ─────────────────────────────────────────────────────────────────────────
-// 2026-05-15: QR triptych targets — all PUBLIC, no auth required.
-// donate:    Public Vecto Pilot donate page (Square link + cost breakdown + future scope)
-// concierge: /c/:token PublicConciergePage (rider companion)
 // 2026-09-13: the "Rate Your Driver → open Uber" tile was removed — Vecto Pilot is
 //            platform-neutral and links to no rideshare platform.
+// 2026-09-11: Donation page retired. Each guest receives an anonymous concierge
+//            bookmark at /c (PublicConciergePage issues the signed token).
 // ─────────────────────────────────────────────────────────────────────────
-const QR_LINKS = {
-  donate:    '/welcome/support',
-  concierge: '/c/welcome',
-};
+const QR_LINKS = { concierge: '/c' };
 
 const QUIZ_CORRECT: Record<string, string> = {
   quizDoors:      'B',
@@ -60,10 +56,9 @@ function buildAbsoluteURL(pathOrUrl: string): string {
 // ════════════════════════════════════════════════════════════════════════
 function FarewellTriptych({ onRestart }: { onRestart: () => void }) {
   // 2026-05-15: Vecto Pilot brand colors (blue-600/violet-600 gradient on cards).
-  // QRs: support (donate page), concierge (rider companion).
+  // QR: concierge (anonymous rider companion).
   const cards = [
-    { icon: Heart, label: 'Support Vecto Pilot', sub: 'Help cover API costs + future development', url: QR_LINKS.donate,    gradient: 'from-blue-600 to-purple-600' },
-    { icon: QrCode,   label: 'Ask the Concierge',  sub: 'AI assistant for your ride',                 url: QR_LINKS.concierge, gradient: 'from-purple-600 to-blue-600' },
+    { icon: QrCode, label: 'Ask the Concierge', sub: 'Your anonymous local companion', url: QR_LINKS.concierge, gradient: 'from-purple-600 to-blue-600' },
   ];
   return (
     <div className="w-full max-w-6xl text-center">
@@ -73,7 +68,7 @@ function FarewellTriptych({ onRestart }: { onRestart: () => void }) {
         Have questions? Just ask. Enjoy a safe and comfortable ride.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6 mt-5 md:mt-12">
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-3 md:gap-6 mt-5 md:mt-12">
         {cards.map((c) => (
           <div
             key={c.label}

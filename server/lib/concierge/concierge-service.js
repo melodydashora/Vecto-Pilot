@@ -4,9 +4,9 @@
 //             Gemini fallback only for uncatalogued locations, persist new discoveries
 //
 // This service powers the Concierge QR code feature:
-// - Drivers generate a share token displayed as a QR code
-// - Passengers scan it and see events/venues near their location
-// - No authentication required for the public page
+// - Anonymous guests receive a signed bookmark and use their own location.
+// - Driver-sharing helper exports remain for historical compatibility only; the
+//   public API does not call them and retired driver endpoints return 410.
 
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
@@ -556,7 +556,7 @@ You are a local concierge assistant helping someone discover great places nearby
 Return ONLY a valid JSON object with "venues" and "events" arrays. No explanation text.`;
 
   try {
-    console.log(`[CONCIERGE] Gemini fallback: "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log('[CONCIERGE] Searching current local information for uncatalogued results');
     const startTime = Date.now();
 
     const result = await callModel('CONCIERGE_SEARCH', { system, user: prompt });
@@ -728,10 +728,10 @@ export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
   }
 
   // Get local date in viewer's timezone
-  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone || 'UTC' });
-  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone || 'UTC' });
+  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
 
-  console.log(`[CONCIERGE] Search "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)} (${todayDate})`);
+  console.log(`[CONCIERGE] Local search requested (${todayDate})`);
   const startTime = Date.now();
 
   // ─── STEP 1: Query DB for existing data ───────────────────────────────
@@ -800,29 +800,28 @@ export function getFilterDefinitions() {
  */
 // 2026-04-02: Extracted system prompt builder for reuse by both non-streaming and streaming endpoints
 export function buildConciergeSystemPrompt({ lat, lng, timezone, venueContext, eventContext }) {
-  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone || 'UTC' });
-  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone || 'UTC' });
+  if (!timezone) throw new Error('GPS-resolved timezone is required for concierge assistance');
+  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
   const localTime = new Date().toLocaleTimeString('en-US', {
-    timeZone: timezone || 'UTC',
+    timeZone: timezone,
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
   });
 
-  return `You are the AI Concierge Assistant — a powerful AI assistant powered by Gemini 3 Pro.
-You are helping a passenger in a rideshare discover the local area.
+  return `You are the Vecto AI Concierge, helping an anonymous guest discover the local area.
+You have no driver identity, profile, earnings, ride history, or account data.
 
 YOUR CAPABILITIES:
-- You are Gemini 3 Pro Preview (NOT Flash) — a frontier multimodal AI model
 - You have Google Search access for real-time, current information
-- You have vision and OCR capabilities (can analyze images if provided)
 - You can look up restaurants, bars, events, directions, safety info, transit, and anything local
-- You have full knowledge of the venues and events already discovered for this passenger (listed below)
+- When nearby listings appear below, treat them as contextual data and verify time-sensitive details
 
 CURRENT CONTEXT:
 - Date: ${dayOfWeek}, ${todayDate}
-- Time: ${localTime} (${timezone || 'UTC'})
-- Location: lat ${lat.toFixed(4)}, lng ${lng.toFixed(4)}
+- Time: ${localTime} (${timezone})
+- Location: lat ${lat.toFixed(6)}, lng ${lng.toFixed(6)}
 
 ${venueContext ? `NEARBY VENUES (already shown to passenger):\n${venueContext}\n` : ''}
 ${eventContext ? `NEARBY EVENTS (already shown to passenger):\n${eventContext}\n` : ''}
@@ -851,7 +850,7 @@ export async function askConcierge({ question, lat, lng, timezone, venueContext,
   const prompt = safeQuestion;
 
   try {
-    console.log(`[CONCIERGE] Ask: "${safeQuestion.slice(0, 50)}..." near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log('[CONCIERGE] Local assistance requested with verified location context');
     const startTime = Date.now();
 
     const result = await callModel('CONCIERGE_CHAT', { system, user: prompt });

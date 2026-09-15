@@ -1,7 +1,7 @@
 /**
  * Vecto Pilot™ - Getting Started Instructions
  *
- * 2026-04-05: Rewritten to cover all 7 bottom tabs + 5 hamburger menu items.
+ * 2026-09-11: Translation and donation navigation retired; concierge is anonymous.
  * Accurate descriptions for each feature, globally applicable (not region-specific).
  */
 
@@ -14,12 +14,10 @@ import {
   MessageSquare,
   Map as MapIcon,
   Target,
-  Languages,
   QrCode,
   Settings,
   Calendar,
   Info,
-  Heart,
   HelpCircle,
   Zap,
 } from 'lucide-react';
@@ -150,31 +148,9 @@ const BOTTOM_TABS: GuideItem[] = [
     tip: 'Use Intel alongside Strategy for a complete picture of your market.',
   },
   {
-    id: 'translate',
-    title: 'Translate',
-    subtitle: 'Real-time rider translation in 15 languages',
-    icon: Languages,
-    classes: {
-      inactive: 'border-sky-100 hover:border-sky-300',
-      active: 'border-sky-400 bg-sky-50',
-      dot: 'text-sky-600',
-      iconBg: 'bg-sky-100',
-      icon: 'text-sky-600',
-      nav: 'border-sky-200 hover:bg-sky-50',
-    },
-    items: [
-      { label: 'Split-Screen Mode', desc: 'Top half faces the rider (rotated 180\u00B0), bottom half faces you — both see translations live' },
-      { label: 'Voice-to-Text', desc: 'Tap the mic to speak in English; your words appear translated on the rider\'s half instantly' },
-      { label: 'Rider Mic', desc: 'Rider taps their mic to speak their language — you see and hear the English translation' },
-      { label: 'Quick Phrases', desc: 'Pre-loaded rideshare phrases (greetings, route, comfort, payment, safety) for tap-to-translate' },
-      { label: '15 Languages', desc: 'Spanish, French, German, Japanese, Korean, Arabic, Hindi, Mandarin, and more — buttons show native-script labels' },
-    ],
-    tip: 'Select the rider\'s language first. If unsure, show them the picker — buttons display each language\'s native name.',
-  },
-  {
     id: 'concierge',
     title: 'Concierge',
-    subtitle: 'Shareable driver profile and QR code',
+    subtitle: 'An anonymous local companion for guests',
     icon: QrCode,
     classes: {
       inactive: 'border-teal-100 hover:border-teal-300',
@@ -185,11 +161,11 @@ const BOTTOM_TABS: GuideItem[] = [
       nav: 'border-teal-200 hover:bg-teal-50',
     },
     items: [
-      { label: 'Driver Card', desc: 'A professional profile card with your name, vehicle info, and contact details' },
-      { label: 'QR Code', desc: 'Generate a scannable code that riders can use to verify your identity or save your info' },
-      { label: 'Shareable Link', desc: 'Get a unique URL to share with regular passengers or print on business cards' },
+      { label: 'Private guest link', desc: 'The concierge has no connected driver profile or contact details' },
+      { label: 'QR Code', desc: 'Riders scan to open their own anonymous local concierge' },
+      { label: 'Bookmark', desc: 'Guests keep their assigned token by bookmarking the concierge page' },
     ],
-    tip: 'Great for building a repeat client base — riders can bookmark your profile for future rides.',
+    tip: 'For greetings and live translation while driving, ask your AI Coach.',
   },
 ];
 
@@ -254,25 +230,6 @@ const MENU_GUIDES: GuideItem[] = [
       { label: 'System Diagnostics', desc: 'View which AI systems are active and their current status' },
     ],
     tip: 'Found in the hamburger menu.',
-  },
-  {
-    id: 'donate',
-    title: 'Donate',
-    subtitle: 'Support ongoing development',
-    icon: Heart,
-    classes: {
-      inactive: 'border-rose-100 hover:border-rose-300',
-      active: 'border-rose-400 bg-rose-50',
-      dot: 'text-rose-600',
-      iconBg: 'bg-rose-100',
-      icon: 'text-rose-600',
-      nav: 'border-rose-200 hover:bg-rose-50',
-    },
-    items: [
-      { label: 'Development Costs', desc: 'See the real investment — AI APIs, hosting, and hundreds of hours of development' },
-      { label: 'Secure Donations', desc: 'Contribute via Square — every donation keeps the platform running and features coming' },
-    ],
-    tip: 'Every contribution — big or small — directly supports new features and keeps hosting alive.',
   },
   {
     id: 'help',

@@ -2,41 +2,54 @@
 // 2026-02-13: Concierge API routes — QR code sharing + public event discovery
 // 2026-02-13: DB-first architecture — returns {venues, events} (not {items})
 //
-// Authenticated endpoints: Token management, driver preview
-// Public endpoints: Profile lookup, weather, event search (rate-limited)
+// Public anonymous bookmarks, weather, and local assistance (rate-limited).
+// Driver profile, identity, and feedback endpoints are retired.
 
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { requireAuth } from '../../middleware/auth.js';
+import { createAnonymousToken, validateAnonymousToken, parseConciergeCoordinates } from '../../lib/concierge/anonymous-token.js';
+import { getTimezoneForCoords } from '../../lib/location/geocode.js';
+import { coordsKey } from '../../lib/location/coords-key.js';
 import {
-  generateShareToken,
-  getShareToken,
-  getDriverPublicProfile,
-  getDriverPreview,
   searchNearby,
   askConcierge,
   buildConciergeSystemPrompt,
-  submitFeedback,
-  getFeedbackSummary,
 } from '../../lib/concierge/concierge-service.js';
 
 const router = Router();
 
-// 2026-04-10: SECURITY FIX (H-1) — Validate share token on ALL public endpoints.
-// Previously only /p/:token and /p/:token/feedback validated. Weather, explore, and
-// ask endpoints accepted ANY string as token, bypassing the authentication gate.
+// All public calls validate an anonymous bookmark. No driver profile is read.
 async function validateShareToken(req, res, next) {
-  const { token } = req.params;
-  if (!token || token.length > 12) {
-    return res.status(400).json({ ok: false, error: 'Invalid token' });
+  try {
+    if (!validateAnonymousToken(req.params.token)) {
+      return res.status(404).json({ ok: false, error: 'Bookmark unavailable. Open /c to start a new anonymous concierge.' });
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  } catch {
+    res.status(503).json({ ok: false, error: 'Concierge is temporarily unavailable' });
   }
-  const profile = await getDriverPublicProfile(token);
-  if (!profile) {
-    return res.status(404).json({ ok: false, error: 'Invalid or expired share link' });
+}
+
+const timezoneCache = new Map();
+async function resolveContext(req, res, next) {
+  try {
+    const input = req.method === 'GET' ? req.query : req.body;
+    const coords = parseConciergeCoordinates(input?.lat, input?.lng);
+    const key = coordsKey(coords.lat, coords.lng);
+    let timezone = timezoneCache.get(key);
+    if (!timezone) {
+      timezone = await getTimezoneForCoords(coords.lat, coords.lng, { signal: AbortSignal.timeout(8000) });
+      if (!timezone) return res.status(502).json({ ok: false, error: 'Could not resolve your local timezone. Try location again.' });
+      new Intl.DateTimeFormat('en', { timeZone: timezone }).format();
+      if (timezoneCache.size >= 200) timezoneCache.delete(timezoneCache.keys().next().value);
+      timezoneCache.set(key, timezone);
+    }
+    req.conciergeContext = { ...coords, timezone };
+    next();
+  } catch {
+    res.status(400).json({ ok: false, error: 'Valid GPS coordinates and local timezone are required' });
   }
-  // Attach validated profile so downstream handlers can use it
-  req.conciergeProfile = profile;
-  next();
 }
 
 // ============================================================================
@@ -64,120 +77,35 @@ const exploreLimiter = rateLimit({
   standardHeaders: true,
 });
 
-// ============================================================================
-// AUTHENTICATED ENDPOINTS (driver manages their concierge)
-// ============================================================================
+// Legacy driver-sharing and feedback APIs are retired without changing stored rows.
+router.all(['/token', '/preview', '/feedback', '/p/:token/feedback'], (_req, res) => {
+  res.status(410).json({ ok: false, error: 'Driver sharing is retired. Open /c for the anonymous concierge.' });
+});
 
-/**
- * GET /api/concierge/token
- * Get the driver's current share token
- */
-router.get('/token', requireAuth, async (req, res) => {
+router.post('/session', publicProfileLimiter, (_req, res) => {
   try {
-    // 2026-02-13: Auth middleware sets req.auth, not req.user
-    const { token, profileId } = await getShareToken(req.auth.userId);
-    res.json({ ok: true, token, profileId });
-  } catch (err) {
-    console.error('[CONCIERGE] Get token error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to get share token' });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true, token: createAnonymousToken() });
+  } catch {
+    res.status(503).json({ ok: false, error: 'Concierge is temporarily unavailable' });
   }
 });
 
-/**
- * POST /api/concierge/token
- * Generate or regenerate the driver's share token
- */
-router.post('/token', requireAuth, async (req, res) => {
-  try {
-    const { profileId } = await getShareToken(req.auth.userId);
-    const token = await generateShareToken(profileId);
-    res.json({ ok: true, token });
-  } catch (err) {
-    console.error('[CONCIERGE] Generate token error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to generate share token' });
-  }
+router.get('/p/:token', publicProfileLimiter, validateShareToken, (_req, res) => {
+  res.json({ ok: true, anonymous: true });
 });
 
-/**
- * DELETE /api/concierge/token
- * 2026-03-17: SECURITY FIX (F-14) — Revoke the driver's share token
- * Nulls the concierge_share_token so public profile returns 404
- */
-router.delete('/token', requireAuth, async (req, res) => {
-  try {
-    const { profileId } = await getShareToken(req.auth.userId);
-    if (!profileId) {
-      return res.status(404).json({ ok: false, error: 'No concierge profile found' });
-    }
-    // Import db inline to avoid circular dependency issues at module level
-    const { db } = await import('../../db/drizzle.js');
-    const { driver_profiles } = await import('../../../shared/schema.js');
-    const { eq } = await import('drizzle-orm');
-    await db.update(driver_profiles)
-      .set({ concierge_share_token: null })
-      .where(eq(driver_profiles.id, profileId));
-    console.log('[CONCIERGE] Token revoked for profile:', profileId);
-    res.json({ ok: true, message: 'Share token revoked' });
-  } catch (err) {
-    console.error('[CONCIERGE] Revoke token error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to revoke share token' });
-  }
-});
-
-/**
- * GET /api/concierge/preview
- * Get the driver's own card data (for preview on concierge tab)
- */
-router.get('/preview', requireAuth, async (req, res) => {
-  try {
-    const preview = await getDriverPreview(req.auth.userId);
-    res.json({ ok: true, ...preview });
-  } catch (err) {
-    console.error('[CONCIERGE] Preview error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to load preview' });
-  }
-});
-
-// ============================================================================
-// PUBLIC ENDPOINTS (passenger scans QR code — no auth required)
-// ============================================================================
-
-/**
- * GET /api/concierge/p/:token
- * Get driver's public profile by share token
- */
-router.get('/p/:token', publicProfileLimiter, async (req, res) => {
-  try {
-    const { token } = req.params;
-
-    if (!token || token.length > 12) {
-      return res.status(400).json({ ok: false, error: 'Invalid token' });
-    }
-
-    const profile = await getDriverPublicProfile(token);
-    if (!profile) {
-      return res.status(404).json({ ok: false, error: 'Driver not found' });
-    }
-
-    res.json({ ok: true, driver: profile });
-  } catch (err) {
-    console.error('[CONCIERGE] Public profile error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to load profile' });
-  }
+router.get('/p/:token/context', weatherLimiter, validateShareToken, resolveContext, (req, res) => {
+  res.json({ ok: true, ...req.conciergeContext });
 });
 
 /**
  * GET /api/concierge/p/:token/weather?lat=&lng=
  * Get weather + AQI for coordinates (proxied to Google Weather API)
  */
-router.get('/p/:token/weather', weatherLimiter, validateShareToken, async (req, res) => {
+router.get('/p/:token/weather', weatherLimiter, validateShareToken, resolveContext, async (req, res) => {
   try {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
-
-    if (!isFinite(lat) || !isFinite(lng)) {
-      return res.status(400).json({ error: 'lat/lng required' });
-    }
+    const { lat, lng } = req.conciergeContext;
 
     const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
     if (!GOOGLE_MAPS_API_KEY) {
@@ -245,9 +173,10 @@ router.get('/p/:token/weather', weatherLimiter, validateShareToken, async (req, 
  * Body: { lat, lng, filter, timezone }
  * Returns: { ok, venues: [...], events: [...], filter, source: 'db'|'gemini'|'db+gemini' }
  */
-router.post('/p/:token/explore', exploreLimiter, validateShareToken, async (req, res) => {
+router.post('/p/:token/explore', exploreLimiter, validateShareToken, resolveContext, async (req, res) => {
   try {
-    const { lat, lng, filter, timezone } = req.body;
+    const { filter } = req.body;
+    const { lat, lng, timezone } = req.conciergeContext;
 
     if (!isFinite(Number(lat)) || !isFinite(Number(lng))) {
       return res.status(400).json({ ok: false, error: 'Valid lat/lng required' });
@@ -257,7 +186,7 @@ router.post('/p/:token/explore', exploreLimiter, validateShareToken, async (req,
       lat: Number(lat),
       lng: Number(lng),
       filter: filter || 'all',
-      timezone: timezone || 'UTC',
+      timezone,
     });
 
     res.json({ ok: true, ...result });
@@ -284,11 +213,12 @@ const askLimiter = rateLimit({
  * Body: { question, lat, lng, timezone, venueContext?, eventContext? }
  * Returns: { ok, answer }
  */
-router.post('/p/:token/ask', askLimiter, validateShareToken, async (req, res) => {
+router.post('/p/:token/ask', askLimiter, validateShareToken, resolveContext, async (req, res) => {
   try {
-    const { question, lat, lng, timezone, venueContext, eventContext } = req.body;
+    const { question, venueContext, eventContext } = req.body;
+    const { lat, lng, timezone } = req.conciergeContext;
 
-    if (!question || typeof question !== 'string') {
+    if (typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ ok: false, error: 'Question is required' });
     }
 
@@ -296,8 +226,7 @@ router.post('/p/:token/ask', askLimiter, validateShareToken, async (req, res) =>
       return res.status(400).json({ ok: false, error: 'Valid lat/lng required' });
     }
 
-    // 2026-04-10: SECURITY FIX (H-2) — Sanitize client-supplied context before AI prompt injection.
-    // Strip any instruction-like patterns that could manipulate Gemini's behavior.
+    // Bound untrusted client context. It is contextual data, never an instruction.
     const safeVenue = typeof venueContext === 'string' ? venueContext.slice(0, 2000).replace(/\n{3,}/g, '\n\n') : '';
     const safeEvent = typeof eventContext === 'string' ? eventContext.slice(0, 2000).replace(/\n{3,}/g, '\n\n') : '';
 
@@ -305,7 +234,7 @@ router.post('/p/:token/ask', askLimiter, validateShareToken, async (req, res) =>
       question,
       lat: Number(lat),
       lng: Number(lng),
-      timezone: timezone || 'UTC',
+      timezone,
       venueContext: safeVenue,
       eventContext: safeEvent,
     });
@@ -327,10 +256,11 @@ router.post('/p/:token/ask', askLimiter, validateShareToken, async (req, res) =>
  * Body: { question, lat, lng, timezone, venueContext?, eventContext? }
  * Returns: SSE stream with { delta } chunks, then { done: true }
  */
-router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, res) => {
-  const { question, lat, lng, timezone, venueContext, eventContext } = req.body;
+router.post('/p/:token/ask-stream', askLimiter, validateShareToken, resolveContext, async (req, res) => {
+  const { question, venueContext, eventContext } = req.body;
+  const { lat, lng, timezone } = req.conciergeContext;
 
-  if (!question || typeof question !== 'string') {
+  if (typeof question !== 'string' || !question.trim()) {
     return res.status(400).json({ ok: false, error: 'Question is required' });
   }
   if (!isFinite(Number(lat)) || !isFinite(Number(lng))) {
@@ -343,11 +273,11 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, 
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Connection', 'keep-alive');
 
   try {
-    console.log(`[CONCIERGE] Stream ask: "${safeQuestion.slice(0, 50)}..." near ${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`);
+    console.log('[CONCIERGE] Streaming local assistance with verified location context');
     const startTime = Date.now();
 
     // 2026-04-10: SECURITY FIX (H-2) — Sanitize client-supplied context in streaming endpoint too
@@ -356,7 +286,7 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, 
 
     const system = buildConciergeSystemPrompt({
       lat: latNum, lng: lngNum,
-      timezone: timezone || 'UTC',
+      timezone,
       venueContext: safeVenue,
       eventContext: safeEvent,
     });
@@ -419,67 +349,6 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, 
     console.error('[CONCIERGE] Stream error:', err.message);
     res.write(`data: ${JSON.stringify({ error: 'Something went wrong. Please try again.' })}\n\n`);
     res.end();
-  }
-});
-
-// ============================================================================
-// PUBLIC FEEDBACK — Passenger rates their driver
-// ============================================================================
-
-const feedbackLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 2,
-  message: { ok: false, error: 'Feedback already submitted. Please wait.' },
-  standardHeaders: true,
-});
-
-/**
- * POST /api/concierge/p/:token/feedback
- * 2026-02-13: Passenger submits star rating + optional comment for their driver
- * Body: { rating: 1-5, comment?: string }
- * Returns: { ok }
- */
-router.post('/p/:token/feedback', feedbackLimiter, async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { rating, comment } = req.body;
-
-    if (!rating || !Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
-      return res.status(400).json({ ok: false, error: 'Rating must be 1-5' });
-    }
-
-    const result = await submitFeedback({
-      token,
-      rating: Number(rating),
-      comment: comment || null,
-    });
-
-    if (!result.ok) {
-      return res.status(400).json(result);
-    }
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[CONCIERGE] Feedback error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to submit feedback' });
-  }
-});
-
-// ============================================================================
-// AUTHENTICATED FEEDBACK SUMMARY — Driver views their passenger ratings
-// ============================================================================
-
-/**
- * GET /api/concierge/feedback
- * 2026-02-13: Driver views aggregate rating + recent comments from passengers
- */
-router.get('/feedback', requireAuth, async (req, res) => {
-  try {
-    const summary = await getFeedbackSummary(req.auth.userId);
-    res.json(summary);
-  } catch (err) {
-    console.error('[CONCIERGE] Feedback summary error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to load feedback' });
   }
 });
 

@@ -18,10 +18,9 @@ import PolicyPage from '@/pages/co-pilot/PolicyPage';
 import SettingsPage from '@/pages/co-pilot/SettingsPage';
 // 2026-07-03 (todo #10): Offer Analyzer — rules editor + Siri Shortcut setup + offer history
 import OfferAnalyzerPage from '@/pages/co-pilot/OfferAnalyzerPage';
-import TranslationPage from '@/pages/co-pilot/TranslationPage';
+import QuickAnalyzePage from '@/pages/co-pilot/QuickAnalyzePage';
 // 2026-04-05: Hamburger menu pages
 import SchedulePage from '@/pages/co-pilot/SchedulePage';
-import DonatePage from '@/pages/co-pilot/DonatePage';
 import HelpPage from '@/pages/co-pilot/HelpPage';
 import {
   SignInPage,
@@ -42,8 +41,7 @@ import LandingPage from '@/pages/landing/LandingPage';
 import PortfolioPage from '@/pages/portfolio/PortfolioPage';
 // 2026-05-15: Public iPad kiosk "Welcome to My Car" — passenger-education flow with quiz + QR triptych.
 import WelcomePage from '@/pages/welcome/WelcomePage';
-// 2026-05-15: Public donate page reached from the welcome farewell QR (square.link CTA + cost breakdown + future scope).
-import PublicDonatePage from '@/pages/welcome/PublicDonatePage';
+// 2026-09-11: Donation pages retired; old URLs redirect without a payment link.
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
@@ -78,6 +76,14 @@ export const router = createBrowserRouter([
 
   // 2026-02-13: Public Concierge page (passengers scan driver's QR code)
   {
+    path: '/c',
+    element: <PublicConciergePage />,
+  },
+  {
+    path: '/c/welcome',
+    element: <Navigate to="/c" replace />,
+  },
+  {
     path: '/c/:token',
     element: <PublicConciergePage />,
   },
@@ -101,10 +107,10 @@ export const router = createBrowserRouter([
     element: <WelcomePage />,
   },
 
-  // 2026-05-15: Public donate page (reached from welcome farewell QR). No auth.
+  // Keep old bookmarks navigable after donation-page retirement.
   {
     path: '/welcome/support',
-    element: <PublicDonatePage />,
+    element: <Navigate to="/welcome" replace />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -192,13 +198,17 @@ export const router = createBrowserRouter([
       },
       {
         // 2026-07-03 (todo #10): per-driver offer rules + shortcut token + offers
+        path: 'analyze',
+        element: <QuickAnalyzePage />,
+      },
+      {
         path: 'offer-analyzer',
         element: <OfferAnalyzerPage />,
       },
       {
-        // 2026-03-16: Real-time rider translation for FIFA World Cup
+        // Translation requests now go to the existing Coach voice/text surface.
         path: 'translate',
-        element: <TranslationPage />,
+        element: <Navigate to="/co-pilot/coach" replace />,
       },
       // 2026-04-05: Hamburger menu pages
       {
@@ -207,7 +217,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'donate',
-        element: <DonatePage />,
+        element: <Navigate to="/co-pilot/strategy" replace />,
       },
       {
         path: 'help',
