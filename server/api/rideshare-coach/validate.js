@@ -274,6 +274,12 @@ const ACTION_SCHEMAS = {
   BACKFILL_OFFER_INTEL: backfillOfferIntelSchema
 };
 
+function getActionSchema(actionType) {
+  return typeof actionType === 'string' && Object.hasOwn(ACTION_SCHEMAS, actionType)
+    ? ACTION_SCHEMAS[actionType]
+    : null;
+}
+
 // ============================================================================
 // ROUTES
 // ============================================================================
@@ -293,7 +299,7 @@ const ACTION_SCHEMAS = {
  * Failure: { ok: false, error: "VALIDATION_ERROR", details: [...] }
  */
 router.post('/', (req, res) => {
-  const { action_type, payload } = req.body;
+  const { action_type, payload } = req.body ?? {};
 
   if (!action_type) {
     return res.status(400).json({
@@ -311,12 +317,12 @@ router.post('/', (req, res) => {
     });
   }
 
-  const schema = ACTION_SCHEMAS[action_type];
+  const schema = getActionSchema(action_type);
   if (!schema) {
     return res.status(400).json({
       ok: false,
       error: 'UNKNOWN_ACTION',
-      message: `Unknown action type: ${action_type}`,
+      message: 'Unknown action type',
       valid_actions: Object.keys(ACTION_SCHEMAS)
     });
   }
@@ -366,7 +372,7 @@ router.get('/schemas', (_req, res) => {
  * Validates multiple actions at once
  */
 router.post('/batch', (req, res) => {
-  const { actions } = req.body;
+  const { actions } = req.body ?? {};
 
   if (!Array.isArray(actions)) {
     return res.status(400).json({
@@ -377,15 +383,15 @@ router.post('/batch', (req, res) => {
   }
 
   const results = actions.map((action, index) => {
-    const { action_type, payload } = action;
-    const schema = ACTION_SCHEMAS[action_type];
+    const { action_type, payload } = action ?? {};
+    const schema = getActionSchema(action_type);
 
     if (!schema) {
       return {
         index,
         action_type,
         ok: false,
-        error: `Unknown action type: ${action_type}`
+        error: 'Unknown action type'
       };
     }
 
@@ -441,8 +447,8 @@ function getSchemaDescription(action) {
 }
 
 function extractSchemaFields(schema) {
-  // Simplified extraction - in practice you'd use zod's introspection
-  const shape = schema._def?.shape?.();
+  // Zod 4 exposes object shape as a property, not the old _def.shape() function.
+  const shape = schema.shape;
   if (!shape) return {};
 
   const fields = {};
@@ -450,22 +456,19 @@ function extractSchemaFields(schema) {
     fields[key] = {
       type: getZodType(def),
       required: !def.isOptional?.(),
-      description: def._def?.description
+      description: def.description
     };
   }
   return fields;
 }
 
-function getZodType(def) {
-  const typeName = def._def?.typeName;
-  if (typeName === 'ZodEnum') return `enum: ${def._def.values.join(' | ')}`;
-  if (typeName === 'ZodString') return 'string';
-  if (typeName === 'ZodNumber') return 'number';
-  if (typeName === 'ZodBoolean') return 'boolean';
-  if (typeName === 'ZodArray') return 'array';
-  if (typeName === 'ZodOptional') return `optional(${getZodType(def._def.innerType)})`;
-  if (typeName === 'ZodDefault') return `default(${getZodType(def._def.innerType)})`;
-  return 'unknown';
+function getZodType(schema) {
+  if (schema.type === 'enum') return `enum: ${schema.options.join(' | ')}`;
+  if (['optional', 'default', 'nullable'].includes(schema.type)) {
+    return `${schema.type}(${getZodType(schema.unwrap())})`;
+  }
+  if (schema.type === 'pipe') return getZodType(schema.out);
+  return schema.type || 'unknown';
 }
 
 // ============================================================================
@@ -480,9 +483,9 @@ function getZodType(def) {
  * @returns {{ ok: boolean, data?: object, errors?: array }}
  */
 export function validateAction(actionType, payload) {
-  const schema = ACTION_SCHEMAS[actionType];
+  const schema = getActionSchema(actionType);
   if (!schema) {
-    return { ok: false, errors: [{ field: 'action_type', message: `Unknown action: ${actionType}` }] };
+    return { ok: false, errors: [{ field: 'action_type', message: 'Unknown action type' }] };
   }
 
   const result = schema.safeParse(payload);

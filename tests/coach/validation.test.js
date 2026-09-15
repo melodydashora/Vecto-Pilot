@@ -1,3 +1,5 @@
+import { describe, test, expect } from '@jest/globals';
+import router from '../../server/api/rideshare-coach/validate.js';
 // tests/coach-validation.test.js
 // Unit tests for AI Coach validation schemas
 // Converted to standard Jest format
@@ -9,7 +11,7 @@ import {
   eventDeactivationSchema,
   zoneIntelSchema,
   systemNoteSchema
-} from '../server/api/rideshare-coach/validate.js';
+} from '../../server/api/rideshare-coach/validate.js';
 
 describe('Coach Validation', () => {
 
@@ -265,5 +267,32 @@ describe('Coach Validation', () => {
       expect(result.ok).toBe(false);
       expect(result.errors[0].field).toBe('action_type');
     });
+  });
+});
+function invoke(method, path, body) {
+  const route = router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]);
+  let status = 200, data;
+  const response = { status(code) { status = code; return this; }, json(value) { data = value; return this; } };
+  route.route.stack.at(-1).handle({ body }, response);
+  return { status, data };
+}
+describe('Coach validation API contracts', () => {
+  test('schema documentation works with Zod4 and reports real field types', () => {
+    const { data } = invoke('get', '/schemas');
+    expect(data.ok).toBe(true);
+    expect(data.schemas.SAVE_NOTE.fields.title.type).toBe('string');
+    expect(data.schemas.SAVE_NOTE.fields.importance.type).toBe('default(number)');
+    expect(data.schemas.SAVE_NOTE.fields.note_type.type).toContain('enum: preference');
+    expect(data.schemas.DEACTIVATE_EVENT.fields.reason.type).toContain('enum: event_ended');
+  });
+  test.each(['toString', '__proto__', 'constructor'])('rejects inherited action %s', action_type => {
+    expect(invoke('post', '/', { action_type, payload: {} }).status).toBe(400);
+    expect(validateAction(action_type, {}).ok).toBe(false);
+  });
+  test('invalid batch entries do not prevent validation of valid entries', () => {
+    const { data } = invoke('post', '/batch', { actions: [null, { action_type: 'SAVE_NOTE', payload: { note_type: 'tip', title: 'Test', content: 'Useful tip' } }] });
+    expect(data.ok).toBe(false);
+    expect(data.invalid).toBe(1);
+    expect(data.valid).toBe(1);
   });
 });

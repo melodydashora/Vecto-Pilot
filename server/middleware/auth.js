@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { authLog, matrixLog } from '../logger/workflow.js';
 import { db } from '../db/drizzle.js';
 import { users } from '../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { verifyJWT } from '../lib/jwt.js';
 
 // 2026-01-05: Session TTL Constants (per SAVE-IMPORTANT.md)
@@ -221,7 +221,7 @@ export async function requireAuth(req, res, next) {
             current_snapshot_id: null,
             updated_at: new Date()
           })
-          .where(eq(users.user_id, userId));
+          .where(and(eq(users.user_id, userId), eq(users.session_id, session.session_id)));
         return res.status(401).json({ error: 'session_expired', message: 'Session expired (2-hour limit). Please log in again.' });
       }
 
@@ -235,14 +235,16 @@ export async function requireAuth(req, res, next) {
             current_snapshot_id: null,
             updated_at: new Date()
           })
-          .where(eq(users.user_id, userId));
+          .where(and(eq(users.user_id, userId), eq(users.session_id, session.session_id)));
         return res.status(401).json({ error: 'session_expired', message: 'Session expired due to inactivity. Please log in again.' });
       }
 
+      // Scope delayed activity and expiry writes to the session read above so
+      // they cannot alter a newer login for this user.
       // Session valid - update last_active_at to extend sliding window (non-blocking)
       db.update(users)
         .set({ last_active_at: new Date(), updated_at: new Date() })
-        .where(eq(users.user_id, userId))
+        .where(and(eq(users.user_id, userId), eq(users.session_id, session.session_id)))
         .catch(err => console.warn('[AUTH] Failed to update last_active_at:', err.message));
 
       // Attach session info to request

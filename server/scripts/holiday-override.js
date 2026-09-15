@@ -161,7 +161,7 @@ async function testDetection() {
   console.log('─'.repeat(60));
 
   try {
-    const { detectHoliday } = await import('../lib/holiday-detector.js');
+    const { detectHoliday } = await import('../lib/location/holiday-detector.js');
 
     const testContext = {
       created_at: new Date().toISOString(),

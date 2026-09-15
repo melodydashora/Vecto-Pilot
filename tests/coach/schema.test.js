@@ -1,3 +1,6 @@
+import { getTableColumns } from 'drizzle-orm';
+import * as schema from '../../shared/schema.js';
+import { describe, test, expect } from '@jest/globals';
 // tests/coach-schema.test.js
 // Tests for AI Coach schema metadata endpoint
 // Created: 2026-01-05
@@ -5,25 +8,9 @@
 import {
   rideshareCoachSchemaMetadata,
   formatSchemaForPrompt
-} from '../server/api/rideshare-coach/schema.js';
+} from '../../server/api/rideshare-coach/schema.js';
 
-async function testSchema() {
-  console.log('[coach-schema] Starting schema metadata tests...');
-  let passed = 0;
-  let failed = 0;
-
-  // Helper to run test
-  const test = (name, fn) => {
-    try {
-      fn();
-      console.log(`  ✅ ${name}`);
-      passed++;
-    } catch (err) {
-      console.log(`  ❌ ${name}: ${err.message}`);
-      failed++;
-    }
-  };
-
+describe('Coach schema metadata', () => {
   const assert = (condition, msg) => {
     if (!condition) throw new Error(msg);
   };
@@ -31,7 +18,6 @@ async function testSchema() {
   // ============================================================================
   // Schema Structure
   // ============================================================================
-  console.log('\n[coach-schema] Testing schema structure...');
 
   test('schema has readable_tables', () => {
     assert(rideshareCoachSchemaMetadata.readable_tables, 'Should have readable_tables');
@@ -56,7 +42,6 @@ async function testSchema() {
   // ============================================================================
   // Readable Tables
   // ============================================================================
-  console.log('\n[coach-schema] Testing readable tables...');
 
   const requiredReadableTables = [
     'snapshots',
@@ -85,7 +70,6 @@ async function testSchema() {
   // ============================================================================
   // Writable Tables
   // ============================================================================
-  console.log('\n[coach-schema] Testing writable tables...');
 
   const requiredWritableTables = [
     'user_intel_notes',
@@ -107,7 +91,6 @@ async function testSchema() {
   // ============================================================================
   // Action Tags
   // ============================================================================
-  console.log('\n[coach-schema] Testing action tags...');
 
   test('user_intel_notes has SAVE_NOTE action tag', () => {
     const tag = rideshareCoachSchemaMetadata.writable_tables.user_intel_notes.action_tag;
@@ -134,7 +117,6 @@ async function testSchema() {
   // ============================================================================
   // Field Definitions
   // ============================================================================
-  console.log('\n[coach-schema] Testing field definitions...');
 
   test('user_intel_notes has fields definition', () => {
     const fields = rideshareCoachSchemaMetadata.writable_tables.user_intel_notes.fields;
@@ -154,7 +136,6 @@ async function testSchema() {
   // ============================================================================
   // Prompt Formatting
   // ============================================================================
-  console.log('\n[coach-schema] Testing prompt formatting...');
 
   test('formatSchemaForPrompt returns string', () => {
     const prompt = formatSchemaForPrompt(rideshareCoachSchemaMetadata);
@@ -186,23 +167,15 @@ async function testSchema() {
     assert(prompt.includes('Market intel'), 'Should mention market intel');
   });
 
-  // ============================================================================
-  // Summary
-  // ============================================================================
-  console.log('\n[coach-schema] ================================');
-  console.log(`[coach-schema] Tests: ${passed + failed} total`);
-  console.log(`[coach-schema] Passed: ${passed}`);
-  console.log(`[coach-schema] Failed: ${failed}`);
-  console.log('[coach-schema] ================================');
+});
 
-  return { ok: failed === 0, passed, failed };
-}
-
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  testSchema().then(result => {
-    process.exit(result.ok ? 0 : 1);
+describe('Coach prompt schema agrees with the canonical database model', () => {
+  test.each(Object.entries(rideshareCoachSchemaMetadata.readable_tables))('%s advertises only real columns', (name, info) => {
+    expect(schema[name]).toBeDefined();
+    const columns = new Set(Object.values(getTableColumns(schema[name])).map(column => column.name));
+    expect(info.key_columns.filter(column => !columns.has(column))).toEqual([]);
   });
-}
-
-export default testSchema;
+  test.each(Object.keys(rideshareCoachSchemaMetadata.writable_tables))('%s is an existing table', name => {
+    expect(schema[name]).toBeDefined();
+  });
+});

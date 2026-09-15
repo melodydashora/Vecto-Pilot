@@ -90,7 +90,7 @@ pool.on('connect', (client) => {
   });
 });
 
-setInterval(() => {
+const poolMonitor = setInterval(() => {
   const stats = {
     idle: pool.idleCount ?? 0,
     total: pool.totalCount ?? 0,
@@ -104,6 +104,9 @@ setInterval(() => {
     lastWarningTime = Date.now();
   }
 }, 30000); // Check every 30 seconds
+
+// Monitoring must not keep CLI checks/tests alive after their work and pool close.
+poolMonitor.unref();
 
 pool.on('error', (err) => {
   // 57P01 = admin_shutdown (connection terminated by server).
