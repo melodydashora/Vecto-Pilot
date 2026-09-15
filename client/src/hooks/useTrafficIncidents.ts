@@ -1,7 +1,7 @@
 // 2026-04-26 PHASE F: TomTom traffic-incident selector for the Strategy map.
 // 2026-04-29 PLAN G: refactored to fetch from /api/traffic/incidents (the
 // discovered_traffic cache table) as the canonical source. The Phase F path
-// (briefingData.traffic.incidents) remains as a graceful-fallback if the API
+// (briefingData.trafficData.traffic.incidents) remains as a graceful-fallback if the API
 // call fails or returns empty for the current snapshot — gives us defense in
 // depth while the cache table populates.
 //
@@ -10,7 +10,7 @@
 //                                  ↘ briefings.traffic.incidents (Phase F path)
 //
 //   Client → /api/traffic/incidents?snapshot_id=X (canonical)
-//          ↘ briefingData.traffic.incidents (fallback)
+//          ↘ briefingData.trafficData.traffic.incidents (fallback)
 //          → StrategyMap renders triangle markers
 //
 // The new path is a circuit breaker: a briefing-layer regression that strips
@@ -84,12 +84,12 @@ export function useTrafficIncidents(): PlottableTrafficIncident[] {
     retry: 1,
   });
 
-  // Fallback: briefingData.traffic.incidents (Phase F path). Used only when the
+  // Fallback: briefingData.trafficData.traffic.incidents (Phase F path). Used only when the
   // API returns nothing (cache hasn't been written for this snapshot yet, or the
   // request failed). Keeping this fallback gives defense in depth — a briefing
   // regression won't silently disable the map, AND a discovered_traffic-write
   // regression won't either, as long as either path is healthy.
-  const trafficObj = briefingData?.traffic as { incidents?: TrafficIncident[] } | null | undefined;
+  const trafficObj = briefingData?.trafficData?.traffic as { incidents?: TrafficIncident[] } | null | undefined;
   const fallbackIncidents = useMemo(() => {
     return (trafficObj?.incidents ?? []).filter(hasCoords);
   }, [trafficObj?.incidents]);

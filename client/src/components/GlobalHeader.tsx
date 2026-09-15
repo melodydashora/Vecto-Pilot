@@ -14,9 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
 import { LocationContext } from "@/contexts/location-context-clean";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
-import { getAuthHeader, subscribeBriefingReady } from '@/utils/co-pilot-helpers';
+import { useQuery } from "@tanstack/react-query";
+import { QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
 import { useCoPilot } from '@/contexts/co-pilot-context';
 // 2026-04-05: Hamburger menu for secondary pages (Sign Out, Settings, About, etc.)
@@ -100,30 +99,13 @@ const GlobalHeaderComponent: React.FC = () => {
   // React Query dedupes with the briefing tab; we select only the holiday
   // section. Refetches on briefing_ready SSE as sections land.
   const snapshotId = loc?.lastSnapshotId ?? null;
-  const queryClient = useQueryClient();
+  // The CoPilotProvider owns this query's fetching, retries, and SSE subscription.
+  // A second queryFn here used to replace its error/retry policy in the shared cache.
   const { data: holidaySection } = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId!),
-    queryFn: async () => {
-      const response = await fetch(API_ROUTES.BRIEFING.AGGREGATE(snapshotId!), {
-        headers: getAuthHeader(),
-      });
-      if (!response.ok) return null; // 404 = briefing not generated yet; retried on SSE
-      return response.json();
-    },
-    enabled: !!snapshotId,
-    staleTime: 60_000,
+    enabled: false,
     select: (data: any) => data?.briefing?.holiday ?? null,
   });
-
-  useEffect(() => {
-    if (!snapshotId) return;
-    const unsubscribe = subscribeBriefingReady(snapshotId, (readyId: string) => {
-      if (readyId === snapshotId) {
-        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId) });
-      }
-    });
-    return () => unsubscribe();
-  }, [snapshotId, queryClient]);
 
   // 'none' = VERIFIED not a holiday; errorMarker/_generationFailed = detection
   // failed (reason recorded in the briefing row) — either way, no amber banner.

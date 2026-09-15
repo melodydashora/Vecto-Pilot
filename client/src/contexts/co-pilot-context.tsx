@@ -60,30 +60,7 @@ interface CoPilotContextValue {
   timeRemainingText: string | null;
 
   // Pre-loaded briefing data (fetched as soon as snapshot is available)
-  briefingData: {
-    weather: any;
-    traffic: any;
-    news: any;
-    events: any;
-    marketEvents: any;
-    schoolClosures: any;
-    airport: any;
-    isLoading: {
-      weather: boolean;
-      traffic: boolean;
-      events: boolean;
-      news: boolean;
-      airport: boolean;
-      schoolClosures: boolean;
-    };
-    // 2026-04-05: Retries exhausted — data permanently unavailable for this snapshot
-    isUnavailable?: {
-      traffic: boolean;
-      events: boolean;
-      news: boolean;
-      airport: boolean;
-    };
-  };
+  briefingData: ReturnType<typeof useBriefingQueries>;
 
   // Pre-loaded bars data (fetched as soon as location resolves)
   barsData: BarsData | null;
@@ -826,6 +803,9 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
   // Pre-load briefing data as soon as snapshot is available
   // This ensures briefing tab has data before user navigates there
   const {
+    isRetryExhausted,
+    isFetching: isBriefingFetching,
+    retryBriefing,
     weatherData,
     trafficData,
     newsData,
@@ -914,42 +894,19 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     pipelinePhase: pipelinePhase as PipelinePhase,
     timeRemainingText,
 
-    // Pre-loaded briefing data
-    // 2026-04-04: Defense-in-depth — ensure array fields are always arrays, never null.
-    // Prevents "undefined is not iterable" crashes when components use for...of or spread.
+    // Keep the hook's section envelopes intact so pending/failure flags and
+    // provider reasons reach the cards without another mapping contract.
     briefingData: {
-      weather: weatherData?.weather || null,
-      traffic: trafficData?.traffic || null,
-      news: newsData?.news || null,
-      // 2026-03-29: FIX - Unwrap events array from API response object
-      // Previously stored full response object, breaking .filter() calls downstream
-      // Now properly extracts events array AND marketEvents for separate access
-      events: Array.isArray(eventsData?.events) ? eventsData.events : [],
-      marketEvents: Array.isArray(eventsData?.marketEvents) ? eventsData.marketEvents : [],
-      // 2026-01-10: Snake/camel tolerant - accept both server response formats
-      // 2026-04-18: Preserve `reason` alongside the items array so SchoolClosuresCard
-      // can render the server-provided reason (e.g., "No data source for this region")
-      // instead of the generic "No school closures reported" fallback. Pre-fix the
-      // reason was silently dropped at this layer, breaking transparency of the tab.
-      schoolClosures: (() => {
-        // Snake/camel tolerant: server may return either shape; cast since the
-        // typed response only declares snake_case but legacy paths use camelCase.
-        const sc = schoolClosuresData as { schoolClosures?: unknown; school_closures?: unknown } | null | undefined;
-        const raw = sc?.schoolClosures ?? sc?.school_closures;
-        return Array.isArray(raw) ? raw : [];
-      })(),
-      schoolClosuresReason: schoolClosuresData?.reason ?? null,
-      airport: (() => {
-        const a = airportData as { airportConditions?: unknown; airport_conditions?: unknown } | null | undefined;
-        return a?.airportConditions ?? a?.airport_conditions ?? null;
-      })(),
-      // 2026-04-19: H3 fix — expose per-section _generationFailed flags so cards
-      // can render explicit "section unavailable" states. Was previously dropped
-      // at the unwrap step, so a permanently-failed weather section silently
-      // hid instead of saying so.
-      weatherFailed: !!(weatherData as any)?._generationFailed,
+      isRetryExhausted,
+      isFetching: isBriefingFetching,
+      retryBriefing,
+      weatherData,
+      trafficData,
+      newsData,
+      eventsData,
+      schoolClosuresData,
+      airportData,
       isLoading: briefingIsLoading,
-      // 2026-04-05: Expose "gave up" state so UI can show "Briefing data unavailable"
       isUnavailable: briefingIsUnavailable,
     },
 
@@ -982,6 +939,9 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     enrichmentPhase,
     pipelinePhase,
     timeRemainingText,
+    isRetryExhausted,
+    isBriefingFetching,
+    retryBriefing,
     weatherData,
     trafficData,
     newsData,

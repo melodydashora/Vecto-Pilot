@@ -36,8 +36,9 @@ interface BriefingTabProps {
   eventsData?: {
     events?: BriefingEvent[];
     marketEvents?: BriefingEvent[];
-    market_name?: string;
-    reason?: string;
+    // 2026-09-13: null-tolerant — the provider now forwards the hook's envelope unchanged.
+    market_name?: string | null;
+    reason?: string | null;
     // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
     _pending?: boolean;
     _generationFailed?: boolean;
