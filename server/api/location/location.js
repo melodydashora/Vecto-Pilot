@@ -8,8 +8,12 @@ import { sql, eq, or, ilike, and } from 'drizzle-orm';
 import { matrixLog } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
+import { normalizeCoordinates, GPS_MAX_ACCURACY_METERS } from '../../../shared/coordinates.js';
+import { getSnapshotReadiness } from '../../lib/location/snapshot-readiness.js';
+import { snapshotEnvironment } from '../../lib/location/snapshot-environment.js';
+import { enrichSnapshot } from '../../lib/location/enrich-snapshot.js';
 // 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
-import { getDayPartKey, getLocalHour, getLocalDow } from '../../lib/location/daypart.js';
+import { getDayPartKey, getLocalHour, getLocalDow, getLocalIso } from '../../lib/location/daypart.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
 import { buildAirportContext } from '../../lib/location/airport-context.js';
@@ -38,7 +42,7 @@ router.use(requireAuth);
 // For `timestamp without timezone` columns, Drizzle serializes Date via .toISOString() (UTC).
 // We create a Date whose UTC value matches the local wall-clock time so Postgres stores local time.
 function toLocalTimestamp(utcDate, timezone) {
-  return new Date(utcDate.toLocaleString('en-US', { timeZone: timezone }));
+  return new Date(`${getLocalIso(utcDate, timezone)}Z`);
 }
 
 // 2026-01-14: validateSnapshotFields moved to shared module (server/util/validate-snapshot.js)
@@ -55,17 +59,9 @@ const googleMapsCircuit = makeCircuit({
   timeoutMs: 5000
 });
 
-const googleAQCircuit = makeCircuit({ 
-  name: 'google-airquality', 
-  failureThreshold: 3, 
-  resetAfterMs: 30000, 
-  timeoutMs: 3000 
-});
-
 import { httpError } from '../utils/http-helpers.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
 
 // UNIFIED: Accept manual city overrides consistently (test and debug feature)
 
@@ -433,8 +429,9 @@ router.get('/timezone', async (req, res) => {
  */
 router.get('/resolve', async (req, res) => {
   try {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
+    const coords = normalizeCoordinates(req.query.lat, req.query.lng);
+    if (!coords) return res.status(400).json({ error: 'INVALID_COORDINATES', message: 'Valid precise latitude and longitude are required.', ok: false });
+    const { lat, lng } = coords;
 
     const authenticatedUserId = req.auth?.userId || null;
 
@@ -448,6 +445,9 @@ router.get('/resolve', async (req, res) => {
     }
 
     const accuracy = req.query.accuracy ? Number(req.query.accuracy) : null;
+    if (req.query.accuracy !== undefined && (!Number.isFinite(accuracy) || accuracy <= 0 || accuracy > GPS_MAX_ACCURACY_METERS)) {
+      return res.status(400).json({ error: 'GPS_TOO_COARSE', message: 'Retry with a fresh precise location.', ok: false });
+    }
     const sessionId = req.query.session_id || null;
     const coordSource = req.query.coord_source || 'gps';
 
@@ -898,7 +898,7 @@ router.get('/resolve', async (req, res) => {
           // to the "not found — creating fresh" branch, which also self-heals it.
           const existingSnapshot = await db.query.snapshots.findFirst({
             where: and(eq(snapshots.snapshot_id, existingUser.current_snapshot_id), eq(snapshots.user_id, userId)),
-            columns: { snapshot_id: true, created_at: true, city: true, state: true }
+            columns: { snapshot_id: true, created_at: true, city: true, state: true, coord_key: true }
           }).catch(() => null);
 
           if (existingSnapshot?.created_at) {
@@ -912,7 +912,7 @@ router.get('/resolve', async (req, res) => {
             if (cityChanged) {
               // City changed - must create new snapshot for fresh briefing data
               console.log(`[SNAPSHOT] 🏙️ CITY CHANGED: ${existingSnapshot.city}, ${existingSnapshot.state} → ${city}, ${state} - creating fresh snapshot`);
-            } else if (snapshotAge < SNAPSHOT_TTL_MS) {
+            } else if (snapshotAge >= 0 && snapshotAge < SNAPSHOT_TTL_MS && existingSnapshot.coord_key === coordKey) {
               // Snapshot is fresh AND same city - reuse it
               console.log(`[SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (age: ${Math.round(snapshotAge / 60000)}min)`);
               resolvedData.snapshot_id = existingUser.current_snapshot_id;
@@ -1007,18 +1007,9 @@ router.get('/resolve', async (req, res) => {
                   console.log(`[SNAPSHOT] 🔗 Backfilled profile market (first snapshot): ${coordResolvedMarket.market_name} (tz ${timeZone} from GPS→Google)`);
                 }
               } else {
-                // PATH 2 (fallback): coord resolution returned nothing (unknown city/state combo,
-                // e.g., international where markets table has no entry). Fall back to profile
-                // market — better stale-but-domestic than null for AI prompt scope.
-                const [profileResult] = await db
-                  .select({ market: driver_profiles.market })
-                  .from(driver_profiles)
-                  .where(eq(driver_profiles.user_id, userId))
-                  .limit(1);
-                userMarket = profileResult?.market || null;
-                if (userMarket) {
-                  console.log(`[SNAPSHOT] Market fallback from profile (coord lookup failed for ${city}, ${state}): ${userMarket}`);
-                }
+                // Unknown GPS-derived market stays unresolved; a home market would
+                // scope live intelligence to the wrong place. The readiness gate reports it.
+                console.warn('[SNAPSHOT] Market identity unavailable for current GPS location');
               }
             } catch (err) {
               // Non-fatal: market is optional enhancement for event/news discovery scope
@@ -1071,21 +1062,20 @@ router.get('/resolve', async (req, res) => {
           // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
           validateSnapshotFields(snapshotRecord);
 
-          // PARALLEL: Insert snapshot and update current_snapshot_id at the same time
-          // These are independent DB writes that can execute concurrently
-          await Promise.all([
-            db.insert(snapshots).values(snapshotRecord),
-            db.update(users)
+          // Publish the session pointer only with a successfully persisted snapshot.
+          await db.transaction(async tx => {
+            await tx.insert(snapshots).values(snapshotRecord);
+            await tx.update(users)
               .set({ current_snapshot_id: snapshotId })
-              .where(eq(users.user_id, userId))
-          ]);
+              .where(eq(users.user_id, userId));
+          });
           matrixLog.info({
             category: 'SNAPSHOT',
             connection: 'DB',
             action: 'SNAPSHOT_CREATE_COMPLETE',
             tableName: 'SNAPSHOTS',
             location: 'location.js:resolveLocation',
-          }, `Snapshot ${snapshotId.slice(0, 8)} created (parallel write)`);
+          }, `Snapshot ${snapshotId.slice(0, 8)} created (atomic write)`);
 
           // Add snapshot_id to response. Holiday is NOT here anymore — the
           // header reads it from the briefing (briefings.holiday section).
@@ -1140,192 +1130,25 @@ router.get('/resolve', async (req, res) => {
   }
 });
 
-// GET /api/location/weather?lat=&lng=
-// Get current weather conditions for coordinates using Google Weather API
+// Header and persistence use the same server-only, exact-coordinate results.
+// The Briefing weather pipeline owns the forecast; this route returns current conditions.
 router.get('/weather', async (req, res) => {
-  try {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
-
-    if (!isFinite(lat) || !isFinite(lng)) {
-      return res.status(400).json({ error: 'lat/lng required' });
-    }
-
-    if (!GOOGLE_MAPS_API_KEY) {
-      console.warn('[LOCATION] No Google Maps API key configured');
-      return res.json({ 
-        available: false,
-        error: 'API key not configured' 
-      });
-    }
-
-    // Use Google Weather API with all required fields
-    const [currentRes, forecastRes] = await Promise.all([
-      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`, {
-        headers: { 'X-Goog-Api-Client': 'gl-node/' }
-      }),
-      fetch(`https://weather.googleapis.com/v1/forecast/hours:lookup?location.latitude=${lat}&location.longitude=${lng}&hours=6&key=${GOOGLE_MAPS_API_KEY}`, {
-        headers: { 'X-Goog-Api-Client': 'gl-node/' }
-      })
-    ]);
-
-    let current = null;
-    let forecast = [];
-
-    if (currentRes.ok) {
-      const currentData = await currentRes.json();
-      
-      // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
-      const tempC = currentData.temperature?.degrees ?? currentData.temperature;
-      const tempF = tempC != null ? Math.round((tempC * 9/5) + 32) : null;
-      const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
-      const feelsLikeF = feelsLikeC ? Math.round((feelsLikeC * 9/5) + 32) : null;
-      
-      current = {
-        available: true,
-        temperature: tempF,
-        tempF: tempF,
-        feelsLike: feelsLikeF,
-        conditions: currentData.weatherCondition?.description?.text,
-        description: currentData.weatherCondition?.description?.text || 'Unknown',
-        humidity: currentData.relativeHumidity?.value ?? currentData.relativeHumidity,
-        windSpeed: currentData.windSpeed?.value ?? currentData.windSpeed,
-        windDirection: currentData.wind?.direction?.cardinal,
-        uvIndex: currentData.uvIndex,
-        precipitation: currentData.precipitation,
-        visibility: currentData.visibility,
-        isDaytime: currentData.isDaytime
-      };
-    }
-
-    if (forecastRes.ok) {
-      const forecastData = await forecastRes.json();
-      forecast = (forecastData.forecastHours || []).slice(0, 6).map((hour) => {
-        const tempC = hour.temperature?.degrees ?? hour.temperature;
-        const tempF = tempC != null ? Math.round((tempC * 9/5) + 32) : null;
-        return {
-          time: hour.time,
-          temperature: tempF,
-          tempF: tempF,
-          conditions: hour.condition?.text ?? hour.weatherCondition?.description?.text,
-          precipitationProbability: hour.precipitationProbability?.value ?? hour.precipitation?.probability?.percent,
-          windSpeed: hour.windSpeed?.value ?? hour.wind?.speed,
-          isDaytime: hour.isDaytime
-        };
-      });
-    }
-
-    matrixLog.info({
-      category: 'LOCATION',
-      connection: 'API',
-      action: 'WEATHER_FETCH_COMPLETE',
-      location: 'location.js:getWeather',
-    }, 'Weather fetched (values redacted)');
-
-    // 2026-04-05: Always include `available` field so client can distinguish
-    // "API succeeded but no data" from "API failed". Without this, the response
-    // is just { forecast: [] } when current is null — client sees no `available`
-    // field and skips snapshot enrichment, leaving weather permanently null.
-    if (current) {
-      res.json({ ...current, forecast });
-    } else {
-      res.json({ available: false, forecast, reason: 'current_conditions_unavailable' });
-    }
-  } catch (err) {
-    console.error('[LOCATION] weather error', err);
-    res.json({
-      available: false,
-      forecast: [],
-      error: 'weather-fetch-failed'
-    });
+  const coords = normalizeCoordinates(req.query.lat, req.query.lng);
+  if (!coords) return res.status(400).json({ available: false, error: 'invalid_coordinates' });
+  try { return res.json(await snapshotEnvironment.weather(coords.lat, coords.lng)); }
+  catch (error) {
+    console.error('[LOCATION] Current weather unavailable:', error.message);
+    return res.status(502).json({ available: false, error: 'weather_unavailable' });
   }
 });
 
-// GET /api/location/airquality?lat=&lng=
-// Get current air quality index for coordinates
 router.get('/airquality', async (req, res) => {
-  try {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
-
-    if (!isFinite(lat) || !isFinite(lng)) {
-      return res.status(400).json({ error: 'lat/lng required' });
-    }
-
-    if (!GOOGLEAQ_API_KEY) {
-      console.warn('[LOCATION] No Google Air Quality API key configured');
-      return res.json({ 
-        available: false,
-        error: 'API key not configured' 
-      });
-    }
-
-    const url = 'https://airquality.googleapis.com/v1/currentConditions:lookup';
-    const requestBody = {
-      location: {
-        latitude: lat,
-        longitude: lng
-      }
-    };
-
-    const data = await googleAQCircuit(async (signal) => {
-      const response = await fetch(`${url}?key=${GOOGLEAQ_API_KEY}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-        signal
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `API error: ${response.status}`);
-      }
-
-      return await response.json();
-    });
-
-    // Check if data contains an error (circuit breaker might have returned error state)
-    if (data?.error) {
-      console.error('[LOCATION] Air Quality API error:', data);
-      return res.status(500).json({ 
-        available: false,
-        error: data.error?.message || 'Air quality fetch failed' 
-      });
-    }
-
-    // Extract AQI and pollutant data
-    const aqi = data.indexes?.find(idx => idx.code === 'uaqi') || data.indexes?.[0];
-    const dominantPollutant = data.pollutants?.reduce((max, p) => 
-      p.concentration?.value > (max?.concentration?.value || 0) ? p : max, 
-      null
-    );
-
-    const aqData = {
-      available: true,
-      aqi: aqi?.aqi || 0,
-      category: aqi?.category || 'Unknown',
-      dominantPollutant: aqi?.dominantPollutant || dominantPollutant?.code || 'unknown',
-      healthRecommendations: aqi?.healthRecommendations || {},
-      dateTime: data.dateTime,
-      regionCode: data.regionCode,
-    };
-
-    matrixLog.info({
-      category: 'LOCATION',
-      connection: 'API',
-      action: 'AIRQUALITY_COMPLETE',
-      location: 'location.js:getAirQuality',
-    }, `Air Quality fetched (AQI ${aqData.aqi})`);
-
-    res.json(aqData);
-  } catch (err) {
-    console.error('[LOCATION] air quality error', err);
-    res.status(500).json({ 
-      available: false,
-      error: 'airquality-fetch-failed' 
-    });
+  const coords = normalizeCoordinates(req.query.lat, req.query.lng);
+  if (!coords) return res.status(400).json({ available: false, error: 'invalid_coordinates' });
+  try { return res.json(await snapshotEnvironment.air(coords.lat, coords.lng)); }
+  catch (error) {
+    console.error('[LOCATION] Air quality unavailable:', error.message);
+    return res.status(502).json({ available: false, error: 'air_quality_unavailable' });
   }
 });
 
@@ -1479,7 +1302,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
   console.log('[SNAPSHOT] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body, cid });
   try {
     console.log('[SNAPSHOT] processing snapshot...');
-    const snapshotV1 = req.body;
+    const snapshotV1 = { ...req.body };
+    const incomingCoords = normalizeCoordinates(snapshotV1.lat, snapshotV1.lng);
+    if (!incomingCoords) return httpError(res, 400, 'invalid_coordinates', 'Valid coordinates are required', cid);
+    snapshotV1.lat = incomingCoords.lat;
+    snapshotV1.lng = incomingCoords.lng;
+    if (snapshotV1.coord) snapshotV1.coord = { ...snapshotV1.coord, ...incomingCoords };
 
     // Minimal mode support for curl/preflight tests
     const isMinimalMode = Number.isFinite(snapshotV1?.lat) && Number.isFinite(snapshotV1?.lng) && !snapshotV1?.resolved;
@@ -1596,68 +1424,26 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       // 2026-01-05: Users table no longer stores location data (simplified session architecture)
       // Location must be resolved from GPS via Google APIs - NO FALLBACKS
 
-      // Full SnapshotV1 validation
-      const v = validateSnapshotV1(snapshotV1);
-
-      if (!v.ok) {
-        console.warn('[SNAPSHOT] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', {
-          fields_missing: v.errors,
-          hasUserAgent: !!req.get("user-agent"),
-          userAgent: req.get("user-agent"),
-          snapshot_id: snapshotV1?.snapshot_id,
-          req_id: reqId
-        });
-        return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, {
-          fields_missing: v.errors
-        });
-      }
-
-      // CRITICAL: If client sent resolved location data, ensure it's properly structured
-      // This handles the full SnapshotV1 path where client sends complete location context
-      if (snapshotV1.resolved && !snapshotV1.resolved.formattedAddress && snapshotV1.coord) {
-        console.log('[SNAPSHOT] Client sent resolved but missing formattedAddress - resolving server-side');
-        try {
-          const { lat, lng } = snapshotV1.coord;
-          const geocodeUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-          geocodeUrl.searchParams.set('latlng', `${lat},${lng}`);
-          geocodeUrl.searchParams.set('key', GOOGLE_MAPS_API_KEY);
-          
-          const geocodeRes = await googleMapsCircuit(async (signal) => {
-            const response = await fetch(geocodeUrl.toString(), { signal });
-            if (!response.ok) throw new Error(`Geocode API error: ${response.status}`);
-            return await response.json();
-          });
-          
-          if (geocodeRes.status === 'OK' && geocodeRes.results?.[0]) {
-            const { city, state, country } = pickAddressParts(geocodeRes.results[0].address_components);
-            const formattedAddress = geocodeRes.results[0].formatted_address;
-            snapshotV1.resolved.city = city;
-            snapshotV1.resolved.state = state;
-            snapshotV1.resolved.country = country;
-            snapshotV1.resolved.formattedAddress = formattedAddress;
-            matrixLog.info({
-              category: 'SNAPSHOT',
-              action: 'ADDRESS_RESOLVE',
-              location: 'location.js:snapshotHandler',
-            }, `Resolved missing address fields (city: ${!!city}, state: ${!!state}, address: ${!!formattedAddress})`);
-          }
-        } catch (resolveErr) {
-          console.warn('[SNAPSHOT] Could not resolve missing address:', resolveErr.message);
-        }
-      }
-      
-      // Log what we're about to save
-      console.log('[SNAPSHOT] Full mode - client sent resolved location:', {
-        city: snapshotV1.resolved?.city,
-        state: snapshotV1.resolved?.state,
-        country: snapshotV1.resolved?.country,
-        timezone: snapshotV1.resolved?.timezone
-      });
+      // Full V1 callers must resolve the exact six-decimal coordinate first.
+      // Client labels cannot substitute for the server's saved Google resolution.
+      const key = makeCoordsKey(incomingCoords.lat, incomingCoords.lng);
+      const [resolved] = await db.select().from(coords_cache).where(eq(coords_cache.coord_key, key)).limit(1);
+      if (!resolved) return httpError(res, 400, 'location_not_resolved', 'Resolve this location before creating a snapshot.', cid);
+      snapshotV1.resolved = { city: resolved.city, state: resolved.state, country: resolved.country,
+        formattedAddress: resolved.formatted_address, timezone: resolved.timezone };
+      const validation = validateSnapshotV1(snapshotV1);
+      if (!validation.ok) return httpError(res, 400, 'refresh_required', 'Location resolution is incomplete. Refresh and retry.', reqId, { fields_missing: validation.errors });
     }
+    // Creation time is the server write context. Browser timestamps and supplied
+    // weather/air are never accepted as evidence of a fresh provider observation.
+    snapshotV1.created_at = new Date(Date.now()).toISOString();
 
     console.log('[SNAPSHOT] Calculating H3 geohash...');
     // Calculate H3 geohash at resolution 8 (~0.46 km² hexagons)
-    const h3_r8 = latLngToCell(snapshotV1.coord.lat, snapshotV1.coord.lng, 8);
+    const normalizedCoords = normalizeCoordinates(snapshotV1.coord?.lat, snapshotV1.coord?.lng);
+    if (!normalizedCoords) return httpError(res, 400, 'invalid_coordinates', 'Valid coordinates are required', cid);
+    snapshotV1.coord = { ...snapshotV1.coord, lat: normalizedCoords.lat, lng: normalizedCoords.lng };
+    const h3_r8 = latLngToCell(normalizedCoords.lat, normalizedCoords.lng, 8);
 
     // Fetch airport context (holiday detection moved to the briefing pipeline
     // 2026-07-06 — pipelines/holiday.js runs with the COMPLETE snapshot row)
@@ -1757,10 +1543,11 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
 
     // Calculate coord_key from coordinates for coords_cache lookup
-    const snapLat = snapshotV1.coord?.lat;
-    const snapLng = snapshotV1.coord?.lng;
-    const snapCoordKey = (snapLat && snapLng) ? makeCoordsKey(snapLat, snapLng) : null;
+    const snapLat = normalizedCoords?.lat;
+    const snapLng = normalizedCoords?.lng;
+    const snapCoordKey = normalizedCoords ? makeCoordsKey(snapLat, snapLng) : null;
 
+    const resolvedMarket = await resolveTimezoneFromMarket(snapshotV1.resolved.city, snapshotV1.resolved.state, snapshotV1.resolved.country);
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
       // FIX: Use authenticated user_id from session, not client-sent field (was silently undefined)
@@ -1779,26 +1566,22 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       country: snapshotV1.resolved?.country ?? null,
       formatted_address: snapshotV1.resolved?.formattedAddress ?? null,
       timezone: snapshotV1.resolved?.timezone ?? null,
-      // Time context from client
-      local_iso: safeDate(snapshotV1.time_context?.local_iso) ?? null,
-      hour: typeof snapshotV1.time_context?.hour === 'number' ? snapshotV1.time_context.hour : null,
-      dow: typeof snapshotV1.time_context?.dow === 'number' ? snapshotV1.time_context.dow : null,
-      day_part_key: snapshotV1.time_context?.day_part_key ?? null,
+      market: resolvedMarket?.market_name ?? null,
+      // Time context from server creation time and coordinate-resolved timezone
+      local_iso: toLocalTimestamp(createdAtDate, driverTimezone),
+      hour: getLocalHour(createdAtDate, driverTimezone),
+      dow: getLocalDow(createdAtDate, driverTimezone),
+      day_part_key: getDayPartKey(getLocalHour(createdAtDate, driverTimezone)),
       h3_r8,
-      // API-enriched contextual data ONLY
-      weather: (snapshotV1.weather && typeof snapshotV1.weather === 'object' && snapshotV1.weather.tempF !== undefined) ? {
-        tempF: snapshotV1.weather.tempF,
-        conditions: snapshotV1.weather.conditions,
-        description: snapshotV1.weather.description
-      } : null,
-      air: (snapshotV1.air && typeof snapshotV1.air === 'object' && snapshotV1.air.aqi !== undefined) ? {
-        aqi: snapshotV1.air.aqi,
-        category: snapshotV1.air.category
-      } : null,
+      // Environment is fetched server-side by the owned enrichment route.
+      // Even a full V1 body cannot smuggle ready weather/air into the pipeline.
+      weather: null,
+      air: null,
       // 2026-01-14: airport_context dropped - now stored in briefings.airport_conditions
       // 2026-07-06: holiday dropped - now stored in briefings.holiday (pipelines/holiday.js)
       permissions: snapshotV1.permissions || null,
     };
+    dbSnapshot.status = getSnapshotReadiness(dbSnapshot, dbSnapshot.snapshot_id, { requireStatus: false }).ready ? 'ok' : 'pending';
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SELF-CONTAINED VALIDATION: Verify snapshot has complete location identity
@@ -1807,7 +1590,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     const validationErrors = [];
 
     // GPS coordinates (required)
-    if (!dbSnapshot.lat || !dbSnapshot.lng) {
+    if (!normalizedCoords) {
       validationErrors.push('lat/lng');
     }
 
@@ -1963,7 +1746,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     console.log('[LOCATION] 📍 Snapshot created: %s', snapshotV1.snapshot_id, {
       hasAddress: !!snapshotV1.resolved?.formattedAddress,
       hasCity: !!snapshotV1.resolved?.city,
-      address: snapshotV1.resolved?.formattedAddress,
       city: snapshotV1.resolved?.city,
       state: snapshotV1.resolved?.state
     });
@@ -1973,13 +1755,17 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // blocks-fast ensures: 1) Briefing completes before consolidation
     //                      2) Proper fail-fast if briefing fails
     //                      3) Single pipeline execution path
-    console.log(`[LOCATION] 📍 Snapshot ready for strategy pipeline: ${snapshotV1.snapshot_id} (triggered via /api/blocks-fast)`);
+    const snapshotReadiness = getSnapshotReadiness(dbSnapshot, dbSnapshot.snapshot_id);
+    console.log('[LOCATION] Snapshot saved', { snapshot_id: dbSnapshot.snapshot_id, status: dbSnapshot.status, missingFields: snapshotReadiness.missingFields });
 
     res.json({
       success: true,
       snapshot_id: snapshotV1.snapshot_id,
       h3_r8,
       status: 'snapshot_created',
+      snapshot_status: dbSnapshot.status,
+      ready: snapshotReadiness.ready,
+      missingFields: snapshotReadiness.missingFields,
       req_id: cid
     });
   } catch (err) {
@@ -2149,75 +1935,19 @@ router.get('/ip', async (req, res) => {
 // here anyway. Zero callers per audit.
 
 // PATCH /api/location/snapshot/:snapshotId/enrich
-// Enrich an existing snapshot with weather/air data.
+// Fetch and persist verified weather/air for the owned snapshot's saved coordinates.
 // Auth: requireAuth (global, line 30) + requireSnapshotOwnership (per-route).
 // The middleware validates snapshotId presence, snapshot existence, and that
 // snapshot.user_id matches req.auth.userId. req.snapshot is populated for
 // the handler if downstream needs it.
 router.patch('/snapshot/:snapshotId/enrich', requireSnapshotOwnership, async (req, res) => {
   try {
-    const { snapshotId } = req.params;
-    const { weather, air } = req.body;
-
-    // Build update payload (only include provided fields)
-    const updatePayload = {};
-    if (weather !== undefined) updatePayload.weather = weather;
-    if (air !== undefined) updatePayload.air = air;
-
-    if (Object.keys(updatePayload).length === 0) {
-      return res.status(400).json({ error: 'no_fields_to_update' });
-    }
-
-    await db.update(snapshots)
-      .set(updatePayload)
-      .where(eq(snapshots.snapshot_id, snapshotId));
-
-    matrixLog.info({
-      category: 'SNAPSHOT',
-      connection: 'DB',
-      action: 'SNAPSHOT_ENRICH_COMPLETE',
-      tableName: 'SNAPSHOTS',
-      location: 'location.js:enrichSnapshot',
-    }, `Enriched snapshot ${snapshotId.slice(0, 8)} (fields: ${Object.keys(updatePayload).join(', ')})`);
-
-    // Memory #110: Readiness gate — re-read row and flip status to 'ok' when all required fields populated.
-    // 2026-07-06 (Melody, app_rules 'snapshot-no-nulls-post-enrichment'): "no
-    // field in snapshot row should be null after api calls/llm requirements are
-    // ran." The 2026-04-14 exclusion list is superseded — 30-day dev data
-    // showed zero nulls, so the gate covers every column except `status` (the
-    // gate's own output). Holiday is NOT here: it moved to briefings.holiday
-    // (LLM-involved → briefing pipeline; snapshot stays deterministic).
-    // Supersedes BRIEFING-DATA-MODEL.md §9 decision 1.
-    const REQUIRED_FIELDS = [
-      'snapshot_id', 'created_at', 'session_id', 'user_id',
-      'lat', 'lng', 'coord_key', 'h3_r8',
-      'city', 'state', 'country', 'formatted_address', 'timezone', 'market',
-      'local_iso', 'date', 'dow', 'hour', 'day_part_key',
-      'weather', 'air', 'permissions',
-    ];
-    const [fullRow] = await db
-      .select()
-      .from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId))
-      .limit(1);
-
-    const missingFields = REQUIRED_FIELDS.filter(f => {
-      const v = fullRow?.[f];
-      return v === null || v === undefined || v === '';
-    });
-
-    let newStatus = fullRow?.status || 'pending';
-    if (missingFields.length === 0) {
-      await db.update(snapshots)
-        .set({ status: 'ok' })
-        .where(eq(snapshots.snapshot_id, snapshotId));
-      newStatus = 'ok';
-      console.log('[SNAPSHOT] All required fields populated — status set to ok', snapshotId);
-    } else {
-      console.warn('[SNAPSHOT] Enrichment partial — still pending. Missing:', missingFields);
-    }
-
-    res.json({ ok: true, enriched: Object.keys(updatePayload), status: newStatus, missingFields });
+    // Request body is intentionally unused: only the saved snapshot's
+    // coordinates can select provider data, and only the server can supply it.
+    const saved = await enrichSnapshot(req.snapshot, req.auth.userId);
+    const readiness = getSnapshotReadiness(saved, saved.snapshot_id);
+    res.json({ ok: true, enriched: ['weather', 'air'], status: saved.status,
+      missingFields: readiness.missingFields, weather: saved.weather, air: saved.air });
   } catch (err) {
     console.error('[LOCATION] snapshot enrich error:', err);
     res.status(500).json({

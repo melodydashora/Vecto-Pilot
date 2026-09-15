@@ -3,19 +3,22 @@ import express, { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../../db/drizzle.js";
 import { sql, eq, and } from "drizzle-orm";
-import { snapshots, strategies, coords_cache, users, rankings } from "../../../shared/schema.js";
-import { validateSnapshotFields } from "../../util/validate-snapshot.js";
-import { uuidOrNull } from "../../util/uuid.js";
+import { snapshots, coords_cache, users, rankings } from "../../../shared/schema.js";
+import { validateSnapshotFields, validSnapshotDate, validSnapshotTimezone } from "../../util/validate-snapshot.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-aggregator.js";
-import { httpError } from "../utils/http-helpers.js";
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from "../../lib/location/coords-key.js";
 // 2026-07-06: daypart adapter — never trust/store a client daypart string verbatim
-import { normalizeDayPartKey, getDayPartKey } from "../../lib/location/daypart.js";
+import { normalizeDayPartKey, getDayPartKey, getLocalHour, getLocalDow, getLocalDateString, getLocalIso } from "../../lib/location/daypart.js";
 // 2026-07-06: holiday detection lives in the briefing pipeline
 // (server/lib/briefing/pipelines/holiday.js) — NOT at snapshot creation
 // 2026-03-17: Moved import to top — now used by both POST and GET routes
 import { requireAuth } from '../../middleware/auth.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
+import { latLngToCell } from 'h3-js';
+import { resolveTimezoneFromMarket } from '../../lib/location/resolveTimezone.js';
+import { getSnapshotReadiness } from '../../lib/location/snapshot-readiness.js';
+import { snapshotEnvironment } from '../../lib/location/snapshot-environment.js';
 
 const router = Router();
 
@@ -27,11 +30,6 @@ function uuid() {
 
 // 2026-01-14: validateSnapshotFields moved to shared module (server/util/validate-snapshot.js)
 // Import above: import { validateSnapshotFields } from "../../util/validate-snapshot.js";
-
-function requireStr(v, name) {
-  if (typeof v !== "string" || !v.trim()) throw new Error(`missing:${name}`);
-  return v.trim();
-}
 
 // 2026-03-17: SECURITY FIX (F-8) — Require authentication for snapshot creation.
 // Previously unauthenticated, allowing anyone to create snapshots with arbitrary data.
@@ -46,8 +44,9 @@ router.post("/", requireAuth, async (req, res) => {
 
     // Direct extraction from request body
     const snapshot_id = snap.snapshot_id || uuid();
-    const lat = snap.coord?.lat;
-    const lng = snap.coord?.lng;
+    const coords = normalizeCoordinates(snap.coord?.lat, snap.coord?.lng);
+    if (!coords) return res.status(400).json({ ok: false, error: 'invalid_coordinates' });
+    const { lat, lng } = coords;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LOCATION RESOLUTION: Get resolved address from coords_cache
@@ -55,82 +54,41 @@ router.post("/", requireAuth, async (req, res) => {
     // Location authority is in snapshots table; coords_cache is fallback for resolution
     // NEVER send raw coords to strategists - they can't reverse geocode
     // ═══════════════════════════════════════════════════════════════════════════
-    let city = snap.resolved?.city;
-    let state = snap.resolved?.state;
-    let country = snap.resolved?.country;
-    let formatted_address = snap.resolved?.formattedAddress;
-    let timezone = snap.resolved?.timezone;
-    let coordKey = null;
-
-    // If resolved data missing from request, lookup coords_cache
-    if ((!city || !formatted_address) && typeof lat === 'number' && typeof lng === 'number') {
-      coordKey = coordKey || makeCoordsKey(lat, lng);
-      console.log(`[SNAPSHOT] Still missing resolved data, checking coords_cache for ${coordKey}`);
-      try {
-        const [cacheRow] = await db.select().from(coords_cache).where(eq(coords_cache.coord_key, coordKey)).limit(1);
-        if (cacheRow) {
-          city = city || cacheRow.city;
-          state = state || cacheRow.state;
-          country = country || cacheRow.country;
-          formatted_address = formatted_address || cacheRow.formatted_address;
-          timezone = timezone || cacheRow.timezone;
-          console.log(`[SNAPSHOT] Got resolved data from coords_cache:`, {
-            city, state, country, formatted_address, timezone
-          });
-        } else {
-          console.error(`[SNAPSHOT] CRITICAL: coords_cache miss for ${coordKey} - location not resolved!`);
-        }
-      } catch (cacheLookupErr) {
-        console.warn(`[SNAPSHOT] Coords cache lookup failed:`, cacheLookupErr.message);
-      }
+    // Bind every location field to this exact resolved coordinate key. Client
+    // labels, home market, or an earlier snapshot cannot change its identity.
+    const coordKey = makeCoordsKey(lat, lng);
+    const [cacheRow] = await db.select().from(coords_cache).where(eq(coords_cache.coord_key, coordKey)).limit(1);
+    if (!cacheRow) return res.status(400).json({ ok: false, error: 'location_not_resolved', message: 'Resolve this location before creating a snapshot.' });
+    const { city, state, country, formatted_address, timezone } = cacheRow;
+    if (!validSnapshotTimezone(timezone)) return res.status(400).json({ ok: false, error: 'timezone_required' });
+    if (snap.created_at !== undefined && !validSnapshotDate(snap.created_at)) {
+      return res.status(400).json({ ok: false, error: 'invalid_created_at' });
     }
-
-    // Calculate coord_key if not already set
-    if (!coordKey && typeof lat === 'number' && typeof lng === 'number') {
-      coordKey = makeCoordsKey(lat, lng);
+    const createdAtDate = new Date(Date.now());
+    const hour = getLocalHour(createdAtDate, timezone);
+    const dow = getLocalDow(createdAtDate, timezone);
+    const day_part_key = getDayPartKey(hour);
+    const local_iso = new Date(`${getLocalIso(createdAtDate, timezone)}Z`);
+    const today = getLocalDateString(createdAtDate, timezone);
+    let market = null;
+    try {
+      // This lookup supplies market identity only; timezone stays GPS-resolved.
+      market = (await resolveTimezoneFromMarket(city, state, country))?.market_name ?? null;
+    } catch (error) {
+      console.error('[SNAPSHOT] Current market lookup failed; snapshot remains pending:', error.message);
     }
-
-    const hour = snap.time_context?.hour;
-    const dow = snap.time_context?.dow;
-    // 2026-07-06: validate the client-computed daypart server-side — normalize
-    // legacy keys (late_morning_noon/afternoon → early_afternoon/late_afternoon);
-    // if missing/unknown, derive from the hour instead of storing garbage. A
-    // still-null result hits the NOT NULL constraint and fails loud, as it should.
-    const validHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
-    const day_part_key =
-      normalizeDayPartKey(snap.time_context?.day_part_key) ??
-      (validHour ? getDayPartKey(hour) : null);
-    const local_iso = snap.time_context?.local_iso;
-    
-    // Build DB record
-    const createdAtDate = snap.created_at ? new Date(snap.created_at) : new Date();
-    
-    // Calculate "today" in the driver's local timezone (not server timezone)
-    // This ensures Hawaii, Alaska, etc. get the correct date
-    // NO FALLBACK - timezone is required for accurate date calculation
-    if (!timezone) {
-      console.error('[SNAPSHOT] Cannot create snapshot: timezone is required');
-      return res.status(400).json({
-        ok: false,
-        error: 'timezone_required',
-        message: 'Timezone must be provided in snapshot data'
-      });
-    }
-    const driverTimezone = timezone;
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: driverTimezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    const parts = formatter.formatToParts(createdAtDate);
-    const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
 
     // 2026-07-06: holiday detection moved to the briefing pipeline
     // (pipelines/holiday.js) — it runs with the COMPLETE snapshot row and a
     // model outage degrades the briefing with a recorded reason instead of
     // failing snapshot creation. The snapshot stays purely deterministic.
 
+    let environment;
+    try { environment = await snapshotEnvironment.both(lat, lng); }
+    catch (error) {
+      console.error('[SNAPSHOT] Verified environment unavailable:', error.message);
+      return res.status(502).json({ ok: false, error: 'snapshot_environment_unavailable', message: 'Current weather and air quality are required. Retry for fresh data.' });
+    }
     const dbSnapshot = {
       snapshot_id,
       // 2026-09-10 (found while verifying VP-007): this authenticated route wrote NULL-owned
@@ -144,6 +102,8 @@ router.post("/", requireAuth, async (req, res) => {
       lng: typeof lng === 'number' ? lng : null,
       // FK to coords_cache for location identity
       coord_key: coordKey,
+      h3_r8: latLngToCell(lat, lng, 8),
+      market,
       // Resolved address (source of truth from coords_cache)
       city: city || null,
       state: state || null,
@@ -151,13 +111,13 @@ router.post("/", requireAuth, async (req, res) => {
       formatted_address: formatted_address || null,
       timezone: timezone || null,
       // Time context
-      local_iso: local_iso ? new Date(local_iso) : null,
+      local_iso,
       dow: typeof dow === 'number' ? dow : null,
       hour: typeof hour === 'number' ? hour : null,
       day_part_key: day_part_key || null,
       // API data
-      weather: snap.weather || null,
-      air: snap.air || null,
+      weather: environment.weather,
+      air: environment.air,
       permissions: snap.permissions || null,
     };
 
@@ -173,6 +133,8 @@ router.post("/", requireAuth, async (req, res) => {
 
     // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
     validateSnapshotFields(dbSnapshot);
+    const readiness = getSnapshotReadiness(dbSnapshot, snapshot_id, { requireStatus: false });
+    dbSnapshot.status = readiness.ready ? 'ok' : 'pending';
 
     // Insert to DB
     await db.insert(snapshots).values(dbSnapshot);
@@ -185,28 +147,33 @@ router.post("/", requireAuth, async (req, res) => {
     // This prevents race conditions and ensures model_name attribution is preserved
     
     // Generate briefing data BEFORE responding (so data is ready when frontend queries)
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    let briefingStatus = 'not_started';
+    if (readiness.ready) {
       console.log(`[BRIEFING] starting`, { snapshot_id, city, state });
       // Pass the validated DB record itself (2026-09-10, VP-013 / Astra P1): the
       // former hand-built `fullSnapshot` literal used `hour || null` / `dow || null`,
       // which turned a stored midnight (hour 0) and Sunday (dow 0) into null on the
       // briefing handoff while the row kept the real value. One representation now —
       // the same object that passed validateSnapshotFields() and was inserted.
-      await generateAndStoreBriefing({
-        snapshotId: snapshot_id,
-        snapshot: dbSnapshot
-      }).catch(err => {
-        // 2026-02-13: Upgraded from console.warn → console.error (briefing failure cascades to strategy)
-        console.error(`[BRIEFING] generation.failed`, { snapshot_id, err: String(err) });
-      });
-      console.log(`[BRIEFING] complete`, { snapshot_id });
+      try {
+        const result = await generateAndStoreBriefing({ snapshotId: snapshot_id, snapshot: dbSnapshot });
+        briefingStatus = result?.success === true && result?.complete === true ? 'complete' : 'failed';
+        if (briefingStatus === 'complete') console.log('[BRIEFING] complete', { snapshot_id });
+        else console.error('[BRIEFING] generation.failed', { snapshot_id });
+      } catch (err) {
+        briefingStatus = 'failed';
+        console.error('[BRIEFING] generation.failed', { snapshot_id, err: String(err) });
+      }
     }
 
-    console.log("[SNAPSHOT] OK", { snapshot_id, city, timezone, hour, dow, ms: Date.now() - started });
+    console.log('[SNAPSHOT] Saved', { snapshot_id, status: dbSnapshot.status, briefingStatus, city, timezone, hour, dow, ms: Date.now() - started });
     
     return res.status(201).json({ 
       ok: true, 
       snapshot_id,
+      status: dbSnapshot.status,
+      missing_fields: readiness.missingFields,
+      briefing_status: briefingStatus,
       city,
       state,
       timezone,
@@ -216,7 +183,7 @@ router.post("/", requireAuth, async (req, res) => {
     });
   } catch (err) {
     const msg = String(err && err.message || err);
-    const code = msg.startsWith("missing:") || msg.startsWith("invalid:") ? 400 : 500;
+    const code = err.code === 'SNAPSHOT_INCOMPLETE' || msg.startsWith("missing:") || msg.startsWith("invalid:") ? 400 : 500;
     console.warn("[SNAPSHOT] ERR", { msg, code, ms: Date.now() - started, req_id: reqId });
     return res.status(code).json({ ok: false, error: msg, req_id: reqId });
   }
@@ -248,12 +215,13 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
     if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
       console.log('[SNAPSHOT] GET fetched:', {
         snapshot_id: snapshot.snapshot_id, city: snapshot.city,
-        weather: !!snapshot.weather, aqi: snapshot.air?.aqi || null,
+        weather: !!snapshot.weather, aqi: snapshot.air?.aqi ?? null,
         dayPart: snapshot.day_part_key
       });
     }
     
     // Return all snapshot fields for Coach context
+    const readiness = getSnapshotReadiness(snapshot, snapshotId);
     // 2026-04-18: Include `status` so the client-side briefing readiness gate
     // (`useBriefingQueries` isEnabled check on snapshotStatus === 'ok') actually
     // works. Before today this field was silently omitted, which made the gate
@@ -262,7 +230,8 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
     // symptom per the UI audit on 2026-04-18.
     return res.json({
       snapshot_id: snapshot.snapshot_id,
-      status: snapshot.status,
+      status: readiness.ready ? 'ok' : snapshot.status === 'ok' ? 'pending' : readiness.status,
+      missing_fields: readiness.missingFields,
       city: snapshot.city,
       state: snapshot.state,
       country: snapshot.country,

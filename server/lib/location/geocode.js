@@ -96,7 +96,7 @@ export async function getTimezoneForCoords(lat, lng, opts = {}) {
     // 2026-08-17: optional AbortSignal (e.g. AbortSignal.timeout) — the Offer Analyzer bounds this call.
     const response = await fetch(url, opts?.signal ? { signal: opts.signal } : undefined);
     if (!response.ok) {
-      console.warn(`[LOCATION] [GEOCODE] Timezone API HTTP ${response.status} for ${lat},${lng}`);
+      console.warn(`[LOCATION] [GEOCODE] Timezone API HTTP ${response.status} (coordinates redacted)`);
       return null;
     }
 

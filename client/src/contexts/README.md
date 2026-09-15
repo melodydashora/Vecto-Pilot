@@ -162,10 +162,12 @@ const city = locationContext.city;
 
 ```
 Browser GPS → LocationContext
-    ├── /api/location/resolve → city, state, timezone
-    ├── /api/location/weather → weather data
-    ├── /api/location/airquality → AQI data
-    └── /api/location/snapshot → save snapshot to DB
+    ├── /api/location/resolve → city, state, timezone and pending snapshot ID
+    ├── /api/location/weather → provisional verified current weather
+    ├── /api/location/airquality → provisional verified AQI
+    └── PATCH /api/location/snapshot/:snapshotId/enrich
+        → server fetches by saved coords, persists source and returns saved values
+        → header adopts saved values, then publishes readiness if complete
 ```
 
 ### Key Rules

@@ -6,7 +6,7 @@ import { API_ROUTES } from '@/constants/apiRoutes';
 // 2026-09-10: Refresh clears the provided client, preserving its defaults (VP-006).
 import { useQueryClient } from '@tanstack/react-query';
 // 2026-07-06: shared daypart adapter — GPS-resolved timezone required, no device-tz math
-import { classifyDayPart, getLocalDow, getLocalIso } from '@/lib/daypart';
+import { normalizeCoordinates, validateGpsFix } from '@shared/coordinates.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
@@ -100,11 +100,20 @@ function getGeoPosition(): Promise<{ latitude: number; longitude: number; accura
         if (resolved) return;
         resolved = true;
         clearTimeout(manualTimeout);
-        console.log('[getGeoPosition] Success:', position.coords.latitude, position.coords.longitude);
+        const fix = validateGpsFix({
+          latitude: position.coords.latitude, longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy, timestamp: position.timestamp,
+        });
+        if (fix.ok === false) {
+          console.warn('[getGeoPosition]', fix.error);
+          resolve(null);
+          return;
+        }
+        console.log('[getGeoPosition] Fresh precise location received (coordinates redacted)');
         resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
+          latitude: fix.lat,
+          longitude: fix.lng,
+          accuracy: fix.accuracy
         });
       },
       (error) => {
@@ -197,6 +206,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Adding refreshGPS to deps caused infinite loop (Maximum update depth exceeded)
   // The ref is updated after refreshGPS is defined (see useEffect below refreshGPS definition)
   const refreshGPSRef = useRef<((force?: boolean) => Promise<void>) | undefined>(undefined);
+  const gpsRequestGenerationRef = useRef(0);
 
   // 2026-01-14: Refs to access current state values in GPS effect without adding to deps
   // This prevents the closure capture problem where setTimeout sees stale values
@@ -213,6 +223,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const prevTokenRef = useRef(token);
   useEffect(() => {
     if (prevTokenRef.current && !token) {
+      gpsRequestGenerationRef.current++;
+      generationCounterRef.current++;
       console.log('🔐 [LocationContext] Auth lost — clearing all location state');
       // Clear React state
       setLastSnapshotId(null);
@@ -268,7 +280,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const data = JSON.parse(stored);
 
       // Check TTL - don't restore stale data (real-time app needs fresh intel)
-      if (Date.now() - data.timestamp > SNAPSHOT_TTL_MS) {
+      if (!Number.isFinite(data.timestamp) || data.timestamp > Date.now() || Date.now() - data.timestamp > SNAPSHOT_TTL_MS) {
         console.log('📦 [LocationContext] Stored snapshot expired (>15min), starting fresh');
         sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
         return;
@@ -290,6 +302,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.locationString) setCurrentLocationString(data.locationString);
       if (data.weather) setWeather(data.weather);
       if (data.airQuality) setAirQuality(data.airQuality);
+      if (typeof data.lastUpdated === 'string' && Number.isFinite(Date.parse(data.lastUpdated))) setLastUpdated(data.lastUpdated);
 
       // 2026-01-07: DO NOT set isLocationResolved during restore
       // LESSON LEARNED: Setting isLocationResolved = true here caused auth loop bug.
@@ -310,7 +323,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.coords) {
         const coordKey = `${data.coords.latitude.toFixed(6)},${data.coords.longitude.toFixed(6)}`;
         lastEnrichmentCoordsRef.current = coordKey;
-        console.log('📦 [LocationContext] Resume complete - skipping GPS fetch for coords:', coordKey);
+        console.log('[LocationContext] Cached display restored; fresh GPS still required');
       }
     } catch (e) {
       console.warn('[LocationContext] Failed to restore from sessionStorage:', e);
@@ -320,7 +333,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Persist snapshot data to sessionStorage when it changes
   // This enables persistence across app switches
   useEffect(() => {
-    if (!lastSnapshotId) return;
+    if (!lastSnapshotId || !lastUpdated || !isLocationResolved) return;
 
     const dataToStore = {
       snapshotId: lastSnapshotId,
@@ -333,7 +346,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       airQuality,
       isLocationResolved,
       lastUpdated,
-      timestamp: Date.now(),
+      timestamp: Date.parse(lastUpdated),
     };
 
     sessionStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(dataToStore));
@@ -341,13 +354,20 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [lastSnapshotId, currentCoords, city, state, timeZone, currentLocationString, weather, airQuality, isLocationResolved, lastUpdated]);
 
   const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number, forceRefresh = false) => {
+    const normalized = normalizeCoordinates(lat, lng);
+    if (!normalized) {
+      setLocationError({ code: 'gps_invalid', message: 'Location coordinates are invalid. Retry precise location.' });
+      return;
+    }
+    lat = normalized.lat;
+    lng = normalized.lng;
     // 2026-03-18: Dedup based on snapshot state, not forceRefresh flag.
     // Only skip if same coordinates AND an active snapshot exists.
     // When snapshot is released (logout, manual refresh, sign-in), always proceed.
     // This replaces scattered lastEnrichmentCoordsRef.current = null clearing.
     const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-    if (lastEnrichmentCoordsRef.current === coordKey && lastSnapshotIdRef.current) {
-      console.log('⏭️ Skipping enrichment - same coords with active snapshot:', coordKey);
+    if (!forceRefresh && lastEnrichmentCoordsRef.current === coordKey && lastSnapshotIdRef.current) {
+      console.log('Skipping enrichment - same coordinates with active snapshot');
       return;
     }
     lastEnrichmentCoordsRef.current = coordKey;
@@ -490,7 +510,6 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.error('🔐 [LocationContext] ❌ 401 ERROR - Authentication failed!');
         console.error('🔐 [LocationContext] Response body:', errorBody);
         console.error('🔐 [LocationContext] Token was present:', !!token);
-        console.error('🔐 [LocationContext] Token from localStorage:', localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)?.substring(0, 20) + '...');
         console.error('🔐 [LocationContext] User ID sent:', user?.userId);
 
         // Clear stale token from localStorage (using centralized STORAGE_KEYS)
@@ -505,8 +524,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const locationData = await locationRes.json();
 
       // 2026-04-05: Await parsed data from reusable promises (no double-read risk)
-      const weatherData = await weatherDataPromise;
-      const airQualityData = await airQualityDataPromise;
+      await Promise.all([weatherDataPromise, airQualityDataPromise]);
+      if (currentGeneration !== generationCounterRef.current) return;
 
       // Update city/state (phase 2 - after location resolves)
       setCity(locationData.city);
@@ -547,15 +566,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setLastUpdated(new Date().toISOString());
       console.log('📍 [LocationContext] Location updated (phase 2):', locationData.city, locationData.state);
 
-      // Mark location as resolved - gates downstream queries (Bar Tab, Strategy)
-      // 2026-03-18: FIX — Also require timeZone. Without it, venue open/closed status
-      // calculations fail. useBarsQuery depends on isLocationResolved implying timezone is set.
-      if (locationData.city && locationData.formattedAddress && locationData.timeZone) {
-        setIsLocationResolved(true);
-        console.log('✅ [LocationContext] Location resolved - downstream queries enabled');
-      } else if (locationData.city && locationData.formattedAddress) {
-        console.warn('⚠️ [LocationContext] City resolved but timeZone missing — holding isLocationResolved=false');
-      }
+      // Location remains provisional until the server validates the persisted enrichment.
+      setIsLocationResolved(false);
 
       // NOTE: JWT tokens are only used for registered users who login via /api/auth/login
       // Anonymous users access data via snapshot ownership (snapshot_id acts as capability token)
@@ -570,36 +582,35 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (snapshotId) {
         console.log(`📸 [LocationContext] Using server-created snapshot: ${snapshotId.slice(0, 8)}...`);
 
-        // Enrich snapshot with weather/air if available
-        // 2026-01-15: Using centralized API_ROUTES constant
-        if (weatherData?.available || airQualityData?.available) {
-          try {
-            await fetch(API_ROUTES.LOCATION.SNAPSHOT_ENRICH(snapshotId), {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', ...headers },
-              body: JSON.stringify({
-                weather: weatherData?.available ? {
-                  tempF: weatherData.temperature,
-                  conditions: weatherData.conditions,
-                  description: weatherData.description
-                } : undefined,
-                air: airQualityData?.available ? {
-                  aqi: airQualityData.aqi,
-                  category: airQualityData.category
-                } : undefined
-              }),
-              signal: controller.signal
-            });
-            console.log(`📸 [LocationContext] Snapshot enriched with weather/air`);
-          } catch (enrichErr) {
-            // Ignore AbortError - request was intentionally cancelled
-            if (enrichErr instanceof Error && enrichErr.name === 'AbortError') {
-              console.log('🛑 [LocationContext] Enrich request cancelled');
-              return;
-            }
-            console.warn('[LocationContext] Failed to enrich snapshot:', enrichErr);
+        // Keep partial source data available to Coach, but only publish readiness after
+        // the server confirms every required field in this saved snapshot.
+        setLastSnapshotId(snapshotId);
+        let snapshotReady = false;
+        {
+          const enrichmentRes = await fetch(API_ROUTES.LOCATION.SNAPSHOT_ENRICH(snapshotId), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...headers },
+            // The server selects verified data using the saved snapshot coords.
+            body: JSON.stringify({}),
+            signal: controller.signal,
+          });
+          const result = await enrichmentRes.json();
+          if (currentGeneration !== generationCounterRef.current) return;
+          snapshotReady = enrichmentRes.ok && result.ok === true && result.status === 'ok' &&
+            Number.isFinite(result.weather?.tempF) && typeof result.weather?.conditions === 'string' &&
+            Number.isFinite(result.air?.aqi) && typeof result.air?.category === 'string';
+          if (snapshotReady) {
+            setWeather({ temp: result.weather.tempF, conditions: result.weather.conditions, description: result.weather.description });
+            setAirQuality({ aqi: result.air.aqi, category: result.air.category });
           }
         }
+        if (currentGeneration !== generationCounterRef.current) return;
+        if (!snapshotReady) {
+          setLocationError({ code: 'snapshot_incomplete', message: 'Location data is incomplete. Weather, air quality and all location details must finish before Strategy. Retry when safely parked.' });
+          return;
+        }
+        setIsLocationResolved(true);
+        setLocationError(null);
 
         // Set snapshot ID in state (fallback for co-pilot if event is missed)
         setLastSnapshotId(snapshotId);
@@ -614,71 +625,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           detail: { snapshotId, reason }
         }));
       } else {
-        // Fallback: Server didn't return snapshot_id, create one client-side (legacy path)
-        console.warn('⚠️ [LocationContext] No snapshot_id from server - using legacy client creation');
-        const fallbackSnapshotId = crypto.randomUUID();
-        const now = new Date();
-        // 2026-07-06: shared/dayparts adapter — the old toLocaleString re-parse
-        // was implementation-defined, and this path carried its own 3-bucket
-        // daypart scheme that disagreed with the canonical 6-bucket taxonomy.
-        // classifyDayPart throws if timeZone is missing (no fallbacks) — and it
-        // can't be missing here: /api/location/resolve 400s without a timezone.
-        const { key: dayPartKey, hour } = classifyDayPart(now, locationData.timeZone);
-        const dow = getLocalDow(now, locationData.timeZone);
-
-        const snapshot = {
-          snapshot_id: fallbackSnapshotId,
-          user_id: locationData.user_id,
-          session_id: crypto.randomUUID(),
-          created_at: now.toISOString(),
-          coord: { lat, lng, source: 'gps' },
-          resolved: {
-            city: locationData.city,
-            state: locationData.state,
-            country: locationData.country,
-            timezone: locationData.timeZone,
-            formattedAddress: locationData.formattedAddress
-          },
-          time_context: {
-            // local_iso convention: driver's wall-clock time stored as a naive
-            // timestamp (was incorrectly sending UTC here)
-            local_iso: getLocalIso(now, locationData.timeZone),
-            dow,
-            hour,
-            is_weekend: dow === 0 || dow === 6,
-            day_part_key: dayPartKey
-          },
-          weather: weatherData?.available ? {
-            tempF: weatherData.temperature,
-            conditions: weatherData.conditions,
-            description: weatherData.description
-          } : undefined,
-          air: airQualityData?.available ? {
-            aqi: airQualityData.aqi,
-            category: airQualityData.category
-          } : undefined,
-          device: { platform: 'web' },
-          permissions: { geolocation: 'granted' }
-        };
-
-        // 2026-01-15: Using centralized API_ROUTES constant
-        const snapshotRes = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
-          body: JSON.stringify(snapshot),
-          signal: controller.signal
-        });
-
-        if (snapshotRes.ok) {
-          // Set snapshot ID in state (fallback for co-pilot if event is missed)
-          setLastSnapshotId(fallbackSnapshotId);
-
-          // 2026-01-06: P3-D - Include reason (legacy path uses same logic)
-          const fallbackReason = forceRefresh ? 'manual_refresh' : 'init';
-          window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-            detail: { snapshotId: fallbackSnapshotId, reason: fallbackReason }
-          }));
-        }
+        setLocationError({ code: 'snapshot_missing', message: 'Your location snapshot could not be saved. Retry for fresh data.' });
+        setIsLocationResolved(false);
       }
     } catch (error) {
       // Ignore AbortError - request was intentionally cancelled (user tapped refresh rapidly)
@@ -688,6 +636,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
       console.error('[LocationContext] Enrichment failed:', error);
+      setIsLocationResolved(false);
+      setLocationError({ code: 'snapshot_incomplete', message: 'Fresh location data could not be completed. Please retry.' });
     }
   // 2026-01-06: Depend on user?.userId (primitive) instead of user object
   // This prevents callback recreation when user object reference changes but userId stays the same
@@ -697,6 +647,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // forceNewSnapshot: true = user clicked refresh button, always create new snapshot
   //                   false = initial mount, allow server to reuse existing snapshot if < 60 min
   const refreshGPS = useCallback(async (forceNewSnapshot = true) => {
+    const gpsGeneration = ++gpsRequestGenerationRef.current;
+    generationCounterRef.current++;
+    abortControllerRef.current?.abort();
     setIsUpdating(true);
     setOverrideCoords(null);
     setIsLocationResolved(false); // Reset - gates queries until new location resolves
@@ -719,6 +672,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           // Best-effort — enrichLocation with force=true will also null it
         }
       }
+      if (gpsGeneration !== gpsRequestGenerationRef.current) return;
 
       void queryClient.cancelQueries();
       queryClient.clear();
@@ -738,6 +692,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     try {
       const coords = await getGeoPosition();
+      if (gpsGeneration !== gpsRequestGenerationRef.current) return;
       if (coords) {
         console.log('📍 [LocationContext] GPS success - using live location');
         setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
@@ -752,10 +707,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Location MUST come from live GPS, never the profile (memory #213 / #231 / #332). Surface a
         // CriticalError so the driver enables precise Location Services and retries.
         console.error('[LocationContext] GPS unavailable — failing hard (no profile/home fallback)');
-        setLocationError({ code: 'gps_unavailable', message: 'Location Services are off or blocked. Enable precise location for Safari, then retry.' });
+        setCurrentCoords(null);
+        setWeather(null);
+        setAirQuality(null);
+        setLocationError({ code: 'gps_unavailable', message: 'A fresh precise location is unavailable. Enable precise location for this browser, then retry when safely parked.' });
       }
     } finally {
-      setIsUpdating(false);
+      if (gpsGeneration === gpsRequestGenerationRef.current) setIsUpdating(false);
     }
   }, [enrichLocation, profile?.homeLat, profile?.homeLng, queryClient]);
 
@@ -821,34 +779,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Double-check the flag inside timeout (state might have changed)
       if (gpsEffectRanRef.current) return;
 
-      // 2026-01-14: Handle resume with cached data
-      // Auth is now verified, check if we have valid cached data to resume from
-      // Use REFS to get current values - closures would capture stale values!
-      const cachedSnapshotId = lastSnapshotIdRef.current;
-      const cachedCoords = currentCoordsRef.current;
-      const cachedCity = cityRef.current;
-      // 2026-03-18: FIX — Also require timeZone for resume. Without it, downstream
-      // queries (useBarsQuery) that depend on isLocationResolved would fire without timezone.
-      const cachedTimeZone = timeZoneRef.current;
-
-      if (cachedSnapshotId && cachedCoords && cachedCity && cachedTimeZone) {
-        console.log('📦 [LocationContext] RESUME: Auth verified, enabling cached data');
-        console.log(`📦 [LocationContext] Cached snapshot: ${cachedSnapshotId.slice(0, 8)}, city: ${cachedCity}`);
-
-        // Mark location as resolved - auth is verified, cached data is valid
-        // This gates downstream queries (bars, briefing)
-        setIsLocationResolved(true);
-
-        // Dispatch event so CoPilotContext can use the cached snapshotId
-        // reason: 'resume' tells it not to regenerate strategy
-        window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-          detail: { snapshotId: cachedSnapshotId, reason: 'resume' }
-        }));
-
-        gpsEffectRanRef.current = true;
-        return;
-      }
-
+      // A restored display is historical until a fresh GPS fix validates location.
+      // Never unlock the waterfall solely from a sessionStorage snapshot.
       // Resume failed or no cached data (fresh sign-in).
       // No need to clear lastEnrichmentCoordsRef — snapshot is null so dedup won't skip.
       gpsEffectRanRef.current = true;
