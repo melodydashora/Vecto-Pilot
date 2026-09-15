@@ -1,16 +1,8 @@
 // client/src/hooks/coach/useVoiceSession.ts
-// 2026-08-11 (todo #33): React lifecycle for the Coach voice switcher.
-// Owns the mode (persisted), the active session instance, and the state the
-// Coach tab renders (status, interim transcripts, error). Classic mode means
-// "no live session" — the existing STT/TTS pipeline stays untouched as the
-// control arm and safety net.
-//
-// 2026-08-14 (unified voice thread — Melody: "voice back and forth inside the
-// normal box"): committed turns leave this hook via onVoiceTurnFinal and
-// become messages in the SAME chat thread as typed exchanges; only interim
-// (in-progress) lines live here. The hook also owns the per-session
-// conversationId shared with useCoachChat so typed + spoken exchanges thread
-// under one coach_conversations id server-side.
+// Owns the explicit GPT-Live session lifecycle and the resources that belong
+// to it: microphone controls, wake listener, backend requests and captions.
+// Timed caption fragments retain their provenance. Completed written Coach
+// answers join the chat thread under the session's stable conversation ID.
 //
 // TAP-TO-TALK INVARIANT (Melody, verbatim: "it won't reactivate until I call
 // on it"): this hook contains ZERO effects that call start() or resumeMic().
@@ -20,16 +12,17 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { GeminiLiveSession } from '@/lib/voice/GeminiLiveSession';
+import { GptLiveSession } from '@/lib/voice/GptLiveSession';
+import type { LiveTranscriptFragment } from '@/lib/voice/live-transcripts';
 import { RealtimeSession } from '@/lib/voice/RealtimeSession';
 import { askCoachBrain, type CoachBrainParams } from '@/lib/voice/coachBrain';
 import { applyDonePayload } from '@/utils/coach/actionsResult';
 import type { ThreadTurn, VoiceMode, VoiceSession, VoiceSessionStatus } from '@/lib/voice/types';
 
-// Melody, 2026-09-10: speech is input/output for the canonical Coach.
-// Retain live transports for historical reference, but normal app sessions
-// never let a second model decide whether to invoke durable actions.
+// Melody, 2026-09-12: use OpenAI live voice with the canonical GPT Coach.
+// Old provider preferences cannot silently choose a different engine.
 export function getStoredVoiceMode(): VoiceMode {
-  return 'classic';
+  return 'gpt-live';
 }
 
 // 2026-08-14: verbal controls, DETERMINISTIC (client-side regex on committed
@@ -110,9 +103,8 @@ function extractLinksMessage(displayText: string): string | null {
   return lines.length > 0 ? lines.join('\n') : null;
 }
 
-// 2026-08-14 (voice-turns): debounce window for batching committed voice
-// turns into one POST /api/chat/voice-turns (server persists them verbatim
-// as 'voice_transcript' rows — the Coach learning loop's capture end).
+// Batch voice capture for persistence. GPT-Live sends original fragment JSON
+// with voice_transcript_fragment provenance; legacy engines send full turns.
 const VOICE_TURN_FLUSH_MS = 3_000;
 
 export interface UseVoiceSessionParams extends CoachBrainParams {
@@ -135,6 +127,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   const [mode, setModeState] = useState<VoiceMode>(getStoredVoiceMode);
   const [status, setStatus] = useState<VoiceSessionStatus>('idle');
   const [statusDetail, setStatusDetail] = useState<string | undefined>(undefined);
+  const [liveCaptions, setLiveCaptions] = useState<LiveTranscriptFragment[]>([]);
   const [interimUser, setInterimUser] = useState('');
   const [interimModel, setInterimModel] = useState('');
   const [micPaused, setMicPaused] = useState(false);
@@ -145,6 +138,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   // the mouth's speech.
   const [checking, setChecking] = useState(false);
   const sessionRef = useRef<VoiceSession | null>(null);
+  // Async callbacks belong to the session that created them. A stopped session
+  // must never clear, resume, or append into its replacement.
+  const sessionEpochRef = useRef(0);
   // Concurrent brain-call counter behind `checking` — calls can overlap, so
   // count, don't boolean-toggle. Declared before the callbacks that capture
   // it (React Compiler contract — lessons_learned #28).
@@ -202,6 +198,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       },
       body: JSON.stringify({
         conversationId,
+        voiceMode: getStoredVoiceMode(),
         snapshotId: paramsRef.current.snapshotId,
         turns,
       }),
@@ -216,10 +213,8 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       });
   }, []);
 
-  // Queue one committed turn; arm the debounce timer on the first. Only the
-  // onUserTurnFinal / onModelTurnFinal events feed this — client-synthesized
-  // link messages and relay speech never pass through those events (relay
-  // transcripts are suppressed engine-side), so neither can land here.
+  // Queue original fragment JSON or a legacy turn. Synthesized link messages
+  // do not use this queue. Bound batches to the server's request contract.
   const queueVoiceTurn = useCallback((role: 'user' | 'assistant', content: string) => {
     if (!conversationIdRef.current) return; // no session thread to attach to
     const trimmed = content.trim();
@@ -227,6 +222,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     // Server contract caps a turn at 4000 chars; an over-cap turn would 400
     // the whole batch, so cap here (visible truncation beats a dropped batch).
     pendingTurnsRef.current.push({ role, content: trimmed.slice(0, 4000) });
+    if (pendingTurnsRef.current.length >= 40) { flushPendingTurns(); return; }
     if (flushTimerRef.current === null) {
       flushTimerRef.current = window.setTimeout(() => {
         flushTimerRef.current = null;
@@ -248,6 +244,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     // while conversationIdRef is still set. The direct flush below is the
     // backstop for the no-session path (stop() while already idle).
     sessionRef.current?.stop();
+    sessionEpochRef.current += 1;
     sessionRef.current = null;
     flushPendingTurns();
     conversationIdRef.current = null;
@@ -263,6 +260,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     setInterimUser('');
     setInterimModel('');
     setMicPaused(false);
+    setChecking(false);
   }, [flushPendingTurns]);
 
   const stopWakeWatch = useCallback(() => {
@@ -277,6 +275,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   // events closure below can invoke them.
   const resumeMic = useCallback(() => {
     stopWakeWatch();
+    if (!sessionRef.current) return;
     sessionRef.current?.resumeMic();
     setMicPaused(false);
   }, [stopWakeWatch]);
@@ -289,6 +288,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     rec.interimResults = true;
     rec.lang = 'en-US';
     rec.onresult = (e) => {
+      if (wakeRecRef.current !== rec) return;
       let text = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         text += e.results[i][0]?.transcript ?? '';
@@ -307,6 +307,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   }, [resumeMic]);
 
   const pauseMic = useCallback(() => {
+    if (!sessionRef.current) return;
     sessionRef.current?.pauseMic();
     setMicPaused(true);
     startWakeWatch();
@@ -314,18 +315,38 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
 
   const start = useCallback(async () => {
     if (mode === 'classic' || sessionRef.current) return;
+    const epoch = ++sessionEpochRef.current;
+    const isCurrent = () => sessionEpochRef.current === epoch;
+    const guard = <Args extends unknown[]>(callback: (...args: Args) => void) =>
+      (...args: Args) => { if (isCurrent()) callback(...args); };
     setError(null);
     setInterimUser('');
     setInterimModel('');
+    setLiveCaptions([]);
     setMicPaused(false);
-    conversationIdRef.current = crypto.randomUUID();
-    brainAbortRef.current = new AbortController();
+    const conversationId = crypto.randomUUID();
+    conversationIdRef.current = conversationId;
+    const brainController = new AbortController();
+    brainAbortRef.current = brainController;
+    checkingCountRef.current = 0;
+    setChecking(false);
 
     const events = {
-      onStatus: (s: VoiceSessionStatus, detail?: string) => {
+      onTranscriptFragment: guard((fragment: LiveTranscriptFragment) => {
+        setLiveCaptions(previous => [...previous, fragment].slice(-200));
+        // Preserve fragment text and session offsets in the existing text column.
+        // This is an automatic transcript, not a completed turn or playback receipt.
+        queueVoiceTurn(fragment.role, JSON.stringify(fragment));
+      }),
+      onControl: guard((control: 'pause' | 'stop') => { if (control === 'stop') stop(); else pauseMic(); }),
+      onStatus: guard((s: VoiceSessionStatus, detail?: string) => {
         setStatus(s);
         setStatusDetail(detail);
         if (s === 'ended') {
+          stopWakeWatch();
+          brainController.abort();
+          setMicPaused(false);
+          setChecking(false);
           // 2026-08-14 (voice-turns): flush BEFORE nulling the conversation
           // id (the batch body needs it) — 'ended' can also arrive from the
           // server side (socket close) where stop() never ran.
@@ -333,9 +354,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
           sessionRef.current = null;
           conversationIdRef.current = null;
         }
-      },
-      onUserTranscriptDelta: (text: string) => setInterimUser(text),
-      onUserTurnFinal: (text: string) => {
+      }),
+      onUserTranscriptDelta: guard((text: string) => setInterimUser(text)),
+      onUserTurnFinal: guard((text: string) => {
         setInterimUser('');
         paramsRef.current.onVoiceTurnFinal?.('user', text);
         // 2026-08-14 (voice-turns): queue BEFORE the control regexes — a
@@ -349,9 +370,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
         } else if (VOICE_PAUSE_REGEX.test(text)) {
           pauseMic();
         }
-      },
-      onModelTranscriptDelta: (text: string) => setInterimModel(sanitizeMouthText(text)),
-      onModelTurnFinal: (text: string) => {
+      }),
+      onModelTranscriptDelta: guard((text: string) => setInterimModel(sanitizeMouthText(text))),
+      onModelTurnFinal: guard((text: string) => {
         setInterimModel('');
         const clean = sanitizeMouthText(text);
         if (clean) {
@@ -367,22 +388,24 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
           pendingLinksRef.current = null;
           paramsRef.current.onVoiceTurnFinal?.('assistant', links);
         }
-      },
-      onError: (message: string) => setError(message),
+      }),
+      onError: guard((message: string) => setError(message)),
     };
     // 2026-08-14 (checking indicator): this wrapper is the ONE true begin/end
     // boundary of a brain call for both engines — the deterministic `checking`
     // flag lives here (the component renders its "checking…" line off it,
     // engine-agnostic), never inferred from what the mouth says.
-    const brain = async (question: string) => {
+    const brain = async (question: string, options?: { answerOnly?: boolean }) => {
+      if (!isCurrent() || brainController.signal.aborted) throw new Error('Voice session has ended');
       checkingCountRef.current += 1;
       setChecking(true);
       try {
         return await askCoachBrain(
           {
             ...paramsRef.current,
-            conversationId: conversationIdRef.current ?? undefined,
-            signal: brainAbortRef.current?.signal,
+            conversationId,
+            signal: brainController.signal,
+            answerOnly: options?.answerOnly === true,
             // 2026-08-14 (brain-hears): the committed visible thread rides
             // along so the brain answers in context. Copied — the component
             // reassigns the ref's array each render, and the request must
@@ -390,24 +413,31 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
             threadHistory: paramsRef.current.threadTailRef?.current
               ? [...paramsRef.current.threadTailRef.current]
               : undefined,
-            onActionsResult: (payload) =>
+            onActionsResult: guard((payload) =>
               applyDonePayload(payload, {
                 onNotesSaved: paramsRef.current.onNotesSaved,
                 onActionError: paramsRef.current.onActionError,
-              }),
+              })),
             // Links in the brain's answer surface as a tappable thread message
             // (the mouth's spoken transcript can't carry them). Buffered until
             // the spoken answer commits — see pendingLinksRef.
-            onBrainAnswer: (displayText) => {
+            onBrainAnswer: guard((displayText: string) => {
+              if (brainController.signal.aborted) return;
+              if (mode === 'gpt-live') {
+                paramsRef.current.onVoiceTurnFinal?.('assistant', displayText);
+                return;
+              }
               const links = extractLinksMessage(displayText);
               if (links) pendingLinksRef.current = links;
-            },
+            }),
           },
           question
         );
       } finally {
-        checkingCountRef.current -= 1;
-        if (checkingCountRef.current === 0) setChecking(false);
+        if (isCurrent()) {
+          checkingCountRef.current -= 1;
+          if (checkingCountRef.current === 0) setChecking(false);
+        }
       }
     };
     const opts = {
@@ -422,19 +452,20 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     };
 
     const session: VoiceSession =
-      mode === 'gemini' ? new GeminiLiveSession(opts) : new RealtimeSession(opts);
+      mode === 'gpt-live' ? new GptLiveSession(opts) : mode === 'gemini' ? new GeminiLiveSession(opts) : new RealtimeSession(opts);
     sessionRef.current = session;
     try {
       await session.start();
     } catch (err) {
+      if (!isCurrent()) return;
       const message = err instanceof Error ? err.message : 'voice session failed to start';
+      session.stop();
       setError(message);
       setStatus('error');
-      session.stop();
       sessionRef.current = null;
       conversationIdRef.current = null;
     }
-  }, [mode, params.userId, params.snapshotId, stop, pauseMic, flushPendingTurns, queueVoiceTurn]);
+  }, [mode, params.userId, params.snapshotId, stop, pauseMic, stopWakeWatch, flushPendingTurns, queueVoiceTurn]);
 
   /** iOS audio unlock — call from any real user gesture (see VoiceSession). */
   const unlockAudio = useCallback(() => {
@@ -464,6 +495,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     isLive: status === 'live' || status === 'connecting',
     interimUser,
     interimModel,
+    liveCaptions,
     micPaused,
     /** True while ≥1 brain call is in flight (deterministic, engine-agnostic). */
     checking,

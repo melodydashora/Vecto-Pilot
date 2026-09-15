@@ -6,6 +6,7 @@ import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals
 import { render, screen, cleanup } from '@testing-library/react';
 
 const received: Array<Record<string, unknown>> = [];
+jest.unstable_mockModule('@/components/coach/CoachContextStatus', () => ({ CoachContextStatus: () => null }));
 let authValue: { user: { userId: string; email: string } | null } = { user: null };
 
 jest.unstable_mockModule('@/components/RideshareCoach', () => ({

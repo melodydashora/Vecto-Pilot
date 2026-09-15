@@ -131,6 +131,41 @@ function mount(initial: { userId: string; snapshotId?: string }) {
 }
 
 describe('useCoachChat identity fence', () => {
+  it('admits one request when two submit callbacks run before React renders, then permits an intentional repeat', async () => {
+    const { result } = mount({ userId: 'driver-a', snapshotId: 'snap-a' });
+    let first!: Promise<void>;
+    await act(async () => {
+      const submit = result.current.send;
+      first = submit('Where should I go right now?');
+      void submit('Where should I go right now?');
+    });
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0].init.signal?.aborted).toBe(false);
+    expect(result.current.messages.map(m => m.content)).toEqual(['Where should I go right now?', '']);
+    await act(async () => {
+      fetchCalls[0].stream.sse({ delta: 'One confirmed answer' });
+      fetchCalls[0].stream.sse({ done: true, conversation_id: 'c1' });
+      fetchCalls[0].stream.end();
+      await first;
+    });
+    expect(result.current.messages.map(m => m.content)).toEqual(['Where should I go right now?', 'One confirmed answer']);
+    expect(onStreamComplete).toHaveBeenCalledTimes(1);
+
+    let repeat!: Promise<void>;
+    await act(async () => { repeat = result.current.send('Where should I go right now?'); });
+    expect(fetchCalls).toHaveLength(2);
+    await act(async () => {
+      fetchCalls[1].stream.sse({ delta: 'Updated answer' });
+      fetchCalls[1].stream.sse({ done: true, conversation_id: 'c2' });
+      fetchCalls[1].stream.end();
+      await repeat;
+    });
+    expect(result.current.messages.map(m => m.content)).toEqual([
+      'Where should I go right now?', 'One confirmed answer',
+      'Where should I go right now?', 'Updated answer',
+    ]);
+  });
+
   it('normal path: a single stream updates the last assistant message, strips tags on done and reports saved notes', async () => {
     const { result } = mount({ userId: 'driver-a', snapshotId: 'snap-a' });
     await act(async () => { void result.current.send('hello'); });

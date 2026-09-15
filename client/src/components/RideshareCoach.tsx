@@ -16,17 +16,12 @@ import { stripActionTags } from "@/utils/coach/stripActionTags";
 import { CoachStopBar } from "@/components/coach/CoachStopBar";
 import { CameraCaptureModal } from "@/components/coach/CameraCaptureModal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-// 2026-09-10: Melody restored the canonical brain for all voice requests.
-// The classic controls below now own normal voice input/output.
-// Historical 2026-08-14 (Melody, A/B verdict): "not two different coaches, just Gemini
-// Live that can also pause for uploads." The three-way engine dropdown is
-// gone — Gemini Live IS the Coach voice (auto-started on tab entry).
-// Classic STT/TTS survives as a devtools escape hatch (COACH_VOICE_MODE =
-// 'classic' in localStorage); the GPT Realtime arm stays in code, unreferenced
-// by any UI.
+// GPT-Live handles spoken conversation; the canonical GPT Coach owns data,
+// research and confirmed actions. A user gesture starts each voice session.
 import { useVoiceSession, getStoredVoiceMode } from "@/hooks/coach/useVoiceSession";
 import type { ThreadTurn } from "@/lib/voice/types";
-import { COACH_VOICE_OPTIONS } from "@/lib/voice/voices";
+import { COACH_LIVE_VOICES, DEFAULT_COACH_LIVE_VOICE, isCoachLiveVoice } from "../../../shared/coach-live.js";
+import { LiveCoachCaptions } from "@/components/coach/LiveCoachCaptions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // 2026-04-29: TTS speed-selector tier values, used in the chip UI.
@@ -251,11 +246,9 @@ export default function RideshareCoach({
     }
   }, []);
 
-  // 2026-08-11 (todo #33): live voice session (Gemini Live / GPT Realtime arms).
-  // Mode 'classic' = hook is inert and the pipeline below owns the mic.
-  // 2026-08-14 (unified voice thread): committed voice turns flow into the
-  // chat thread via appendVoiceTurnRef; brain-call action side-effects use the
-  // same handlers as classic (notes refresh + error banner).
+  // GPT-Live owns conversation audio; canonical Coach requests retain the
+  // existing action receipts, notes refresh, and error reporting. Captions
+  // preserve timed fragments separately from completed written responses.
   const voice = useVoiceSession({
     userId,
     snapshotId,
@@ -605,18 +598,20 @@ export default function RideshareCoach({
   // while live restarts the session (her tap = the authorizing act) so the
   // new voice speaks immediately.
   const [coachVoiceName, setCoachVoiceName] = useState<string>(
-    () => localStorage.getItem(STORAGE_KEYS.COACH_VOICE_NAME) ?? ''
+    () => { const saved = localStorage.getItem(STORAGE_KEYS.COACH_LIVE_VOICE_NAME); return saved && isCoachLiveVoice(saved) ? saved : DEFAULT_COACH_LIVE_VOICE; }
   );
   const handleVoiceNameChange = useCallback((value: string) => {
-    const name = value === 'default' ? '' : value;
-    if (name) localStorage.setItem(STORAGE_KEYS.COACH_VOICE_NAME, name);
-    else localStorage.removeItem(STORAGE_KEYS.COACH_VOICE_NAME);
+    if (!isCoachLiveVoice(value)) return;
+    const name = value;
+    localStorage.setItem(STORAGE_KEYS.COACH_LIVE_VOICE_NAME, name);
     setCoachVoiceName(name);
     if (voice.isLive) {
+      const wasPaused = voice.micPaused;
       voice.stop();
       void voice.start();
+      if (wasPaused) voice.pauseMic();
     }
-  }, [voice.isLive, voice.stop, voice.start]);
+  }, [voice.isLive, voice.micPaused, voice.stop, voice.start, voice.pauseMic]);
 
   // 2026-08-14 (Melody: "take the green mic out... gemini live that can also
   // pause for uploads"): the live-mode mic button is a PAUSE/RESUME toggle
@@ -639,43 +634,15 @@ export default function RideshareCoach({
     try { stopSpeak(); } catch { /* no-op */ }
   }, [stopSpeak, streaming]);
 
-  // 2026-08-14 (Melody: "clicking on the coach tab didn't automatically start
-  // the discussion"): entering the Coach tab IS the start gesture — the live
-  // session auto-starts. Before starting, hard-kill any classic
-  // audio still playing from a previous visit (live test 2026-08-14: classic
-  // TTS and Gemini Live talked over each other; Gemini's VAD then treated the
-  // classic voice as barge-in). Leaving the tab tears the session
-  // down via useVoiceSession's unmount effect. After that, pause/End obey the
-  // tap-to-talk invariant — nothing here restarts a session she ended.
-  //
-  // 2026-08-14 road test ("will everyone have to tell you where they are?"):
-  // auto-start now WAITS for the snapshot. Starting before it resolved minted
-  // a token with no location/strategy — a blind mouth whose first answer was
-  // "what city are you in?". The snapshot is the product's ground truth; the
-  // session starts when it exists. autoStartedRef fires the auto-start ONCE
-  // per mount: a later snapshot refresh must never resurrect an ended session
-  // (End is final). No snapshot (GPS off) → no auto-start; the strip's manual
-  // start remains the driver's explicit choice.
-  const autoStartedRef = useRef(false);
-  useEffect(() => {
-    if (getStoredVoiceMode() === 'classic') return;
-    if (!snapshotId || autoStartedRef.current) return;
-    autoStartedRef.current = true;
+  // Live sessions start only from the driver's Start voice control. Snapshot
+  // completion and tab mount never open or reactivate a microphone.
+  const startLiveVoice = useCallback(() => {
     manualStopRef.current = true;
     stopMic();
-    try { streaming.abort(); } catch { /* no-op */ }
-    try { stopSpeak(); } catch { /* no-op */ }
+    try { streaming.abort(); } catch { /* no classic audio running */ }
+    try { stopSpeak(); } catch { /* no classic audio running */ }
     void voice.start();
-  }, [snapshotId]); // Fires once, when the snapshot is ready
-
-  // iOS keeps playback AudioContexts suspended until a REAL user gesture, and
-  // an auto-started session has none — unlock on the first tap anywhere.
-  useEffect(() => {
-    if (voice.mode === 'classic') return;
-    const unlock = () => voice.unlockAudio();
-    document.addEventListener('pointerdown', unlock, { once: true });
-    return () => document.removeEventListener('pointerdown', unlock);
-  }, [voice.mode, voice.unlockAudio]);
+  }, [stopMic, streaming, stopSpeak, voice.start]);
 
   // 2026-05-04 (COACH-V1): "stop and output" stop phrase. Fires only while listening
   // AND not speaking (suppress during TTS — Coach saying the phrase via speaker bleed
@@ -793,14 +760,13 @@ export default function RideshareCoach({
           {/* 2026-08-14 (Melody): NO model names in the UI — the old
               "Powered by Gemini 3 Pro" tagline leaked a dev-pin detail and
               goes stale the moment the registry swaps models. */}
-          <p className="text-xs text-white/80">Your AI co-pilot</p>
+          <p className="text-xs text-white/80">Your AI co-pilot · AI-generated voice</p>
         </div>
-        {/* 2026-08-14 (Melody): engine dropdown removed — one Coach (Gemini
-            Live, auto-started). Its slot now holds the VOICE picker: she's
-            choosing the one voice by ear, live-restart on change. */}
+        {/* One Coach with a voice preference. Changing voices reconnects an
+            active session and preserves the driver's microphone pause. */}
         {voice.mode !== 'classic' && (
           <Select
-            value={coachVoiceName === '' ? 'default' : coachVoiceName}
+            value={coachVoiceName}
             onValueChange={handleVoiceNameChange}
           >
             <SelectTrigger
@@ -811,8 +777,8 @@ export default function RideshareCoach({
               <SelectValue placeholder="Voice" />
             </SelectTrigger>
             <SelectContent>
-              {COACH_VOICE_OPTIONS.map((v) => (
-                <SelectItem key={v.value || 'default'} value={v.value === '' ? 'default' : v.value}>
+              {COACH_LIVE_VOICES.map((v) => (
+                <SelectItem key={v.value} value={v.value}>
                   {v.label}
                 </SelectItem>
               ))}
@@ -889,12 +855,9 @@ export default function RideshareCoach({
         </Button>
       </div>
 
-      {/* 2026-08-14 (Melody, one-Coach): slim standing voice strip — the
-          single voice control surface. Auto-start owns session creation on
-          tab entry; this strip shows status, End while live, and Resume when
-          a session was ended (End sticks — nothing auto-restarts it).
-          Transcripts live in the chat thread. Native barge-in: talking IS
-          the interrupt. No model names (statusDetail = debug only). */}
+      {/* Explicit Start/End owns session creation. Snapshot updates never
+          open a microphone. The large mic button pauses or resumes capture;
+          automatic captions remain distinct from written Coach responses. */}
       {voice.mode !== 'classic' && (
         <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800/60">
           <div className={`h-2.5 w-2.5 rounded-full ${
@@ -918,11 +881,8 @@ export default function RideshareCoach({
               size="sm"
               variant="destructive"
               className="h-6 text-xs"
-              // Review 2026-08-14 (End-is-final, confirmed 3/3): spend the
-              // one-shot auto-start on End too — a driver who manually started
-              // pre-snapshot and tapped End must not be resurrected when the
-              // first snapshot resolves and fires the auto-start effect.
-              onClick={() => { autoStartedRef.current = true; voice.stop(); }}
+              // End stays off until another explicit Start voice action.
+              onClick={voice.stop}
               data-testid="button-voice-end"
             >
               End
@@ -931,12 +891,10 @@ export default function RideshareCoach({
             <Button
               size="sm"
               className="h-6 text-xs bg-green-600 hover:bg-green-700 text-white"
-              // Manual start also spends the auto-start: the driver took
-              // control of the session lifecycle (same review finding).
-              onClick={() => { autoStartedRef.current = true; void voice.start(); }}
+              onClick={startLiveVoice}
               data-testid="button-voice-start"
             >
-              Resume voice
+              Start voice
             </Button>
           )}
         </div>
@@ -1197,6 +1155,7 @@ export default function RideshareCoach({
         ))}
         {/* Interim (in-progress) speech — the current line grows in place and
             commits to msgs as a real turn when final. Not persisted here. */}
+        {voice.liveCaptions?.length > 0 && <LiveCoachCaptions fragments={voice.liveCaptions} />}
         {voice.interimUser && (
           <p className="text-sm leading-relaxed italic opacity-70" data-testid="interim-user">
             <span className="font-semibold text-gray-900 dark:text-white">You: </span>

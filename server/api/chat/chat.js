@@ -21,6 +21,7 @@ import { saveMemoWithReceipt } from '../rideshare-coach/memos.js';
 // from the registry (COACH_VOICE_LIVE role), never a hardcoded model string.
 import { getRoleConfig } from '../../lib/ai/model-registry.js';
 import { formatCoachSourceContext } from '../../lib/ai/coach-source-context.js';
+import { getCoachContextProgress } from '../../lib/ai/coach-context-progress.js';
 import { readCoachResponse } from '../../lib/ai/adapters/coach-responses.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
@@ -658,8 +659,18 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
   console.log('[coach] Fetching context for snapshot:', snapshotId);
 
   try {
+    if (req.query.summary === '1') {
+      const [snapshot, strategy, briefing, offerHistory] = await Promise.all([
+        rideshareCoachDAL.getHeaderSnapshot(snapshotId),
+        rideshareCoachDAL.getLatestStrategy(snapshotId),
+        rideshareCoachDAL.getComprehensiveBriefing(snapshotId),
+        rideshareCoachDAL.getOfferHistory(req.auth.userId, 20),
+      ]);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(getCoachContextProgress({ snapshot, strategy, briefing, offerHistory }));
+    }
     // Use CoachDAL for read-only access
-    const context = await rideshareCoachDAL.getCompleteContext(snapshotId);
+    const context = await rideshareCoachDAL.getCompleteContext(snapshotId, null, req.auth.userId);
     
     res.json({
       snapshot_id: snapshotId,
@@ -669,6 +680,8 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
       briefing: context.briefing,
       smart_blocks: context.smartBlocks,
       count: context.smartBlocks.length,
+      progress: context.progress,
+      offer_history: context.offerHistory,
     });
   } catch (error) {
     console.error('[coach] Context fetch failed:', error.message);
@@ -684,6 +697,9 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 // POST /api/chat - AI Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: requireAuth enforces user must be signed in
 router.post('/', requireAuth, async (req, res) => {
+  // Spoken continuations may need another read after an earlier action finished.
+  // Conversation history is retained, but reconciliation cannot mutate app data.
+  const answerOnly = req.body.answerOnly === true;
   const { userId, message, threadHistory = [], snapshotId: rawSnapshotId, strategyId: rawStrategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = req.body;
   // 2026-09-10 (CodeQL type-confusion class): these reach `.slice()` before the try block
   // below; a non-string body value ({}/number) threw synchronously and hung the request.
@@ -773,7 +789,7 @@ router.post('/', requireAuth, async (req, res) => {
       if (activeSnapshotId) {
         fullContext = await rideshareCoachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
         contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext)
-          + formatCoachSourceContext(fullContext.snapshot, fullContext.briefing);
+          + formatCoachSourceContext(fullContext.snapshot, fullContext.briefing, fullContext);
 
         console.log(`[COACH] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
         console.log(`[COACH] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, driverProfile=${!!fullContext.driverProfile}, vehicle=${!!fullContext.driverVehicle}`);
@@ -1302,6 +1318,7 @@ Full transparency. Maximum insight.
 
     try {
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
+      if (answerOnly) systemPrompt += '\n\nANSWER-ONLY RECONCILIATION: Read current records and answer the latest continued or corrected request. Do not emit action tags, save notes, learn tips, or change any data. Do not repeat earlier actions. If a new or changed action is needed, explain its current confirmed state and ask for a fresh confirmation. Conversation history is still recorded.';
       const roleConfig = getRoleConfig('AI_COACH');
       const ac = new AbortController();
       const onClose = () => { if (!res.writableEnded) ac.abort(); };
@@ -1342,7 +1359,10 @@ Full transparency. Maximum insight.
         displayResponse = cleanedText;
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
-        if (hasActions) {
+        if (hasActions && answerOnly) {
+          actionsResult = { saved: 0, errors: ['This answer-only follow-up did not execute any requested action; a fresh confirmation is required'] };
+        }
+        if (hasActions && !answerOnly) {
           console.log(`[COACH] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, addEvents=${actions.addEvents.length}, updateEvents=${actions.updateEvents.length}, memos=${actions.coachMemos.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}, marketIntel=${actions.marketIntel.length}, venueIntel=${actions.venueIntel.length}`);
 
           // 2026-03-18: FIX (C-1) — Await actions so results can be sent to client.
@@ -1379,7 +1399,7 @@ Full transparency. Maximum insight.
             // were already parsed. The AI explicitly chose what to save; auto-extraction
             // would duplicate those notes with slightly different titles.
             const hasSaveNoteActions = actions?.notes?.length > 0;
-            const extractedTips = hasSaveNoteActions
+            const extractedTips = answerOnly || hasSaveNoteActions
               ? 0
               : await rideshareCoachDAL.extractAndSaveTips(authUserId, cleanedText, {
                   snapshot_id: activeSnapshotId,
@@ -1493,7 +1513,8 @@ router.post('/voice-turns', requireAuth, voiceTurnsLimiter, async (req, res) => 
       if (!owned.ok) return res.status(owned.status).json(owned.body);
     }
 
-    const voiceModel = getRoleConfig('COACH_VOICE_LIVE').model;
+    const isLiveFragment = req.body.voiceMode === 'gpt-live';
+    const voiceModel = getRoleConfig(isLiveFragment ? 'COACH_VOICE_OPENAI_LIVE' : 'COACH_VOICE_LIVE').model;
 
     // saveConversationMessage is non-throwing (null on failure) — count what
     // actually landed and report it honestly instead of assuming all saved.
@@ -1505,7 +1526,7 @@ router.post('/voice-turns', requireAuth, voiceTurnsLimiter, async (req, res) => 
         conversation_id: conversationId,
         role: turn.role,
         content: turn.content,
-        content_type: 'voice_transcript',
+        content_type: isLiveFragment ? 'voice_transcript_fragment' : 'voice_transcript',
         model_used: voiceModel,
       });
       if (row) saved++;

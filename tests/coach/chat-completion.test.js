@@ -9,9 +9,11 @@ import request from 'supertest';
 
 const USER = '11111111-1111-4111-8111-111111111111';
 const appendFile = jest.fn(async () => {});
-const calls = { memo: [], note: [], history: [] };
+const calls = { memo: [], note: [], history: [], tips: [] };
 let memoBehavior = 'ok';        // ok | throw | null
 let providerEvents = [];
+let currentContext = null;
+const providerPrompts = [];
 
 jest.unstable_mockModule('fs/promises', () => ({ appendFile, readFile: async () => '' }));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({ requireAuth: (req, _res, next) => { req.auth = { userId: USER, sessionId: 's1' }; next(); }, optionalAuth: (_r, _s, n) => n() }));
@@ -23,9 +25,11 @@ const chain = () => { const c = {}; for (const m of ['select', 'from', 'where', 
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: chain() }));
 jest.unstable_mockModule('../../server/lib/ai/rideshare-coach-dal.js', () => ({ rideshareCoachDAL: {
   resolveStrategyToSnapshot: async () => null,
-  getCompleteContext: async () => null,
+  getCompleteContext: async () => currentContext,
+  generateMarketSlug: () => null,
+  getSnapshotHistory: async () => [],
   formatContextForPrompt: () => '',
-  extractAndSaveTips: async () => 0,
+  extractAndSaveTips: async (...args) => { calls.tips.push(args); return 0; },
   saveConversationMessage: async (row) => { calls.history.push(row); return { id: `h-${calls.history.length}`, ...row }; },
   saveCoachMemo: async (data) => { calls.memo.push(data); if (memoBehavior === 'throw') throw new Error('memo table unavailable'); if (memoBehavior === 'null') return null; return { id: 'memo-0001-abcd', type: data.type, title: data.title, created_at: '2026-09-11T02:00:00.000Z' }; },
   saveUserNote: async (data) => { calls.note.push(data); return { id: 'note-1', ...data }; },
@@ -34,24 +38,62 @@ function responsesStream(events) {
   const bytes = new TextEncoder().encode(events.map(e => `data: ${JSON.stringify(e)}\r\n\r\n`).join(''));
   return new Response(new ReadableStream({ start(c) { c.enqueue(bytes); c.close(); } }));
 }
-jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: async () => { throw new Error('not used'); }, callModelStream: async () => responsesStream(providerEvents) }));
+jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: async () => { throw new Error('not used'); }, callModelStream: async (_role, params) => { providerPrompts.push(params.system); return responsesStream(providerEvents); } }));
 
 const { default: router } = await import('../../server/api/chat/chat.js');
 const app = express(); app.use(express.json()); app.use('/api/chat', router);
 
 function sse(text) { return text.split('\n').filter(l => l.startsWith('data:')).map(l => JSON.parse(l.slice(5).trim())); }
-async function ask(message) {
-  const res = await request(app).post('/api/chat').send({ message, snapshot: { timezone: 'America/Chicago' } }).buffer(true).parse((r, cb) => { let s = ''; r.on('data', d => { s += d; }); r.on('end', () => cb(null, s)); });
+async function ask(message, extra = {}) {
+  const res = await request(app).post('/api/chat').send({ message, snapshot: { timezone: 'America/Chicago' }, ...extra }).buffer(true).parse((r, cb) => { let s = ''; r.on('data', d => { s += d; }); r.on('end', () => cb(null, s)); });
   const events = sse(res.body);
-  return { status: res.status, events, done: events.find(e => e.done), text: events.filter(e => e.delta).map(e => e.delta).join('') };
+  return { status: res.status, events, done: events.find(e => e.done), text: events.filter(e => e.delta).map(e => e.delta).join(''), raw: res.body };
 }
 const completed = (text) => [{ type: 'response.output_text.delta', delta: text }, { type: 'response.completed', response: { status: 'completed', model: 'gpt-6-astra', output: [] } }];
 const VALID_MEMO = '[COACH_MEMO: {"type":"bug","title":"Synthetic memo","detail":"Synthetic detail","priority":"medium"}]';
 const assistantHistory = () => calls.history.filter(h => h.role === 'assistant');
 
-beforeEach(() => { calls.memo.length = 0; calls.note.length = 0; calls.history.length = 0; appendFile.mockClear(); memoBehavior = 'ok'; providerEvents = []; jest.spyOn(console, 'log').mockImplementation(() => {}); jest.spyOn(console, 'warn').mockImplementation(() => {}); jest.spyOn(console, 'error').mockImplementation(() => {}); });
+beforeEach(() => { currentContext = null; providerPrompts.length = 0; calls.memo.length = 0; calls.note.length = 0; calls.history.length = 0; calls.tips.length = 0; appendFile.mockClear(); memoBehavior = 'ok'; providerEvents = []; jest.spyOn(console, 'log').mockImplementation(() => {}); jest.spyOn(console, 'warn').mockImplementation(() => {}); jest.spyOn(console, 'error').mockImplementation(() => {}); });
 
 describe('POST /api/chat completion truthfulness (real router)', () => {
+  test('answer-only reconciliation blocks model-emitted action tags and automatic learning on the server', async () => {
+    providerEvents = completed('I saved it. ' + VALID_MEMO + ' [SAVE_NOTE: {"type":"preference","title":"Synthetic preference","content":"Do not save this","importance":50}]');
+    const r = await ask('Reconcile my latest continuation', { answerOnly: true });
+    expect(r.status).toBe(200);
+    expect(calls.memo).toHaveLength(0); expect(calls.note).toHaveLength(0); expect(calls.tips).toHaveLength(0);
+    expect(appendFile).not.toHaveBeenCalled();
+    expect(r.done.actions_result.saved).toBe(0);
+    expect(r.done.actions_result.errors.join(' ')).toContain('answer-only');
+    expect(r.done.response_text).toContain('Not saved');
+    expect(providerPrompts[0]).toContain('ANSWER-ONLY RECONCILIATION');
+    expect(assistantHistory()).toHaveLength(1);
+  });
+  test('answer-only responses without action tags also skip automatic tip extraction', async () => {
+    providerEvents = completed('The saved briefing is still pending.');
+    const r = await ask('What data is available?', { answerOnly: true });
+    expect(r.done.done).toBe(true); expect(calls.tips).toHaveLength(0);
+    expect(assistantHistory()[0].content).toBe('The saved briefing is still pending.');
+  });
+  test('responds before Strategy finishes and rereads later saved evidence on the next turn', async () => {
+    currentContext = {
+      snapshot: { snapshot_id: 'snap-1', timezone: 'America/Chicago', source_record: { snapshot_id: 'snap-1', timezone: 'America/Chicago', weather: { tempF: 71 } } },
+      strategy: null, status: 'pending_strategy',
+      briefing: { source_record: { status: 'pending', events: null, news: { title: 'Saved early news' } } },
+      offerHistory: { source_state: 'available', offers: [{ id: 'o1', decision: 'ACCEPT', parsed_data_json: { phase: 1 } }] },
+    };
+    providerEvents = completed('I can discuss the saved news while Strategy is pending.');
+    const early = await ask('What is known so far?', { snapshotId: 'snap-1' });
+    if (early.status !== 200) throw new Error(early.raw);
+    expect(early).toMatchObject({ status: 200, done: { done: true } });
+    expect(providerPrompts[0]).toContain('Saved early news');
+    expect(providerPrompts[0]).toContain('"strategy": null');
+    currentContext = { ...currentContext, strategy: { status: 'failed', updated_at: '2026-09-11T08:02:00Z', strategy_for_now: 'Earlier partial text' }, offerHistory: { source_state: 'available', offers: [{ id: 'o1', decision: 'ACCEPT', parsed_data_json: { phase: 2, evidence: 'Saved later sweep' } }] } };
+    await ask('What changed?', { snapshotId: 'snap-1' });
+    expect(providerPrompts[1]).toContain('Saved later sweep');
+    expect(providerPrompts[1]).toContain('"status": "failed"');
+    expect(providerPrompts[1]).toContain('2026-09-11T08:02:00Z');
+    expect(providerPrompts[1]).toContain('never OCR a new offer or issue a new ACCEPT/REJECT/CANCEL');
+  });
   test('valid memo tag then provider interruption: zero writes, explicit failure, no assistant history', async () => {
     providerEvents = [{ type: 'response.output_text.delta', delta: `Saved your report. ${VALID_MEMO}` }, { type: 'response.incomplete', response: { model: 'gpt-6-astra' } }];
     const r = await ask('please remember this bug');

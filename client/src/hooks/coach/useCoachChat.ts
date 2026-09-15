@@ -288,7 +288,9 @@ export function useCoachChat({
     const messageText = text;
     const filesToSend = attachmentsOverride ?? attachments;
     if (!messageText && filesToSend.length === 0) return;
-    if (isStreaming) return;
+    // React's busy state updates on the next render. The controller is the
+    // synchronous admission lock, including callbacks captured by an older render.
+    if (isStreaming || controllerRef.current) return;
 
     // Precheck: total attachment payload must fit under server's 10 MB limit
     // with headroom for message + thread history + snapshot + IDs.
@@ -302,12 +304,12 @@ export function useCoachChat({
       return;
     }
 
+    const controller = new AbortController();
+    controllerRef.current = controller;
     if (!attachmentsOverride) setAttachments([]);
     setMsgs((m) => [...m, { role: "user", content: messageText || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
     setIsStreaming(true);
 
-    controllerRef.current?.abort();
-    controllerRef.current = new AbortController();
     // Identity fence (2026-09-11): everything after an await checks `stale()`.
     const generation = ++generationRef.current;
     const stale = () => generation !== generationRef.current;
@@ -344,7 +346,7 @@ export function useCoachChat({
           } : undefined,
           strategyReady
         }),
-        signal: controllerRef.current.signal,
+        signal: controller.signal,
       });
       if (stale()) return;
 
@@ -449,7 +451,10 @@ export function useCoachChat({
     } finally {
       // Fenced: a stale stream's teardown must not reset a newer stream's flag;
       // the identity-change cleanup already cleared it for the stale one.
-      if (!stale()) setIsStreaming(false);
+      if (!stale()) {
+        if (controllerRef.current === controller) controllerRef.current = null;
+        setIsStreaming(false);
+      }
     }
   }, [
     attachments,

@@ -13,7 +13,9 @@
 // POST /api/chat (AI_COACH role: google_search grounding + the full
 // action-tag tool surface). Neither session class answers from its own head.
 
-export type VoiceMode = 'classic' | 'gemini' | 'openai';
+import type { LiveTranscriptFragment } from './live-transcripts';
+
+export type VoiceMode = 'classic' | 'gemini' | 'openai' | 'gpt-live';
 
 export type VoiceSessionStatus = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
 
@@ -23,6 +25,9 @@ export type VoiceSessionStatus = 'idle' | 'connecting' | 'live' | 'ended' | 'err
 // streams: deltas carry the full interim line so far (render in place), and
 // finals carry the committed turn (append to the chat thread).
 export interface VoiceSessionEvents {
+  /** GPT-Live provides timed fragments, with no authoritative turn-final event. */
+  onTranscriptFragment?: (fragment: LiveTranscriptFragment) => void;
+  onControl?: (control: 'pause' | 'stop') => void;
   onStatus: (status: VoiceSessionStatus, detail?: string) => void;
   /** Interim driver speech — the accumulated line so far (replaces prior interim). */
   onUserTranscriptDelta: (text: string) => void;
@@ -46,7 +51,7 @@ export interface VoiceSessionOptions {
   snapshotId?: string;
   events: VoiceSessionEvents;
   /** The brain call — ask_coach_backend's executor. Resolves to the Coach's answer text. */
-  askCoachBrain: (question: string) => Promise<string>;
+  askCoachBrain: (question: string, options?: { answerOnly?: boolean }) => Promise<string>;
   /**
    * 2026-08-14 (brain-hears/continuity build): render-time-fresh reader of the
    * committed visible thread (text turns only — no link/attachment messages).

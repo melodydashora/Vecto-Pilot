@@ -243,9 +243,16 @@ export const MODEL_ROLES = {
   // 2026-08-11: role moved out of realtime.js, which read process.env.VOICE_MODEL
   // directly (registry-bypass doctrine violation). envKey stays VOICE_MODEL —
   // it is the already-documented env var for this concern (env-registry.js).
+  COACH_VOICE_OPENAI_LIVE: {
+    envKey: 'OPENAI_LIVE_MODEL',
+    default: 'gpt-live-1',
+    purpose: 'Coach conversational voice with canonical GPT Coach delegation',
+    requiresLive: true,
+    liveModelPrefix: 'gpt-live-',
+  },
   COACH_VOICE_REALTIME: {
     envKey: 'VOICE_MODEL',
-    default: 'gpt-realtime',
+    default: 'gpt-realtime-2.1',
     purpose: 'Coach voice mouth: OpenAI Realtime session (WebRTC, ephemeral client_secrets)',
     requiresLive: true,
   },
@@ -569,7 +576,7 @@ export function getRoleConfig(role) {
     }
     // AI Coach roles
     // 2026-02-17: Renamed ASSISTANT_OVERRIDE → AI_COACH_OVERRIDE
-    else if (canonicalRole === 'AI_COACH' || canonicalRole.startsWith('COACH_')) {
+    else if (canonicalRole === 'AI_COACH' || (canonicalRole.startsWith('COACH_') && !roleConfig.requiresLive)) {
       if (process.env.AI_COACH_OVERRIDE_MODEL) {
         model = process.env.AI_COACH_OVERRIDE_MODEL;
         sourceInfo = 'env:AI_COACH_OVERRIDE_MODEL';
@@ -604,10 +611,14 @@ export function getRoleConfig(role) {
   // accept Live connections). This matters because AI_COACH_OVERRIDE_MODEL
   // catches every COACH_* role above — a text-model override must not silently
   // break voice session minting.
-  if (roleConfig.requiresLive && !/(^gpt-realtime)|(-live)|(-native-audio)/.test(model)) {
+  if (roleConfig.requiresLive && !roleConfig.liveModelPrefix && !/(^gpt-realtime)|(-live)|(-native-audio)/.test(model)) {
     registryLog.warn(0, `${canonicalRole} requires a live/realtime-class model, but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
     model = roleConfig.default;
     sourceInfo = 'default (live fallback)';
+  }
+
+  if (roleConfig.liveModelPrefix && !model.startsWith(roleConfig.liveModelPrefix)) {
+    throw new Error(`${canonicalRole} requires a ${roleConfig.liveModelPrefix} model`);
   }
 
   const provider = getProviderForModel(model);

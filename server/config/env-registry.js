@@ -147,12 +147,17 @@ export const ENV_VARS = {
   },
 
   // === Voice ===
+  OPENAI_LIVE_MODEL: {
+    required: false,
+    default: 'gpt-live-1',
+    description: 'OpenAI GPT-Live conversational voice; canonical Coach handles reasoning and actions',
+  },
   // 2026-04-25: Realtime API requires a realtime-class model, not a chat model.
   // Previous default 'gpt-5.4' was wrong-class and would 4xx against /v1/realtime/sessions.
   // 2026-08-11: now the envKey of registry role COACH_VOICE_REALTIME (guarded).
   VOICE_MODEL: {
     required: false,
-    default: 'gpt-realtime',
+    default: 'gpt-realtime-2.1',
     description: 'OpenAI Realtime voice-to-voice model (must be realtime class; envKey of COACH_VOICE_REALTIME)',
   },
   // 2026-08-11 (todo #33): Gemini arm of the Coach voice switcher.

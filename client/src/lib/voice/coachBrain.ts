@@ -1,16 +1,7 @@
 // client/src/lib/voice/coachBrain.ts
-// 2026-08-11 (todo #33): the BRAIN call — ask_coach_backend's executor.
-//
-// Routes a live-voice question through the existing /api/chat pipeline
-// (AI_COACH role: gemini text brain, HIGH thinking, google_search grounding,
-// and the full server-side action-tag surface — SAVE_NOTE, event CRUD,
-// COACH_MEMO, zone/market intel, offer decisions). The mouth model receives
-// the accumulated answer as a function response and speaks its own rendition,
-// so the entire Coach tool surface transfers to voice with zero new tools.
-//
-// The SSE consumption mirrors useCoachChat's parser (data: {delta} lines,
-// done on stream close); action tags are stripped from the returned text so
-// the mouth never reads tag JSON aloud (the server already EXECUTED them).
+// Typed and spoken requests share /api/chat, full current source context,
+// GPT Responses search and confirmed action receipts. The voice receives
+// only completed answers, never action tags or unconfirmed success claims.
 
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
@@ -46,6 +37,8 @@ export interface CoachBrainParams {
   threadHistory?: ThreadTurn[];
   /** External abort (session teardown) — combined with the 180s timeout. */
   signal?: AbortSignal;
+  /** Reconcile continued speech without repeating actions or automatic learning. */
+  answerOnly?: boolean;
   /** Done-payload metadata (actions_result / persistence_error) consumer. */
   onActionsResult?: (payload: DonePayloadMeta) => void;
   /**
@@ -66,12 +59,12 @@ const BRAIN_TIMEOUT_MS = 180_000;
  * session degrades loudly, never silently.
  */
 export async function askCoachBrain(
-  { userId, snapshotId, snapshot, conversationId, threadHistory, signal, onActionsResult, onBrainAnswer }: CoachBrainParams,
+  { userId, snapshotId, snapshot, conversationId, threadHistory, signal, answerOnly = false, onActionsResult, onBrainAnswer }: CoachBrainParams,
   question: string
 ): Promise<string> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), BRAIN_TIMEOUT_MS);
+  const timer = window.setTimeout(() => controller.abort(), answerOnly ? 30000 : BRAIN_TIMEOUT_MS);
   // External abort (session teardown) chains into the fetch controller.
   // Manual chaining instead of AbortSignal.any — wider browser support.
   if (signal?.aborted) controller.abort();
@@ -98,6 +91,7 @@ export async function askCoachBrain(
         snapshot,
         conversationId,
         source: 'voice',
+        answerOnly,
       }),
       signal: controller.signal,
     });
