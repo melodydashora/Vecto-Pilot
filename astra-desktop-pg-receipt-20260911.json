@@ -1,0 +1,54 @@
+{
+  "namespace": "astra-briefing-pg-8b502b0b-bca8-4d8b-8e35-1cf7f6bcadec",
+  "started_at": "2026-09-11T02:34:09.559Z",
+  "target": "127.0.0.1:55432/vecto_preview",
+  "checks": [
+    {
+      "label": "token_recheck_after_blocked_update",
+      "blocked_holder_pid": 18941,
+      "blocked_writer_pid": 18947,
+      "blocking_observed": true,
+      "stale_write_result": null,
+      "expected_row_sha256": "15dfc469e642993b703bd993063f0d590361546474ac04c11a4af19ddf54132d",
+      "actual_row_sha256": "15dfc469e642993b703bd993063f0d590361546474ac04c11a4af19ddf54132d",
+      "all_fields_unchanged": true
+    },
+    {
+      "label": "pending_status_recheck_after_blocked_update",
+      "blocked_holder_pid": 18946,
+      "blocked_writer_pid": 18947,
+      "blocking_observed": true,
+      "stale_write_result": null,
+      "expected_row_sha256": "327156f32d3f99283ddab6fda872725f7c69c492640735b6cf725482f0c5b1ee",
+      "actual_row_sha256": "327156f32d3f99283ddab6fda872725f7c69c492640735b6cf725482f0c5b1ee",
+      "all_fields_unchanged": true
+    },
+    {
+      "label": "real_snapshot_ownership",
+      "owner": 200,
+      "foreign": 404,
+      "null_owner": 404,
+      "missing": 404,
+      "missing_caller": 401
+    },
+    {
+      "label": "get_real_cached_route_ownership",
+      "foreign": 404,
+      "null_owner": 404,
+      "cached_data_exposed": false,
+      "provider_calls": 0
+    },
+    {
+      "label": "post_real_cached_route_ownership",
+      "foreign": 404,
+      "null_owner": 404,
+      "cached_data_exposed": false,
+      "provider_calls": 0
+    }
+  ],
+  "cleanup": true,
+  "authentication": "synthetic req.auth; real ownership and router",
+  "provider_calls": 0,
+  "completed_at": "2026-09-11T02:34:09.839Z",
+  "complete": true
+}
