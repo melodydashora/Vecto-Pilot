@@ -26,7 +26,7 @@ import { phaseEmitter } from '../../events/phase-emitter.js';
 // refetches. Closes G3 from NOTIFY_LOSS_RECON_2026-04-18.md.
 import { db } from '../../db/drizzle.js';
 import { briefings, strategies, rankings, offer_intelligence } from '../../../shared/schema.js';
-import { eq, and, isNotNull, desc, or, sql as drizzleSql } from 'drizzle-orm';
+import { eq, and, isNull, isNotNull, desc, or, sql as drizzleSql } from 'drizzle-orm';
 import { requireAuthAllowQueryToken } from '../../middleware/auth.js';
 
 const router = express.Router();
@@ -485,7 +485,7 @@ router.get('/events/offers', requireAuthAllowQueryToken, async (req, res) => {
       try {
         const [latest] = await db.select({ id: offer_intelligence.id, created_at: offer_intelligence.created_at })
           .from(offer_intelligence)
-          .where(eq(offer_intelligence.user_id, req.auth.userId))
+          .where(and(eq(offer_intelligence.user_id, req.auth.userId), isNull(offer_intelligence.removed_at)))
           .orderBy(desc(offer_intelligence.created_at))
           .limit(1);
         if (!cleanedUp && latest) {

@@ -1639,6 +1639,9 @@ export const offer_intelligence = pgTable("offer_intelligence", {
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // Reversible user-facing exclusion; raw capture and offer outcome remain intact.
+  removed_at: timestamp("removed_at", { withTimezone: true }),
+  removal_revision: integer("removal_revision").notNull().default(0),
 }, (table) => [
   // ═══════════════════════════════════════════════════════════════════
   // INDEXES — optimized for analyst query patterns
@@ -1661,6 +1664,8 @@ export const offer_intelligence = pgTable("offer_intelligence", {
   index('idx_oi_override').on(table.device_id, table.user_override).where(sql`user_override is not null`),
   // User linkage
   index('idx_oi_user_id').on(table.user_id).where(sql`user_id is not null`),
+  // Authenticated offer history and local-day queues.
+  index('idx_oi_user_created').on(table.user_id, table.created_at.desc(), table.id.desc()).where(sql`user_id is not null`),
   // Best offers ranking
   index('idx_oi_per_mile').on(table.per_mile.desc()).where(sql`per_mile is not null`),
   // General time-series queries

@@ -1,6 +1,14 @@
 // Actual component/session boundary: only auth/location and chart drawing are
 // fixtures. Deferred transport deliberately ignores AbortSignal at both stages.
 import { jest } from '@jest/globals';
+jest.mock('@/lib/daypart', () => ({ getLocalIso: (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const value = (key: string) => parts.find(part => part.type === key)?.value;
+  return `${value('year')}-${value('month')}-${value('day')}T${value('hour')}:${value('minute')}:${value('second')}`;
+} }));
 import React, { useLayoutEffect, useRef } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';

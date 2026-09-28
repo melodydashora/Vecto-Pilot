@@ -1361,7 +1361,7 @@ export class RideshareCoachDAL {
       const history = await db
         .select()
         .from(offer_intelligence)
-        .where(eq(offer_intelligence.user_id, userId))
+        .where(and(eq(offer_intelligence.user_id, userId), isNull(offer_intelligence.removed_at)))
         .orderBy(desc(offer_intelligence.created_at))
         .limit(windowLimit);
 
@@ -1433,6 +1433,7 @@ export class RideshareCoachDAL {
           FROM offer_intelligence oi
           LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
           WHERE oi.user_id = ${userId}
+            AND oi.removed_at IS NULL
             AND oi.decision IN ('ACCEPT', 'REJECT')
             AND oi.created_at > NOW() - (${windowDays} || ' days')::interval
         ),

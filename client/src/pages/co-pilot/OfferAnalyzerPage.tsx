@@ -19,6 +19,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/useToast';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { useLocation } from '@/contexts/location-context-clean';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { todayForDriver } from '@/lib/offer-local-date';
 import {
   DEFAULT_OFFER_RULESET_CONFIG,
   offerRulesetSchema,
@@ -32,6 +35,7 @@ import LimitsCard from '@/components/offer-analyzer/LimitsCard';
 import GeographyCard from '@/components/offer-analyzer/GeographyCard';
 import VisionRulesCard from '@/components/offer-analyzer/VisionRulesCard';
 import OffersCard from '@/components/offer-analyzer/OffersCard';
+import OffersDecisionChart from '@/components/offer-analyzer/OffersDecisionChart';
 import { ArrowLeft, Gauge, Loader2, Save } from 'lucide-react';
 
 interface RulesMeta {
@@ -43,9 +47,26 @@ interface RulesMeta {
 export default function OfferAnalyzerPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { timeZone } = useLocation();
   const [isSaving, setIsSaving] = useState(false);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [meta, setMeta] = useState<RulesMeta | null>(null);
+  const [activeTab, setActiveTab] = useState('gates');
+  const [chartRefreshToken, setChartRefreshToken] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(() => todayForDriver(timeZone));
+  const [dateWasChosen, setDateWasChosen] = useState(false);
+  const [rulesConflict, setRulesConflict] = useState(false);
+
+  useEffect(() => {
+    if (!dateWasChosen) setSelectedDate(todayForDriver(timeZone));
+  }, [timeZone, dateWasChosen]);
+  useEffect(() => {
+    if (dateWasChosen) return;
+    const interval = window.setInterval(() => setSelectedDate(todayForDriver(timeZone)), 60_000);
+    const refresh = () => setSelectedDate(todayForDriver(timeZone));
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); };
+  }, [dateWasChosen, timeZone]);
 
   const form = useForm<OfferRulesetConfig>({
     // Cast: same react-hook-form@7.71 / @hookform/resolvers@5.2.2 generic mismatch
@@ -71,6 +92,7 @@ export default function OfferAnalyzerPage() {
           throw new Error('Rules payload did not match the expected v3 shape');
         }
         form.reset(parsed.data);
+        setRulesConflict(false);
         setMeta({
           version: data.version == null ? null : Number(data.version),
           isDefault: Boolean(data.is_default),
@@ -91,6 +113,10 @@ export default function OfferAnalyzerPage() {
   }, [loadRules]);
 
   const onSubmit = async (config: OfferRulesetConfig) => {
+    if (rulesConflict) {
+      toast({ title: 'Rules changed elsewhere', description: 'Your draft is still here. Load the latest rules before saving again.', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     try {
       // Server contract: PUT body is { config, expected_version } (server/api/offer-analyzer/index.js).
@@ -101,20 +127,13 @@ export default function OfferAnalyzerPage() {
         body: JSON.stringify({ config, expected_version: meta?.version ?? null }),
       });
       if (res.status === 409) {
-        // Someone (another tab / device) saved first. Never overwrite them silently: load
-        // the stored rules the server sent back in the 409 body (no extra GET) and tell the
-        // driver to re-apply. If the body has no usable config, fall back to a full reload.
+        // Preserve local edits. An explicit reload is required before further saves so
+        // a stale whole-ruleset payload never overwrites the other device's changes.
         const conflict = await res.json().catch(() => null);
-        const current = offerRulesetSchema.safeParse(conflict?.current?.config);
-        if (current.success) {
-          form.reset(current.data);
-          setMeta({ version: conflict.current.version == null ? null : Number(conflict.current.version), isDefault: false });
-        } else {
-          await loadRules({ silent: true });
-        }
+        setRulesConflict(true);
         toast({
           title: 'Rules changed elsewhere',
-          description: `Your rules were saved from another tab or device since this page loaded (now v${conflict?.current?.version ?? '?'}). That version is loaded — please re-apply your change and Save again.`,
+          description: `Your draft was not saved and remains here (stored version v${conflict?.current?.version ?? '?'}). Review or copy your edits, then explicitly load the latest rules before saving.`,
           variant: 'destructive',
         });
         return;
@@ -165,8 +184,9 @@ export default function OfferAnalyzerPage() {
     });
   };
 
+  const rulesTab = ['gates', 'rates', 'rules'].includes(activeTab);
   return (
-    <div className="container max-w-2xl mx-auto px-4 py-6 pb-24 space-y-6">
+    <div className="container max-w-2xl mx-auto px-3 py-4 pb-24 space-y-4 sm:px-4 sm:py-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="shrink-0">
@@ -181,80 +201,90 @@ export default function OfferAnalyzerPage() {
         </div>
       </div>
 
-      <SetupCard />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList aria-label="Offer Analyzer sections" className="grid h-auto w-full grid-cols-5 gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1">
+          <TabsTrigger value="gates" className="min-w-0 whitespace-normal px-1 py-2 text-center text-xs leading-tight sm:px-1.5 sm:text-sm">Gates</TabsTrigger>
+          <TabsTrigger value="rates" className="min-w-0 whitespace-normal px-1 py-2 text-center text-xs leading-tight sm:px-1.5 sm:text-sm">Rates</TabsTrigger>
+          <TabsTrigger value="rules" className="min-w-0 whitespace-normal px-1 py-2 text-center text-xs leading-tight sm:px-1.5 sm:text-sm">Rules &amp; Setup</TabsTrigger>
+          <TabsTrigger value="daily" className="min-w-0 whitespace-normal px-1 py-2 text-center text-xs leading-tight sm:px-1.5 sm:text-sm">Daily Offers</TabsTrigger>
+          <TabsTrigger value="charts" className="min-w-0 whitespace-normal px-1 py-2 text-center text-xs leading-tight sm:px-1.5 sm:text-sm">Charts</TabsTrigger>
+        </TabsList>
 
-      {loadState === 'loading' && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-        </div>
-      )}
-
-      {loadState === 'error' && (
-        <Alert>
-          <AlertDescription className="flex items-center justify-between gap-3">
-            <span>Could not load your offer rules.</span>
-            <Button type="button" variant="outline" size="sm" onClick={() => loadRules()}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {loadState === 'ready' && (
-        <>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Your rules</span>
-            {meta?.version != null && <Badge variant="secondary">v{meta.version}</Badge>}
-            {meta?.isDefault && <Badge variant="outline">{meta.fromProfile ? 'from your profile' : 'using defaults'}</Badge>}
+        {loadState === 'loading' && (
+          <div className="flex items-center justify-center py-12" role="status" aria-label="Loading offer rules">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
           </div>
-          {meta?.isDefault && (
-            <Alert>
-              <AlertDescription>
-                {meta?.fromProfile
-                  ? 'Available shared-ride and pickup preferences from your profile initialize these rules. Save your analyzer rules here to keep a separate set of offer limits; later profile edits will not overwrite them.'
-                  : 'You are using initial rules. Review and save your own limits before relying on an offer decision.'}
-              </AlertDescription>
-            </Alert>
-          )}
+        )}
+        {loadState === 'error' && (
+          <Alert>
+            <AlertDescription className="flex items-center justify-between gap-3">
+              <span>Could not load your offer rules.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => loadRules()}>Retry</Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {/* No <Form> provider needed: every control binds via useWatch + setValue,
-              not FormField. Validation still runs through the zodResolver on submit. */}
-          <form
-            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
-            // 2026-08-17: Enter inside any single-line input (Geography search, radius /
-            // corridor / min-trip numbers) used to trigger HTML implicit submission → an
-            // unintended PUT. Save is the explicit button only.
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }}
-            className="space-y-6"
-          >
-            <RateTargetsCard form={form} />
-            <DeliveryCard form={form} />
-            <GatesCard form={form} />
-            <LimitsCard form={form} />
-            <GeographyCard form={form} />
-            <VisionRulesCard form={form} />
-
-            {/* Explicit save — sticky above the bottom nav (no autosave in this app) */}
-            <div className="sticky bottom-20 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent pt-4">
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isSaving}>
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Rules
-                  </>
-                )}
-              </Button>
+        {loadState === 'ready' && (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Your rules</span>
+              {meta?.version != null && <Badge variant="secondary">v{meta.version}</Badge>}
+              {meta?.isDefault && <Badge variant="outline">{meta.fromProfile ? 'from your profile' : 'using defaults'}</Badge>}
             </div>
-          </form>
-        </>
-      )}
-
-      <OffersCard />
+            <form
+              onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }}
+              className="space-y-4"
+            >
+              {rulesConflict && <Alert role="alert" className="border-amber-400">
+                <AlertDescription className="space-y-2">
+                  <p>Rules changed on another device. Your draft is still in these tabs, but Save is paused to prevent overwriting newer settings. Review or copy it first.</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void loadRules({ silent: true })}>Discard this draft and load saved rules</Button>
+                </AlertDescription>
+              </Alert>}
+              <TabsContent value="gates" forceMount className="mt-0 space-y-4 data-[state=inactive]:hidden">
+                <GatesCard form={form} />
+              </TabsContent>
+              <TabsContent value="rates" forceMount className="mt-0 space-y-4 data-[state=inactive]:hidden">
+                <RateTargetsCard form={form} />
+                <DeliveryCard form={form} />
+              </TabsContent>
+              <TabsContent value="rules" forceMount className="mt-0 space-y-4 data-[state=inactive]:hidden">
+                <SetupCard />
+                {meta?.isDefault && (
+                  <Alert><AlertDescription>{meta.fromProfile
+                    ? 'Available shared-ride and pickup preferences from your profile initialize these rules. Save your analyzer rules here to keep a separate set of offer limits; later profile edits will not overwrite them.'
+                    : 'You are using initial rules. Review and save your own limits before relying on an offer decision.'}</AlertDescription></Alert>
+                )}
+                <LimitsCard form={form} />
+                <GeographyCard form={form} />
+                <VisionRulesCard form={form} />
+              </TabsContent>
+              <div className={`sticky bottom-20 z-20 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent pt-4 ${rulesTab ? '' : 'hidden'}`}>
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 shadow-md" disabled={isSaving || rulesConflict}>
+                  {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : <><Save className="mr-2 h-4 w-4" />Save Rules</>}
+                </Button>
+              </div>
+            </form>
+          </>
+        )}
+        <TabsContent value="daily" forceMount className="mt-0 data-[state=inactive]:hidden">
+          <OffersCard selectedDate={selectedDate} onSelectedDateChange={(date) => {
+            setDateWasChosen(true);
+            setSelectedDate(date);
+          }} onDataChanged={() => setChartRefreshToken(value => value + 1)} />
+        </TabsContent>
+        <TabsContent value="charts" forceMount className="mt-0 data-[state=inactive]:hidden">
+          <OffersDecisionChart
+            refreshToken={String(chartRefreshToken)}
+            selectedDate={selectedDate}
+            onSelectedDateChange={(date) => {
+              setDateWasChosen(true);
+              setSelectedDate(date);
+            }}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

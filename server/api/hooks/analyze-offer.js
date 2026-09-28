@@ -1593,7 +1593,7 @@ router.get('/offer-history', offerHookLimiter, requireShortcutUser, async (req, 
         created_at: offer_intelligence.created_at,
       })
       .from(offer_intelligence)
-      .where(sql`user_id = ${req.shortcutUserId}`)
+      .where(sql`user_id = ${req.shortcutUserId} AND removed_at IS NULL`)
       .orderBy(sql`created_at DESC`)
       .limit(maxLimit);
 

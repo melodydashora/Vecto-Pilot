@@ -8,6 +8,7 @@ import { API_ROUTES } from '@/constants/apiRoutes';
 import { useAuth } from '@/contexts/auth-context';
 import { useLocation } from '@/contexts/location-context-clean';
 import { getLocalIso } from '@/lib/daypart';
+import { driverTimeZone } from '@/lib/offer-local-date';
 import { Loader2 } from 'lucide-react';
 
 export type DriverDecision = 'Accepted' | 'Rejected' | 'Cancelled' | 'Completed' | 'Other';
@@ -28,6 +29,8 @@ export interface AnalyzedOffer {
   outcome_id?: string | null;
   outcome_revision?: number | null;
   outcome_updated_at?: string | null;
+  removed_at?: string | null;
+  removal_revision?: number | null;
   driver_decision?: DriverDecision | null;
   driver_reasoning?: string | null;
   actual_pay?: number | null;
@@ -45,7 +48,8 @@ const EARNINGS_FIELDS = [
   { key: 'other', label: 'Other earnings' },
 ] as const;
 type EarningsKey = typeof EARNINGS_FIELDS[number]['key'];
-type Draft = Record<EarningsKey, string> & { decision: DriverDecision | ''; reasoning: string };
+export type OfferOutcomeDraft = Record<EarningsKey, string> & { decision: DriverDecision | ''; reasoning: string };
+type Draft = OfferOutcomeDraft;
 const taken = (decision: string | null | undefined) => decision === 'Accepted' || decision === 'Completed';
 export function offerNumber(value: unknown): number | null {
   if (value == null || value === '' || (typeof value !== 'number' && typeof value !== 'string')) return null;
@@ -87,21 +91,29 @@ function canonicalOutcome(value: unknown, offerId: string): Partial<AnalyzedOffe
   };
 }
 
-export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange }: {
+export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange, onRemove, onRestore, isRemoved = !!offer.removed_at, initialDraft }: {
   offer: AnalyzedOffer;
   onOutcomeSaved: () => void;
-  onDraftChange?: (offer: AnalyzedOffer, dirty: boolean) => void;
+  onDraftChange?: (offer: AnalyzedOffer, dirty: boolean, draft?: OfferOutcomeDraft) => void;
+  onRemove?: () => Promise<void>;
+  onRestore?: () => Promise<void>;
+  isRemoved?: boolean;
+  initialDraft?: OfferOutcomeDraft;
 }) {
   const { token, isAuthenticated } = useAuth();
   const { timeZone } = useLocation();
+  const localZone = driverTimeZone(timeZone);
   const [saved, setSaved] = useState(offer);
-  const [editing, setEditing] = useState(!offer.driver_decision);
-  const [draft, setDraft] = useState(() => draftFrom(offer));
+  const [editing, setEditing] = useState(() => !!initialDraft || !offer.driver_decision);
+  const [draft, setDraft] = useState(() => initialDraft ?? draftFrom(offer));
   const [expectedRevision, setExpectedRevision] = useState(revision(offer));
   const [isPosting, setIsPosting] = useState(false);
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState<AnalyzedOffer | null>(null);
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirty] = useState(!!initialDraft);
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
+  const [removalPending, setRemovalPending] = useState(false);
+  const [removalError, setRemovalError] = useState('');
   const latestSaved = useRef(offer);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
@@ -127,7 +139,7 @@ export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange }
     setDraft(draftFrom(latestSaved.current)); setExpectedRevision(revision(latestSaved.current));
     setConflict(null); setError(''); setEditing(true);
   };
-  const markDirty = () => { setDirty(true); onDraftChange?.(offer, true); };
+  const markDirty = (nextDraft: Draft) => { setDirty(true); onDraftChange?.(offer, true, nextDraft); };
   const clearDirty = () => { setDirty(false); onDraftChange?.(offer, false); };
   const choose = (value: string) => {
     if (value === 'followed' && offer.reason_kind === 'implausible_parse') return;
@@ -135,8 +147,9 @@ export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange }
       ? offer.decision === 'ACCEPT' ? 'Accepted' : offer.decision === 'REJECT' ? 'Rejected' : ''
       : value;
     if (!DECISIONS.includes(resolved as DriverDecision)) return;
-    markDirty();
-    setDraft(current => ({ ...current, decision: resolved as DriverDecision }));
+    const nextDraft = { ...draft, decision: resolved as DriverDecision };
+    markDirty(nextDraft);
+    setDraft(nextDraft);
     setError('');
   };
   const save = async () => {
@@ -202,8 +215,22 @@ export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange }
   const draftTotal = EARNINGS_FIELDS.reduce((sum, field) => sum + (offerNumber(draft[field.key]) ?? 0), 0);
   const inputPrefix = `offer-${offer.id}`;
   const createdAt = offer.created_at ? new Date(offer.created_at) : null;
-  const localCreatedAt = timeZone && createdAt && Number.isFinite(createdAt.getTime())
-    ? getLocalIso(createdAt, timeZone).replace('T', ' ') : null;
+  const localCreatedAt = createdAt && Number.isFinite(createdAt.getTime())
+    ? getLocalIso(createdAt, localZone.timeZone).replace('T', ' ') : null;
+  const removeOrRestore = async () => {
+    const action = isRemoved ? onRestore : onRemove;
+    if (!action || removalPending) return;
+    setRemovalPending(true);
+    setRemovalError('');
+    try {
+      await action();
+      setConfirmRemoval(false);
+    } catch (failure) {
+      setRemovalError(failure instanceof Error ? failure.message : 'Could not update this offer. It is still available.');
+    } finally {
+      setRemovalPending(false);
+    }
+  };
   return (
     <div className="rounded-lg border border-gray-200 p-3 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -213,9 +240,9 @@ export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange }
           </Badge>
           {delivery && <Badge className="bg-violet-100 text-violet-800 border-transparent">{/^Delivery Exclusive/.test(offer.product_type ?? '') ? 'Delivery · Exclusive' : 'Delivery'}</Badge>}
           {delivery && offer.tip_included && <span className="text-[10px] uppercase tracking-wide text-violet-700">tip incl.</span>}
+          {isRemoved && <Badge variant="outline" className="border-amber-400 text-amber-800">Removed from totals</Badge>}
         </div>
-        {localCreatedAt && <time className="text-xs text-gray-500 break-words" dateTime={offer.created_at ?? undefined}>{localCreatedAt} ({timeZone})</time>}
-        {createdAt && !timeZone && <span className="text-xs text-gray-500">Local time awaits GPS location</span>}
+          {localCreatedAt && <time className="text-xs text-gray-500 break-words" dateTime={offer.created_at ?? undefined}>{localCreatedAt} ({localZone.timeZone}{localZone.source === 'GPS' ? '' : ', device timezone'})</time>}
       </div>
       <div className="flex items-baseline gap-2 flex-wrap text-sm text-gray-800">
         {perMile != null && <span className={`font-semibold tabular-nums ${parseError ? 'line-through text-amber-800' : ''}`}>${perMile.toFixed(2)}/mi</span>}
@@ -225,6 +252,30 @@ export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange }
         {!delivery && offer.product_type && <span className="text-xs text-gray-400">{offer.product_type}</span>}
         {offer.shortcut_system && <span className="ml-auto text-[10px] font-mono text-gray-400" title="Automation client that sent this offer">{offer.shortcut_system}</span>}
       </div>
+      {(isRemoved ? onRestore : onRemove) && (
+        <div className="space-y-2">
+          {removalError && <p role="alert" className="text-sm text-red-700">{removalError}</p>}
+          {confirmRemoval ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2">
+              <p className="text-sm text-amber-950">Remove this offer from review totals and charts? Its capture and outcome are preserved, and you can restore it later.</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" size="sm" variant="ghost" disabled={removalPending} onClick={() => setConfirmRemoval(false)}>Keep offer</Button>
+                <Button type="button" size="sm" variant="destructive" disabled={removalPending} onClick={() => void removeOrRestore()}>
+                  {removalPending ? 'Removing…' : 'Confirm remove offer'}
+                </Button>
+              </div>
+            </div>
+          ) : isRemoved ? (
+            <Button type="button" size="sm" variant="outline" disabled={removalPending} onClick={() => void removeOrRestore()}>
+              {removalPending ? 'Restoring…' : 'Restore offer'}
+            </Button>
+          ) : (
+            <Button type="button" size="sm" variant="ghost" className="text-gray-600" disabled={removalPending} onClick={() => setConfirmRemoval(true)}>
+              Remove offer
+            </Button>
+          )}
+        </div>
+      )}
       {!editing && saved.driver_decision ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -252,14 +303,20 @@ export default function OfferOutcomeRow({ offer, onOutcomeSaved, onDraftChange }
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {EARNINGS_FIELDS.map(field => <div key={field.key} className="space-y-1">
                 <label htmlFor={`${inputPrefix}-${field.key}`} className="text-xs text-gray-500">{field.label}</label>
-                <Input id={`${inputPrefix}-${field.key}`} type="number" inputMode="decimal" step="0.01" min="0" max="10000" placeholder="Unknown" value={draft[field.key]} disabled={isPosting} onChange={event => { markDirty(); setDraft(current => ({ ...current, [field.key]: event.target.value })); }} className="bg-white border-gray-300 text-gray-900" />
+                <Input id={`${inputPrefix}-${field.key}`} type="number" inputMode="decimal" step="0.01" min="0" max="10000" placeholder="Unknown" value={draft[field.key]} disabled={isPosting} onChange={event => {
+                  const nextDraft = { ...draft, [field.key]: event.target.value };
+                  markDirty(nextDraft); setDraft(nextDraft);
+                }} className="bg-white border-gray-300 text-gray-900" />
               </div>)}
             </div>
             <p className="text-sm text-gray-600">Entered total: <span className="font-semibold text-gray-900 tabular-nums">${draftTotal.toFixed(2)}</span></p>
           </div>}
           {draft.decision && <div className="space-y-1">
             <label htmlFor={`${inputPrefix}-reason`} className="text-xs text-gray-500">{draft.decision === 'Other' ? 'What happened? (optional)' : 'Note (optional)'}</label>
-            <textarea id={`${inputPrefix}-reason`} maxLength={2000} rows={2} value={draft.reasoning} disabled={isPosting} onChange={event => { markDirty(); setDraft(current => ({ ...current, reasoning: event.target.value })); }} className="w-full rounded-md border border-gray-300 bg-white p-2 text-sm text-gray-900" />
+            <textarea id={`${inputPrefix}-reason`} maxLength={2000} rows={2} value={draft.reasoning} disabled={isPosting} onChange={event => {
+              const nextDraft = { ...draft, reasoning: event.target.value };
+              markDirty(nextDraft); setDraft(nextDraft);
+            }} className="w-full rounded-md border border-gray-300 bg-white p-2 text-sm text-gray-900" />
             {draft.decision === 'Other' && <p className="text-xs text-gray-500">Use for an unreadable offer, an app error, or another outcome. It stays separate from accepted and rejected.</p>}
           </div>}
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

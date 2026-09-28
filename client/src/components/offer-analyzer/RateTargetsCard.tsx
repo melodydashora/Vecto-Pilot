@@ -146,7 +146,7 @@ export default function RateTargetsCard({ form }: Props) {
         <Separator className="bg-gray-200" />
 
         <TierEditor
-          title="Standard (UberX, Lyft)"
+          title="Standard rides"
           tier={tiers.standard}
           onChange={(t) => form.setValue('tiers.standard', t, { shouldDirty: true })}
         />
@@ -154,7 +154,7 @@ export default function RateTargetsCard({ form }: Props) {
         <Separator className="bg-gray-200" />
 
         <TierEditor
-          title="Premium (Black, Lux)"
+          title="Premium rides"
           tier={tiers.premium}
           onChange={(t) => form.setValue('tiers.premium', t, { shouldDirty: true })}
         />
@@ -189,7 +189,7 @@ export default function RateTargetsCard({ form }: Props) {
         />
         {tiers.xl && (
           <TierEditor
-            title="XL (UberXL, Lyft XL)"
+            title="XL rides"
             tier={tiers.xl}
             onChange={(t) => form.setValue('tiers.xl', t, { shouldDirty: true })}
           />

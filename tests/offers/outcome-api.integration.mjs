@@ -2,6 +2,7 @@
 // PGlite may be supplied from an existing installation via NODE_PATH; no live DB is used.
 import { jest, test, expect, beforeAll, beforeEach, afterAll } from '@jest/globals';
 import { createRequire } from 'node:module';
+import { URL } from 'node:url';
 import fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
@@ -27,6 +28,7 @@ jest.unstable_mockModule('../../server/lib/offers/ruleset-store.js', () => ({ ha
 jest.unstable_mockModule('../../server/lib/offers/outcome-input.js', () => ({ parseOutcomeInput, offerPeriod: key => offerPeriod(key, now) }));
 const { default: router } = await import('../../server/api/offer-analyzer/index.js');
 const migration = await fs.readFile(new URL('../../migrations/20260910_offer_outcome_revision_other.sql', import.meta.url), 'utf8');
+const removalMigration = await fs.readFile(new URL('../../migrations/20260928_offer_removal.sql', import.meta.url), 'utf8');
 beforeAll(async () => {
   syntheticDb = new PGlite();
   await syntheticDb.exec(`
@@ -37,12 +39,13 @@ beforeAll(async () => {
       decision text NOT NULL, decision_reasoning text, price double precision, per_mile double precision,
       total_miles double precision, total_minutes integer, pickup_minutes integer, pickup_miles double precision,
       pickup_address text, dropoff_address text, product_type text, platform text, surge double precision,
-      confidence_score double precision, input_mode text, user_override text, response_time_ms integer,
+      confidence_score double precision, input_mode text, user_override text, response_time_ms integer, raw_text text,
       parsed_data_json jsonb NOT NULL DEFAULT '{}'
     );
   `);
   await syntheticDb.exec(await fs.readFile(new URL('../../migrations/20260703_offer_rulesets_outcomes.sql', import.meta.url), 'utf8'));
   await syntheticDb.exec(migration);
+  await syntheticDb.exec(removalMigration);
   await syntheticDb.query('INSERT INTO users (user_id) VALUES ($1), ($2)', [userA, userB]);
   app = express(); app.use(express.json()); app.use('/api/offer-analyzer', router);
 }, 20000);
@@ -50,10 +53,12 @@ beforeEach(async () => { await syntheticDb.exec('DELETE FROM offer_outcomes; DEL
 afterAll(async () => { await syntheticDb?.close(); });
 async function offer({ user = userA, decision = 'ACCEPT', created = '2026-09-09T12:00:00Z', price = 12.5 } = {}) {
   const id = randomUUID();
-  await syntheticDb.query('INSERT INTO offer_intelligence (id,user_id,created_at,decision,price) VALUES ($1,$2,$3,$4,$5)', [id, user, created, decision, price]);
+  await syntheticDb.query('INSERT INTO offer_intelligence (id,user_id,created_at,decision,price,raw_text) VALUES ($1,$2,$3,$4,$5,$6)', [id, user, created, decision, price, `original-${id}`]);
   return id;
 }
 const post = (id, body, user = 'a') => request(app).post(`/api/offer-analyzer/offers/${id}/outcome`).set('Authorization', `Bearer synthetic-${user}`).send(body);
+const remove = (id, body, user = 'a') => request(app).post(`/api/offer-analyzer/offers/${id}/remove`).set('Authorization', `Bearer synthetic-${user}`).send(body);
+const restore = (id, body, user = 'a') => request(app).post(`/api/offer-analyzer/offers/${id}/restore`).set('Authorization', `Bearer synthetic-${user}`).send(body);
 const get = (path, user = 'a') => request(app).get('/api/offer-analyzer' + path).set('Authorization', `Bearer synthetic-${user}`);
 test('input validation is strict, preserves zero and explicit null, and distinguishes Other from money', () => {
   expect(parseOutcomeInput({ expected_revision: null, driver_decision: 'Other', driver_reasoning: '  unreadable  ' }).fields).toEqual({ driver_decision: 'Other', driver_reasoning: 'unreadable' });
@@ -169,4 +174,111 @@ test('complete-window stats include beyond 100 visible offers, exact boundaries,
   await syntheticDb.exec('DELETE FROM offer_outcomes; DELETE FROM offer_intelligence;');
   const empty = (await get('/offers/stats?period=90d')).body.stats;
   expect(Object.values(empty).every(value => value === 0)).toBe(true);
+});
+
+test('soft remove and restore are owner-scoped, revision-guarded, reversible, and preserve captures/outcomes', async () => {
+  const id = await offer({ created: '2026-09-09T12:00:00Z' });
+  await post(id, { expected_revision: null, driver_decision: 'Accepted', actual_pay: 0 });
+
+  const removed = await remove(id, { expected_removal_revision: 0 });
+  expect(removed.status).toBe(200);
+  expect(removed.body.offer).toMatchObject({ id, removal_revision: 1 });
+  expect(removed.body.offer.removed_at).toBeTruthy();
+  expect((await get('/offers')).body.offers).toHaveLength(0);
+  expect((await get('/offers?include_removed=1')).body.offers[0]).toMatchObject({
+    id, removal_revision: 1, actual_pay: 0, driver_decision: 'Accepted',
+  });
+  expect((await get('/offers/stats?period=7d')).body.stats.analyzed).toBe(0);
+
+  const staleRemove = await remove(id, { expected_removal_revision: 0 });
+  expect(staleRemove.status).toBe(409);
+  expect(staleRemove.body.current).toMatchObject({ id, removal_revision: 1 });
+  expect((await restore(id, { expected_removal_revision: 0 })).status).toBe(409);
+  expect((await remove(id, { expected_removal_revision: 0 }, 'b')).status).toBe(404);
+
+  const restored = await restore(id, { expected_removal_revision: 1 });
+  expect(restored.status).toBe(200);
+  expect(restored.body.offer).toMatchObject({ id, removed_at: null, removal_revision: 2 });
+  const persisted = (await syntheticDb.query(
+    'SELECT raw_text, decision, price FROM offer_intelligence WHERE id = $1', [id],
+  )).rows[0];
+  expect(persisted).toEqual({ raw_text: `original-${id}`, decision: 'ACCEPT', price: 12.5 });
+  expect((await get('/offers')).body.offers[0]).toMatchObject({
+    id, removal_revision: 2, removed_at: null, actual_pay: 0, driver_decision: 'Accepted',
+  });
+  expect((await get('/offers/stats?period=7d')).body.stats).toMatchObject({
+    analyzed: 1, driver_accepted: 1, reported_count: 1, reported_total: 0,
+  });
+});
+
+test('simultaneous removals serialize at the owner revision and validation is strict', async () => {
+  const id = await offer();
+  const attempts = await Promise.all([
+    remove(id, { expected_removal_revision: 0 }),
+    remove(id, { expected_removal_revision: 0 }),
+  ]);
+  expect(attempts.map(response => response.status).sort()).toEqual([200, 409]);
+  expect((await get('/offers?include_removed=1')).body.offers[0].removal_revision).toBe(1);
+  for (const expected_removal_revision of [undefined, null, true, '1', -1, 1.5, 2147483647]) {
+    expect((await restore(id, { expected_removal_revision })).status).toBe(400);
+  }
+  expect((await request(app).post(`/api/offer-analyzer/offers/${id}/remove`).set('Authorization', 'Bearer synthetic-a').send({})).status).toBe(400);
+});
+
+test('local-day list returns every offer and stats honor timezone DST boundaries and exclude removed', async () => {
+  const ids = [];
+  const springDayStart = Date.parse('2026-03-08T06:00:00.000Z');
+  for (let index = 0; index < 31; index++) {
+    ids.push(await offer({ created: new Date(springDayStart + index * 30 * 60_000).toISOString() }));
+  }
+  const removedId = ids[2];
+  await post(removedId, { expected_revision: null, driver_decision: 'Completed', actual_pay: 0 });
+  await remove(removedId, { expected_removal_revision: 0 });
+  const before = await offer({ created: '2026-03-08T05:59:59.999Z' });
+  const end = await offer({ created: '2026-03-09T05:00:00.000Z' });
+
+  const day = await get('/offers?date=2026-03-08&timeZone=America%2FChicago');
+  expect(day.status).toBe(200);
+  expect(day.body).toMatchObject({ date: '2026-03-08', timeZone: 'America/Chicago', total: 30, include_removed: false });
+  expect(day.body.offers).toHaveLength(30);
+  expect(day.body.offers.some(offer => offer.id === removedId)).toBe(false);
+  expect(day.body.offers.some(offer => offer.id === before || offer.id === end)).toBe(false);
+
+  const includingRemoved = await get('/offers?date=2026-03-08&timeZone=America%2FChicago&include_removed=1');
+  expect(includingRemoved.body.offers).toHaveLength(31);
+  expect(includingRemoved.body.offers.find(offer => offer.id === removedId)).toMatchObject({
+    removed_at: expect.any(String), removal_revision: 1, driver_decision: 'Completed', actual_pay: 0,
+  });
+
+  const stats = await get('/offers/stats?date=2026-03-08&timeZone=America%2FChicago');
+  expect(stats.status).toBe(200);
+  expect(stats.body).toMatchObject({ date: '2026-03-08', timeZone: 'America/Chicago' });
+  expect(stats.body.period).toMatchObject({ date: '2026-03-08', timeZone: 'America/Chicago' });
+  expect(new Date(stats.body.period.start).toISOString()).toBe('2026-03-08T06:00:00.000Z');
+  expect(new Date(stats.body.period.end).toISOString()).toBe('2026-03-09T05:00:00.000Z');
+  expect(stats.body.stats).toMatchObject({ analyzed: 30, unrecorded: 30, driver_accepted: 0, reported_total: 0 });
+
+  expect((await remove(removedId, { expected_removal_revision: 1 })).status).toBe(409);
+  await restore(removedId, { expected_removal_revision: 1 });
+  expect((await get('/offers/stats?date=2026-03-08&timeZone=America%2FChicago')).body.stats)
+    .toMatchObject({ analyzed: 31, driver_accepted: 1, reported_count: 1, reported_total: 0 });
+  expect((await get('/offers?date=2026-03-08&timeZone=America%2FChicago')).body.offers).toHaveLength(31);
+});
+
+test('local-day validation fails loud and empty days return zero complete counts', async () => {
+  expect((await get('/offers?date=2026-02-30&timeZone=UTC')).status).toBe(400);
+  expect((await get('/offers?date=0000-01-01&timeZone=UTC')).status).toBe(400);
+  expect((await get('/offers?date=2026-03-08')).status).toBe(400);
+  expect((await get('/offers?date=2026-03-08&timeZone=Not%2FAZone')).status).toBe(400);
+  expect((await get('/offers/stats?date=2026-03-08&timeZone=Not%2FAZone')).status).toBe(400);
+  const empty = await get('/offers/stats?date=2026-03-08&timeZone=America%2FChicago');
+  expect(empty.status).toBe(200);
+  expect(empty.body.stats.analyzed).toBe(0);
+  expect(empty.body.stats.unrecorded).toBe(0);
+  expect(empty.body.stats.reported_total).toBe(0);
+  expect((await get('/offers?date=2026-03-08&timeZone=America%2FChicago')).body.offers).toEqual([]);
+  const fallBack = await get('/offers/stats?date=2026-11-01&timeZone=America%2FChicago');
+  expect(fallBack.status).toBe(200);
+  expect(new Date(fallBack.body.period.start).toISOString()).toBe('2026-11-01T05:00:00.000Z');
+  expect(new Date(fallBack.body.period.end).toISOString()).toBe('2026-11-02T06:00:00.000Z');
 });

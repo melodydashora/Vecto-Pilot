@@ -20,6 +20,45 @@ import { initialRulesetFromProfile } from '../../lib/offers/profile-ruleset.js';
 const router = Router();
 router.use(requireAuth);
 
+function parseLocalDay(date, timezone) {
+  if (typeof date !== 'string' || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error('date must be a valid YYYY-MM-DD calendar date');
+  }
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+    throw new Error('date must be a valid YYYY-MM-DD calendar date');
+  }
+  if (typeof timezone !== 'string' || timezone.length > 100) {
+    throw new Error('timezone must be a valid IANA timezone');
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(0);
+  } catch {
+    throw new Error('timezone must be a valid IANA timezone');
+  }
+  return { date, timezone };
+}
+
+function parseOfferListPage(query, daily) {
+  const limit = query.limit === undefined ? (daily ? 100 : 25) : Number(query.limit);
+  const offset = query.offset === undefined ? 0 : Number(query.offset);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100
+    || !Number.isSafeInteger(offset) || offset < 0 || offset > 2147483647) {
+    throw new Error('limit must be 1–100 and offset must be a non-negative integer');
+  }
+  if (query.include_removed !== undefined && !['1', '0'].includes(query.include_removed)) {
+    throw new Error('include_removed must be 1 or 0');
+  }
+  return { limit, offset, includeRemoved: query.include_removed === '1' };
+}
+
+function localDayBounds(day) {
+  return sql`WITH day_bounds AS (
+    SELECT (${day.date}::date::timestamp AT TIME ZONE ${day.timezone}) AS start_at,
+      ((${day.date}::date + 1)::timestamp AT TIME ZONE ${day.timezone}) AS end_at
+  )`;
+}
+
 
 // ── Rules ────────────────────────────────────────────────────────────────────
 
@@ -216,12 +255,23 @@ router.post('/shortcut-token/label', async (req, res) => {
 // Counts cover every owned offer received in the rolling [start, end) window.
 // They are intentionally independent of the latest-25 editor list and its LIMIT.
 router.get('/offers/stats', async (req, res) => {
+  let day = null;
   let period;
-  try { period = offerPeriod(req.query.period); }
+  try {
+    if (req.query.date !== undefined || req.query.timeZone !== undefined) {
+      day = parseLocalDay(req.query.date, req.query.timeZone);
+      period = { key: 'day', label: day.date, date: day.date, timeZone: day.timezone };
+    } else {
+      period = offerPeriod(req.query.period);
+    }
+  }
   catch (error) { return res.status(400).json({ error: error.message }); }
   try {
     const result = await db.execute(sql`
-      SELECT count(*)::integer AS analyzed,
+      ${day ? localDayBounds(day) : sql`WITH day_bounds AS (
+        SELECT ${period.start}::timestamptz AS start_at, ${period.end}::timestamptz AS end_at
+      )`}
+      SELECT count(oi.id)::integer AS analyzed,
         count(*) FILTER (WHERE oi.decision = 'ACCEPT')::integer AS analyzer_accepted,
         count(*) FILTER (WHERE oi.decision = 'REJECT')::integer AS analyzer_rejected,
         count(*) FILTER (WHERE oi.decision = 'NO DATA')::integer AS analyzer_no_data,
@@ -229,35 +279,67 @@ router.get('/offers/stats', async (req, res) => {
         count(*) FILTER (WHERE oo.driver_decision = 'Rejected')::integer AS driver_rejected,
         count(*) FILTER (WHERE oo.driver_decision = 'Cancelled')::integer AS cancelled,
         count(*) FILTER (WHERE oo.driver_decision = 'Other')::integer AS other,
-        count(*) FILTER (WHERE oo.driver_decision IS NULL)::integer AS unrecorded,
+        count(*) FILTER (WHERE oi.id IS NOT NULL AND oo.driver_decision IS NULL)::integer AS unrecorded,
         count(*) FILTER (WHERE oo.driver_decision IN ('Accepted', 'Completed') AND
           (oo.actual_pay IS NOT NULL OR oo.reimbursements IS NOT NULL OR oo.extras IS NOT NULL OR oo.other IS NOT NULL))::integer AS reported_count,
-        coalesce(round(sum(CASE WHEN oo.driver_decision IN ('Accepted', 'Completed') THEN oo.total_earned ELSE 0 END)::numeric, 2), 0)::double precision AS reported_total
-      FROM offer_intelligence oi
+        coalesce(round(sum(CASE WHEN oo.driver_decision IN ('Accepted', 'Completed') THEN oo.total_earned ELSE 0 END)::numeric, 2), 0)::double precision AS reported_total,
+        bounds.start_at, bounds.end_at
+      FROM day_bounds bounds
+      LEFT JOIN offer_intelligence oi ON oi.user_id = ${req.auth.userId}
+        AND oi.removed_at IS NULL
+        AND oi.created_at >= bounds.start_at AND oi.created_at < bounds.end_at
       LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id AND oo.user_id = oi.user_id
-      WHERE oi.user_id = ${req.auth.userId}
-        AND oi.created_at >= ${period.start}::timestamptz AND oi.created_at < ${period.end}::timestamptz
+      GROUP BY bounds.start_at, bounds.end_at
     `);
     if (!result.rows?.[0]) throw new Error('Offer summary was not returned');
     res.set('Cache-Control', 'private, no-store');
-    res.json({ success: true, period, stats: result.rows[0] });
-  } catch (_error) {
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      ...(day ? { date: day.date, timeZone: day.timezone } : {}),
+      period: day ? { ...period, start: row.start_at, end: row.end_at } : period,
+      stats: {
+        analyzed: row.analyzed,
+        analyzer_accepted: row.analyzer_accepted,
+        analyzer_rejected: row.analyzer_rejected,
+        analyzer_no_data: row.analyzer_no_data,
+        driver_accepted: row.driver_accepted,
+        driver_rejected: row.driver_rejected,
+        cancelled: row.cancelled,
+        other: row.other,
+        unrecorded: row.unrecorded,
+        reported_count: row.reported_count,
+        reported_total: row.reported_total,
+      },
+    });
+  } catch (error) {
+    console.error('[offer-analyzer/offers stats GET]', error.message);
     res.status(500).json({ error: 'Could not load offer statistics' });
   }
 });
 
-// GET /api/offer-analyzer/offers?limit= — my analyzed offers joined with my
-// actual outcomes, plus stats that keep analyzer-vs-driver SEPARATE (the three-
-// decisions rule, OFFER_ANALYZER.md §3: "accepted" never pretends the analyzer's ACCEPTs were taken).
+// GET /api/offer-analyzer/offers?date=YYYY-MM-DD&timeZone=IANA&include_removed=1
+// A selected local day returns all matching offers. The legacy request continues
+// to return the newest 25 by default, with optional bounded pagination.
 router.get('/offers', async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 25, 100);
+    const hasDayParameter = req.query.date !== undefined || req.query.timeZone !== undefined;
+    const day = hasDayParameter ? parseLocalDay(req.query.date, req.query.timeZone) : null;
+    const { limit, offset, includeRemoved } = parseOfferListPage(req.query, !!day);
+    const dayFilter = day ? sql`AND oi.created_at >= (${day.date}::date::timestamp AT TIME ZONE ${day.timezone})
+      AND oi.created_at < ((${day.date}::date + 1)::timestamp AT TIME ZONE ${day.timezone})` : sql``;
+    const removedFilter = includeRemoved ? sql`` : sql`AND oi.removed_at IS NULL`;
+    const conditions = sql`oi.user_id = ${req.auth.userId} ${dayFilter} ${removedFilter}`;
+    const countResult = await db.execute(sql`
+      SELECT count(*)::integer AS total FROM offer_intelligence oi WHERE ${conditions}
+    `);
+    const total = countResult.rows?.[0]?.total ?? 0;
     const result = await db.execute(sql`
       SELECT oi.id, oi.price, oi.per_mile, oi.total_miles, oi.total_minutes,
              oi.pickup_minutes, oi.pickup_miles, oi.pickup_address, oi.dropoff_address,
              oi.product_type, oi.platform, oi.surge, oi.decision, oi.decision_reasoning,
              oi.confidence_score, oi.input_mode, oi.user_override, oi.response_time_ms,
-             oi.ruleset_version, oi.ruleset_hash, oi.created_at,
+             oi.ruleset_version, oi.ruleset_hash, oi.created_at, oi.removed_at, oi.removal_revision,
              -- v3.2 (2026-08-26): lane + provenance facts the Offers card renders (jsonb, no new columns)
              oi.parsed_data_json->>'offer_kind'      AS offer_kind,
              (oi.parsed_data_json->>'tip_included') IN ('true','t','1') AS tip_included,  -- tolerant: a legacy row could hold any json type
@@ -269,33 +351,96 @@ router.get('/offers', async (req, res) => {
              to_char(oo.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS outcome_updated_at
       FROM offer_intelligence oi
       LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id AND oo.user_id = oi.user_id
-      WHERE oi.user_id = ${req.auth.userId}
-      ORDER BY oi.created_at DESC
-      LIMIT ${limit}
+      WHERE ${conditions}
+      ORDER BY oi.created_at DESC, oi.id DESC
+      ${day ? sql`` : sql`LIMIT ${limit} OFFSET ${offset}`}
     `);
     const offers = result.rows || [];
+    const activeOffers = offers.filter((offer) => offer.removed_at == null);
 
     const stats = {
-      analyzed: offers.length,
-      analyzer_accepted: offers.filter((o) => o.decision === 'ACCEPT').length,
-      analyzer_rejected: offers.filter((o) => o.decision === 'REJECT').length,
-      driver_accepted: offers.filter((o) => o.driver_decision === 'Accepted' || o.driver_decision === 'Completed').length,
-      disagreements: offers.filter((o) =>
+      analyzed: activeOffers.length,
+      analyzer_accepted: activeOffers.filter((o) => o.decision === 'ACCEPT').length,
+      analyzer_rejected: activeOffers.filter((o) => o.decision === 'REJECT').length,
+      driver_accepted: activeOffers.filter((o) => o.driver_decision === 'Accepted' || o.driver_decision === 'Completed').length,
+      disagreements: activeOffers.filter((o) =>
         o.driver_decision
         && ((o.decision === 'ACCEPT' && o.driver_decision === 'Rejected')
           || (o.decision === 'REJECT' && ['Accepted', 'Completed'].includes(o.driver_decision)))).length,
       // Realized dollars count only rides actually taken — earnings that linger
       // on a Rejected/Cancelled outcome row must not inflate the total.
-      realized_total: Math.round(offers.reduce((sum, o) =>
+      realized_total: Math.round(activeOffers.reduce((sum, o) =>
         sum + (['Accepted', 'Completed'].includes(o.driver_decision) ? (Number(o.total_earned) || 0) : 0), 0) * 100) / 100,
     };
 
-    res.json({ success: true, stats, offers });
+    res.set('Cache-Control', 'private, no-store');
+    res.json({
+      success: true,
+      stats,
+      offers,
+      ...(day ? {
+        date: day.date,
+        timeZone: day.timezone,
+        total,
+        include_removed: includeRemoved,
+      } : {
+        total,
+        limit,
+        offset,
+        has_more: offset + offers.length < total,
+      }),
+    });
   } catch (err) {
+    if (err instanceof Error && (err.message.startsWith('date must') || err.message.startsWith('timezone must')
+      || err.message.startsWith('limit must') || err.message.startsWith('include_removed'))) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('[offer-analyzer/offers GET]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+// Soft removal preserves the raw capture and any separately recorded outcome.
+// Monotonic revisions serialize remove/restore actions and make stale Undo safe.
+for (const action of ['remove', 'restore']) {
+  router.post(`/offers/:id/${action}`, async (req, res) => {
+    const offerId = req.params.id;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(offerId)) {
+      return res.status(400).json({ error: 'A valid offer ID is required' });
+    }
+    const expectedRevision = req.body?.expected_removal_revision;
+    if (typeof expectedRevision !== 'number' || !Number.isInteger(expectedRevision)
+      || expectedRevision < 0 || expectedRevision >= 2147483647) {
+      return res.status(400).json({ error: 'expected_removal_revision must be the loaded non-negative integer revision' });
+    }
+    try {
+      const statePredicate = action === 'remove' ? sql`removed_at IS NULL` : sql`removed_at IS NOT NULL`;
+      const removedValue = action === 'remove' ? sql`NOW()` : sql`NULL`;
+      const updated = await db.execute(sql`
+        UPDATE offer_intelligence
+        SET removed_at = ${removedValue}, removal_revision = removal_revision + 1
+        WHERE id = ${offerId} AND user_id = ${req.auth.userId}
+          AND removal_revision = ${expectedRevision} AND ${statePredicate}
+        RETURNING id, removed_at, removal_revision
+      `);
+      res.set('Cache-Control', 'private, no-store');
+      if (updated.rows?.[0]) return res.json({ success: true, offer: updated.rows[0] });
+
+      const owned = await db.execute(sql`
+        SELECT id, removed_at, removal_revision FROM offer_intelligence
+        WHERE id = ${offerId} AND user_id = ${req.auth.userId} LIMIT 1
+      `);
+      if (!owned.rows?.[0]) return res.status(404).json({ error: 'Offer not found for this user' });
+      return res.status(409).json({
+        error: 'removal_conflict',
+        message: 'This offer changed elsewhere. Review its current removal state before retrying.',
+        current: owned.rows[0],
+      });
+    } catch (_error) {
+      return res.status(500).json({ error: 'Could not update this offer. Its removal state was not confirmed.' });
+    }
+  });
+}
 
 // POST /api/offer-analyzer/offers/:id/outcome — record what I ACTUALLY did.
 // "If I get a reject — I can tell our system I accepted it" (Melody, 2026-07-03).

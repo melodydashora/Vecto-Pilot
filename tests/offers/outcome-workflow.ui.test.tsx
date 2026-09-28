@@ -6,6 +6,15 @@ import OffersDecisionChart from '../../client/src/components/offer-analyzer/Offe
 import OffersCard from '../../client/src/components/offer-analyzer/OffersCard';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// The feature harness is CommonJS while the shared daypart adapter is ESM.
+jest.mock('@/lib/daypart', () => ({ getLocalIso: (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const value = (key: string) => parts.find(part => part.type === key)?.value;
+  return `${value('year')}-${value('month')}-${value('day')}T${value('hour')}:${value('minute')}:${value('second')}`;
+} }));
 jest.mock('@/utils/co-pilot-helpers', () => ({ getAuthHeader: () => ({ Authorization: 'Bearer synthetic' }), subscribeOfferAnalyzed: () => () => {} }));
 jest.mock('@/components/ui/select', () => ({
   Select: ({ value, onValueChange, disabled, children }: any) => <select aria-label="What did you do?" value={value} disabled={disabled} onChange={event => onValueChange(event.target.value)}><option value="">Choose an outcome</option>{children}</select>,
@@ -21,6 +30,10 @@ jest.mock('recharts', () => ({ BarChart: () => <div data-testid="decision-chart"
 const offer: AnalyzedOffer = { id: '00000000-0000-4000-8000-000000000001', decision: 'ACCEPT', price: 12.5, created_at: '2026-09-10T12:00:00Z' };
 const outcome = (overrides = {}) => ({ id: 'synthetic-outcome', offer_intelligence_id: offer.id, revision: 1, driver_decision: 'Accepted', driver_reasoning: null, actual_pay: 12.5, reimbursements: null, extras: null, other: null, total_earned: 12.5, ...overrides });
 const reply = (body: unknown, status = 200) => Promise.resolve({ ok: status >= 200 && status < 300, status, json: async () => body });
+const dayOffers = (offers: AnalyzedOffer[], date = '2026-09-10') => ({
+  success: true, date, timeZone: 'America/Chicago',
+  total: offers.length, include_removed: true, offers,
+});
 const pick = (decision: string) => fireEvent.change(screen.getByRole('combobox', { name: 'What did you do?' }), { target: { value: decision } });
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save outcome' }));
 beforeEach(() => { global.fetch = jest.fn() as any; auth = { user: { userId: 'synthetic-a' }, token: 'synthetic-token-a', isAuthenticated: true, isLoading: false }; location = { timeZone: 'America/Chicago' }; });
@@ -138,6 +151,19 @@ test('saving disables the inputs and duplicate submit; saved unknown actual pay 
   fireEvent.click(screen.getByRole('button', { name: 'Edit' })); expect((screen.getByLabelText('Actual pay') as HTMLInputElement).value).toBe('');
 });
 const summary = (key = '7d', overrides = {}) => ({ success: true, period: { key, start: '2026-09-03T12:00:00Z', end: '2026-09-10T12:00:00Z', label: 'Rolling last 7 days' }, stats: { analyzed: 150, analyzer_accepted: 90, analyzer_rejected: 50, analyzer_no_data: 10, driver_accepted: 40, driver_rejected: 30, cancelled: 3, other: 2, unrecorded: 75, reported_total: 123.5, reported_count: 10, ...overrides } });
+const dailySummary = (date = '2026-09-10') => ({
+  ...summary('day'),
+  date,
+  timeZone: 'America/Chicago',
+  period: { key: 'day', start: '2026-09-10T05:00:00Z', end: '2026-09-11T05:00:00Z', label: date },
+});
+test('selected-day chart requests complete counts with the exact date and driver timezone', async () => {
+  (fetch as jest.Mock).mockImplementation(() => reply(dailySummary()));
+  render(<OffersDecisionChart refreshToken="day" selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} />);
+  await screen.findByText(/Selected day 2026-09-10/);
+  expect((fetch as jest.Mock).mock.calls[0][0]).toBe('/api/offer-analyzer/offers/stats?date=2026-09-10&timeZone=America%2FChicago');
+  expect(screen.getByLabelText('Chart date')).toBeTruthy();
+});
 test('chart uses complete server counts and requests the chosen rolling period', async () => {
   (fetch as jest.Mock).mockImplementation((url: string) => reply(summary(url.endsWith('30d') ? '30d' : '7d')));
   render(<OffersDecisionChart refreshToken="one" />); await screen.findByText(/123.50/);
@@ -173,20 +199,80 @@ test('a background list error preserves the open outcome draft through retry', a
   (fetch as jest.Mock).mockImplementation((url: string) => {
     if (url.includes('/stats?')) return reply(summary());
     listCalls += 1;
-    return listCalls === 2 ? reply({}, 503) : reply({ success: true, offers: [existing] });
+    return listCalls === 2 ? reply({}, 503) : reply(dayOffers([existing]));
   });
-  render(<QueryClientProvider client={client}><OffersCard /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><OffersCard selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} /></QueryClientProvider>);
   await screen.findByText(/Saved:/);
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
   fireEvent.change(screen.getByLabelText('Actual pay'), { target: { value: '17' } });
   fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'Keep my draft' } });
   await act(async () => { await client.invalidateQueries(); });
-  await screen.findByText(/Could not (?:load|refresh) your offers/);
+  await screen.findByText(/Could not refresh this day/);
   expect((screen.getByLabelText('Actual pay') as HTMLInputElement).value).toBe('17');
   expect((screen.getByLabelText('Note (optional)') as HTMLTextAreaElement).value).toBe('Keep my draft');
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
   await waitFor(() => expect(listCalls).toBe(3));
   expect((screen.getByLabelText('Actual pay') as HTMLInputElement).value).toBe('17');
+  client.clear();
+});
+
+test('daily review requests the complete local day and removal is explicit, reversible, and revision-checked', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const dayOffer = { ...offer, created_at: '2026-09-10T12:00:00Z' };
+  let serverOffer: any = dayOffer;
+  (fetch as jest.Mock).mockImplementation((url: string, init: RequestInit = {}) => {
+    if (url.includes('/stats?')) return reply(summary());
+    if (init.method === 'POST') {
+      const action = url.endsWith('/remove') ? 'remove' : 'restore';
+      serverOffer = action === 'remove'
+        ? { ...serverOffer, removed_at: '2026-09-10T12:05:00Z', removal_revision: 1 }
+        : { ...serverOffer, removed_at: null, removal_revision: 2 };
+      return reply({ success: true, offer: serverOffer });
+    }
+    return reply(dayOffers([serverOffer]));
+  });
+  render(<QueryClientProvider client={client}>
+    <OffersCard selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} />
+  </QueryClientProvider>);
+  await screen.findByText('Offered $12.50');
+  expect((fetch as jest.Mock).mock.calls[0][0]).toBe('/api/offer-analyzer/offers?date=2026-09-10&timeZone=America%2FChicago&include_removed=1');
+  fireEvent.click(screen.getByRole('button', { name: /Remove offer/ }));
+  expect(fetch).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm remove offer' }));
+  await screen.findByRole('button', { name: /Undo/ });
+  expect((fetch as jest.Mock).mock.calls[1][1].method).toBe('POST');
+  expect(JSON.parse((fetch as jest.Mock).mock.calls[1][1].body)).toEqual({ expected_removal_revision: 0 });
+  fireEvent.click(screen.getByRole('button', { name: /Undo/ }));
+  await waitFor(() => expect((fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(2));
+  const removalRequests = (fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === 'POST');
+  expect(removalRequests[1][0]).toContain('/restore');
+  expect(JSON.parse(removalRequests[1][1].body)).toEqual({ expected_removal_revision: 1 });
+  expect(serverOffer.removed_at).toBeNull();
+  client.clear();
+});
+
+test('an unsaved outcome draft survives moving between selected local dates', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  (fetch as jest.Mock).mockImplementation((url: string) => {
+    const date = new URL(url, 'http://localhost').searchParams.get('date') ?? '2026-09-10';
+    return reply(dayOffers(date === '2026-09-10' ? [offer] : [], date));
+  });
+  let selectedDate = '2026-09-10';
+  const renderCard = () => <QueryClientProvider client={client}>
+    <OffersCard selectedDate={selectedDate} onSelectedDateChange={jest.fn()} />
+  </QueryClientProvider>;
+  const view = render(renderCard());
+  await screen.findByText('Offered $12.50');
+  pick('Accepted');
+  fireEvent.change(screen.getByLabelText('Actual pay'), { target: { value: '17' } });
+  fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'Keep my day draft' } });
+  selectedDate = '2026-09-11';
+  view.rerender(renderCard());
+  await screen.findByText(/No offers yet for this day/);
+  selectedDate = '2026-09-10';
+  view.rerender(renderCard());
+  expect((await screen.findByLabelText('Actual pay') as HTMLInputElement).value).toBe('17');
+  expect((screen.getByLabelText('Note (optional)') as HTMLTextAreaElement).value).toBe('Keep my day draft');
   client.clear();
 });
 
@@ -197,19 +283,19 @@ test('switching accounts removes the previous offer and draft before the new lis
   (fetch as jest.Mock).mockImplementation((url: string) => {
     if (url.includes('/stats?')) return reply(summary());
     listCalls += 1;
-    return listCalls === 1 ? reply({ success: true, offers: [{ ...offer, product_type: 'Prior driver offer' }] }) : new Promise(done => { resolveList = done; });
+    return listCalls === 1 ? reply(dayOffers([{ ...offer, product_type: 'Prior driver offer' }])) : new Promise(done => { resolveList = done; });
   });
-  const view = render(<QueryClientProvider client={client}><OffersCard /></QueryClientProvider>);
+  const view = render(<QueryClientProvider client={client}><OffersCard selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} /></QueryClientProvider>);
   await screen.findByText('Prior driver offer'); pick('Accepted');
   fireEvent.change(screen.getByLabelText('Actual pay'), { target: { value: '17' } });
   auth = { ...auth, user: { userId: 'synthetic-b' }, token: 'synthetic-token-b' };
-  view.rerender(<QueryClientProvider client={client}><OffersCard /></QueryClientProvider>);
+  view.rerender(<QueryClientProvider client={client}><OffersCard selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} /></QueryClientProvider>);
   expect(screen.queryByText('Prior driver offer')).toBeNull();
   expect(screen.queryByLabelText('Actual pay')).toBeNull();
   await waitFor(() => expect(listCalls).toBe(2));
   const listRequests = (fetch as jest.Mock).mock.calls.filter(([url]) => !url.includes('/stats?'));
   expect(listRequests[1][1].headers.Authorization).toBe('Bearer synthetic-token-b');
-  await act(async () => resolveList(await reply({ success: true, offers: [] })));
+  await act(async () => resolveList(await reply(dayOffers([]))));
   await screen.findByText(/No offers yet/); client.clear();
 });
 
@@ -238,22 +324,22 @@ test('period and offer timestamps use the GPS timezone and retain exact source i
   expect(screen.getByText(/Local time: America\/Chicago, resolved from GPS/)).toBeTruthy();
 });
 
-test('missing GPS timezone leaves calendar times unresolved instead of using browser time', async () => {
+test('missing GPS timezone uses the explicitly labeled device timezone in charts and offer rows', async () => {
   location = { timeZone: null };
   (fetch as jest.Mock).mockImplementation(() => reply(summary()));
   render(<><OffersDecisionChart refreshToken="time" /><OfferOutcomeRow offer={offer} onOutcomeSaved={jest.fn()} /></>);
   await screen.findByText(/123.50/);
-  expect(document.querySelector('time')).toBeNull();
-  expect(screen.getByText('Local period times await GPS location.')).toBeTruthy();
-  expect(screen.getByText('Local time awaits GPS location')).toBeTruthy();
+  expect(document.querySelectorAll('time').length).toBeGreaterThan(0);
+  expect(screen.getByText(/Local time: .*resolved from device timezone/)).toBeTruthy();
+  expect(screen.getAllByText(/device timezone/)).toHaveLength(2);
 });
 
-test('a latest-25 refresh retains an older unsaved draft until the driver explicitly cancels', async () => {
+test('a selected-day refresh retains an older unsaved draft until the driver explicitly cancels', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const recent = Array.from({ length: 25 }, (_, index) => ({ ...offer, id: `synthetic-${index}`, product_type: index === 24 ? 'Oldest edited offer' : `Offer ${index}`, outcome_id: `outcome-${index}`, outcome_revision: 1, driver_decision: 'Accepted', actual_pay: 10, total_earned: 10 }));
   let list = recent;
-  (fetch as jest.Mock).mockImplementation((url: string) => reply(url.includes('/stats?') ? summary() : { success: true, offers: list }));
-  render(<QueryClientProvider client={client}><OffersCard /></QueryClientProvider>);
+  (fetch as jest.Mock).mockImplementation((url: string) => reply(url.includes('/stats?') ? summary() : dayOffers(list)));
+  render(<QueryClientProvider client={client}><OffersCard selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} /></QueryClientProvider>);
   await screen.findByText('Oldest edited offer');
   fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[24]);
   fireEvent.change(screen.getByLabelText('Actual pay'), { target: { value: '17' } });
@@ -274,14 +360,14 @@ test('an in-flight outcome save is canceled when its driver signs out and cannot
   let resolvePost: (value: unknown) => void = () => {};
   (fetch as jest.Mock).mockImplementation((url: string, options: RequestInit) => {
     if (options?.method === 'POST') return new Promise(done => { resolvePost = done; });
-    return reply(url.includes('/stats?') ? summary() : { success: true, offers: auth.user.userId === 'synthetic-a' ? [offer] : [] });
+    return reply(url.includes('/stats?') ? summary() : dayOffers(auth.user.userId === 'synthetic-a' ? [offer] : []));
   });
-  const view = render(<QueryClientProvider client={client}><OffersCard /></QueryClientProvider>);
+  const view = render(<QueryClientProvider client={client}><OffersCard selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} /></QueryClientProvider>);
   await screen.findByText('Offered $12.50'); pick('Accepted'); save();
   const saveRequest = (fetch as jest.Mock).mock.calls.find(([, options]) => options?.method === 'POST')[1];
   expect(saveRequest.headers.Authorization).toBe('Bearer synthetic-token-a');
   auth = { ...auth, user: { userId: 'synthetic-b' }, token: 'synthetic-token-b' };
-  view.rerender(<QueryClientProvider client={client}><OffersCard /></QueryClientProvider>);
+  view.rerender(<QueryClientProvider client={client}><OffersCard selectedDate="2026-09-10" onSelectedDateChange={jest.fn()} /></QueryClientProvider>);
   expect(saveRequest.signal.aborted).toBe(true);
   await screen.findByText(/No offers yet/);
   await act(async () => resolvePost(await reply({ success: true, outcome: outcome() })));
