@@ -44,6 +44,7 @@ import type {
   StagingAreasResponse,
 } from '@/types/tactical-map';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { apiRequest } from '@/lib/queryClient';
 // MARKER_CONFIGS import removed - currently unused
 // import { MARKER_CONFIGS } from '@/types/tactical-map';
 
@@ -370,7 +371,7 @@ export default function TacticalStagingMap({
 
     try {
       // Fetch pre-computed staging areas from ranking_candidates
-      const response = await fetch(API_ROUTES.INTELLIGENCE.STAGING_AREAS(snapshotId));
+      const response = await apiRequest('GET', API_ROUTES.INTELLIGENCE.STAGING_AREAS(snapshotId));
       const data: StagingAreasResponse = await response.json();
 
       // Filter staging zones that are near this mission (within ~1km)
@@ -425,24 +426,20 @@ export default function TacticalStagingMap({
     setError(null);
 
     try {
-      const response = await fetch(API_ROUTES.STRATEGY.TACTICAL_PLAN, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          snapshotId,
-          mission: {
-            type: activeMission.mission.type,
-            name: activeMission.mission.name,
-            lat: activeMission.mission.lat,
-            lng: activeMission.mission.lng,
-            venue: (activeMission.mission as EventMission).venue,
-            eventTime: (activeMission.mission as EventMission).eventTime,
-            airportCode: (activeMission.mission as AirportMission).code,
-          },
-          driverLat,
-          driverLng,
-          trafficContext,
-        }),
+      const response = await apiRequest('POST', API_ROUTES.STRATEGY.TACTICAL_PLAN, {
+        snapshotId,
+        mission: {
+          type: activeMission.mission.type,
+          name: activeMission.mission.name,
+          lat: activeMission.mission.lat,
+          lng: activeMission.mission.lng,
+          venue: (activeMission.mission as EventMission).venue,
+          eventTime: (activeMission.mission as EventMission).eventTime,
+          airportCode: (activeMission.mission as AirportMission).code,
+        },
+        driverLat,
+        driverLng,
+        trafficContext,
       });
 
       const data: TacticalPlanResponse = await response.json();

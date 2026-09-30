@@ -129,20 +129,13 @@ Return error
 
 Fallback-enabled roles: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY`, `BRIEFING_EVENTS_DISCOVERY`, `BRIEFING_NEWS`
 
-## Environment Variables
+## Model pins (no environment variables)
 
-```bash
-# Role → Model mapping (new {TABLE}_{FUNCTION} convention)
-STRATEGY_CORE_MODEL=claude-opus-4-8
-STRATEGY_CONTEXT_MODEL=gemini-3.5-flash
-STRATEGY_TACTICAL_MODEL=gpt-5.2
-STRATEGY_DAILY_MODEL=gemini-3.5-flash
-BRIEFING_EVENTS_MODEL=gemini-3.5-flash
-BRIEFING_VALIDATOR_MODEL=claude-opus-4-8
-VENUE_SCORER_MODEL=gpt-5.2
-VENUE_FILTER_MODEL=claude-3-5-haiku-20241022
-COACH_CHAT_MODEL=gemini-3.1-pro-preview
-```
+2026-09-15: model names are pinned per role in `../model-registry.js` (`MODEL_ROLES[role].model`).
+There is no `*_MODEL` env key and no override cascade — `getRoleConfig(role)` returns the pin.
+Verify pins against the live provider lists with `node scripts/check-model-pins.mjs`
+(part of `npm run guard`). API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`)
+remain environment variables.
 
 ## Legacy Role Mapping
 

@@ -1,465 +1,236 @@
-// client/src/components/offer-analyzer/OffersCard.tsx
-// 2026-07-03 (todo #10): Live offer history + outcome capture (design §7-§8).
-// Shows the analyzer's recommendation per offer ("our call") and lets the driver
-// record what actually happened ("your call") — the disagreements feed the coach.
-// Refetches on the offer_analyzed SSE event; earnings unlock on Accepted/Completed.
-// Row shape is the FLAT offer_intelligence LEFT JOIN offer_outcomes row that
-// GET /api/offer-analyzer/offers returns (server/api/offer-analyzer/index.js).
-
-import { useEffect, useMemo, useState } from 'react';
+// Daily outcome queue; the rolling history chart lives on its own tab.
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useToast } from '@/hooks/useToast';
-import { getAuthHeader, subscribeOfferAnalyzed } from '@/utils/co-pilot-helpers';
-import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
-import { History, Loader2 } from 'lucide-react';
-
-const OFFERS_LIMIT = 25;
-
-type DriverDecision = 'Accepted' | 'Rejected' | 'Cancelled' | 'Completed';
-
-interface AnalyzedOffer {
-  id: string;
-  decision: string; // 'ACCEPT' | 'REJECT' | 'NO DATA'
-  decision_reasoning?: string | null;
-  price?: number | null;
-  per_mile?: number | null;
-  total_miles?: number | null;
-  total_minutes?: number | null;
-  product_type?: string | null;
-  created_at?: string | null;
-  // v3.2 (2026-08-26): lane + provenance facts from parsed_data_json (server GET /offers)
-  offer_kind?: 'ride' | 'delivery' | null;
-  tip_included?: boolean | null;
-  reason_kind?: string | null; // 'implausible_parse' | 'delivery_*' | engine kinds | null
-  shortcut_system?: string | null; // self-reported client ("macrodroid/5.65"), never identity
-  // LEFT JOINed outcome columns (flat, null when no outcome recorded)
-  outcome_id?: string | null;
-  driver_decision?: DriverDecision | null;
-  actual_pay?: number | null;
-  reimbursements?: number | null;
-  extras?: number | null;
-  other?: number | null;
-  total_earned?: number | null;
-}
-
-// Mirrors GET /api/offer-analyzer/offers stats (server/api/offer-analyzer/index.js).
-interface OffersStats {
-  analyzed?: number;
-  analyzer_accepted?: number;
-  analyzer_rejected?: number;
-  driver_accepted?: number;
-  disagreements?: number;
-  realized_total?: number;
-}
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { subscribeOfferAnalyzed } from '@/utils/co-pilot-helpers';
+import { useAuth } from '@/contexts/auth-context';
+import { useLocation } from '@/contexts/location-context-clean';
+import { driverLocalDate, driverTimeZone, todayForDriver } from '@/lib/offer-local-date';
+import { History, Loader2, RotateCcw } from 'lucide-react';
+import OfferRow, { type AnalyzedOffer, type OfferOutcomeDraft } from './OfferOutcomeRow';
 
 interface OffersResponse {
-  success?: boolean;
-  offers?: AnalyzedOffer[];
-  stats?: OffersStats;
+  success: true;
+  date: string;
+  timeZone: string;
+  total: number;
+  include_removed: boolean;
+  offers: AnalyzedOffer[];
+}
+interface RetainedDraft { offer: AnalyzedOffer; draft: OfferOutcomeDraft; }
+
+export default function OffersCard({ selectedDate, onSelectedDateChange, onDataChanged }: {
+  selectedDate?: string;
+  onSelectedDateChange?: (date: string) => void;
+  onDataChanged?: () => void;
+} = {}) {
+  const { user, token, isAuthenticated, isLoading } = useAuth();
+  if (!user?.userId || !token || !isAuthenticated || isLoading) return null;
+  return <DriverOffersCard key={user.userId} userId={user.userId} token={token}
+    selectedDate={selectedDate} onSelectedDateChange={onSelectedDateChange} onDataChanged={onDataChanged} />;
 }
 
-/** pg can return numerics as strings depending on the column type — coerce once. */
-function toNum(v: unknown): number | null {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function timeAgo(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return '';
-  const min = Math.round((Date.now() - ms) / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.round(hr / 24)}d ago`;
-}
-
-function decisionBadgeClass(decision: string): string {
-  if (decision === 'ACCEPT') return 'bg-green-100 text-green-800 border-transparent';
-  if (decision === 'REJECT') return 'bg-red-100 text-red-800 border-transparent';
-  return 'bg-gray-100 text-gray-600 border-transparent'; // NO DATA
-}
-
-// 2026-08-26: an implausible parse (the OCR read "$7.50" as "$750" — live 2026-08-24) is
-// stored as NO DATA with reason_kind 'implausible_parse'. It must never wear the green
-// ACCEPT treatment; amber says "we read numbers we could not trust — decide manually".
-const PARSE_ERROR_BADGE_CLASS = 'bg-amber-100 text-amber-900 border-transparent';
-
-function isDeliveryOffer(offer: AnalyzedOffer): boolean {
-  return offer.offer_kind === 'delivery' || /^Delivery\b/.test(offer.product_type ?? '');
-}
-
-// 2026-07-03 review fix: "Followed the call" used to store NULL, which conflated
-// "unrecorded" with "followed", blocked earnings capture for followed ACCEPTs,
-// and excluded the most common outcome from every stat. It now resolves to the
-// concrete decision implied by our recommendation (ACCEPT→Accepted, REJECT→Rejected);
-// unrecorded offers show a placeholder instead of a pre-selected answer.
-const DECISION_OPTIONS = [
-  { value: 'followed', label: 'Followed the call' },
-  { value: 'Accepted', label: 'Accepted' },
-  { value: 'Rejected', label: 'Rejected' },
-  { value: 'Cancelled', label: 'Cancelled' },
-  { value: 'Completed', label: 'Completed' },
-] as const;
-
-const EARNINGS_FIELDS = [
-  { key: 'actual_pay', label: 'Actual pay' },
-  { key: 'reimbursements', label: 'Reimbursements' },
-  { key: 'extras', label: 'Extras' },
-  { key: 'other', label: 'Other' },
-] as const;
-
-type EarningsKey = (typeof EARNINGS_FIELDS)[number]['key'];
-type EarningsDraft = Record<EarningsKey, string>;
-
-function draftFromOffer(offer: AnalyzedOffer): EarningsDraft {
-  const s = (v: number | null | undefined) => (v != null ? String(v) : '');
-  return {
-    actual_pay: s(toNum(offer.actual_pay)),
-    reimbursements: s(toNum(offer.reimbursements)),
-    extras: s(toNum(offer.extras)),
-    other: s(toNum(offer.other)),
-  };
-}
-
-interface OfferRowProps {
-  offer: AnalyzedOffer;
-  onOutcomeSaved: () => void;
-}
-
-function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
-  const { toast } = useToast();
-  const [isPosting, setIsPosting] = useState(false);
-  const [draft, setDraft] = useState<EarningsDraft>(() => draftFromOffer(offer));
-
-  const driverDecision = offer.driver_decision ?? null;
-  // No outcome recorded → placeholder, never a pre-selected answer.
-  const selectValue = driverDecision ?? '';
-  const showEarnings = driverDecision === 'Accepted' || driverDecision === 'Completed';
-
-  // Re-sync the earnings draft when a refetch brings back the saved outcome.
-  useEffect(() => {
-    // Keyed to the joined outcome values, not the whole row object identity.
-    setDraft(draftFromOffer(offer));
-  }, [offer.outcome_id, offer.actual_pay, offer.reimbursements, offer.extras, offer.other]);
-
-  const postOutcome = async (body: Record<string, unknown>, successTitle: string) => {
-    setIsPosting(true);
-    try {
-      const res = await fetch(API_ROUTES.OFFER_ANALYZER.OFFER_OUTCOME(offer.id), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(`Failed to save outcome (${res.status})`);
-      toast({ title: successTitle });
-      onOutcomeSaved();
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to save outcome',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsPosting(false);
-    }
-  };
-
-  const handleDecisionChange = (value: string) => {
-    // "Followed the call" resolves to the concrete decision our recommendation
-    // implies — it is a real outcome, not a null.
-    const resolved = value === 'followed'
-      ? (offer.decision === 'ACCEPT' ? 'Accepted' : 'Rejected')
-      : value;
-    // The upsert overwrites every column. Earnings carry over only between the
-    // taken states (Accepted ↔ Completed); switching to Rejected/Cancelled
-    // clears them — otherwise the realized total stays inflated with dollars
-    // from a ride that didn't happen, with no UI path to remove them.
-    const keepEarnings = resolved === 'Accepted' || resolved === 'Completed';
-    postOutcome(
-      {
-        driver_decision: resolved,
-        actual_pay: keepEarnings ? toNum(offer.actual_pay) : null,
-        reimbursements: keepEarnings ? toNum(offer.reimbursements) : null,
-        extras: keepEarnings ? toNum(offer.extras) : null,
-        other: keepEarnings ? toNum(offer.other) : null,
-      },
-      'Outcome recorded'
-    );
-  };
-
-  const draftTotal = EARNINGS_FIELDS.reduce((sum, f) => {
-    const n = Number(draft[f.key]);
-    return sum + (draft[f.key] !== '' && Number.isFinite(n) ? n : 0);
-  }, 0);
-
-  const saveEarnings = () => {
-    const numeric = (v: string): number | null => {
-      if (v === '') return null;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    };
-    postOutcome(
-      {
-        driver_decision: driverDecision,
-        actual_pay: numeric(draft.actual_pay),
-        reimbursements: numeric(draft.reimbursements),
-        extras: numeric(draft.extras),
-        other: numeric(draft.other),
-      },
-      'Earnings saved'
-    );
-  };
-
-  const perMile = toNum(offer.per_mile);
-  const totalMiles = toNum(offer.total_miles);
-  const totalMinutes = toNum(offer.total_minutes);
-  const price = toNum(offer.price);
-  const isParseError = offer.reason_kind === 'implausible_parse';
-  const isDelivery = isDeliveryOffer(offer);
-  const perHour = price != null && totalMinutes != null && totalMinutes > 0 ? Math.round((price / totalMinutes) * 60) : null;
-
-  return (
-    <div className="rounded-lg border border-gray-200 p-3 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          {isParseError ? (
-            <Badge className={PARSE_ERROR_BADGE_CLASS}>PARSE ERROR — decide manually</Badge>
-          ) : (
-            <Badge className={decisionBadgeClass(offer.decision)}>{offer.decision}</Badge>
-          )}
-          {isDelivery && (
-            <Badge className="bg-violet-100 text-violet-800 border-transparent">
-              {/^Delivery Exclusive/.test(offer.product_type ?? '') ? 'Delivery · Exclusive' : 'Delivery'}
-            </Badge>
-          )}
-          {isDelivery && offer.tip_included && (
-            <span className="text-[10px] uppercase tracking-wide text-violet-700">tip incl.</span>
-          )}
-        </div>
-        <span className="text-xs text-gray-400">{timeAgo(offer.created_at)}</span>
-      </div>
-
-      <div className="flex items-baseline gap-2 flex-wrap text-sm text-gray-800">
-        {perMile != null && (
-          <span className={`font-semibold tabular-nums ${isParseError ? 'line-through text-amber-800' : ''}`}>
-            ${perMile.toFixed(2)}/mi
-          </span>
-        )}
-        {totalMiles != null && (
-          <span className="text-gray-500 tabular-nums">{totalMiles.toFixed(1)} mi{isDelivery ? ' total' : ''}</span>
-        )}
-        {price != null && <span className="text-gray-500 tabular-nums">${price.toFixed(2)}</span>}
-        {isDelivery && perHour != null && !isParseError && (
-          <span className="text-gray-500 tabular-nums">${perHour}/hr</span>
-        )}
-        {!isDelivery && offer.product_type && <span className="text-xs text-gray-400">{offer.product_type}</span>}
-        {offer.shortcut_system && (
-          <span className="ml-auto text-[10px] font-mono text-gray-400" title="Automation client that sent this offer">
-            {offer.shortcut_system}
-          </span>
-        )}
-      </div>
-
-      {offer.decision_reasoning && <p className="text-xs text-gray-500">{offer.decision_reasoning}</p>}
-
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600">What did you do?</label>
-        {/* key: re-mount Radix Select when a refetch changes the recorded outcome */}
-        <Select
-          key={`${offer.id}-${selectValue}`}
-          value={selectValue}
-          onValueChange={handleDecisionChange}
-          disabled={isPosting}
-        >
-          <SelectTrigger className="bg-white border-gray-300 text-gray-800">
-            <SelectValue placeholder="What did you do?" />
-          </SelectTrigger>
-          <SelectContent>
-            {DECISION_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {showEarnings && (
-        <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 space-y-2">
-          <span className="text-xs font-medium text-gray-600">What did it pay?</span>
-          <div className="grid grid-cols-2 gap-2">
-            {EARNINGS_FIELDS.map((f) => (
-              <div key={f.key} className="space-y-1">
-                <label className="text-xs text-gray-500">{f.label}</label>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={draft[f.key]}
-                  onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
-                  className="bg-white border-gray-300 text-gray-900"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-sm text-gray-600">
-              Total: <span className="font-semibold text-gray-900 tabular-nums">${draftTotal.toFixed(2)}</span>
-            </span>
-            <Button type="button" size="sm" onClick={saveEarnings} disabled={isPosting}>
-              {isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function OffersCard() {
+function DriverOffersCard({ userId, token, selectedDate, onSelectedDateChange, onDataChanged }: {
+  userId: string;
+  token: string;
+  selectedDate?: string;
+  onSelectedDateChange?: (date: string) => void;
+  onDataChanged?: () => void;
+}) {
   const queryClient = useQueryClient();
-  const offersQueryKey = useMemo(() => QUERY_KEYS.OFFER_ANALYZER_OFFERS(OFFERS_LIMIT), []);
+  const { timeZone } = useLocation();
+  const zone = driverTimeZone(timeZone);
+  const [localDate, setLocalDate] = useState(() => todayForDriver(timeZone));
+  const activeDate = selectedDate ?? localDate;
+  const changeDate = (date: string) => {
+    if (onSelectedDateChange) onSelectedDateChange(date);
+    else setLocalDate(date);
+  };
+  const [view, setView] = useState<'pending' | 'reviewed' | 'removed'>('pending');
+  const [draftOffers, setDraftOffers] = useState<Map<string, RetainedDraft>>(() => new Map());
+  const [lastRemovedOffer, setLastRemovedOffer] = useState<AnalyzedOffer | null>(null);
+  const [removalError, setRemovalError] = useState('');
+
+  const requestUrl = useMemo(() => {
+    const query = new URLSearchParams({ date: activeDate, timeZone: zone.timeZone, include_removed: '1' });
+    return `/api/offer-analyzer/offers?${query.toString()}`;
+  }, [activeDate, zone.timeZone]);
+  const offersQueryKey = useMemo(() => ['offer-day', userId, requestUrl], [userId, requestUrl]);
   const { data, isLoading, error, refetch } = useQuery<OffersResponse>({
     queryKey: offersQueryKey,
-    // The default queryClient queryFn sends no auth header and force-logs-out on
-    // 401 — always pass an explicit queryFn with getAuthHeader().
-    queryFn: async () => {
-      const res = await fetch(API_ROUTES.OFFER_ANALYZER.OFFERS(OFFERS_LIMIT), {
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    queryFn: async ({ signal }) => {
+      const res = await fetch(requestUrl, {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        signal, cache: 'no-store',
       });
       if (!res.ok) throw new Error(`Failed to load offers (${res.status})`);
-      return res.json();
+      const result = await res.json();
+      if (result?.success !== true || !Array.isArray(result.offers)) {
+        throw new Error('The server did not return the selected day’s complete offer list.');
+      }
+      if (result.date !== activeDate || result.timeZone !== zone.timeZone) {
+        throw new Error('The server returned offers for a different day or timezone. Your offers were not changed.');
+      }
+      if (result.include_removed !== true || !Number.isSafeInteger(result.total)
+        || result.total !== result.offers.length) {
+        throw new Error('The server did not return the complete selected-day offer list, including removal status. Your offers were not changed.');
+      }
+      return result as OffersResponse;
     },
-    staleTime: 30 * 1000,
-    // 2026-08-17 (race/SSE review finding #2): the headline flow runs the Shortcut
-    // FROM the Uber app — this tab is backgrounded, iOS drops the EventSource, and
-    // the offer_analyzed event fires while it is down. Coming back must refresh:
-    // window focus (when stale) + the server's `state` handshake on SSE reconnect
-    // (below). Was `false`, which left the card stale until a manual Refresh.
+    staleTime: 15 * 1000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
 
-  // Live refresh when the Shortcut sends a new offer through the analyzer — and on
-  // every SSE (re)connect, when the server sends a `state` handshake naming the
-  // newest stored offer (skipped when the card already shows it). The handshake joins
-  // an in-flight fetch (cancelRefetch:false — mount + handshake overlap); a REAL
-  // offer_analyzed event keeps the default cancel-and-restart so the response is
-  // guaranteed to be read after the row committed.
+  const refetchCurrent = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['offer-day', userId] });
+  }, [queryClient, userId]);
+  const notifyDataChanged = useCallback(() => {
+    refetchCurrent();
+    onDataChanged?.();
+  }, [refetchCurrent, onDataChanged]);
   useEffect(() => {
-    const unsubscribe = subscribeOfferAnalyzed((event) => {
-      if (event?.handshake) {
-        const cached = queryClient.getQueryData<OffersResponse>(offersQueryKey);
-        if (event.offer_id && cached?.offers?.some((o) => o.id === event.offer_id)) return;
-        refetch({ cancelRefetch: false });
-        return;
-      }
-      refetch();
-    });
+    const unsubscribe = subscribeOfferAnalyzed(notifyDataChanged);
     return unsubscribe;
-  }, [refetch, queryClient, offersQueryKey]);
+  }, [notifyDataChanged]);
 
-  const offers = data?.offers ?? [];
-  const stats = data?.stats;
+  const trackDraft = useCallback((offer: AnalyzedOffer, dirty: boolean, draft?: OfferOutcomeDraft) => {
+    setDraftOffers(current => {
+      if (dirty && draft && current.get(offer.id)?.offer === offer
+        && JSON.stringify(current.get(offer.id)?.draft) === JSON.stringify(draft)) return current;
+      if (!dirty && !current.has(offer.id)) return current;
+      const next = new Map(current);
+      if (dirty && draft) next.set(offer.id, { offer, draft }); else next.delete(offer.id);
+      return next;
+    });
+  }, []);
 
-  const tiles = [
-    {
-      label: 'Analyzed',
-      value: String(stats?.analyzed ?? offers.length),
-      caption: 'All offers',
-      captionClass: 'text-gray-400',
-    },
-    {
-      label: 'We said accept',
-      value: String(stats?.analyzer_accepted ?? offers.filter((o) => o.decision === 'ACCEPT').length),
-      caption: 'Our call',
-      captionClass: 'text-blue-600',
-    },
-    {
-      label: 'You accepted',
-      value: String(
-        stats?.driver_accepted ??
-          offers.filter((o) => o.driver_decision === 'Accepted' || o.driver_decision === 'Completed').length
-      ),
-      caption: 'Your call',
-      captionClass: 'text-emerald-600',
-    },
-    {
-      label: 'Realized',
-      value: `$${(stats?.realized_total ?? offers.reduce((s, o) => s + (toNum(o.total_earned) ?? 0), 0)).toFixed(2)}`,
-      caption: 'Your call',
-      captionClass: 'text-emerald-600',
-    },
-  ];
+  const canonicalOffers = data?.offers ?? [];
+  const currentIds = new Set(canonicalOffers.map(offer => offer.id));
+  const retainedDrafts = [...draftOffers.values()].filter(({ offer }) =>
+    !currentIds.has(offer.id)
+    && !offer.removed_at
+    && !!offer.created_at
+    && driverLocalDate(new Date(offer.created_at), zone.timeZone) === activeDate,
+  );
+  const allOffers = [...canonicalOffers, ...retainedDrafts.map(({ offer }) => offer)];
+  const dayOffers = allOffers.filter(offer => !offer.removed_at);
+  const pending = dayOffers.filter(offer => !offer.driver_decision);
+  const reviewed = dayOffers.filter(offer => !!offer.driver_decision);
+  const removed = allOffers.filter(offer => !!offer.removed_at);
+  const visibleCount = view === 'pending' ? pending.length : view === 'reviewed' ? reviewed.length : removed.length;
+  const accepted = reviewed.filter(offer => offer.driver_decision === 'Accepted' || offer.driver_decision === 'Completed');
+  const dayLoaded = data != null;
+  const earningsRecorded = accepted.filter(offer =>
+    [offer.actual_pay, offer.reimbursements, offer.extras, offer.other]
+      .some(amount => amount != null && Number.isFinite(Number(amount))),
+  );
+  const knownEarnings = earningsRecorded.reduce((total, offer) => total + (Number(offer.total_earned) || 0), 0);
+
+  const changeRemovalState = async (offer: AnalyzedOffer, action: 'remove' | 'restore') => {
+    setRemovalError('');
+    if (!token) throw new Error('Sign in again before changing an offer.');
+    try {
+      const response = await fetch(`/api/offer-analyzer/offers/${encodeURIComponent(offer.id)}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ expected_removal_revision: offer.removal_revision ?? 0 }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (response.status === 409) throw new Error('This offer changed elsewhere. Refresh the day before trying again.');
+      if (!response.ok || payload?.success !== true || payload.offer?.id !== offer.id) {
+        throw new Error(payload?.message || `Could not ${action} this offer (${response.status}). It is still available.`);
+      }
+      const changed = { ...offer, ...payload.offer } as AnalyzedOffer;
+      queryClient.setQueryData<OffersResponse>(offersQueryKey, current => current && ({
+        ...current,
+        offers: current.offers.map(item => item.id === offer.id ? { ...item, ...payload.offer } : item),
+      }));
+      if (action === 'remove') setLastRemovedOffer({
+        ...changed,
+      });
+      else if (lastRemovedOffer?.id === offer.id) setLastRemovedOffer(null);
+      notifyDataChanged();
+    } catch (failure) {
+      const message = failure instanceof Error ? failure.message : 'Could not update this offer. It is still available.';
+      setRemovalError(message);
+      throw new Error(message);
+    }
+  };
+  const lastRemoved = lastRemovedOffer?.created_at
+    && driverLocalDate(new Date(lastRemovedOffer.created_at), zone.timeZone) === activeDate
+    ? lastRemovedOffer : null;
 
   return (
     <Card className="bg-white border-gray-200 shadow-sm">
-      <CardHeader className="pb-4">
+      <CardHeader className="space-y-3 pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
-          <History className="h-5 w-5 text-indigo-500" />
-          Recent Offers
+          <History className="h-5 w-5 text-indigo-500" /> Daily Offers
         </CardTitle>
-        <CardDescription>What we recommended vs. what you did</CardDescription>
+        <CardDescription>Review each capture and record what happened. Saving an outcome does not remove the offer.</CardDescription>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+          <label className="space-y-1 text-sm font-medium text-gray-700" htmlFor="offers-local-date">
+            <span>Offer date</span>
+            <input id="offers-local-date" type="date" value={activeDate}
+              onChange={event => { if (event.target.value) changeDate(event.target.value); }}
+              className="block min-h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900" />
+          </label>
+          <p className="text-xs text-gray-500 sm:max-w-48">
+            <time dateTime={activeDate}>{activeDate}</time>
+            <br />{zone.source === 'GPS' ? 'Driver timezone' : 'Device timezone'}: {zone.timeZone}
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 rounded-lg bg-slate-50 p-3 text-center">
+          <p className="text-xs text-gray-600"><strong className="block text-lg text-gray-900">{dayLoaded ? pending.length : '—'}</strong>Needs review</p>
+          <p className="text-xs text-gray-600"><strong className="block text-lg text-gray-900">{dayLoaded ? reviewed.length : '—'}</strong>Reviewed</p>
+          <p className="text-xs text-gray-600"><strong className="block text-lg text-gray-900">{dayLoaded ? `$${knownEarnings.toFixed(2)}` : '—'}</strong>Known earnings ({dayLoaded ? `${earningsRecorded.length}/${accepted.length}` : '—'} reported)</p>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isLoading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-          </div>
-        )}
-
-        {!isLoading && error != null && (
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-gray-500">Could not load your offers.</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {!isLoading && error == null && (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              {tiles.map((tile) => (
-                <div key={tile.label} className="rounded-lg border border-gray-200 p-3">
-                  <p className="text-xs text-gray-500">{tile.label}</p>
-                  <p className="text-xl font-semibold text-gray-900">{tile.value}</p>
-                  <p className={`text-[10px] uppercase tracking-wide ${tile.captionClass}`}>{tile.caption}</p>
-                </div>
-              ))}
-            </div>
-
-            {offers.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">
-                No offers yet — run the Shortcut on your next ping and it will show up here.
+        {lastRemoved && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          <span>Offer removed from this day’s totals and charts.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => { void changeRemovalState(lastRemoved, 'restore').catch(() => {}); }}>
+            <RotateCcw className="mr-1 h-4 w-4" />Undo
+          </Button>
+        </div>}
+        {removalError && <p role="alert" className="text-sm text-red-700">{removalError}</p>}
+        <Tabs value={view} onValueChange={(value) => setView(value as typeof view)} className="space-y-3">
+          <TabsList aria-label="Daily offer review status" className="grid h-auto w-full grid-cols-3">
+            <TabsTrigger value="pending" className="px-1.5 text-xs sm:text-sm">Pending ({dayLoaded ? pending.length : '—'})</TabsTrigger>
+            <TabsTrigger value="reviewed" className="px-1.5 text-xs sm:text-sm">Reviewed ({dayLoaded ? reviewed.length : '—'})</TabsTrigger>
+            <TabsTrigger value="removed" className="px-1.5 text-xs sm:text-sm">Removed ({dayLoaded ? removed.length : '—'})</TabsTrigger>
+          </TabsList>
+          <TabsContent value={view} forceMount className="mt-0 space-y-3">
+            {isLoading && <div role="status" className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>}
+            {!isLoading && error && <div className="flex items-center justify-between gap-2">
+              <p role="alert" className="text-sm text-red-700">{data
+                ? 'Could not refresh this day. The displayed list and open drafts are retained.'
+                : error instanceof Error ? error.message : 'Could not load this day’s offers.'}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>Retry</Button>
+            </div>}
+            {!isLoading && !error && visibleCount === 0 && (
+              <p className="rounded-lg border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500">
+                {view === 'pending' ? 'No offers yet for this day; none need review.' : view === 'reviewed' ? 'No offers have been reviewed for this day.' : 'No offers have been removed for this day.'}
               </p>
-            ) : (
-              <div className="space-y-3">
-                {offers.map((offer) => (
-                  <OfferRow key={offer.id} offer={offer} onOutcomeSaved={() => refetch()} />
-                ))}
-              </div>
             )}
-          </>
-        )}
+            {allOffers.map(offer => {
+              const status = offer.removed_at ? 'removed' : offer.driver_decision ? 'reviewed' : 'pending';
+              return <div key={offer.id} className={status === view ? '' : 'hidden'}>
+                <OfferRow offer={offer}
+                onDraftChange={trackDraft}
+                initialDraft={draftOffers.get(offer.id)?.draft}
+                onOutcomeSaved={notifyDataChanged}
+                onRemove={() => changeRemovalState(offer, 'remove')}
+                onRestore={() => changeRemovalState(offer, 'restore')}
+                isRemoved={!!offer.removed_at}
+                />
+              </div>;
+            })}
+          </TabsContent>
+        </Tabs>
+        {!isLoading && !error && <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>Refresh offers</Button>}
       </CardContent>
     </Card>
   );

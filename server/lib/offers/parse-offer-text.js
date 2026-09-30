@@ -1,3 +1,5 @@
+import { canonicalOfferProduct, PREMIUM_OFFER_PRODUCTS } from '../../../shared/driver-services.js';
+
 // server/lib/offers/parse-offer-text.js
 // 2026-02-16: Server-side OCR pre-parser for Uber/Lyft ride offer screenshots.
 // Extracts structured data via regex BEFORE sending to LLM.
@@ -115,42 +117,15 @@ export function extractProductType(text) {
   // down the delivery lane, skipping the driver's rating/Verified/pickup gates. Delivery
   // is a SHAPE (one "N min (X mi) total" line / a tip line / at most one pair), decided in
   // parseOfferText via isDeliveryCard(); deliveryProduct() names it once the shape agrees.
-  // Normalize newlines for multi-line product names like "UberX\nExclusive"
   const normalized = text.replace(/\n/g, ' ');
-
-
-  // Uber products — match raw, then canonicalize
-  const uberMatch = normalized.match(/Uber\s*X{0,2}\s*L?\s*(?:Priority|Exclusive)?/i);
-  if (uberMatch) {
-    const raw = uberMatch[0].replace(/\s+/g, ' ').trim().toLowerCase();
-    // 2026-03-29: Canonical mapping — eliminates "Uberx", "uberx Exclusive", etc.
-    if (/uberxl\s*exclusive/i.test(raw)) return 'UberXL Exclusive';
-    if (/uberxl/i.test(raw)) return 'UberXL';
-    if (/uberx\s*exclusive/i.test(raw)) return 'UberX Exclusive';
-    if (/uberx\s*priority/i.test(raw)) return 'UberX Priority';
-    if (/uberx/i.test(raw)) return 'UberX';
-    return 'Uber'; // bare "Uber" match
-  }
-
-  // Lyft products
-  const lyftMatch = normalized.match(/Lyft\s*(?:XL|Lux|Black|Shared|Priority)?/i);
-  if (lyftMatch) {
-    const raw = lyftMatch[0].replace(/\s+/g, ' ').trim().toLowerCase();
-    if (/lyft\s*xl/i.test(raw)) return 'Lyft XL';
-    if (/lyft\s*lux/i.test(raw)) return 'Lyft Lux';
-    if (/lyft\s*black/i.test(raw)) return 'Lyft Black';
-    if (/lyft\s*shared/i.test(raw)) return 'Lyft Shared';
-    if (/lyft\s*priority/i.test(raw)) return 'Lyft Priority';
-    return 'Lyft';
-  }
-
-  // Standalone product names
-  if (/\bComfort\b/i.test(text)) return 'Comfort';
-  if (/\bVIP\b/i.test(text)) return 'VIP';
-  if (/\bBlack\b/i.test(text)) return 'Black';
-  if (/\bShare\b/i.test(text)) return 'Share';
-
-  return null;
+  // Keep the longest service label before the short platform/base-product names.
+  // In particular XXL and Black SUV must not collapse to UberX or Black: selected
+  // services and economic tiers are separate, explicit contracts.
+  const labels = normalized.match(/\b(?:Uber\s*(?:X{1,2}L?(?:\s*(?:Priority|Exclusive|Share))?|Black(?:\s+SUV)?|Comfort)|Lyft(?:\s+(?:Lux\s+Black(?:\s+(?:XL|SUV))?|Black(?:\s+(?:XL|SUV))?|XL|Lux|Shared|Priority))?|Comfort|VIP|Black(?:\s+SUV)?|Share|Uber)\b/gi) || [];
+  const canonical = labels.map(label => canonicalOfferProduct(
+    label.replace(/(X{1,2}L?)(Priority|Exclusive|Share)\b/i, '$1 $2'),
+  )).filter(Boolean);
+  return canonical.find(product => product !== 'Uber') || canonical[0] || null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -161,10 +136,7 @@ export function extractProductType(text) {
 
 // 2026-07-03 (todo #10): exported so the rules engine can compute which premium
 // products remain in the 'premium' tier once a driver enables comfort/xl splits.
-export const PREMIUM_PRODUCTS = new Set([
-  'Comfort', 'VIP', 'Black', 'UberXL', 'UberXL Exclusive',
-  'Lyft XL', 'Lyft Lux', 'Lyft Black',
-]);
+export const PREMIUM_PRODUCTS = new Set(PREMIUM_OFFER_PRODUCTS);
 const SHARE_PRODUCTS = new Set(['Share', 'Lyft Shared']);
 
 /**

@@ -1,12 +1,12 @@
 // client/src/pages/landing/LandingPage.tsx
 // 2026-04-02: Public marketing/demo landing page — no auth required.
-// Interactive phone mockup showcasing all 7 Vecto Pilot features with auto-play demo.
+// Interactive phone mockup showcasing Vecto Pilot features with auto-play demo.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  MapPin, BarChart2, Languages, Navigation, Smartphone,
+  MapPin, BarChart2, Navigation, Smartphone,
   ChevronRight, ChevronLeft, Star, TrendingUp, AlertTriangle,
-  QrCode, Mic, Globe, Map, Coffee, FileText, Cloud, Plane,
+  QrCode, Map, Coffee, FileText, Cloud, Plane,
   Car, Phone, Play, Square, Zap, Brain, Shield, ArrowRight,
   Github, ExternalLink
 } from 'lucide-react';
@@ -46,13 +46,6 @@ const FEATURES = [
     description: 'Master your city with demand rhythms, universal zone logic, and our proprietary Deadhead Risk Calculator.',
     icon: BarChart2,
     color: 'amber'
-  },
-  {
-    id: 'translate',
-    title: 'Live Rider Translation',
-    description: 'Break the barrier. Split-screen live translation lets your international riders read along seamlessly.',
-    icon: Languages,
-    color: 'blue'
   },
   {
     id: 'concierge',
@@ -263,8 +256,7 @@ export default function LandingPage() {
                   {displayIndex === 2 && <BriefingScreen />}
                   {displayIndex === 3 && <MapScreen />}
                   {displayIndex === 4 && <IntelScreen />}
-                  {displayIndex === 5 && <TranslateScreen />}
-                  {displayIndex === 6 && <ConciergeScreen />}
+                  {displayIndex === 5 && <ConciergeScreen />}
                 </div>
                 <div className="absolute bottom-0 w-full bg-white border-t border-slate-200 z-40 pb-4 lg:pb-5 pt-2 lg:pt-3">
                   <div className="flex overflow-x-auto gap-4 lg:gap-6 px-4 lg:px-6 scroll-smooth hide-scrollbar">
@@ -735,33 +727,6 @@ function IntelScreen() {
             <div className="h-2 bg-slate-700 rounded-full overflow-hidden"><div className="w-1/2 h-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-full"></div></div>
           </div>
           <button className="w-full bg-white text-slate-900 py-2 rounded-lg font-bold text-xs mt-4 shadow-sm">Analyze Trip</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TranslateScreen() {
-  return (
-    <div className="h-full flex flex-col bg-white pb-14">
-      <div className="h-[45%] bg-slate-900 text-white p-5 flex flex-col items-center justify-center rotate-180 border-b-[8px] border-blue-500">
-        <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(37,99,235,0.4)]"><Mic className="w-6 h-6 text-white" /></div>
-        <p className="text-xl font-bold mb-2 text-center">Tap the mic to speak.</p>
-        <p className="text-sm text-slate-400 text-center">Your driver is using a translator.</p>
-        <Globe className="w-6 h-6 text-slate-700 mt-6 opacity-50" />
-      </div>
-      <div className="bg-blue-50 text-blue-800 text-[10px] font-bold px-4 py-2 flex items-center justify-center gap-2 border-b border-blue-100 shadow-sm z-10">
-        <span className="bg-white px-2 py-0.5 rounded shadow-sm">EN</span>
-        <ChevronRight className="w-3 h-3 text-blue-400" />
-        <Globe className="w-3 h-3 text-blue-500" />
-        <span>Auto-detecting...</span>
-      </div>
-      <div className="flex-1 p-4 flex flex-col items-center justify-center bg-slate-50">
-        <div className="bg-white w-full rounded-2xl p-5 shadow-sm border border-slate-200 text-center flex flex-col items-center">
-          <Globe className="w-8 h-8 text-slate-300 mb-3" />
-          <h3 className="font-bold text-slate-800 mb-2 text-base">Rider Translation</h3>
-          <p className="text-[12px] text-slate-500 max-w-[200px] mb-6 leading-relaxed">Tap the mic. Rider sees translated text on the top half.</p>
-          <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 text-sm"><Mic className="w-4 h-4" /> Speak English</button>
         </div>
       </div>
     </div>

@@ -1,386 +1,56 @@
-# SSE.md — Server-Sent Events Architecture
+# Server-Sent Events
 
-> **Canonical reference** for the SSE Manager, connection lifecycle, event types, and how auth-drop affects SSE.
-> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
+Source-reconciled September 29, 2026. SSE delivers wake-ups to saved-data readers. It does not establish that a Briefing, Strategy, ranking or spoken Analyzer decision succeeded. See the [MAIN trace](ai-pipeline.md), [Analyzer boundary](OFFER_ANALYZER.md) and [review register](audits/PIPELINE_REVIEW_2026-09-29.md).
 
-## Supersedes
-- `docs/architecture/realtime.md` — Real-time architecture overview (SSE + WebSocket, absorbed here and in SCALABILITY.md)
+## Sources and consumers
 
----
+| Endpoint | Upstream | Wire event and scope |
+|---|---|---|
+| `/events/strategy?snapshot_id=…` | `strategy_ready` notification; tracked strategy trigger migration | `strategy_ready`, owned snapshot |
+| `/events/briefing?snapshot_id=…` | Final `briefing_ready` plus seven [section channels](../../server/lib/briefing/briefing-channels.js) | `briefing_ready`, owned snapshot; progressive completion is not final readiness |
+| `/events/blocks?snapshot_id=…` | [strategy-utils.js](../../server/lib/strategy/strategy-utils.js) atomic ranking/admission completion | `blocks_ready`, owned snapshot and saved ranking ID |
+| `/events/phase?snapshot_id=…` | In-process [phase emitter](../../server/events/phase-emitter.js) | Default `message`, owned snapshot only |
+| `/events/offers` | `offer_analyzed` notification | `offer_analyzed`, authenticated owner only |
 
-## Table of Contents
+[bootstrap/routes.js](../../server/bootstrap/routes.js) mounts the [stream router](../../server/api/strategy/strategy-events.js) at the root. Phase delivery is process-local; it is not a cross-instance event bus. Polling and the saved phase state remain necessary. The tracked migration for `strategy_ready` is source evidence, not confirmation of the selected database's installed triggers.
 
-1. [Architecture Overview](#1-architecture-overview)
-2. [Server-Side: Event Emission](#2-server-side-event-emission)
-3. [Server-Side: SSE Endpoints](#3-server-side-sse-endpoints)
-4. [Client-Side: SSE Manager (Singleton Pattern)](#4-client-side-sse-manager-singleton-pattern)
-5. [Connection Lifecycle](#5-connection-lifecycle)
-6. [Subscribe Functions](#6-subscribe-functions)
-7. [closeAllSSE — Emergency Shutdown](#7-closeallsse--emergency-shutdown)
-8. [Auth-Drop Effects on SSE](#8-auth-drop-effects-on-sse)
-9. [Current State](#9-current-state)
-10. [Known Gaps](#10-known-gaps)
-11. [TODO — Hardening Work](#11-todo--hardening-work)
+## Server lifetime
 
----
+The router authenticates and verifies snapshot ownership before sending headers. Every stream uses the same lifecycle:
 
-## 1. Architecture Overview
+1. Register close/error/abort cleanup and send SSE headers.
+2. Acquire the required database subscriptions before reading initial saved state. Register each acquired release immediately, including partial setup. If close wins while LISTEN is pending, release the late acquisition instead of adding more channels.
+3. Send a `state` event after registration, including when no saved row exists. The client refetches canonical data; this closes the lost-notification registration window.
+4. Filter every notification by snapshot and, where supplied, owner; offer notifications always require exact owner. Phase uses the same ownership filter.
+5. Recheck current authentication/session before state or notification delivery and on the 30-second heartbeat. Remote logout, reset, expiry, credential rotation or a failed authorization read closes the stream. These checks do not update session activity.
+6. Response `close`/`error` or request `aborted` releases listeners and stops the heartbeat. Request `close` alone is not used: a consumed GET can still have a live streaming response.
 
-```
-┌──────────────────┐         ┌──────────────────────┐         ┌──────────────────┐
-│  Briefing Service │         │  PostgreSQL           │         │  Client Browser  │
-│  Strategy Gen     │───pg_notify──▶│  LISTEN/NOTIFY      │         │                  │
-│  Triad Worker     │         │  Channels             │         │                  │
-└──────────────────┘         └──────────┬───────────┘         └────────┬─────────┘
-                                        │                              │
-                              subscribeToChannel()              EventSource
-                                        │                              │
-                              ┌─────────▼───────────┐         ┌───────▼──────────┐
-                              │  SSE Endpoints       │────────▶│  SSE Manager     │
-                              │  /events/strategy    │  HTTP   │  (Singleton Map) │
-                              │  /events/blocks      │  SSE    │                  │
-                              │  /events/phase       │         │  Subscribers:    │
-                              │  /events/briefing    │         │  - CoPilotCtx    │
-                              └──────────────────────┘         │  - BriefingHook  │
-                                                               └──────────────────┘
-```
+The shared non-mutating guard is in [auth middleware](../../server/middleware/auth.js). Client logout also closes streams immediately; server authorization is still required for clients that remain connected elsewhere.
 
-**Key design:** Server uses PostgreSQL LISTEN/NOTIFY to propagate events from background workers to SSE endpoints. Client uses a singleton manager to share one EventSource connection per endpoint across multiple React components.
+## Database LISTEN connection
 
----
+[db-client.js](../../server/db/db-client.js) owns one LISTEN connection and dispatches notifications to per-channel registrations. Each subscription has its own identity, even when consumers reuse a callback. Channel changes serialize on the current connection. Failed initial LISTEN cannot leave a falsely healthy registration; failed restoration cannot mark reconnect complete.
 
-## 2. Server-Side: Event Emission
+Reconnect restores the desired channel set before resolving readiness, then calls each still-current subscription's recovery callback. This wakes HTTP streams that stayed connected while only the database connection failed. The stream coalesces concurrent state reads; if an older read fails during reconnect, it still sends an authenticated refetch wake-up rather than consuming the recovery signal silently. Shutdown fences pending connects, retries and delayed callbacks; unsubscribe cannot reopen a closed connection. [connection-config.js](../../server/db/connection-config.js) provides the same parsed, verified TLS configuration as the query pool and migration runner. See the [DB guide](../../server/db/README.md) for details and test limits.
 
-### PostgreSQL LISTEN/NOTIFY
+## Browser lifetime
 
-Events are emitted via PostgreSQL's built-in pub/sub:
+[co-pilot-helpers.ts](../../client/src/utils/co-pilot-helpers.ts) shares one EventSource per endpoint/event key within the current token. No token means no new connection. A changed token closes the prior instance before creating its replacement. Delivery checks the current instance and token; each callback is isolated so an exception does not block other readers. Each subscribe call has its own release, including callers that reuse a callback. An old release cannot close a newer login's connection.
 
-```sql
-SELECT pg_notify('briefing_ready', '{"snapshot_id":"034292d5-..."}');
-SELECT pg_notify('strategy_ready', '{"snapshot_id":"034292d5-..."}');
-NOTIFY blocks_ready, '{"snapshot_id":"034292d5-...","ranking_id":"..."}';
-```
+Named notifications and `state` both wake subscribers. Native EventSource retry is retained: the error callback records disconnection without closing the stream or clearing auth merely because transport failed. Reconnect opens a new server request and repeats ownership, subscriptions and saved-state recovery. There is no exactly-once delivery or durable event queue.
 
-### Who Emits What
+[auth-context.tsx](../../client/src/contexts/auth-context.tsx) clears streams and queries during logout, forced auth loss and cross-tab identity replacement. [co-pilot-context.tsx](../../client/src/contexts/co-pilot-context.tsx) scopes Strategy, blocks and phase subscriptions to the current snapshot. [useBriefingQueries.ts](../../client/src/hooks/useBriefingQueries.ts) gates subscriptions on auth, polls all seven sections and discards late responses for a replaced snapshot/session. Analyzer recovery is documented in its own trace; notification delivery does not replace phone shortcut speech.
 
-| Channel | Emitted By | File | Trigger |
-|---------|-----------|------|---------|
-| `briefing_ready` | `generateAndStoreBriefing()` | `briefing-service.js:2794` | All parallel data fetches complete |
-| `strategy_ready` | PostgreSQL trigger on `strategies` table | `migrations/20260110_fix_strategy_now_notify.sql` | `strategy_for_now` column updated |
-| `blocks_ready` | `startConsolidationListener()` | `jobs/triad-worker.js:138` | SmartBlocks generation complete |
-| (phase changes) | Phase updates during pipeline | `blocks-fast.js` via `updatePhase()` | Each pipeline phase transition |
+## Verification and limits
 
-### Dispatcher Architecture
+[Server lifecycle tests](../../tests/strategy/sse-lifecycle.test.js) cover registration order, partial/late cleanup, foreign snapshots, revoked sessions and an actual local HTTP response that stays open after its GET is consumed. [Client tests](../../tests/client/sse-lifecycle.test.ts) cover token replacement, old releases, callback isolation and shared callback lifetime. [DB tests](../../tests/db/) cover LISTEN/UNLISTEN/reconnect/shutdown and TLS option construction with controlled connection doubles; they do not prove a remote TLS handshake or production reconnect.
 
-**File:** `server/db/db-client.js` (lines 200–300)
+This consolidates the April lifecycle guide and obsolete unauthenticated/unfiltered/no-reconnect TODOs. Its historical Analyzer correction is preserved in the current boundary above; previous text is recoverable through the [removal ledger](removals/2026-09-29-pipeline-review.md).
 
-**Problem solved:** Without centralization, 23 SSE connections × 1 NOTIFY = 23 duplicate handler invocations.
 
-**Solution:** Single LISTEN client → shared dispatcher → per-channel subscriber routing.
-
-```javascript
-// Data structure
-const channelSubscribers = new Map<channel, Set<callbacks>>();
-
-// Key functions:
-subscribeToChannel(channel, callback)  // Register for NOTIFY events
-resubscribeChannels()                  // Re-LISTEN after DB reconnect
-getListenClient()                      // Get/create dedicated LISTEN-only connection
-```
-
----
-
-## 3. Server-Side: SSE Endpoints
-
-**File:** `server/api/strategy/strategy-events.js` (277 lines)
-
-All endpoints follow the same pattern:
-1. Set SSE headers (`text/event-stream`, `no-cache`, `Connection: keep-alive`)
-2. Subscribe to PostgreSQL channel via `subscribeToChannel()`
-3. On notification → filter by snapshot_id → write SSE event
-4. 30-second heartbeat (comment: `: heartbeat\n\n`) to detect dead connections
-5. On `req.close` → unsubscribe and clear heartbeat interval
-
-### Endpoints
-
-| Endpoint | Channel | SSE Event Name | Payload |
-|----------|---------|---------------|---------|
-| `GET /events/strategy` | `strategy_ready` | `strategy_ready` | `{ snapshot_id }` |
-| `GET /events/briefing` | `briefing_ready` | `briefing_ready` | `{ snapshot_id }` |
-| `GET /events/blocks` | `blocks_ready` | `blocks_ready` | `{ snapshot_id, ranking_id }` |
-| `GET /events/phase` | EventEmitter | `message` (default) | `{ snapshot_id, phase, phase_started_at, expected_duration_ms }` |
-| `GET /events/offers` | `offer_analyzed` | `offer_analyzed` | `{ device_id, user_id, offer_id, decision, reasoning, price, per_mile, platform, response_time_ms, ai_model }` — forwarded only to the owning user (`requireAuthAllowQueryToken`; anonymous rows dropped) |
-
-### Heartbeat
-
-**Interval:** 30 seconds (line 33)
-**Purpose:** Detect dead connections (mobile sleep, network switch)
-**Format:** `: heartbeat\n\n` (SSE comment, ignored by EventSource)
-**On write failure:** Connection is dead → `req.end()` closes it
-
----
-
-## 4. Client-Side: SSE Manager (Singleton Pattern)
-
-**File:** `client/src/utils/co-pilot-helpers.ts` (lines 26–117)
-
-### Data Structure
-
-```typescript
-const sseConnections: Map<string, SSESubscription> = new Map();
-
-interface SSESubscription {
-  eventSource: EventSource;
-  subscribers: Set<(data: any) => void>;
-  isConnected: boolean;
-}
-```
-
-**Map key format:** `${endpoint}:${eventName}` (e.g., `/events/strategy:strategy_ready`)
-
-### How It Works
-
-```
-Component A calls subscribeStrategyReady(callback1)
-  └─ subscribeSSE('/events/strategy', 'strategy_ready', callback1)
-      └─ Key: '/events/strategy:strategy_ready'
-      └─ Not in Map → create new EventSource, add to Map
-      └─ subscribers: Set { callback1 }
-
-Component B calls subscribeStrategyReady(callback2)
-  └─ subscribeSSE('/events/strategy', 'strategy_ready', callback2)
-      └─ Key: '/events/strategy:strategy_ready'
-      └─ Already in Map → reuse existing EventSource
-      └─ subscribers: Set { callback1, callback2 }
-
-Event arrives:
-  └─ EventSource.addEventListener('strategy_ready', handler)
-      └─ Parse JSON data
-      └─ Broadcast to ALL subscribers: callback1(data), callback2(data)
-
-Component A unmounts:
-  └─ unsubscribe() returned from subscribeSSE
-      └─ Remove callback1 from subscribers Set
-      └─ subscribers.size = 1 → keep connection alive
-
-Component B unmounts:
-  └─ unsubscribe()
-      └─ Remove callback2 from subscribers Set
-      └─ subscribers.size = 0 → close EventSource, delete from Map
-```
-
-### Core Function: `subscribeSSE()`
-
-**Signature:** `(endpoint: string, eventName: string, callback: (data) => void) => () => void`
-
-**Returns:** Unsubscribe function
-
-**Behavior on error:** Logs warning, sets `isConnected = false`. **No auto-reconnect** — the connection stays dead until a new subscriber triggers recreation.
-
----
-
-## 5. Connection Lifecycle
-
-### Creation
-
-1. First subscriber calls `subscribeSSE(endpoint, eventName, callback)`
-2. Manager checks Map for existing `${endpoint}:${eventName}` key
-3. **Not found:** Creates new `EventSource(endpoint)`, adds `addEventListener(eventName, ...)`, stores in Map
-4. **Found:** Adds callback to existing subscribers Set
-
-### Active
-
-- `onopen`: `isConnected = true`, logs `✅ Connected: ${endpoint}`
-- `addEventListener(eventName)`: Parses JSON, iterates subscribers, calls each
-- Server sends heartbeat every 30s (keeps connection alive)
-
-### Teardown (Normal)
-
-- Last subscriber unsubscribes → `subscribers.size === 0`
-- `eventSource.close()` called
-- Entry deleted from Map
-- Log: `🔌 Closed: ${key}`
-
-### Teardown (Emergency — Logout)
-
-- `closeAllSSE()` called from auth-context during logout
-- Iterates ALL entries in Map
-- Calls `eventSource.close()` and `subscribers.clear()` on each
-- Clears entire Map
-- Log: `🔌 Closing ALL connections (N active)`
-
-### Error / Disconnect
-
-- `onerror`: `isConnected = false`, logs `⚠️ Connection error: ${endpoint}`
-- **No auto-reconnect logic**
-- Browser's EventSource built-in reconnect may or may not fire (browser-dependent)
-- If browser reconnects, the `onopen` handler fires again and sets `isConnected = true`
-
----
-
-## 6. Subscribe Functions
-
-All defined in `co-pilot-helpers.ts`, all use `subscribeSSE()` internally.
-
-### subscribeStrategyReady()
-
-**Lines:** 187–193
-**Endpoint:** `/events/strategy`
-**Event:** `strategy_ready`
-**Callback:** `(snapshotId: string) => void`
-**Used by:** CoPilotContext (line 363) — triggers `refetchQueries` for strategy data
-
-### subscribeBlocksReady()
-
-**Lines:** 201–207
-**Endpoint:** `/events/blocks`
-**Event:** `blocks_ready`
-**Callback:** `(data: { snapshot_id: string; ranking_id?: string }) => void`
-**Used by:** CoPilotContext (line 376) — triggers `refetchQueries` for blocks data
-
-### subscribeBriefingReady()
-
-**Lines:** 216–222
-**Endpoint:** `/events/briefing`
-**Event:** `briefing_ready`
-**Callback:** `(snapshotId: string) => void`
-**Used by:** useBriefingQueries (line 208) — refetches all 6 briefing queries
-
-### subscribePhaseChange()
-
-**Lines:** 234–246
-**Endpoint:** `/events/phase`
-**Event:** `message` (default onmessage, not named event)
-**Callback:** `(data: { snapshot_id, phase, phase_started_at, expected_duration_ms }) => void`
-**Used by:** CoPilotContext (line 391) — triggers strategy refetch for phase-accurate progress bar
-
----
-
-## 7. closeAllSSE — Emergency Shutdown
-
-**File:** `co-pilot-helpers.ts` (lines 109–117)
-
-```typescript
-export function closeAllSSE(): void {
-  console.log(`[SSE Manager] 🔌 Closing ALL connections (${sseConnections.size} active)`);
-  for (const [key, sub] of sseConnections) {
-    sub.eventSource.close();     // Kill the HTTP connection
-    sub.subscribers.clear();      // Clear all callbacks
-    console.log(`[SSE Manager] 🔌 Closed: ${key}`);
-  }
-  sseConnections.clear();          // Wipe the Map
-}
-```
-
-**Called from:**
-1. `auth-context.tsx` line 88 — Forced logout (auth error event)
-2. `auth-context.tsx` line 216 — Manual logout
-
-**Called synchronously BEFORE** `setState({ isAuthenticated: false })` — this ensures SSE connections are killed before the React re-render cascade begins.
-
----
-
-## 8. Auth-Drop Effects on SSE
-
-### Complete Sequence
-
-```
-LOGOUT CLICKED
-  │
-  ├─ 1. queryClient.cancelQueries()     ← Cancel React Query first
-  ├─ 2. queryClient.clear()
-  ├─ 3. closeAllSSE()                   ← Kill all 4 SSE connections NOW
-  │     ├─ Closed: /events/strategy:strategy_ready
-  │     ├─ Closed: /events/blocks:blocks_ready
-  │     ├─ Closed: /events/phase:message
-  │     └─ Closed: /events/briefing:briefing_ready
-  │
-  ├─ 4. POST /api/auth/logout           ← Server-side session teardown
-  ├─ 5. Clear localStorage/sessionStorage
-  └─ 6. setState({ isAuthenticated: false })
-       │
-       ├─ LocationContext re-renders
-       │   └─ Auth-drop effect: clears lastSnapshotId + all state
-       │
-       └─ CoPilotContext re-renders
-            ├─ Auth-drop effect: clears lastSnapshotId
-            ├─ Sync effect: isAuthenticated=false → RETURNS EARLY (zombie guard)
-            ├─ SSE subscription effects: lastSnapshotId=null → cleanup runs
-            │   └─ Each effect returns early (guard: !lastSnapshotId) → no new subscriptions
-            └─ NO NEW SSE CONNECTIONS CREATED
-```
-
-### The Zombie Prevention (2026-04-10)
-
-Before the fix, steps 3→6 created a gap:
-- Step 3 closed all SSE connections
-- Step 6 triggered CoPilotContext re-render
-- CoPilot's sync effect saw LocationContext still had old snapshotId → restored it
-- SSE subscription effects saw snapshotId restored → **reopened all 4 connections**
-
-After the fix:
-- LocationContext clears its snapshotId in auth-drop effect
-- CoPilotContext's sync effect checks `isAuthenticated` → blocks restoration
-- No snapshotId = no SSE subscription effects fire = no reconnection
-
----
-
-## 9. Current State
-
-| Area | Status |
-|------|--------|
-| Singleton SSE Manager | Working — one EventSource per endpoint, shared across components |
-| PostgreSQL LISTEN/NOTIFY | Working — events propagate from workers to SSE endpoints |
-| Server heartbeat (30s) | Working — detects dead client connections |
-| Client subscribe/unsubscribe | Working — proper cleanup on last subscriber |
-| closeAllSSE on logout | Working — kills all connections synchronously |
-| Zombie SSE prevention | **Fixed 2026-04-10** — no reconnection after auth drop |
-| 4 SSE channels active | strategy_ready, blocks_ready, briefing_ready, phase |
-
----
-
-## 10. Known Gaps
-
-1. **No client-side auto-reconnect** — If an SSE connection drops (network error, server restart), the manager logs the error but does NOT reconnect. Connection stays dead until component remounts. Browser's built-in EventSource reconnect is browser-dependent and unreliable.
-
-2. **No connection health monitoring** — No way to detect that a connection is silently dead (server closed it but client hasn't noticed). The 30s heartbeat only works server→client.
-
-3. **No snapshot filtering on server** — SSE endpoints relay ALL events on a channel. Every connected client receives events for ALL snapshots, then filters client-side. With many concurrent users, this could be noisy.
-
-4. **No auth on SSE endpoints** — The `/events/*` endpoints don't use `requireAuth`. Any client can connect and receive events. Events only contain snapshot IDs (no sensitive data), but it's still an information leak.
-
-5. **Phase events use default `message` type** — `subscribePhaseChange()` listens for `message` (onmessage) instead of a named event. This makes it impossible to distinguish from other default messages on the same endpoint.
-
-6. **No backpressure** — If the client is slow to process events, they queue up in the browser's EventSource buffer with no limit.
-
-7. **LISTEN client is shared** — One PostgreSQL connection handles all LISTEN channels. If this connection drops, all SSE channels go dead simultaneously until reconnect.
-
----
-
-## 11. TODO — Hardening Work
-
-- [ ] **Implement client-side auto-reconnect** — On `onerror`, wait 2s then recreate EventSource. Use exponential backoff: 2s → 4s → 8s → 30s max
-- [ ] **Add SSE auth** — Pass JWT as query param on EventSource URL (`/events/strategy?token=...`). Validate in SSE endpoint middleware
-- [ ] **Add server-side snapshot filtering** — Accept `snapshotId` query param on SSE endpoints. Only relay matching events
-- [ ] **Add client health ping** — Periodically send an empty message; if no response after 3 heartbeat cycles, force reconnect
-- [ ] **Name the phase event** — Change from default `message` to `phase_change` event type for clarity
-- [ ] **Add connection state indicator** — Show in UI when SSE is disconnected (orange dot in header)
-- [ ] **PostgreSQL LISTEN failover** — Detect LISTEN connection drop and resubscribe all channels automatically
-- [ ] **Add per-user SSE channels** — `strategy_ready:${userId}` instead of broadcasting to all clients
-- [ ] **Rate-limit SSE events** — Debounce rapid phase transitions (e.g., max 1 event per second per channel)
-
----
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `client/src/utils/co-pilot-helpers.ts` | SSE Manager, subscribe functions, closeAllSSE |
-| `server/api/strategy/strategy-events.js` | SSE endpoint definitions (277 lines) |
-| `server/db/db-client.js` | PostgreSQL LISTEN/NOTIFY dispatcher |
-| `server/lib/briefing/briefing-service.js:2794` | `pg_notify('briefing_ready')` emission |
-| `server/jobs/triad-worker.js:138` | `NOTIFY blocks_ready` emission |
-| `migrations/20260110_fix_strategy_now_notify.sql` | DB trigger for `strategy_ready` |
-| `client/src/contexts/co-pilot-context.tsx:356-393` | SSE subscription effects |
-| `client/src/hooks/useBriefingQueries.ts:195-215` | `briefing_ready` subscription |
-| `client/src/contexts/auth-context.tsx:88,216` | `closeAllSSE()` call sites |
+Final subscription release also tears down the idle physical LISTEN connection,
+cancels keepalive/reconnect timers and invalidates any pending connection attempt.
+A new subscription can open its own connection while the detached old client ends;
+late cleanup cannot close that replacement. Explicit `getListenClient()` consumers
+retain ownership until `closeListenClient()`; current production callers use
+`subscribeToChannel`, while direct acquisition is exercised by the lifecycle tests.

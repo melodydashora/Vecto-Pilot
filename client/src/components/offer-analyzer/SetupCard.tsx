@@ -13,8 +13,10 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/useToast';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { createAndroidLauncher } from '@/lib/android-launcher';
 import {
   ChevronDown,
+  Download,
   Copy,
   ExternalLink,
   KeyRound,
@@ -26,6 +28,17 @@ import {
 // Canonical share link (SIRI_SHORTCUT_ANALYZE.md) — not an /api route, so it
 // lives here rather than in apiRoutes.ts.
 const SHORTCUT_ICLOUD_URL = 'https://www.icloud.com/shortcuts/cce34c892b394d3fb3e5cebd19f317c5';
+
+function downloadSetupFile(content: string, fileName: string, type: string) {
+  const objectUrl = URL.createObjectURL(new Blob([content], { type }));
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+}
 
 interface ShortcutTokenInfo {
   token: string;
@@ -138,23 +151,43 @@ export default function SetupCard() {
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Smartphone className="h-5 w-5 text-blue-400" />
-          Siri Shortcut Setup
+          Phone Setup
         </CardTitle>
         <CardDescription>
-          One tap on an incoming offer screenshots it, sends it here, and speaks back ACCEPT or REJECT.
+          Open Vecto from your phone screen and hear your current offer decision.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
-          <a href={SHORTCUT_ICLOUD_URL} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Add &ldquo;Analyze 2&rdquo; to your iPhone
-          </a>
+          <a href="/co-pilot/analyze"><Smartphone className="mr-2 h-4 w-4" />Open quick analyzer</a>
         </Button>
-        <p className="text-xs text-gray-500">
-          First run asks for: screen capture, Location (While Using), Photos (add-only, saves to the
-          &ldquo;Uber rides&rdquo; album), and network access to vectopilot.com.
-        </p>
+        <div className="space-y-3 text-sm text-gray-600">
+          <p><strong>iPhone:</strong> Open the quick analyzer in Safari, tap Share, then Add to Home Screen. Keep the analyzer page selected when adding it.</p>
+          <p><strong>Android:</strong> Open the quick analyzer in Chrome, open the menu, then Add to Home screen (or Install app if offered).</p>
+          <p>Configure this while parked. Opening the icon is one tap; the browser still asks you to choose an offer screenshot. Your account supplies your rules and the result is spoken.</p>
+          <Button type="button" variant="outline" onClick={() => {
+            const url = `${window.location.origin}/co-pilot/analyze`;
+            const guide = `Vecto phone setup\n\nOpen: ${url}\n\niPhone: Safari > Share > Add to Home Screen.\nAndroid: Chrome > Menu > Add to Home screen.\n\nSign in to the same Vecto account and review your Offer Analyzer rules.\nChoose a current offer screenshot while safely stopped. Allow precise location and listen to the result.\nA result is valid only when personal rules are verified and its timestamp is current.\nThis browser launcher cannot silently capture another app. Native screenshot automation needs separate phone setup.\nNo account token is included in this file.\n`;
+            downloadSetupFile(guide, 'Vecto-iPhone-Android-setup.txt', 'text/plain;charset=utf-8');
+          }}><Download className="mr-2 h-4 w-4" />Download phone setup guide</Button>
+        </div>
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2 text-sm text-gray-700">
+          <p className="font-medium">Android launcher download</p>
+          <p>Already using <a href="https://http-shortcuts.rmy.ch/" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">HTTP Shortcuts</a>? Import this file with its Import / Export menu, then add Vecto Offer to your home screen. Use the normal import option to keep existing shortcuts.</p>
+          <Button type="button" variant="outline" onClick={() => {
+            try {
+              downloadSetupFile(createAndroidLauncher(window.location.origin), 'Vecto-Android-launcher.json', 'application/json');
+            } catch (error) {
+              toast({ title: 'Launcher unavailable', description: error instanceof Error ? error.message : 'Open Vecto using its secure address.', variant: 'destructive' });
+            }
+          }}><Download className="mr-2 h-4 w-4" />Download Android launcher</Button>
+          <p className="text-xs">This opens the quick analyzer in your browser. Sign in there and choose a current screenshot while safely stopped. The file contains no account token. Import and speech still need a check on your phone.</p>
+        </div>
+        <details className="text-sm text-gray-600">
+          <summary className="cursor-pointer font-medium">Existing iPhone screenshot automation</summary>
+          <p className="my-2">The shared legacy shortcut requires the edits below and a real-device check before relying on it. Point its request URL at this deployment: <code className="break-all">{`${window.location.origin}/api/hooks/analyze-offer`}</code>.</p>
+          <a href={SHORTCUT_ICLOUD_URL} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline inline-flex items-center gap-1"><ExternalLink className="h-4 w-4" />Open existing iPhone shortcut</a>
+        </details>
 
         {/* Hands-free triggers — usable while driving */}
         <Collapsible open={triggersOpen} onOpenChange={setTriggersOpen}>
@@ -163,7 +196,7 @@ export default function SetupCard() {
               type="button"
               className="w-full flex items-center justify-between py-2 text-sm font-medium text-gray-700"
             >
-              Hands-free triggers (recommended)
+              Triggers for a configured native iPhone shortcut
               <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${triggersOpen ? 'rotate-180' : ''}`} />
             </button>
           </CollapsibleTrigger>

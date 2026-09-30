@@ -1,6 +1,6 @@
 # Vecto Pilot - Master Roadmap & Backlog
 
-*This document serves as the "Single Pane of Glass" for all pending work across the Vecto Pilot ecosystem. It aggregates and categorizes the 1,200+ pending items from `DOC_DISCREPANCIES.md`, `coach-inbox.md`, `UBER_INTEGRATION_TODO.md`, and inline codebase TODOs.*
+*This document serves as the "Single Pane of Glass" for all pending work across the Vecto Pilot ecosystem. It aggregates and categorizes the 1,200+ pending items from `DOC_DISCREPANCIES.md`, `coach-inbox.md`, and inline codebase TODOs.*
 
 ---
 
@@ -8,19 +8,18 @@
 **Source:** `DOC_DISCREPANCIES.md` (P0/P1), `SECURITY.md`
 These are blocking issues that affect production stability or security.
 
-- **Missing Production Secrets:** `VECTO_AGENT_SECRET` and `TOKEN_ENCRYPTION_KEY` are missing in the Replit production environment, breaking agent auth and Uber OAuth. (D-092, D-093)
+- **Missing Production Secrets:** `VECTO_AGENT_SECRET` is missing in the Replit production environment, breaking agent auth. (D-092; D-093 `TOKEN_ENCRYPTION_KEY` retired with the Uber integration 2026-09-13)
 - [x] **Standard JWT Migration:** Migrated from custom HMAC-SHA256 (`userId.signature`) to standard JWT (HS256, claims sub/iat/exp/iss/aud) via `server/lib/jwt.js` using the `jose` library. Dual-verify dispatch in `server/middleware/auth.js` routes by token segment count for zero-forced-logout transition; legacy HMAC verifier deletion deferred to Phase 1.5 PR (~T+24h post-deploy when matrixLog `[AUTH] [LEGACY_HMAC_USED]` count drops to 0). RS256 (asymmetric, for third-party verifier integrations) staged as Phase 2 PR. Discovered + consolidated a 53-line duplicate HMAC verifier in `server/api/location/location.js` that would have silently broken on JWTs without consolidation (Rule 9). Plan: `docs/review-queue/PLAN_auth003_jwt_migration-2026-05-03.md`. (AUTH-003 — relabeled from ARCH-001; the session-table-split item retained ARCH-001 in DOC_DISCREPANCIES.md to avoid tracker collision)
 - **Payload & Timeout Limits:** Fix the 90s timeout dropping high-impact events and the 413 "Payload Too Large" errors occurring during image uploads. (D-099, D-100)
 - **Concierge Rate Limiting:** Prevent unlimited feedback submissions and secure the Concierge API against abuse. (CM-5)
 - [x] **Split-Brain Governance:** Audited and reconciled `CLAUDE.md` against the `GEMINI.md` mandates 2026-05-03. Reversed the false "109 sub-READMEs deleted" rule (verified 89+ exist), aligned both docs on `claude_memory` as the canonical "unfinished work" surface (replacing retired `pending.md`), corrected GEMINI.md's "both Helium" DB claim. Swept 12 stale `pending.md` citations across canonical docs. Added structural `pending-md-drift` lint to `scripts/check-standards.js` with timestamp-pattern exemption for immutable historical files. Case-collision duplicate files (`DECISIONS.md`/`decisions.md`, etc.) logged as D-104 + claude_memory for next-session resolution. (COMPLETED — feat/workstream1-governance-audit)
 
-## 🚗 Workstream 2: Platform Integrations (Uber API)
-**Source:** `UBER_INTEGRATION_TODO.md`
-The multi-phase plan to connect the driver's real-time Uber data to the AI.
-
-- **Data Sync Service:** Build the backend service to incrementally sync trip history and earnings data from the `GET /partners/payments` and `/trips` endpoints.
-- **Analytics Engine:** Build the data pipeline to calculate hourly rates, daypart trends, and peak earning periods based on actual synced data.
-- **UI Dashboard:** Implement `UberEarningsChart`, `DaypartHeatmap`, and `MarketComparison` components.
+## 🚗 Workstream 2: Platform Integrations — CLOSED 2026-09-13
+Vecto Pilot has no relationship with Uber (or any platform) and is platform-neutral for
+rideshare and delivery drivers. The Uber OAuth integration and `UBER_INTEGRATION_TODO.md`
+were removed at Melody's direction. Earnings analytics, if built, will be driven by the
+offers and outcomes drivers record in the app (`offer_intelligence`, `offer_outcomes`),
+not by any platform API.
 
 ## 🧠 Workstream 3: AI Coach & Pipeline Reliability
 **Source:** `coach-inbox.md`, Codebase TODOs

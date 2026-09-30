@@ -1,255 +1,153 @@
-# OFFER_ANALYZER_ROADMAP.md — The Offer Analyzer, the plan going forward
+# Offer Analyzer — remaining work and decision history
 
-> **What this is:** the single forward-looking document for the Offer Analyzer. What is
-> *built* lives in `OFFER_ANALYZER.md`; what is *next*, *deferred*, or *undecided* lives
-> here. When an item ships, it moves to `OFFER_ANALYZER.md` (+ its change log) and is
-> struck from here — this doc should shrink.
->
-> **Created:** 2026-08-17 (merges the forward-looking sections of the retired
-> `OFFER_ANALYZER_EDITOR_PLAN.md` §7–§9 and `OFFER_RULESET_V3_DESIGN.md` §10 with the open
-> gates recorded in `todo` #43 / #10 and `claude_memory` #354, #365, #371, #372).
-> **Provenance:** Claude-authored synthesis; every Melody statement is quoted and marked;
-> Claude recommendations are marked as such. The `todo` table remains the actionable
-> queue — this doc is the narrative + design record behind those rows.
-> **Companions:** `OFFER_ANALYZER.md`, `SIRI_SHORTCUT_ANALYZE.md`, `ANDROID_SHORTCUT_ANALYZE.md`,
-> `docs/OFFER_ANALYZER_DRIVER_RULESET.md` (Melody's verbatim spec).
+> Reviewed against source on 2026-09-29. This is the forward plan, not a deployment
+> receipt. Current behavior is in [OFFER_ANALYZER.md](OFFER_ANALYZER.md).
+> Prior task/memory IDs below are historical pointers, not a fresh continuity read.
+> Replaced prose is preserved through [the dated removal record](removals/2026-09-29-offer-analyzer-doc-reconciliation.md).
 
----
+## 0 · Current scope
 
-## 0 · Where we are (2026-08-17)
+Melody’s current direction is to fix the Analyzer’s root causes and reconcile its source
+and documentation before deciding the next MAIN integration. Minimize unnecessary setup
+controls: the user’s selected services should determine relevant offer-rule controls,
+and keeping saved preferences must remain a valid path.
 
-Melody's phase statement (2026-08-11, verbatim intent, memory #366): *"solidify everything
-we do have, make it look really good, get it out there, get it selling."* Priorities in
-order: security (done), a good/safe Coach, **a working Offer Analyzer**. New features
-queue behind that.
+Current source contains the rules editor, multiple ingestion transports, Phase-1 speech,
+Phase-2 enrichment, owner-scoped history, revisioned driver outcomes, longitudinal Coach
+patterns and browser quick capture. Repository presence does not establish deployment,
+phone usability or live-data completion.
 
-Offer Analyzer status against that bar:
+The earlier 2026-08-11 priority statement remains relevant: “solidify everything we do
+have, make it look really good, get it out there, get it selling.” The stated order was
+security, a good/safe Coach and a working Analyzer before new features.
 
-| Area | State |
-|---|---|
-| Server pipeline (v3 engine, per-driver rules, token bridge, fast lane, downscale, Phase-2 dataset) | **Built, published** (`97cd2d3b` includes the <3s sprint `cd8329da`) |
-| Latency target "<3 seconds" (Melody, 2026-08-14) | **Met with margin on the real endpoint (2026-08-17, `gemini-3.5-flash-lite`)**: text REJECT 1 ms; text ACCEPT 577–700 ms; vision 630–860 ms (was ~1.9 s / ~1.8 s on 3.5-flash). **On-device p95 with real screenshots not yet confirmed** |
-| Accuracy | Melody validated live 2026-08-14: *"ours is perfect"* vs Apple device vision on her real offers (todo #43) |
-| iPhone shortcuts | Canonical two-shortcut spec written (`SIRI_SHORTCUT_ANALYZE.md`); Melody's live shortcut was the older 9-action "Analyze 2" (text-only, no image field). **New shortcuts not yet built/shared** |
-| Android | Plan only (`ANDROID_SHORTCUT_ANALYZE.md`); nothing tested on a device |
-| Web page | Built (July). SetupCard content is the July build (old iCloud link, `lattitude` fix, Location permission) — **drifted** from the 2026-08-14 spec |
-| Rules editor UX | Typed forms + ladders. Melody direction (2026-08-14): **sliders-only** — not started |
+## 1 · Acceptance gates
 
----
+**G1 — Real-device verification.** Check actual current offer cards on each supported
+phone path: product/service classification, pickup and trip legs, selected rate basis,
+saved-rule provenance, matching speech, stale-response rejection, non-offer/manual-decision
+handling and visible history. Measure complete tap-to-speech, not just server response
+time. August synthetic endpoint timings are historical, not current phone acceptance.
 
-## 0b · 2026-08-26 intake (Melody's handoff pack → verified / fixed / logged)
+**G2 — iPhone automation.** The current SetupCard includes a browser quick analyzer and a
+separately labeled legacy iCloud shortcut. The previously agreed text/vision shortcut
+spec remains a build contract, not proof that updated shared shortcuts have been
+installed or certified. Melody and Claude retain external shortcut ownership unless
+Melody changes that scope. Use the deployment’s own URL/token and current guide.
 
-`docs/review-queue/PLAN_intake-2026-08-26-offer-analyzer-handoffs.md` is the record. Shipped
-as v3.2: the **implausible-parse tripwire** (live 2026-08-24 `$750` wrong-ACCEPT class is
-closed on every lane), the **delivery lane** (vision by default, deterministic on text),
-the **`shortcut_system`** client signature, the Delivery editor card and Offers-row
-chips/badges. Android text lane is **field-verified live** (G3 text: passed on Melody's
-Samsung); the raw image-body mode is **published**. ⚖️ Decisions left for Melody are listed
-in that document §2.5 (sanity ceilings, delivery floors, sanity editor, decimal-repair
-opt-in, `shortcut_system` as a column).
+**G3 — Android capture.** The downloadable HTTP Shortcuts file is a token-free browser
+launcher. Import, screenshot selection, precise GPS and speech need device verification.
+The August MacroDroid text workflow was field-tested on Melody’s Samsung; that historical
+receipt does not certify today’s launcher or a different macro. Preserve its tested
+variable-assignment/JSON/HTTP order when rebuilding automation.
 
-## 1 · Immediate gates (blocking "a working Offer Analyzer")
+**G4 — Rollout.** Verify the actual branch, migrations, provider settings and environment
+before release. Selected-services/admission code depends on the existing uncommitted
+`migrations/20260929_main_run_admissions.sql`; this task did not apply it or certify
+the target schema. No document can establish current deployment or authorize publication.
 
-**G1 — Device re-test (Melody) — now also the acceptance gate for the model switch.**
-The 2026-08-17 bench (see `OFFER_ANALYZER.md` §16) moved Phase 1 to `gemini-3.5-flash-lite`
-on **synthetic** cards; real Uber screenshots (small fonts, dense UI, map noise) are the
-remaining unknown. Verify on the iPhone against prod once published: (a) verdicts match
-your rules on real cards (both lanes); (b) latency per lane; (c) `voice` speaks and
-`notification` shows; (d) a non-offer screenshot says "No data. Decide manually."
-Protocol: log the response's `response_time_ms` next to the felt tap-to-speech time —
-the delta is phone overhead (OCR, radio wake, TTS), invisible to the server bench (cowork,
-2026-08-17). Token gotcha: a token minted on the dev page does not resolve on prod (dev ≠
-prod DB) → default rules + unstored rows, silently; use the token from the deployment the
-shortcut points at. Revert = set `OFFER_ANALYZER_MODEL=gemini-3.5-flash` (env) or the registry default. Note:
-the prod Replit Secret `OFFER_ANALYZER_MODEL`, if set, overrides the registry — align or
-remove it at publish. *(memory #372 open (a); todo #43)*
+## 2 · Remaining engineering/design items
 
-**G2 — Build + share the two canonical iPhone shortcuts (Melody), then refresh SetupCard (Claude).**
-Follow `SIRI_SHORTCUT_ANALYZE.md` exactly (token in Headers, `source` = `siri_text` /
-`siri_vision`, image as a **File** field, no location action). Share the iCloud links →
-`SetupCard.tsx` gets both links, drops the "lattitude" edit and the Location-permission
-line, and adds an Android tab. **UI edit deferred by Melody's direction this session
-("we don't need to edit the UI code just yet").** *(old plan §7 Phase 6 "Setup cards content")*
+### L1 — Deterministic ACCEPT coverage
 
-**G3 — Android interim build + device test (Melody + Claude).** **Text lane PASSED
-2026-08-17/18 on Melody's Samsung Ultra (MacroDroid)**; vision-lane macro build + the
-scrubbed distributable's import certification are Melody's next phone steps (todo rows).
-Per `ANDROID_SHORTCUT_ANALYZE.md` (Part 4 rewritten 2026-08-26 from the field-verified build): HTTP Shortcuts (free, true multipart, built-in TTS)
-as the default via the screenshot share sheet; Tasker for one-tap fully hands-free
-(paid, ADB grant); MacroDroid text lane **or** vision via raw file body. Same endpoint,
-header, and fields as iPhone. Server follow-ups from the research: **raw `image/*` body mode
-— DONE 2026-08-17** (Cowork-authored patch applied + hardened; `OFFER_ANALYZER.md` §4.1,
-Android guide Part 4b); still optional: publish a hosted HTTP Shortcuts import zip
-(`https://http-shortcuts.rmy.ch/import?url=…`) for one-tap setup. *(todo #43 Android plan)*
+Do not accept a ride merely because numeric gates pass while enabled judgment rules
+were never evaluated. More deterministic coverage requires reliable evidence for every
+applicable rule; skipping those checks is not an approved latency shortcut (D6).
 
-**G4 — Commit/publish discipline.** All analyzer work is on `main` as of `97cd2d3b`;
-branch `todo10-offer-rules-editor` is merged. Publish is Melody's word.
+### L2 — Rules editor and preference scope
 
----
+Sliders derive the v3 economic rules; users need not edit raw ladders. Current selected
+services filter relevant cards without deleting hidden saved settings. Preserve a clear
+legacy-null/unverified state instead of inferring chosen work from eligibility.
+The corrected Continue boundary accepts legacy null unchanged when existing saved rules
+and otherwise complete setup are valid. Explicit empty/invalid/ineligible selections
+still fail. Admission now verifies the raw saved hash separately from migration,
+so valid older rules are not forced into a save merely because migration adds fields.
+This does not backfill choices or claim Melody’s exact runtime error was
+reproduced.
 
-## 2 · Next engineering levers (designed, not built)
+Historical Phase-B wishes remain unimplemented unless separately verified in source:
+drought fallback, stated “budge” flexibility, an opt-in acceptance-rate decline budget
+and a filter-trip/off-path allowance. Vehicle-cost budgeting was parked. These are
+requirements to discuss, not knobs to expose before a consumer exists.
 
-### L1 — Deterministic ACCEPT lane (latency tail) — now optional polish
-*Claude design (memory #372), pending joint sign-off. After the 2026-08-17 model switch the
-model ACCEPT lane runs ~0.6–0.9 s on the real endpoint, so this is no longer needed for
-the <3 s target; it remains the path to a fully deterministic text lane.* Today engine ACCEPTs go to the model
-because the model owns the judgment rules (avoid zones, safety road types, stops/round
-trip, `require_verified`, rating). To answer ACCEPTs deterministically the text lane needs:
-address regexes for pickup/dropoff → **synchronous** geocode (place_id, 6-dec) →
-`evaluateGeoRules` (geometry beats name-vibes — aligns with the place_id doctrine); a
-rating regex and a "Verified" regex in `parseOfferText`; explicit handling for
-`safety_road_types` / multiple stops / round trip (text usually can't see these → either
-treat as "not evaluable → still model" or accept the residual risk by driver switch).
-Gate must stay parity-safe: an ACCEPT may only be spoken deterministically when **every**
-enabled judgment rule is evaluable from text.
+### L3 — Phone setup content and certification
 
-### L2 — Rules editor: sliders-only — **SHIPPED 2026-08-17 (D4)**
-Rate Targets is now four sliders per tier (floor $/mi · $/min · max trip minutes · max
-total miles) + a "$/hr in results" switch (telemetry). The accept ladder is derived as one
-rung; per-tier `max_total_miles` added to the engine; the vision path re-runs the numeric
-rules on the model's extracted numbers (arbitration). Still open from the Phase-B doctrine
-below: drought-fallback slider, budge sliders, AR punchcard, filter-trip rule.
+Keep browser launcher instructions separate from native capture automation. Update
+shared external shortcuts only within their ownership and verify the complete device
+path. Do not call a browser opener an automatic screenshot shortcut.
 
-#### Original Phase-B doctrine (memory #365, todo #43 (2))
-Melody (2026-08-14): *"we only need the sliders for the input."* Doctrine captured
-2026-08-11 for Phase B:
-- **hourly rate is computed telemetry, not a control** (goal band $30–45/hr shown, never a decider — the Siri-vs-ours A/B locked this: identical vision, opposite verdicts, hourly extrapolation was the wrong criterion);
-- **sliders only, no visible ladders**; minutes slider = trip-duration cap;
-- **drought-fallback slider**: no offer in N minutes → relax floors toward the goal band, fewest miles;
-- **budge sliders**: the vision model may spend a stated flex with a stated reason;
-- **AR punchcard opt-in**: rolling 3-of-10 decline budget (acceptance-rate protection as a budget, not a floor);
-- **filter-trip rule**: ≤3 mi off-path is OK even when cheap (the On-the-way filter case);
-- vehicle-cost budgeting **parked**.
-Server implication (Claude): sliders must *derive* the v3 ladder (or a v4 schema) so the
-engine stays one source; either keep `DEFAULT_RULESET` byte-pinned or re-baseline the
-parity test consciously in the same change. UI work is deferred (see G2 note).
+### L4 — No-data behavior
 
-### L3 — SetupCard content refresh
-Two shortcut links; permissions text without Location; remove the `lattitude` and
-"add image field" one-time edits (obsolete once the canonical shortcuts exist); Android
-tab pointing at `ANDROID_SHORTCUT_ANALYZE.md` steps. Depends on G2 links.
+Existing non-offer/manual-decision handling needs regression coverage as parser and
+reconciliation logic changes. Implausible extraction and a missing offer are different
+evidence states, even when neither can produce a reliable acceptance.
 
-### L4 — Non-offer screenshot voice line + REJECT-by-default — **DONE 2026-08-17**
-The honest-floor guard in `analyze-offer.js` routes a parsed reply with no `decision`, or
-with all-zero metrics, to the deterministic engine (→ NO DATA on vision). Verified live:
-non-offer screenshot → "No data. Decide manually." Also shipped: `parse-model-json.js`
-repair tier (3.5-flash's missing-closing-brace replies no longer fall back).
+### L5 — Coordinate-less storage
 
-### L5 — Storage of coordinate-less offers — **built 2026-08-17 (option d)**
-The canonical shortcuts send no GPS. Melody's direction (2026-08-17, after the 07:30 CT
-field-test offer was refused for "tokened but no session snapshot"): *resolve the timezone
-from the offer's address — the first address on the screen*, and *get details like we do for
-venues* when the address is only partial. Shipped: Phase 2 resolves the card addresses to
-trusted points — geocode class **plus physical corroboration** (anchor plausibility when the
-driver's GPS or a ≤12-h snapshot is known, else the venue Places adapter around that anchor;
-with no anchor the pickup and dropoff must corroborate each other) — and takes the timezone
-from the pickup: ladder GPS → pickup point → snapshot → don't store (`OFFER_ANALYZER.md`
-§10.4/§10.6; two adversarial review passes folded in). Consequences: a tokened driver no
-longer needs a *fresh* app session; an untokened / no-session request is stored when its two
-card addresses corroborate each other; nothing is stored on a guessed geocode. Remaining gap
-(accepted): pickup unreadable/placeholder, or a city-less pickup with no anchor and no
-corroborating dropoff → not stored. Options (a)–(c) below are superseded; kept for history:
-(a) accept + document; (b) require the token — **still open as a cost/policy choice** (an
-untokened GPS-less request now spends up to 3 Google calls); (c) send coordinates again
-(rejected 2026-08-14 for latency).
+Direct automation may omit GPS by the August joint decision. Storage still requires a
+real timezone from request GPS, trusted pickup coordinates or suitable owner snapshot
+context. Unresolvable cases are not stored. The browser’s precise-GPS requirement is a
+separate entry contract, not a retroactive requirement for all existing shortcuts.
 
 ### L6 — Declared-but-unconsumed ruleset keys
-`home` (`{deadhead_only, mention_threshold_min}`) and `geo` scope overrides
-(`home_city/other_city/airport`) exist in `DEFAULT_RULESET`, pass Zod, and are migrated —
-but no evaluator/prompt consumes `home`, and no caller passes a `context.scope` to
-`resolveScopedRuleset`. No card edits them today (good — "the UI must never edit a knob
-nothing consumes"). Decide: wire (home = deadhead estimation per spec Home Logic; scope =
-per-area overrides) or remove from the schema in a versioned migration.
 
-### L7 — Spec output format not implemented as spec'd
-Melody's spec asks for a 4-line output (decision + totals, $/min, a **Status** line
-[Meets Primary Tier / Acceptable via ARP / Fails Baseline / Safety Override], a natural
-reason) plus a required-notifications list and an **Analysis Source** line. The wire
-contract today is `decision` + terse `reason` + `notices` (`voice`/`notification`).
-Additive option: `status`, `per_minute`, `analysis_source` keys on the response, and a
-longer optional `voice_long`. Decision: Melody (does the 3-second window want more speech?).
+`home` and `geo` scope keys remain inert, with no UI controls, by D2. Do not activate,
+remove or expose them while fixing unrelated arithmetic or selected-service behavior.
+Home-return estimation and per-area override semantics need an explicit future decision.
 
-### L8 — Engine / adapter / hygiene polish (verified 2026-08-17, none blocking)
-- ~~503 retry floating alias~~ **DONE 2026-08-17** — pinned (`gemini-3.1-pro-preview` /
-  `gemini-3.5-flash`).
-- ~~Temperature 0.1 not honored~~ **DONE 2026-08-17** — `min(configured, 0.2)` on JSON prompts.
-- `features:['vision']` is documentary only (no adapter reads it) — now labeled as such in
-  the registry; make it enforced only if a non-vision env override ever bites.
-- `min_floor` reason kind (`"… min"`) has no spoken qualifier in `buildVoiceLine`.
-- `deadhead_reduction` notice is undetectable on the text lane (map visual) — expected.
-- ~~`tests/integration/test-ocr-hook.js` stale~~ **DONE 2026-08-17** — replaced by
-  `scripts/offer-analyzer-smoke.mjs` (text + vision against any BASE/TOKEN).
-- Stale comments (comment-hygiene, todo #36 — ride along with the next code touch):
-  `model-registry.js:336-349` still narrates HIGH thinking + old `analyze-offer.js` line
-  anchors; `gemini-adapter.js:71` thinking-level list omits `minimal`;
-  `getRolesByTable()` has no OFFER group; `tests/offers/rules-engine-parity.test.js:7,144`
-  cite pre-extraction line numbers.
-- Drizzle-vs-DB: `offer_outcomes.driver_decision` CHECK and `idx_dp_shortcut_token` live
-  only in the SQL migration (fine while migrations are the source of truth; declare in
-  `shared/schema.js` if drizzle-kit push is ever revived — todo #364 context).
-- Client inventory (no UI edits this pass): `ENABLE_SEEDS.auto_reject/notices` exported but
-  unused; `OffersCard` declares `total_minutes/platform/driver_reasoning` it never renders
-  and omits `analyzer_rejected/disagreements` the server returns; SetupCard link id
-  (`cce34c…`) ≠ the 2026-08-14 decoded shortcut (`6d89f1…`); "Location (While Using)"
-  and "Hey Siri, Analyze 2" wording predate the canonical spec.
+### L7 — Original spec output differences
 
-### L8b — Race / duplicate hardening — **DONE 2026-08-17** (Melody: "take the lead — we need this app really sharp")
-Six-reader adversarial review of the shortcut + Offer Analyzer surfaces (32 raw findings)
-→ five confirmed concerns, all fixed the same day and live-verified on a disposable boot
-(OFFER_ANALYZER.md §4.1 idempotency, §10.5 locked transaction, §12 PUT versioning, §13/§14
-handshake + LISTEN client). What is **left open** from that review, by design (todo #56):
-- Phase-1/2 timeouts abandon the model call instead of cancelling it (`callModel` has no
-  AbortSignal on the non-stream path; still billed; a 503 retry can start after we gave up).
-- `POST /offers/:id/outcome` is a full-column upsert from the last-fetched row — a second
-  tab can revert earnings (needs partial-update semantics client + server).
-- Duplicates on different Cloud Run instances are caught only at storage (the in-memory
-  gate is per instance): both instances still pay Phase 1 + Phase 2 model calls.
-- Design choice recorded: an identical request from the same driver inside 60 s (105 s at
-  storage) is treated as ONE offer — if Uber ever re-offers a byte-identical card that fast,
-  it is stored once.
+The verbatim spec requests a four-line report, Status and Analysis Source lines, return
+context and specific exceptions. The current wire contract is concise speech plus
+notification/provenance. D3 retained the terse contract. More speech or additional
+behavior requires a deliberate product choice, not an assumption that the old spec has
+already been implemented.
 
-### L9 — Phase-2 verdict never reaches the driver
-Long-standing (since 2026-02). The deep model's dissent is stored, and the web page shows
-the row, but nothing pushes back to the phone. Realistic path: the native shell (§3) or
-a Shortcut that polls `/api/hooks/offer-history` after N seconds. Low priority while the
-Phase-1 verdict is validated as correct.
+### L8 — Reliability and evidence
 
-### L10 — Learning loop items (from the retired plan §8)
-- **DONE 2026-08-17:** the Coach now reads per-user offer patterns (time of day / weekday
-  / pickup area / product / month, with outcomes) — `getOfferPatterns` + `offer-patterns.js`.
-- User-override / outcome disagreement → candidate rule tuning (still nothing tunes rules
-  automatically).
-- OfferMap (decision-colored pins, outcome overlay) — deferred until geocoded Phase-2
-  rows accumulate under real tokens; the `pickup_lat/lng`, `dropoff_lat/lng`, `h3_index`
-  columns are the substrate.
-- Strategy/venue scoring does not consume `offer_intelligence` (out of scope for the
-  analyzer; belongs to the strategy pipeline).
-- Coach: dormant offer-tag executors in `chat.js` — delete or keep (todo #38).
+Maintain regression coverage for multimodal arithmetic, partial OCR/model evidence,
+active-time denominators, total-mile ARP, unknown products, explicit disabled services,
+legacy unverified selections, personal-rule failures and original decision preservation. Existing stored rows are not retroactively
+validated by these fixes: a missing `phase1_contract_version` marker means legacy
+calculation provenance is unverified, not automatically wrong. Do not blindly rewrite
+history or rely on current-rule hashes to reconstruct old code/config.
+Cancellation can end the client’s wait/request; it cannot prove provider work or billing
+stopped. Cross-instance duplicate calls can still spend twice before the storage guard.
 
-### L11 — Phase-2 durability (no worker, no queue)
-Melody's mental model (2026-08-17): quick JSON to the phone, then "a worker cleans it up
-and lands it in the large table." Reality: it is the **same request continuing in-process**
-— `res.json()` at `analyze-offer.js:497`, then a fire-and-forget async block (`:522`) runs
-the deep model, INSERTs `offer_intelligence`, `pg_notify`s, geocodes. There is no retry:
-if the instance dies (or Cloud Run throttles CPU after the response — memory #28 pattern)
-mid-Phase-2, that row is lost. Prod is completing today (Melody: tokened offers show
-correctly on the page). The durable version is her picture — a queued job (e.g. the
-background worker or a `pg` job table) that owns Phase 2 and can retry. Not urgent while
-the in-process path is observed working; revisit if rows go missing or under autoscale.
+### L9 — Later analysis is evidence, not replacement speech
 
----
+Phase-2 disagreement is stored for explanation and learning. A future phone update
+channel must not silently rewrite the original advice or confuse a delayed result with a
+still-current offer. No such automatic replacement verdict is promised today.
 
-## 3 · Endgame — native shell (todo #37)
+### L10 — Coach and MAIN boundaries
 
-Android allows what iOS forbids: a share-target intent for screenshots, MediaProjection
-capture, a foreground service — so the analyzer becomes one tap or fully automatic with no
-third-party app. iOS: App Intents / a native shortcut donor, and background voice for the
-Coach. Until then the third-party automation tools in `ANDROID_SHORTCUT_ANALYZE.md` are the
-Android path and Apple Shortcuts the iPhone path.
+Coach reads the owner’s recent full offer records and longitudinal patterns. Current
+rules are supplied as structured owner data rather than cached architecture prose.
+Rules/outcomes do not tune settings automatically.
 
----
+MAIN admissions retain a configuration receipt for stale-settings fencing. Current
+Strategist and VenuePlanner prompt projection is profile/vehicle only; Analyzer rule
+injection is withheld pending the next integration decision. Offer history is not part
+of that receipt. A future geographic subset needs mode-aware interpretation: a
+`heads_toward` trip condition does not ban the anchor venue.
 
-## 4 · Decisions — answered by Melody 2026-08-17
+### L11 — Phase-2 durability
+
+Enrichment is in-process after the response, with no durable queue/restart recovery.
+A process exit, post-response CPU suspension or failure can lose the eventual row.
+Timeout cancellation and transient transaction retries do not solve this lifecycle.
+Melody’s earlier “worker cleans it up and lands it in the large table” intent is retained;
+implementing durable work ownership/retry requires a separate concrete design.
+
+## 3 · Native shell (historical todo #37)
+
+Native screenshot/share integration and background voice remain a future direction.
+The browser launcher cannot silently capture another app. Platform-specific capability
+and permission claims need current platform verification when that work is authorized.
+
+## 4 · Decisions — answered by Melody 2026-08-17 (historical record)
 
 Melody (verbatim): *"D1 through D7 I agree with the default with a wish for D4. I'd really just
 like the sliders they are nice and preset model sliders so end users don't type in bad data."*
@@ -267,25 +165,24 @@ wish, not a maybe** (preset slider ranges so drivers never type bad data — L2)
 | D6 | Whether the fast ACCEPT lane (L1) may skip non-text-evaluable judgment rules by driver switch | no — model lane keeps ACCEPTs until evaluable |
 | D7 | The Coach splices the **entire** `OFFER_ANALYZER.md` (~56 KB) + `model-registry.js` (~37 KB) into every Coach system prompt (`chat.js:33-59, 1282-1312`) — ~23k tokens/turn of read-only rules. Splice only the rules sections (§3–§9) or a generated digest? | keep as-is (Coach cost-is-the-feature, todo #33) but decide consciously |
 
----
 
-## 4b · Things on Melody's end (she asked to be told — "fix me first")
+**2026-09-29 correction:** D1 records the decision at that time; L5 describes current
+source limits. D4 remains the product preference for bounded sliders. D5 records an
+August tool choice, not current device certification. D7’s full-doc/registry splice was
+previously authorized; Melody’s current source-based correction supersedes it with
+actual current-owner config and selected services. The reason is accurate provenance
+and avoiding stale prose as runtime rules, not an invented ban on Coach context cost.
+D2 remains unchanged: leave `home` and scope overrides inert with no UI.
 
-| # | Item | Why it matters |
-|---|---|---|
-| M1 | Prod Replit Secret `OFFER_ANALYZER_MODEL` — set to `gemini-3.5-flash-lite` or remove it | An env pin overrides the registry default; otherwise prod stays on 3.5-flash |
-| M2 | Rebuild the iPhone shortcuts per `SIRI_SHORTCUT_ANALYZE.md` under their real names (**Analyze Offer Text** / **Analyze Offer Vision**), with `source` = `siri_text` / `siri_vision` and the token in Headers; then share the two iCloud links | The live shortcut was still the test-named "Analyze 2" (text-only, `lattitude` in body); the SetupCard refresh (L3) needs the links |
-| M3 | Open the Rate Targets card once and set the four sliders per tier (first slider touch collapses the legacy 5-rung ladder to one rule) | Your saved config still carries the July ladder + floor $1.35 |
-| M4 | Field-test with real Uber screenshots (both lanes) — the model switch was benchmarked on synthetic cards | Acceptance gate G1; revert = `OFFER_ANALYZER_MODEL=gemini-3.5-flash` |
-| M5 | Android device test per `ANDROID_SHORTCUT_ANALYZE.md` (HTTP Shortcuts) | G3 |
+## 5 · Evidence and continuity pointers
 
-## 5 · Cross-references
-
-- `todo` #43 (shortcuts + <3s + sliders), #10 (in_progress: editor; docs item now done),
-  #37 (native shell), #38 (dormant executors), #19 (test debt).
-- `claude_memory` #354 (v3 build), #365 (Phase A scoping + Phase B sliders doctrine),
-  #371 (shortcut decode + alias layer), #372 (<3s sprint), #366 (phase/priorities).
-- `docs/architecture/removals/2026-08-14-offer-analyzer-thinking-stepdown.md`,
-  `…/2026-08-14-lattitude-alias-generalized.md`, `…/2026-08-11-per-user-scoping.md`.
-- `lessons_learned` #9 (honest `ai_model` telemetry), #11 (TRUNCATE vs FK), #18
-  (truncation invisible at adapter boundary), #23 (prod migrations), #25 (unscoped reads).
+- [Melody’s verbatim ruleset](../OFFER_ANALYZER_DRIVER_RULESET.md).
+- [August incident/intake](../review-queue/PLAN_intake-2026-08-26-offer-analyzer-handoffs.md).
+- [September outcome workflow](../coordination/2026-09-10-offer-workflow-handoff.md)
+  and [frontend handoff](../coordination/2026-09-11-offer-faa-frontend-handoff.md).
+- [Mobile source review](MOBILE_CONCIERGE_2026-09-11.md).
+- Historical continuity references: todo #10/#43 (editor/shortcuts), #37 (native shell),
+  #56 (race review); memories #354/#365/#366/#371/#372. Consult live records before
+  describing their present status.
+- [August doc consolidation](removals/2026-08-17-offer-analyzer-doc-consolidation.md)
+  and [this source reconciliation](removals/2026-09-29-offer-analyzer-doc-reconciliation.md).

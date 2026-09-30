@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Event sync retirement verified:** 2026-09-29. Other maintenance descriptions below retain historical scope; inspect each source before use.
 
 # Scripts (`server/scripts/`)
 
@@ -10,7 +10,7 @@ Server-side utility scripts for maintenance, operations, and event discovery.
 
 | Script | Purpose |
 |--------|---------|
-| `sync-events.mjs` | **Event Discovery** - Multi-model AI event search |
+| `sync-events.mjs` | Retired compatibility entry; explicitly fails without DB/provider work |
 | `seed-markets.js` | **Global Markets** - Seed 140 markets with timezones (69 US + 71 international) |
 | `seed-market-cities.js` | Seed market cities table with US city-market mappings |
 | `seed-uber-airports.js` | **Uber Airports** - Sync 71 US airports with market data |
@@ -27,66 +27,18 @@ Server-side utility scripts for maintenance, operations, and event discovery.
 | `workspace-startup.sh` | Workspace initialization script |
 | `migrate-venues-to-catalog.ARCHIVED.js` | (Archived) Venue migration script |
 
-## Event Discovery (`sync-events.mjs`)
+## Retired event sync entry
 
-Multi-model AI event discovery system. Searches for local events using up to 6 AI models and stores results in `discovered_events` table with deduplication.
+`sync-events.mjs` and `../jobs/event-sync-job.js` are retired. No current runtime
+caller was found; the gateway removed daily event sync in February. Their former
+UTC cleanup, rounded coordinates, direct provider configuration and independent
+write path must not be used as an alternative to current discovery.
 
-### Two Modes
-
-| Mode | Models Used | Use Case |
-|------|-------------|----------|
-| **Normal** | SerpAPI + GPT-5.2 | Fast, during snapshot runs |
-| **Daily** | All 6 models | Comprehensive, on-demand |
-
-### Models (Daily Mode)
-1. **SerpAPI** - Google Events engine (fastest: ~81 events/sec)
-2. **GPT-5.2** - OpenAI Responses API with web_search
-3. **Gemini 3 Pro** - Google Search grounding
-4. **Gemini 2.5 Pro** - Google Search grounding
-5. **Claude Sonnet** - Anthropic web_search_20250305
-6. **Perplexity Reasoning Pro** - Deep web search
-
-### Programmatic Usage
-
-```javascript
-import { syncEventsForLocation } from '../scripts/sync-events.mjs';
-
-// Normal mode (SerpAPI + GPT-5.2 only)
-const result = await syncEventsForLocation(
-  { city: 'Dallas', state: 'TX', lat: 32.7767, lng: -96.7970 },
-  false  // isDaily=false
-);
-
-// Daily mode (all 6 models)
-const result = await syncEventsForLocation(
-  { city: 'Dallas', state: 'TX', lat: 32.7767, lng: -96.7970 },
-  true   // isDaily=true
-);
-
-// Result: { events: [...], inserted: 12, skipped: 33 }
-```
-
-### Exports
-- `syncEventsForLocation(location, isDaily)` - Main entry point
-- `searchWithSerpAPI(city, state)` - SerpAPI search
-- `searchWithGPT52(city, state, lat, lng)` - GPT-5.2 search
-- `searchWithGemini3Pro(city, state, lat, lng)` - Gemini 3 Pro search
-- `searchWithGemini25Pro(city, state, lat, lng)` - Gemini 2.5 Pro search
-- `searchWithClaude(city, state, lat, lng)` - Claude search
-- `searchWithPerplexityReasoning(city, state, lat, lng)` - Perplexity search
-- `generateEventHash(event)` - Deduplication hash
-- `storeEvents(db, events)` - Store events in DB
-
-### Environment Variables
-```bash
-SERP_API_KEY=...        # or SERPAPI_API_KEY
-OPENAI_API_KEY=...      # GPT-5.2
-GEMINI_API_KEY=...      # Gemini models
-ANTHROPIC_API_KEY=...   # Claude
-PERPLEXITY_API_KEY=...  # Perplexity
-```
-
-See [Event Discovery Architecture](../../docs/architecture/event-discovery.md) for full documentation.
+Saved import/CLI entry points fail explicitly. Use the admitted
+[MAIN Briefing pipeline](../../docs/architecture/ai-pipeline.md). The full
+[retirement receipt](../../docs/architecture/removals/2026-09-29-independent-pipelines.md)
+records the source base, caller trace and recovery path. Airport seed scripts,
+market/country data and migration history are retained.
 
 ## Usage
 

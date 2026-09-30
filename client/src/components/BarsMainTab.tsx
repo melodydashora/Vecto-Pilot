@@ -7,14 +7,12 @@
 // Use case: Driver helping passengers find open venues, especially on holidays
 // Key features: Phone numbers, special hours, expense sorting, real-time open status
 
-import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Navigation, MapPin, Phone, Wine, Loader, AlertCircle } from "lucide-react";
 import { openNavigation } from "@/utils/co-pilot-helpers";
-import { API_ROUTES } from '@/constants/apiRoutes';
 // 2026-03-18: Import canonical types from useBarsQuery (single source of truth)
-import type { Venue, BarsData } from '@/hooks/useBarsQuery';
+import { useBarsQuery, type Venue } from '@/hooks/useBarsQuery';
 
 interface BarTabProps {
   latitude: number | null;
@@ -28,7 +26,6 @@ interface BarTabProps {
 
 // 2026-03-18: Venue and VenueData types imported from useBarsQuery (canonical source)
 // Alias for backwards-compatible local references
-type VenueData = BarsData;
 
 // Get category color based on venue type
 function getCategoryColor(type: string): string {
@@ -53,12 +50,13 @@ function getVenueTypeDisplay(type: string): string {
 }
 
 // Get expense tier display
-function getExpenseTier(level: string): { display: string; color: string } {
+function getExpenseTier(level: string | null): { display: string; color: string } {
   switch (level) {
     case '$$$$': return { display: '$$$$', color: 'text-amber-600 font-bold' };
     case '$$$': return { display: '$$$', color: 'text-amber-700 font-semibold' };
     case '$$': return { display: '$$', color: 'text-gray-700' };
-    default: return { display: '$', color: 'text-gray-500' };
+    case '$': return { display: '$', color: 'text-gray-500' };
+    default: return { display: 'Price unknown', color: 'text-gray-500' };
   }
 }
 
@@ -90,54 +88,8 @@ export default function BarTab({
   getAuthHeader
 }: BarTabProps) {
 
-  // Independent query - only needs location, no strategy dependency
-  // 2026-01-09: P3-C - NO FALLBACKS - match useBarsQuery.ts rules
-  const { data: venueData, isLoading, error, refetch } = useQuery<VenueData>({
-    queryKey: ['bar-tab', latitude, longitude, city, state, timezone],
-    queryFn: async () => {
-      // 2026-01-09: NO FALLBACKS - fail explicitly if required data missing
-      // 2026-03-18: Downgraded from throw to console.warn + return null.
-      // React Query's refetch() bypasses `enabled`, so queryFn must be defensive.
-      if (latitude == null || longitude == null) {
-        console.warn('[BarTab] Query called without coordinates — skipping');
-        return null as unknown as VenueData;
-      }
-      if (!timezone) {
-        console.warn('[BarTab] Query called without timezone — skipping');
-        return null as unknown as VenueData;
-      }
-      if (!city) {
-        console.warn('[BarTab] Query called without city — skipping');
-        return null as unknown as VenueData;
-      }
-
-      const params = new URLSearchParams({
-        lat: latitude.toString(),
-        lng: longitude.toString(),
-        city: city,  // No fallback - required
-        state: state || '',  // State is optional (some countries don't have states)
-        radius: '25',  // 25 mile radius for upscale bars
-        timezone: timezone  // No fallback - required for accurate venue hours
-      });
-
-      const response = await fetch(API_ROUTES.VENUES.NEARBY_WITH_PARAMS(params), {
-        headers: getAuthHeader()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch venues');
-      }
-
-      const result = await response.json();
-      return result.data;
-    },
-    // 2026-01-09: Explicitly require city and timezone (not just isLocationResolved)
-    enabled: latitude != null && longitude != null && !!city && !!timezone && isLocationResolved,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    // 2026-03-18: Align with useBarsQuery.ts cache options for consistent React Query behavior
-    gcTime: 10 * 60 * 1000, // 10 minutes — match useBarsQuery
-    refetchOnWindowFocus: false, // Venues don't change that fast
-    refetchInterval: false,
+  const { barsData: venueData, isBarsLoading: isLoading, barsError: error, refetchBars: refetch } = useBarsQuery({
+    latitude, longitude, city, state, timezone, isLocationResolved, getAuthHeader,
   });
 
   // Loading state
@@ -195,18 +147,9 @@ export default function BarTab({
     );
   }
 
-  // Filter out venues without business hours - they're not useful to drivers
-  // 2026-01-09: Using camelCase hoursToday field
-  // 2026-02-26: Allow Haiku-verified venues through even without hours
-  const venuesWithHours = venueData.venues.filter(v => {
-    // Haiku-verified venues pass through even without hours (they're real bars)
-    if (v.hoursUnknown && v.venueQualityTier) return true;
-    // Must have hoursToday to be displayed
-    if (!v.hoursToday || v.hoursToday.trim().length === 0) return false;
-    // Filter out "Hours not available" or similar
-    if (v.hoursToday.toLowerCase().includes('not available')) return false;
-    return true;
-  });
+  // A current provider open/closed observation remains useful even when the
+  // optional localized hours string is absent. Model classification is not hours.
+  const venuesWithHours = venueData.venues.filter(venue => venue.isOpen === true || venue.isOpen === false);
 
   // Sort venues by strategic value for drivers:
   // 1. Open venues with latest closing times first (more time to work them)
@@ -251,8 +194,8 @@ export default function BarTab({
     }
 
     // Both unknown or both closed - check opening soon
-    const aOpeningSoon = a.opensInMinutes && a.opensInMinutes <= 15;
-    const bOpeningSoon = b.opensInMinutes && b.opensInMinutes <= 15;
+    const aOpeningSoon = a.opensInMinutes !== null && a.opensInMinutes <= 15;
+    const bOpeningSoon = b.opensInMinutes !== null && b.opensInMinutes <= 15;
     if (aOpeningSoon !== bOpeningSoon) {
       return aOpeningSoon ? -1 : 1;
     }
@@ -264,7 +207,7 @@ export default function BarTab({
   const venues = sortedVenues;
   // Filter lastCallVenues the same way (using camelCase)
   const lastCallVenues = (venueData.lastCallVenues || []).filter(v =>
-    v.hoursToday && v.hoursToday.trim().length > 0 && !v.hoursToday.toLowerCase().includes('not available')
+    v.isOpen === true && v.closingSoon === true
   );
   const lateNightVenues = venues.filter(v => v.isOpen && !v.closingSoon);
 
@@ -316,7 +259,7 @@ export default function BarTab({
               <Clock className="w-4 h-4 text-green-600" />
               <div>
                 <span className="text-sm font-medium text-green-800">
-                  {lateNightVenues.length} open late
+                  {lateNightVenues.length} open now
                 </span>
                 <p className="text-xs text-green-600">Hit these first</p>
               </div>
@@ -352,7 +295,7 @@ export default function BarTab({
               className={`border transition-all hover:shadow-md ${
                 venue.isOpen
                   ? "border-green-200 bg-green-50/30"
-                  : venue.opensInMinutes && venue.opensInMinutes <= 15
+                  : venue.opensInMinutes !== null && venue.opensInMinutes <= 15
                   ? "border-yellow-200 bg-yellow-50/30"
                   : "border-gray-200 bg-gray-50/50 opacity-70"
               }`}
@@ -403,13 +346,13 @@ export default function BarTab({
                       </div>
 
                       {/* Status Badges */}
-                      {venue.closingSoon && venue.minutesUntilClose && (
+                      {venue.closingSoon && venue.minutesUntilClose !== null && (
                         <Badge className="bg-orange-100 text-orange-700 border-0 text-xs">
                           Closes in {venue.minutesUntilClose}min
                         </Badge>
                       )}
 
-                      {venue.opensInMinutes && venue.opensInMinutes <= 15 && (
+                      {venue.opensInMinutes !== null && venue.opensInMinutes <= 15 && (
                         <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">
                           Opens in {venue.opensInMinutes}min
                         </Badge>
@@ -428,13 +371,13 @@ export default function BarTab({
                       </Badge>
 
                       {/* Crowd Level */}
-                      <Badge className={`text-xs border-0 ${
+                      {venue.crowdLevel && <Badge className={`text-xs border-0 ${
                         venue.crowdLevel === 'high' ? 'bg-purple-100 text-purple-700' :
                         venue.crowdLevel === 'medium' ? 'bg-blue-100 text-blue-700' :
                         'bg-gray-100 text-gray-600'
                       }`}>
                         {venue.crowdLevel} crowd
-                      </Badge>
+                      </Badge>}
                     </div>
 
                     {/* Row 5: Actions */}

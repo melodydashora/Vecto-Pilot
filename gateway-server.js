@@ -4,7 +4,6 @@ import http from 'node:http';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { access } from 'node:fs/promises';
 
 // 2026-04-27: Install console-tee FIRST so every subsequent log line is
 // mirrored to logs/server-current.log for the mobile log-viewer endpoint.
@@ -47,7 +46,7 @@ const isDeployment = process.env.APP_RUNTIME === 'deployment';
 
 // 2026-02-25: Autoscale detection — checks EITHER flag independently (Phase 6 Refactor)
 // If either flag is set, the intent is clear: this is an autoscale environment.
-// Workers, SSE, and snapshot observer are forcibly disabled to prevent duplication.
+// Workers and SSE are forcibly disabled to prevent duplication.
 const isAutoscaleMode = process.env.CLOUD_RUN_AUTOSCALE === '1' || process.env.REPLIT_AUTOSCALE === '1';
 
 // Safety guardrail: loud warning when autoscale is active
@@ -55,7 +54,7 @@ if (isAutoscaleMode) {
   console.warn('[GATEWAY] ═══════════════════════════════════════════════════════════════');
   console.warn('[GATEWAY]  AUTOSCALE MODE ACTIVE');
   console.warn('[GATEWAY]    Background workers: DISABLED (must deploy as separate services)');
-  console.warn('[GATEWAY]    SSE: DISABLED | Snapshot observer: DISABLED');
+  console.warn('[GATEWAY]    SSE: DISABLED');
   console.warn('[GATEWAY] ═══════════════════════════════════════════════════════════════');
 }
 
@@ -222,27 +221,11 @@ process.on('unhandledRejection', (reason, promise) => {
     }
 
     // 2026-02-17: Event sync removed from server start — events sync per-snapshot via briefing pipeline
-
-    // 2026-02-17: Snapshot workflow observer — captures full pipeline timing to snapshot.txt
-    // 2026-05-06: Guarded with fs.access() before import per FR-BG-007 (GATEWAY.md
-    // engineering spec §3.7): import and load failures must be logged as warnings
-    // without terminating the process. Both expected-absence (ENOENT) and unexpected
-    // errors emit warn-level lines per spec letter.
-    if (!isAutoscaleMode) {
-      const observerPath = new URL('./scripts/test-snapshot-workflow.js', import.meta.url);
-      try {
-        await access(observerPath);
-        const { observeSnapshotWorkflow } = await import('./scripts/test-snapshot-workflow.js');
-        observeSnapshotWorkflow().catch(err =>
-          console.warn(`[GATEWAY] snapshot-observer error: ${err.message}`)
-        );
-      } catch (err) {
-        if (err.code === 'ENOENT') {
-          console.warn('[GATEWAY] snapshot-observer not present, skipping');
-        } else {
-          console.warn(`[GATEWAY] snapshot-observer guard failed: ${err.message}`);
-        }
-      }
+    // 2026-09-13: Hourly day-end event deactivation (todo #35). Idempotent UPDATE, so it is
+    // safe on every instance; gated with the worker only to avoid needless duplicate runs.
+    if (workerConfig.shouldStart) {
+      const { startCleanupLoop } = await import('./server/jobs/event-cleanup.js');
+      startCleanupLoop();
     }
 
     // Graceful shutdown.

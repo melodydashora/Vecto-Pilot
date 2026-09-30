@@ -1,11 +1,12 @@
 import express from 'express';
 import { db } from '../../db/drizzle.js';
-import { venue_feedback, strategy_feedback, app_feedback, ranking_candidates, actions } from '../../../shared/schema.js';
+import { venue_feedback, strategy_feedback, app_feedback } from '../../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { capturelearning, LEARNING_EVENTS } from '../../middleware/learning-capture.js';
 import { indexFeedback } from '../../lib/external/semantic-search.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { recordVenueFeedback, VenueFeedbackError } from '../../lib/venue/venue-feedback.js';
 
 const router = express.Router();
 
@@ -51,128 +52,53 @@ setInterval(() => {
       rateLimits.delete(key);
     }
   }
-}, 60000);
+}, 60000).unref();
 
 // POST /api/feedback/venue
+// 2026-09-11: Replaced the unchecked vote-only write with an owned, persisted
+// dismissal/restore receipt. The old auth-only checks and optional action logging
+// are preserved in docs/architecture/removals/2026-09-11-venue-feedback.md.
 router.post('/venue', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
-  
   try {
-    const { snapshot_id, ranking_id, place_id, venue_name, sentiment, comment } = req.body;
-
-    // 2026-02-13: Use only authenticated user_id — body userId removed (spoofing risk)
     const authUserId = req.auth.userId;
-
-    // Validate required fields
-    if (!snapshot_id || !ranking_id || !venue_name || !sentiment) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'Missing required fields (snapshot_id, ranking_id, venue_name, sentiment)' 
-      });
-    }
-    
-    // Validate sentiment
-    if (sentiment !== 'up' && sentiment !== 'down') {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'Invalid sentiment. Must be "up" or "down"' 
-      });
-    }
-    
-    // Sanitize comment (limit to 1000 chars, strip HTML)
-    const sanitizedComment = comment 
-      ? String(comment).replace(/<[^>]*>/g, '').slice(0, 1000)
-      : null;
-    
-    // Check rate limit
-    // 2026-01-09: Fixed rate limit bug - use authUserId not body userId
-    // Using body userId collapsed all anonymous users into one bucket
     if (!checkRateLimit(authUserId)) {
-      console.warn('[FEEDBACK] Rate limit exceeded', {
-        correlation_id: correlationId,
-        user_id: authUserId
-      });
-      return res.status(429).json({ 
-        ok: false, 
-        error: 'Rate limit exceeded. Maximum 10 requests per minute.' 
-      });
+      return res.status(429).json({ ok: false, error: 'rate_limit', message: 'Maximum 10 feedback requests per minute.' });
     }
-    
-    // Upsert feedback (update if exists, insert if new)
-    const [feedbackRow] = await db
-      .insert(venue_feedback)
-      .values({
-        user_id: authUserId || null,
-        snapshot_id,
-        ranking_id,
-        place_id: place_id || null,
-        venue_name,
-        sentiment,
-        comment: sanitizedComment,
-      })
-      .onConflictDoUpdate({
-        target: [venue_feedback.user_id, venue_feedback.ranking_id, venue_feedback.place_id],
-        set: {
-          sentiment,
-          comment: sanitizedComment,
-        }
-      })
-      .returning();
-    
-    // Log to actions table (optional instrumentation)
-    try {
-      await db.insert(actions).values({
-        action_id: crypto.randomUUID(),
-        created_at: new Date(),
-        ranking_id,
-        snapshot_id,
-        user_id: authUserId || null,
-        action: 'venue_feedback',
-        raw: { place_id, venue_name, sentiment },
-      });
-    } catch (actionErr) {
-      console.warn('[FEEDBACK] Failed to log action', { error: actionErr.message });
+    // Existing callers send sentiment; new clients supply explicit actions and
+    // retain request_id through network retries. Canonical names come from DB.
+    const body = { ...req.body };
+    if (!body.action && ['up', 'down'].includes(body.sentiment)) {
+      body.action = body.sentiment === 'up' ? 'upvote' : 'dismiss';
+      body.request_id ||= crypto.randomUUID();
+      body.visible_place_ids ||= [body.place_id];
     }
-    
-    console.log('[FEEDBACK] upsert ok', {
-      corr: correlationId,
-      // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined since 2026-02-13 removal)
-      user: authUserId,
-      ranking: ranking_id,
-      place: place_id || 'null',
-      sent: sentiment,
-    });
-    
-    // LEARNING CAPTURE: Index feedback for semantic search (async, non-blocking)
-    if (feedbackRow?.id) {
+    const { receipt, replayed } = await recordVenueFeedback(db, authUserId, body);
+    if (!replayed && receipt.action !== 'restore') {
       setImmediate(() => {
-        indexFeedback(feedbackRow.id).catch(err => {
+        indexFeedback(receipt.feedback_id).catch(err => {
           console.error('[FEEDBACK] Semantic indexing failed:', err.message);
         });
         capturelearning(LEARNING_EVENTS.VENUE_FEEDBACK, {
-          feedback_id: feedbackRow.id,
-          venue_name,
-          sentiment,
-          has_comment: !!sanitizedComment,
-          ranking_id
-        // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined)
+          feedback_id: receipt.feedback_id,
+          sentiment: receipt.action === 'upvote' ? 'up' : 'down',
+          has_comment: !!body.comment,
+          ranking_id: receipt.ranking_id,
         }, authUserId).catch(err => {
           console.error('[FEEDBACK] Learning capture failed:', err.message);
         });
       });
     }
-    
-    res.json({ ok: true });
-    
+    return res.json(receipt);
   } catch (error) {
-    console.error('[FEEDBACK] venue feedback error', { 
-      correlation_id: correlationId, 
-      error: error.message 
+    if (error instanceof VenueFeedbackError) {
+      return res.status(error.status).json({ ok: false, error: error.code, message: error.message });
+    }
+    // Drizzle errors can embed SQL parameters, including the driver's comment.
+    console.error('[FEEDBACK] venue feedback persistence failed', {
+      correlation_id: correlationId, code: error.cause?.code || error.code || 'unknown',
     });
-    res.status(500).json({ 
-      ok: false, 
-      error: 'Failed to record feedback' 
-    });
+    return res.status(500).json({ ok: false, error: 'feedback_failed', message: 'Feedback was not confirmed. Please retry.' });
   }
 });
 

@@ -1,7 +1,7 @@
 # MAP.md — Map and Location Features
 
 > **Canonical reference** for GPS tracking, map rendering, markers/overlays, districts/zones, and how location feeds into strategy and venues.
-> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
+> Last updated: 2026-04-10 · offer-analyzer section refreshed 2026-09-29 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ## Supersedes
 - `docs/architecture/Location.md` — Location system overview (merged here)
@@ -171,7 +171,7 @@ region_type: "Core" | "Satellite"
 
 ### Geofencing
 
-Implicit via market_cities mapping — no explicit radius-based geofencing. The offer analysis endpoint (`/api/hooks/analyze-offer`) has no hard-coded geography: avoid-places are per-driver `avoid[]` rules keyed by Google `place_id` (rendered into the analyzer prompts and audited by geometry in Phase 2 — `server/lib/offers/rules-engine.js evaluateGeoRules`).
+Implicit via market_cities mapping — no explicit radius-based geofencing. The offer analysis endpoint (`/api/hooks/analyze-offer`) has no hard-coded geography: avoid-places are per-driver `avoid[]` rules keyed by Google `place_id` (rendered into the analyzer prompts and audited by geometry in Phase 2 — `server/lib/offers/rules-engine.js evaluateGeoRules`). A `heads_toward` condition describes trip direction, not a blanket venue exclusion. `home` and geographic scope overrides remain inert/no UI. See [Analyzer §6.5](OFFER_ANALYZER.md#65-geo-audit-evaluategeorules).
 
 ---
 

@@ -1,63 +1,61 @@
-> **Last Verified:** 2026-01-09
+# Tests
 
-# Tests (`tests/`)
+Updated September 15, 2026. Run commands from the checkout you are verifying.
+Jest excludes nested `.worktrees/` and `.config/` copies relative to that checkout.
 
-## Purpose
-
-Test suites for the application.
-
-## Structure
-
-| Folder/File | Purpose |
-|-------------|---------|
-| `e2e/` | End-to-end Playwright tests |
-| `eidolon/` | Eidolon framework tests |
-| `events/` | ETL pipeline integration tests |
-| `gateway/` | Gateway server tests |
-| `scripts/` | Test utility scripts |
-| `triad/` | TRIAD pipeline tests |
-
-## Root Test Files
-
-| File | Purpose |
-|------|---------|
-| `auth-token-validation.test.js` | Auth token validation tests |
-| `blocksApi.test.js` | Blocks API endpoint tests |
-| `coach-schema.test.js` | AI Coach schema validation tests |
-| `coach-validation.test.js` | AI Coach input validation tests |
-| `schema-validation.test.js` | Schema validation tests |
-| `snapshot-ownership-event.test.ts` | Snapshot ownership and event tests |
-| `phase-c-infrastructure.js` | Infrastructure phase tests |
-| `run-all-phases.js` | Test runner for all phases |
-| `run-all-tests.js` | Master test runner |
-| `verify-startup.sh` | Startup verification script |
-
-## Documentation
-
-| File | Purpose |
-|------|---------|
-| `README-BLOCKS.md` | Block system test documentation |
-
-## Commands
-
-```bash
-# Run all tests
-npm run test
-
-# Run unit tests only
-npm run test:unit
-
-# Run e2e tests only
-npm run test:e2e
-
-# Run ETL pipeline tests
-node tests/events/pipeline.test.js
-
-# Run with coverage
-npm run test -- --coverage
+```sh
+npm run test:unit -- --runInBand
+npm run test:client -- --runInBand
+npm run test:client:harness
+npm run lint
+npm run typecheck
+npm run guard:json
 ```
 
-## Connections
+`test:unit` runs JavaScript tests. `test:client` runs TypeScript/TSX tests with
+jsdom, Vite environment support, and the application's path aliases.
+`test:client:harness` runs the four UI suites that rely on CommonJS `jest.mock`
+hoisting (`offers/*.ui`, `feedback/*.ui`, `settings/*`, `briefing/airport-status.ui`)
+under their own `tests/*/jest.*.config.cjs` harnesses; the ESM client config
+deliberately ignores those paths because `jest.mock` is a no-op there. `npm test`
+runs those three groups followed by the existing Playwright end-to-end suite.
 
-- **E2E:** Uses Playwright for browser testing
-- **Unit:** Uses Jest for unit testing
+| Area | Coverage |
+| --- | --- |
+| `auth/`, `api/`, `middleware/` | Account writes, session lifecycle, authorization, routing |
+| `client/` | Login, reset, feedback, streams, Briefing content/recovery, Strategy event display |
+| `coach/` | Current schema metadata, action validation, message ownership |
+| `events/`, `briefing/` | Schedule integrity, deduplication, cleanup, generation admission |
+| `offers/` | Offer parsing, rules, normalization and request deduplication |
+| `schema-validation.test.js` | Pure schema-metadata comparison without database access |
+
+The old duplicate Coach suites were consolidated under `coach/`. The former manual
+near-event ranking script now tests the actual production comparator with
+assertions that fail the test runner.
+
+## SQL and integration checks
+
+Event-cleanup SQL tests (`events/cleanup-timezone.test.js`) run the real generated
+SQL against an in-memory PGlite database with synthetic rows. `@electric-sql/pglite`
+is a devDependency and resolves from `node_modules` by default;
+`VECTO_TEST_PGLITE_MODULE` optionally points at another module path. They never
+touch the workspace database.
+
+```sh
+npm run check:schema
+```
+
+`check:schema` explicitly reads only metadata through the supplied `DATABASE_URL`,
+inside a read-only transaction. It reports missing declarations, type differences
+and weaker nullability. It does not validate every constraint, index, migration,
+or production environment, and reports drift with exit code 1.
+
+Two legacy suites, `blocksApi.test.js` and
+`strategy/tactical-planner-cache.test.js`, start the gateway (including migrations)
+or write database rows. They are retained under `jest.integration.config.js`
+instead of the unit command. They require an explicitly prepared disposable
+database supplied as `DATABASE_URL`, current fixtures, and
+`VECTO_RUN_DATABASE_TESTS=1`; then use `npm run test:integration`. The review did
+not run or claim those legacy suites or the live browser flow green.
+
+Store generated logs, screenshots and reports in ignored output folders or `/tmp`.

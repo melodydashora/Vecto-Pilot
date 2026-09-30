@@ -46,8 +46,7 @@ export const MODEL_ROLES = {
   // into actionable "Driver Advice". Pro's reasoning is needed for accurate spatial analysis.
   // 2026-02-11: Added thinkingLevel HIGH + bumped tokens 4096→8192 (thinking consumes output tokens)
   BRIEFING_TRAFFIC: {
-    envKey: 'BRIEFING_TRAFFIC_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Traffic conditions analysis (TomTom JSON → Driver Advice)',
     maxTokens: 8192,
     temperature: 0.2,
@@ -56,8 +55,7 @@ export const MODEL_ROLES = {
   },
   // 2026-01-10: Added thinkingLevel HIGH for news analysis
   BRIEFING_NEWS: {
-    envKey: 'BRIEFING_NEWS_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Local news research (last 7 days) - Gemini + Google Search',
     maxTokens: 8192,
     temperature: 0.4,
@@ -73,11 +71,8 @@ export const MODEL_ROLES = {
   // sibling briefings). Event discovery is grounded retrieval, not deep reasoning, and
   // Pro + HIGH thinking + google_search was blowing the 90s cap ("[BRIEFING] Event search
   // … timed out after 90000ms"). Flash 3.5 keeps grounding + HIGH thinking but is ~4× faster.
-  // NOTE: the controlling env var is BRIEFING_EVENTS_MODEL (the envKey below) — NOT
-  // BRIEFING_EVENTS_DISCOVERY_MODEL, which does not match this key and is silently ignored.
   BRIEFING_EVENTS_DISCOVERY: {
-    envKey: 'BRIEFING_EVENTS_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Event discovery (parallel category search)',
     maxTokens: 8192,
     temperature: 0.4,
@@ -88,8 +83,7 @@ export const MODEL_ROLES = {
   // Validation happens via validateEventsHard() at store time in briefing-service.js.
   // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_FALLBACK: {
-    envKey: 'BRIEFING_FALLBACK_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'General fallback for failed briefing calls',
     maxTokens: 8192,
     temperature: 0.3,
@@ -98,8 +92,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_SCHOOLS: {
-    envKey: 'BRIEFING_SCHOOLS_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'School closures and calendar lookup',
     maxTokens: 8192,
     temperature: 0.2,
@@ -107,8 +100,7 @@ export const MODEL_ROLES = {
     features: ['google_search'],
   },
   BRIEFING_AIRPORT: {
-    envKey: 'BRIEFING_AIRPORT_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Airport conditions and flight status',
     // 2026-07-06 (todo #22): 4096 truncated the per-terminal schema mid-JSON
     // (2 airports × 5 terminals × checkpoints × 3 lanes is a much larger
@@ -121,8 +113,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-13: Registered — was previously a direct callGemini in holiday-detector.js
   BRIEFING_HOLIDAY: {
-    envKey: 'BRIEFING_HOLIDAY_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Holiday detection with real-time search verification',
     maxTokens: 1024,
     temperature: 0.1,
@@ -135,16 +126,14 @@ export const MODEL_ROLES = {
   // ==========================
   // 2026-02-13: Claude Opus 4.6 — best reasoning model for core strategy generation
   STRATEGY_CORE: {
-    envKey: 'STRATEGY_CORE_MODEL',
-    default: 'claude-opus-4-8',
+    model: 'claude-opus-4-8',
     purpose: 'Core strategic plan generation',
     maxTokens: 8192,
     temperature: 0.7,
   },
   // 2026-01-10: Added thinkingLevel HIGH for deeper analysis (token budget sufficient)
   STRATEGY_CONTEXT: {
-    envKey: 'STRATEGY_CONTEXT_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Real-time context gathering for strategy pipeline',
     maxTokens: 8192,
     temperature: 0.4,
@@ -153,8 +142,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-26: Switched GPT-5.2 → Claude Opus 4.6 — all strategy roles use Claude
   STRATEGY_TACTICAL: {
-    envKey: 'STRATEGY_TACTICAL_MODEL',
-    default: 'claude-opus-4-8',
+    model: 'gpt-5.5-2026-04-23',
     purpose: 'Immediate 1-hour tactical strategy consolidation',
     maxTokens: 16000,
     temperature: 0.5,
@@ -164,32 +152,28 @@ export const MODEL_ROLES = {
   // ==========================
   // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23 (verified live via /v1/models + chat completion ping)
   VENUE_SCORER: {
-    envKey: 'VENUE_SCORER_MODEL',
-    default: 'gpt-5.5-2026-04-23',
+    model: 'gpt-5.5-2026-04-23',
     purpose: 'SmartBlocks venue scoring and selection',
     maxTokens: 16000,
     reasoningEffort: 'medium',
   },
   VENUE_FILTER: {
-    envKey: 'VENUE_FILTER_MODEL',
     // 2026-01-14: Claude Haiku primary, Gemini Flash fallback (see FALLBACK_CONFIG)
-    default: 'claude-haiku-4-5-20251001',
+    model: 'claude-haiku-4-5-20251001',
     // 2026-02-18: Enhanced from binary keep/remove to quality classification (P/S/X)
     purpose: 'Fast low-cost venue classification (premium/standard/remove)',
     maxTokens: 300,
     temperature: 0,
   },
   VENUE_TRAFFIC: {
-    envKey: 'VENUE_TRAFFIC_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Venue-specific traffic intelligence',
     maxTokens: 4096,
     temperature: 0.1,
     features: ['google_search'],
   },
   VENUE_EVENT_VERIFIER: {
-    envKey: 'VENUE_EVENT_VERIFIER_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Verify venue events during SmartBlocks enrichment',
     maxTokens: 256,
     temperature: 0.1,
@@ -198,29 +182,15 @@ export const MODEL_ROLES = {
   // ==========================
   // 4. COACH_CONVERSATIONS
   // ==========================
-  // 2026-02-13: Gemini 3 Pro Preview — vision, OCR, Google Search, multimodal
-  // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing "AI Coach" branding
-  // 2026-02-26: Upgraded to Gemini 3.1 Pro — 2x reasoning over 3.0 Pro (ARC-AGI-2: 77.1%)
-  // 2026-08-11: gemini-3.5-flash → gemini-3.6-flash (GA 2026-07-21) at Melody's
-  // "update adapters, verify live" direction. Verified this session: listed in
-  // /v1beta/models AND a live streamGenerateContent SSE ping succeeded. Text-role
-  // win only: 17% fewer output tokens, $7.50/M out (vs $9), better agentic scores.
-  // Vision roles (OFFER_ANALYZER*) stay on 3.5 — 3.6 regresses object detection.
   AI_COACH: {
-    envKey: 'AI_COACH_MODEL',
-    default: 'gemini-3.6-flash',
-    purpose: 'AI Coach conversation (streaming, multimodal)',
-    maxTokens: 8192,
-    temperature: 0.7,
-    // 2026-08-11: Melody: "the coach is the cost" — the Coach is the flagship
-    // and gets maximum reasoning. Known tradeoff: HIGH thinking delays the
-    // first streamed token (and therefore first TTS audio); drop to MEDIUM if
-    // the pause reads as lag in voice use.
-    thinkingLevel: 'HIGH',
-    features: ['google_search', 'vision', 'ocr'],
-    // 2026-02-17: AI_COACH uses callModelStream() which only supports Gemini.
-    // Non-Gemini overrides are rejected by the streaming guard below.
+    // Melody, 2026-09-10: one canonical Coach for typed and spoken requests.
+    model: 'gpt-6-astra',
+    purpose: 'AI Coach conversation and confirmed actions',
+    maxTokens: 16384,
+    reasoningEffort: 'low',
+    features: ['web_search', 'vision', 'ocr'],
     requiresStreaming: true,
+    streamingProvider: 'openai',
   },
 
   // ==========================
@@ -235,12 +205,11 @@ export const MODEL_ROLES = {
   // grounding + function calling combine in ONE Live session on both Gemini
   // lines; every live model is Preview — pin dated IDs, expect ~6mo migrations.
   COACH_VOICE_LIVE: {
-    envKey: 'COACH_VOICE_LIVE_MODEL',
     // gemini-3.1-flash-live-preview: newest live line, Google's designated
     // replacement for all prior live models; sync-only function calling.
     // (gemini-2.5-flash-native-audio-preview-12-2025 has NON_BLOCKING function
     // calls but is already slated for replacement BY this model.)
-    default: 'gemini-3.1-flash-live-preview',
+    model: 'gemini-3.1-flash-live-preview',
     purpose: 'Coach voice mouth: Gemini Live bidirectional audio (WebSocket, ephemeral tokens)',
     temperature: 0.7,
     features: ['google_search'],
@@ -254,11 +223,15 @@ export const MODEL_ROLES = {
     thinkingBudgetEnvKey: 'GEMINI_LIVE_THINKING_BUDGET',
   },
   // 2026-08-11: role moved out of realtime.js, which read process.env.VOICE_MODEL
-  // directly (registry-bypass doctrine violation). envKey stays VOICE_MODEL —
-  // it is the already-documented env var for this concern (env-registry.js).
+  // directly (registry-bypass doctrine violation). 2026-09-15: pinned here like every role.
+  COACH_VOICE_OPENAI_LIVE: {
+    model: 'gpt-live-1',
+    purpose: 'Coach conversational voice with canonical GPT Coach delegation',
+    requiresLive: true,
+    liveModelPrefix: 'gpt-live-',
+  },
   COACH_VOICE_REALTIME: {
-    envKey: 'VOICE_MODEL',
-    default: 'gpt-realtime',
+    model: 'gpt-realtime-2.1',
     purpose: 'Coach voice mouth: OpenAI Realtime session (WebRTC, ephemeral client_secrets)',
     requiresLive: true,
   },
@@ -267,8 +240,7 @@ export const MODEL_ROLES = {
   // 5. UTILITIES (no direct DB write)
   // ==========================
   UTIL_RESEARCH: {
-    envKey: 'UTIL_RESEARCH_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Internet-powered research via API',
     maxTokens: 2000,
     temperature: 0.3,
@@ -279,8 +251,7 @@ export const MODEL_ROLES = {
   // in consolidation Phase 1 (docs/architecture/audits/2026-07-06 audit).
   // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23
   UTIL_MARKET_PARSER: {
-    envKey: 'UTIL_PARSER_MODEL',
-    default: 'gpt-5.5-2026-04-23',
+    model: 'gpt-5.5-2026-04-23',
     purpose: 'Parsing unstructured market research data',
     maxTokens: 16000,
     reasoningEffort: 'low',
@@ -291,8 +262,7 @@ export const MODEL_ROLES = {
   // ==========================
   // 2026-02-13: Public-facing event search for Concierge QR code page
   CONCIERGE_SEARCH: {
-    envKey: 'CONCIERGE_SEARCH_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.1-pro-preview',
     purpose: 'Public concierge event/venue discovery (no auth required)',
     maxTokens: 4096,
     temperature: 0.3,
@@ -301,8 +271,7 @@ export const MODEL_ROLES = {
   },
   // 2026-02-13: Public-facing AI Q&A for passenger concierge page
   CONCIERGE_CHAT: {
-    envKey: 'CONCIERGE_CHAT_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.1-pro-preview',
     purpose: 'Public concierge Q&A — passengers ask about local area',
     maxTokens: 2048,
     temperature: 0.5,
@@ -319,8 +288,7 @@ export const MODEL_ROLES = {
   // high-volume low-latency text tasks. Standard REST API, no integration changes.
   // Flash Live (audio WebSocket) was considered but is wrong fit for text-to-text.
   UTIL_TRANSLATION: {
-    envKey: 'UTIL_TRANSLATION_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Real-time text translation for driver-rider communication',
     maxTokens: 512,
     temperature: 0.1, // Near-deterministic for consistent translations
@@ -329,73 +297,31 @@ export const MODEL_ROLES = {
   // ==========================
   // 9. SIRI HOOKS (offer_intelligence)
   // ==========================
-  // OFFER_ANALYZER = Phase 1, the SYNCHRONOUS phone-bound verdict for BOTH modalities
-  // (screenshot → vision; OCR text → same model). Melody's hard target (todo #43,
-  // 2026-08-14): screenshot → spoken verdict in < 3 s full trip. Deep reasoning lives
-  // in Phase 2 (OFFER_ANALYZER_DEEP, async) — never put a Pro/thinking model here.
-  //
-  // ⚠️ PINNED, NOT FLOATING: never gemini-flash-latest / *-latest (memory #342: a floating
-  //    alias resolved to an internal build and 404'd in production).
-  //
-  // 2026-08-17 LIVE BENCHMARK (verify-models-live; Melody: "curl and analyze the fastest
-  // vision model that can handle the end user rules"). /v1beta/models listed live; each
-  // candidate run against the REAL buildPhase1VisionPrompt/buildPhase1Prompt rendered
-  // from Melody's dev ruleset, 6 offer cards (UberX Priority + On-the-way, low-rating
-  // REJECT, Share, Comfort ACCEPT, blurry 480px JPEG, NON-offer screenshot), 3 runs each,
-  // temp 0.1, thinking MINIMAL, maxTokens 1024, JSON mime — scored against the
-  // deterministic engine's own verdict + extraction accuracy + notices:
-  //   gemini-3.5-flash-lite  vision p50  ~700ms p95  ~850ms  text p50  687ms  54/54  0 truncated
-  //   gemini-3.1-flash-lite  vision p50   860ms p95  1005ms  text p50  657ms  24/24  0 truncated
-  //   gemini-3.6-flash       vision p50  1027ms p95  1226ms  text p50  947ms  24/24  0 truncated
-  //   gemini-3.5-flash       vision p50 ~1250ms p95 ~1400ms  text p50 1111ms  41/42  7/42 JSON
-  //                          responses returned WITHOUT the closing brace (finishReason STOP)
-  //                          → parse-fail → deterministic fallback in prod (NO DATA on vision)
-  //   gemini-3.7-flash       MINIMAL unsupported; LOW p50 1568ms, max 16 s — no
-  //   gemini-omni-flash-preview  Interactions API only — no;  gemini-2.5-flash-lite 3/12 — no
-  // → default moved gemini-3.5-flash → gemini-3.5-flash-lite (GA id, listed live): the
-  //   fastest model that applied the per-driver rules correctly on every card, and the
-  //   only one of the top two with zero truncation. Caveat recorded honestly: cards were
-  //   synthetic (clean); Melody's on-device re-test with real Uber screenshots is the
-  //   acceptance gate (roadmap G1). Revert = one env var (OFFER_ANALYZER_MODEL) or this line.
-  //   Superseded 2026-08-11 note ("vision roles stay on 3.5 — 3.6 regresses object
-  //   detection") measured Roboflow object-detection mAP, not offer-card reading; on this
-  //   task 3.6-flash was correct 24/24 but slower than lite.
-  // maxTokens 1024: the JSON verdict is ~40-150 tokens; the low cap ends degenerate
-  //   repetition tails in ~1 s (a truncated response parse-fails → the rules engine answers).
-  // temperature 0.1: honored since 2026-08-17 — gemini-adapter.js no longer forces 0.2 on
-  //   JSON prompts when a lower value is configured (Melody: "temp config to .1").
-  // History (HIGH-thinking era, 8192 cap, 2026-05-29 → 2026-08-14 step-down):
-  //   docs/architecture/removals/2026-08-14-offer-analyzer-thinking-stepdown.md and
-  //   docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md.
+  // Phase 1 returns the phone-bound verdict for screenshot, OCR and mixed inputs.
+  // Keep deep enrichment off that response path. The under-three-second target
+  // (todo #43) requires real-device verification; it is not a measured guarantee.
+  // Models are pinned here, never selected through environment overrides.
+  // Temperature 0.1 is Melody's setting; the JSON adapter honors lower values.
+  // On model failure the server may prove a rejection, but cannot invent a passed
+  // judgment check to ACCEPT a ride. See offers/phase1-decision.js.
+  // Historical model comparisons and rationale are preserved in:
+  // docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md
+  // docs/architecture/removals/2026-09-29-offer-analyzer-doc-reconciliation.md
   OFFER_ANALYZER: {
-    envKey: 'OFFER_ANALYZER_MODEL',
-    default: 'gemini-3.5-flash-lite',
-    purpose: 'Phase 1: Real-time fast analysis (visual screenshot OR parsed text) from phone shortcuts (ACCEPT/REJECT)',
+    model: 'gemini-3.5-flash-lite',
+    purpose: 'Phase 1: Phone-bound offer analysis from screenshot, OCR or both (ACCEPT/REJECT/NO DATA)',
     maxTokens: 1024,
     temperature: 0.1, // near-deterministic; honored by gemini-adapter (min with the JSON cap)
     thinkingLevel: 'MINIMAL',
     features: ['vision'], // documentary — no adapter reads this; vision works via images[] inlineData
   },
 
-  // 2026-02-28: Phase 2 deep analysis — runs async AFTER Siri gets its fast response.
-  // Pro 3.1 provides richer reasoning, location analysis, and confidence scoring for DB storage.
-  // Not latency-sensitive — driver already has their answer from Flash.
-  // ── HARDENED 2026-06-11 (determinism doctrine — do NOT regress) ──────────────
-  //  MODEL gemini-3.1-pro-preview — the DEEPEST reasoner currently available.
-  //  WHY Pro (not Flash): Phase 2 is async — it runs AFTER Siri already answered, so it costs
-  //    ZERO eyes-on-road latency and we trade speed for depth. Web-benchmarked (I/O 2026): 3.1
-  //    Pro LEADS pure abstract reasoning (ARC-AGI-2 77.1 vs Flash 72.1) + long-context — exactly
-  //    what the enriched offer_intelligence row wants.
-  //  WHY 3.1 (not "3.5 Pro"): as of 2026-06-11 NO gemini-3.5-pro / high-thinking-3.5 exists
-  //    (confirmed live — only gemini-3.5-FLASH ships). 3.1 Pro is the latest Pro. WHEN a newer
-  //    Pro (or a high-thinking 3.5) lands, re-verify it live in /v1beta/models and bump here.
-  //  ⚠️ DO NOT downgrade to flash in a fleet migration. The 2026-05-30 migration did exactly that
-  //    (pinning every role to gemini-3.5-flash to kill the #342 404), silently making "deep" ==
-  //    Phase 1 and turning analyze-offer.js:541 aiModelUsed into a lie for ~12 days.
-  //  ⚠️ PINNED, NOT FLOATING: never gemini-pro-latest / *-latest (see OFFER_ANALYZER + #342).
+  // Phase 2 enriches saved evidence after the phone response. Its reasoning
+  // must not rewrite the spoken decision. Preserve the separately reviewed deep
+  // role when changing other roles; report the model actually used on retries.
+  // In-process execution is not a durable queue; see OFFER_ANALYZER.md §10.
   OFFER_ANALYZER_DEEP: {
-    envKey: 'OFFER_ANALYZER_DEEP_MODEL',
-    default: 'gemini-3.1-pro-preview',
+    model: 'gemini-3.1-pro-preview',
     purpose: 'Phase 2: Async deep analysis (visual + text) for offer_intelligence enrichment — runs after Siri response',
     maxTokens: 2048,
     temperature: 0.2,
@@ -407,13 +333,22 @@ export const MODEL_ROLES = {
   // 10. INTERNAL AGENTS
   // ==========================
   DOCS_GENERATOR: {
-    envKey: 'DOCS_GENERATOR_MODEL',
-    default: 'gemini-3.5-flash',
+    model: 'gemini-3.8-flash',
     purpose: 'Autonomous documentation generation',
     maxTokens: 8192,
     temperature: 0.7,
     thinkingLevel: 'HIGH',
     skipJsonExtraction: true,
+  },
+
+  // 2026-09-15: Agent / Assistant / Eidolon override LLM and Anthropic web-search
+  // research. Previously read AGENT_MODEL / ANTHROPIC_MODEL / CLAUDE_MODEL from env in
+  // four places (registry-bypass). One pin here now.
+  AGENT_TASK: {
+    model: 'claude-opus-4-8',
+    purpose: 'Agent/Assistant/Eidolon override LLM (Anthropic) and Anthropic web-search research',
+    maxTokens: 8192,
+    temperature: 0.1,
   },
 };
 
@@ -563,50 +498,20 @@ export function getRoleConfig(role) {
     throw new Error(`Unknown model role: ${role} (resolved to: ${canonicalRole})`);
   }
 
-  // 1. Role-specific Env (Highest Priority)
-  let model = process.env[roleConfig.envKey];
-  let sourceInfo = `env:${roleConfig.envKey}`;
+  // 2026-09-15 (Melody's decision): model names live HERE and only here. There is no
+  // env override and no Replit Secret for a model name — dev and prod resolve identically,
+  // every change is a reviewed commit, and scripts/check-model-pins.mjs verifies each pin
+  // against the live provider model lists (curl first, then edit — never from memory).
+  const model = roleConfig.model;
+  const sourceInfo = 'registry';
 
-  // 2. Service Override (Medium Priority)
-  // Check if this role belongs to a service that has a global override
-  if (!model) {
-    // Agent roles (excluding DOCS_GENERATOR — it has specific model requirements)
-    // 2026-02-26: DOCS_GENERATOR removed from AGENT_OVERRIDE_MODEL fallback.
-    // Reason: DOCS_GENERATOR needs Gemini (Google Search, prompt format). Inheriting
-    // claude-opus-4-6 from AGENT_OVERRIDE causes 9-char responses and validation failures.
-    if (canonicalRole === 'AGENT_TASK') {
-      if (process.env.AGENT_OVERRIDE_MODEL) {
-        model = process.env.AGENT_OVERRIDE_MODEL;
-        sourceInfo = 'env:AGENT_OVERRIDE_MODEL';
-      }
-    }
-    // AI Coach roles
-    // 2026-02-17: Renamed ASSISTANT_OVERRIDE → AI_COACH_OVERRIDE
-    else if (canonicalRole === 'AI_COACH' || canonicalRole.startsWith('COACH_')) {
-      if (process.env.AI_COACH_OVERRIDE_MODEL) {
-        model = process.env.AI_COACH_OVERRIDE_MODEL;
-        sourceInfo = 'env:AI_COACH_OVERRIDE_MODEL';
-      }
-    }
-    // Strategy roles
-    else if (canonicalRole.startsWith('STRATEGY_')) {
-      // Optional: Could have STRATEGY_OVERRIDE_MODEL, but usually defaults or role-specific are fine
-    }
+  // Coach declares its Responses transport and never silently changes provider.
+  if (roleConfig.streamingProvider && getProviderForModel(model) !== roleConfig.streamingProvider) {
+    throw new Error(`${canonicalRole} requires the ${roleConfig.streamingProvider} streaming transport; configured model is unsupported`);
   }
-
-  // 3. Registry Default (Lowest Priority)
-  if (!model) {
-    model = roleConfig.default;
-    sourceInfo = 'default';
-  }
-
-  // 2026-02-17: Streaming guard — roles with requiresStreaming MUST use Gemini.
-  // If an env override resolved to a non-Gemini model, reject it and use the default.
-  // This prevents AI_COACH_OVERRIDE_MODEL=claude-opus-4-6 from breaking AI_COACH streaming.
-  if (roleConfig.requiresStreaming && !model.startsWith('gemini-')) {
-    registryLog.warn(0, `${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
-    model = roleConfig.default;
-    sourceInfo = 'default (streaming fallback)';
+  // Preserve the existing Gemini-only behavior of unrelated streaming roles.
+  if (roleConfig.requiresStreaming && !roleConfig.streamingProvider && !model.startsWith('gemini-')) {
+    throw new Error(`${canonicalRole} requires a Gemini streaming model; pinned model ${model} is not one`);
   }
 
   // 2026-08-11: Live guard — COACH_VOICE_* roles must resolve to a live/realtime-
@@ -615,10 +520,12 @@ export function getRoleConfig(role) {
   // accept Live connections). This matters because AI_COACH_OVERRIDE_MODEL
   // catches every COACH_* role above — a text-model override must not silently
   // break voice session minting.
-  if (roleConfig.requiresLive && !/(^gpt-realtime)|(-live)|(-native-audio)/.test(model)) {
-    registryLog.warn(0, `${canonicalRole} requires a live/realtime-class model, but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
-    model = roleConfig.default;
-    sourceInfo = 'default (live fallback)';
+  if (roleConfig.requiresLive && !roleConfig.liveModelPrefix && !/(^gpt-realtime)|(-live)|(-native-audio)/.test(model)) {
+    throw new Error(`${canonicalRole} requires a live/realtime-class model; pinned model ${model} is not one`);
+  }
+
+  if (roleConfig.liveModelPrefix && !model.startsWith(roleConfig.liveModelPrefix)) {
+    throw new Error(`${canonicalRole} requires a ${roleConfig.liveModelPrefix} model`);
   }
 
   const provider = getProviderForModel(model);
@@ -815,28 +722,23 @@ export function getLLMDiagnostics() {
 
   // Check Anthropic
   if (process.env.ANTHROPIC_API_KEY) {
-    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
-    providers.push({ key: 'anthropic', model });
+    providers.push({ key: 'anthropic', model: MODEL_ROLES.STRATEGY_CORE.model });
   }
 
   // Check OpenAI
   if (process.env.OPENAI_API_KEY) {
-    const model = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
-    providers.push({ key: 'openai', model });
+    providers.push({ key: 'openai', model: MODEL_ROLES.VENUE_SCORER.model });
   }
 
   // Check Gemini
   if (process.env.GEMINI_API_KEY) {
-    const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-    providers.push({ key: 'google', model });
+    providers.push({ key: 'google', model: MODEL_ROLES.BRIEFING_FALLBACK.model });
   }
 
   return {
     providers,
-    preferred: process.env.PREFERRED_MODEL || 'google:gemini-3.5-flash',
-    // 2026-08-11: anthropic fallback claude-opus-4-8 → claude-sonnet-5 (Claude 5
-    // family GA; live-verified via /v1/models + a messages ping this session)
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-sonnet-5',
+    preferred: `google:${MODEL_ROLES.BRIEFING_FALLBACK.model}`,
+    fallbacks: `openai:${MODEL_ROLES.VENUE_SCORER.model},anthropic:${MODEL_ROLES.STRATEGY_CORE.model}`,
   };
 }
 

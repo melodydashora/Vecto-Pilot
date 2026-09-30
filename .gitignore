@@ -223,3 +223,18 @@ gha-creds-*.json
 # Git worktrees (local workspace isolation per superpowers:using-git-worktrees)
 .worktrees/
 uber-env.txt
+
+# Python bytecode (tests/startup, scripts/ensure-codex.py)
+__pycache__/
+*.pyc
+
+# Generated verification artifacts and local context dumps (2026-09-13)
+/test-results/
+/playwright-report/
+/coverage-client/
+/briefing-last-row.txt
+/*-local-command-caveat*.txt
+/client/src/pages/co-pilot/strategy_page.txt
+
+# Atomic private Briefing diagnostics
+sent-to-strategist.txt.*.tmp

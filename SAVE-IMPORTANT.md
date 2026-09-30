@@ -50,8 +50,8 @@ users (
 
 | Check | TTL | Trigger | Result |
 |-------|-----|---------|--------|
-| **Sliding Window** | 60 min from `last_active_at` | Any authenticated API call | DELETE users row, 401 |
-| **Hard Limit** | 2 hours from `session_start_at` | Any authenticated API call | DELETE users row, 401 |
+| **Sliding Window** | 60 min from `last_active_at` | Any authenticated API call | clear session_id (row kept), 401 |
+| **Hard Limit** | 2 hours from `session_start_at` | Any authenticated API call | clear session_id (row kept), 401 |
 
 ### Why Two Tiers?
 
@@ -76,7 +76,7 @@ users (
 **Implementation:** `requireAuth` middleware checks both TTLs before allowing the request through.
 
 ### 3. Multiple tabs/devices (Highlander Rule)
-**Decision:** One session per user. New login DELETES existing users row and creates a new one.
+**Decision:** One session per user. New login replaces `session_id` on the existing users row (rows are never deleted — RESTRICT FKs; corrected 2026-09-10 to match server/api/auth/auth.js).
 
 **Behavior:**
 - User logs in on phone → users row created
@@ -135,7 +135,7 @@ requireAuth middleware:
   2. Look up users row by user_id
   3. Check: session_start_at + 2hr > NOW? (hard limit)
   4. Check: last_active_at + 60min > NOW? (sliding window)
-  5. If expired: DELETE users row, return 401
+  5. If expired: set session_id NULL (row kept), return 401
   6. If valid: UPDATE last_active_at = NOW (non-blocking)
   7. Attach session info to req.auth
        ↓
@@ -146,7 +146,7 @@ Route handler executes
 ```
 USER CLICKS LOGOUT
        ↓
-DELETE FROM users WHERE user_id = ?
+UPDATE users SET session_id = NULL, current_snapshot_id = NULL WHERE user_id = ?  -- rows are never deleted
        ↓
 Client clears JWT from localStorage
 ```
@@ -168,7 +168,7 @@ Client clears JWT from localStorage
 | File | Changes |
 |------|---------|
 | `shared/schema.js` | Simplified users table (8 columns, no location) |
-| `server/api/auth/auth.js` | Login creates session, logout deletes it, register creates minimal session |
+| `server/api/auth/auth.js` | Login creates/refreshes the session, logout clears session_id (row kept), register creates a minimal session |
 | `server/middleware/auth.js` | Lazy cleanup (60 min sliding + 2 hr hard limit), updates `last_active_at` |
 | `server/api/location/location.js` | Updates `current_snapshot_id` after snapshot creation |
 

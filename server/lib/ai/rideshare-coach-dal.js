@@ -1,6 +1,8 @@
 // server/lib/coach-dal.js
 // AI Coach Data Access Layer - Full Schema Read/Write Access
 import { db } from '../../db/drizzle.js';
+import { getBriefingReadiness } from '../briefing/briefing-readiness.js';
+import { contextTimestamp, describeStrategyStatus, getCoachContextProgress, strategyContextState } from './coach-context-progress.js';
 import {
   snapshots,
   strategies,
@@ -12,7 +14,6 @@ import {
   venue_catalog,
   venue_metrics,
   actions,
-  users,
   market_intelligence,
   user_intel_notes,
   platform_data,
@@ -24,18 +25,49 @@ import {
   news_deactivations,
   zone_intelligence,
   offer_intelligence,   // 2026-02-17: Structured offer analytics (replaces intercepted_signals)
+  offer_rulesets,
   coach_offer_decisions, // 2026-05-05: Driver-decision intel logged from Coach chat
   coach_memos           // 2026-05-12: Coach → Claude Code memo queue, DB-backed for Cloud Run survivability
 } from '../../../shared/schema.js';
-import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
+import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte, ilike } from 'drizzle-orm';
 import crypto from 'crypto';
 // Path: from server/lib/ai/ → ../events/ resolves to server/lib/events/
-import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
+import { VALIDATION_SCHEMA_VERSION, validateEvent } from '../events/pipeline/validateEvent.js';
+import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
+import { generateEventHash } from '../events/pipeline/hashEvent.js';
+import { withEventVenueLock, resolveEventWriteHash } from '../briefing/cleanup-events.js';
 // 2026-07-06: daypart adapter — normalize legacy keys, human labels for prompts
 import { normalizeDayPartKey, dayPartLabel } from '../location/daypart.js';
 // 2026-08-17 (Melody): the Coach mines the offer table for longitudinal patterns
 // (time of day / weekday / pickup area / product / month) — never live verdicts.
 import { formatOfferPatterns } from '../offers/offer-patterns.js';
+import { formatDriverServicePreferences, formatDriverEconomics } from '../driver-preferences.js';
+import { migrateRuleset } from '../offers/rules-engine.js';
+import { validateRuleset } from '../offers/ruleset-schema.js';
+import { hashRuleset } from '../offers/ruleset-hash.js';
+import { initialRulesetFromProfile } from '../offers/profile-ruleset.js';
+
+// Snapshot weather retains Google's measured value/unit, while Briefing weather
+// stores numeric display values. Preserve both contracts, including zero.
+function weatherWind(weather) {
+  const speed = weather?.windSpeed;
+  const value = typeof speed === 'number' ? speed : speed?.value;
+  const unit = typeof speed === 'number' ? weather.windSpeedUnit : speed?.unit;
+  const label = { MILES_PER_HOUR: 'mph', KILOMETERS_PER_HOUR: 'km/h', mph: 'mph', 'km/h': 'km/h' }[unit];
+  return Number.isFinite(value) && value >= 0 && label ? `${value} ${label}` : null;
+}
+
+function weatherTemperature(weather) {
+  if (Number.isFinite(weather?.temperature) && ['F', 'C'].includes(weather.tempUnit)) {
+    return `${weather.temperature}°${weather.tempUnit}`;
+  }
+  const measured = weather?.temperature;
+  const unit = { FAHRENHEIT: 'F', CELSIUS: 'C' }[measured?.unit];
+  if (Number.isFinite(measured?.degrees) && unit) return `${measured.degrees}°${unit}`;
+  if (Number.isFinite(weather?.tempF)) return `${weather.tempF}°F`;
+  if (Number.isFinite(weather?.tempC)) return `${weather.tempC}°C`;
+  return 'N/A';
+}
 
 /**
  * CoachDAL - Full schema read access for AI Coach
@@ -49,6 +81,38 @@ import { formatOfferPatterns } from '../offers/offer-patterns.js';
  * - Null-safe reads (missing data returns null, not errors)
  * - Temporal alignment: Trust snapshot day/time as ground truth
  */
+// 2026-09-11 (desktop-coach-review item 4, verified in the current tree): the DATA ACCESS
+// SUMMARY labelled ANY non-empty briefing object "Complete" — including the empty-arrays
+// object returned for a MISSING row — so the Coach was told a Briefing existed when
+// generation had not started, was still pending or had failed. The label is now derived
+// from briefings.status / generated_at and the same readiness rules Strategy uses
+// (server/lib/briefing/briefing-readiness.js). Legacy rows without a completion marker are
+// called out as unverified rather than promoted to complete.
+export function describeBriefingStatus(briefing) {
+  if (!briefing || briefing.exists === false) {
+    if (briefing?.source_state === 'read_failed' || briefing?.status === 'read_failed') {
+      return `Unavailable — Briefing read failed (${briefing.error || 'unknown error'}); do not present Briefing facts as current`;
+    }
+    return 'Unavailable — no Briefing row for this snapshot; do not present Briefing facts as current';
+  }
+  const readiness = briefing.readiness || {};
+  const issues = readiness.issues ? Object.entries(readiness.issues).map(([section, reason]) => `${section}: ${reason}`).join('; ') : '';
+  if (briefing.status === 'error' || readiness.failed) {
+    return `Failed${issues ? ` (${issues})` : ''}; Briefing sections below may be missing or stale`;
+  }
+  if (readiness.ready) {
+    const at = briefing.generated_at ? new Date(briefing.generated_at).toISOString() : 'unknown time';
+    return `Complete (generated ${at})`;
+  }
+  if (briefing.status === 'pending') {
+    return `Pending — generation in progress${issues ? ` (${issues})` : ''}; do not present Briefing facts as current`;
+  }
+  if (briefing.status == null) {
+    return `Unverified legacy Briefing (no completion marker)${issues ? ` — ${issues}` : ''}; treat its facts as provisional`;
+  }
+  return `Incomplete (${briefing.status})${issues ? ` — ${issues}` : ''}; treat Briefing facts as provisional`;
+}
+
 export class RideshareCoachDAL {
   /**
    * Resolve strategy_id to snapshot_id + user_id (entry point)
@@ -98,45 +162,16 @@ export class RideshareCoachDAL {
   async getHeaderSnapshot(snapshotId) {
     try {
       const [snap] = await db
-        .select({
-          snapshot_id: snapshots.snapshot_id,
-          user_id: snapshots.user_id,
-          created_at: snapshots.created_at,
-          weather: snapshots.weather,
-          air: snapshots.air,
-          // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
-          // TIME CONTEXT - READ FROM SNAPSHOT (authoritative)
-          dow: snapshots.dow,
-          hour: snapshots.hour,
-          day_part_key: snapshots.day_part_key,
-          timezone: snapshots.timezone,
-          // LOCATION FROM SNAPSHOT
-          lat: snapshots.lat,
-          lng: snapshots.lng,
-          city: snapshots.city,
-          state: snapshots.state,
-          formatted_address: snapshots.formatted_address,
-        })
+        .select()
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
         .limit(1);
 
       if (!snap) return null;
 
-      // Fetch user location data (for current coordinates if they've moved)
-      let userData = null;
-      if (snap.user_id) {
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.user_id, snap.user_id))
-          .limit(1);
-        userData = user;
-      }
-
-      // Build context: Snapshot is ground truth for time/location, user table for current position
+      // Header aliases describe the saved observation; they must not invent missing time fields.
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dow = snap.dow ?? 0;
+      const dow = snap.dow ?? null;
       const day_of_week = dow != null ? dayNames[dow] : 'Unknown';
       const is_weekend = dow === 0 || dow === 6;
 
@@ -145,22 +180,24 @@ export class RideshareCoachDAL {
         console.warn('[COACH] Snapshot missing timezone - coach context may be inaccurate');
       }
       return {
+        ...snap,
+        source_record: snap,
         snapshot_id: snap.snapshot_id,
         user_id: snap.user_id,
-        iso_timestamp: snap.created_at?.toISOString() || null,
+        iso_timestamp: contextTimestamp(snap.created_at),
         timezone: snap.timezone || null,  // NO FALLBACK - let consumer handle missing timezone
         day_of_week,
         is_weekend,
         dow: dow,
-        hour: snap.hour ?? 0,
+        hour: snap.hour ?? null,
         // 2026-07-06: normalized canonical key (legacy late_morning_noon/afternoon
         // rows map to early_afternoon/late_afternoon); 'unknown' states absence honestly
         day_part: normalizeDayPartKey(snap.day_part_key) || 'unknown',
         location_display: snap.formatted_address || `${snap.city || 'Unknown'}, ${snap.state || ''}`,
         city: snap.city || null,
         state: snap.state || null,
-        lat: userData?.new_lat ?? userData?.lat ?? snap.lat,
-        lng: userData?.new_lng ?? userData?.lng ?? snap.lng,
+        lat: snap.lat,
+        lng: snap.lng,
         weather: snap.weather,
         air: snap.air,
         // 2026-01-14: airport_context dropped - get from briefings.airport_conditions if needed
@@ -178,17 +215,9 @@ export class RideshareCoachDAL {
    */
   async getLatestStrategy(snapshotId) {
     try {
-      // Fetch strategy and snapshot together (location/time context now in snapshot)
-      // 2026-01-14: FIX - Removed strategy_timestamp and model_name (columns dropped)
-      // Use created_at for ordering instead
+      // Read independently of Briefing so its failure cannot hide a saved Strategy.
       const [strat] = await db
-        .select({
-          snapshot_id: strategies.snapshot_id,
-          user_id: strategies.user_id,
-          strategy_for_now: strategies.strategy_for_now,
-          created_at: strategies.created_at,
-          status: strategies.status,
-        })
+        .select()
         .from(strategies)
         .where(eq(strategies.snapshot_id, snapshotId))
         .orderBy(desc(strategies.created_at))
@@ -196,45 +225,18 @@ export class RideshareCoachDAL {
 
       if (!strat) return null;
 
-      // Fetch snapshot for location context (holiday moved to briefings 2026-07-06)
-      const [snapshot] = await db
-        .select({
-          formatted_address: snapshots.formatted_address,
-          city: snapshots.city,
-          state: snapshots.state,
-        })
-        .from(snapshots)
-        .where(eq(snapshots.snapshot_id, snapshotId))
-        .limit(1);
-
-      // 2026-07-06: holiday from briefings.holiday jsonb section (normalized
-      // to string|null: name when verified holiday, else null)
-      const [holidayRow] = await db
-        .select({ holiday: briefings.holiday })
-        .from(briefings)
-        .where(eq(briefings.snapshot_id, snapshotId))
-        .limit(1);
-      const holidayName =
-        holidayRow?.holiday && !holidayRow.holiday._generationFailed && holidayRow.holiday.is_holiday === true
-          ? holidayRow.holiday.holiday
-          : null;
-
-      // 2026-01-14: Lean strategies table - removed strategy_timestamp and model_name columns
       return {
+        ...strat,
         snapshot_id: strat.snapshot_id,
         user_id: strat.user_id,
         strategy_text: strat.strategy_for_now || null,
         strategy_for_now: strat.strategy_for_now,
-        strategy_timestamp: strat.created_at?.toISOString() || null,
-        holiday: holidayName,
-        user_address: snapshot?.formatted_address || null,
-        user_city: snapshot?.city || null,
-        user_state: snapshot?.state || null,
+        strategy_timestamp: contextTimestamp(strat.updated_at || strat.created_at),
         status: strat.status,
       };
     } catch (error) {
       console.error('[COACH] getLatestStrategy error:', error);
-      return null;
+      return { source_state: 'read_failed', status: 'read_failed', strategy_for_now: null };
     }
   }
 
@@ -254,7 +256,14 @@ export class RideshareCoachDAL {
         .limit(1);
 
       if (!briefingRecord) {
+        // 2026-09-11: a missing row is reported as such (desktop-coach-review item 4) AND
+        // carries the candidate's source contract (status pending, no source_record).
         return {
+          exists: false,
+          status: 'pending',
+          source_state: 'missing',
+          source_record: null,
+          readiness: { ready: false, failed: false, issues: {} },
           events: [],
           traffic: [],
           news: [],
@@ -262,6 +271,13 @@ export class RideshareCoachDAL {
       }
 
       return {
+        // 2026-09-11: real completion state for the prompt summary (see describeBriefingStatus)
+        // plus the full saved record for the Coach's source context (candidate contract).
+        exists: true,
+        source_record: briefingRecord,
+        status: briefingRecord.status || null,
+        generated_at: briefingRecord.generated_at || null,
+        readiness: getBriefingReadiness(briefingRecord, snapshotId),
         // Events, news, traffic from briefings table
         events: briefingRecord.events || [],
         traffic: briefingRecord.traffic_conditions || {},
@@ -279,7 +295,18 @@ export class RideshareCoachDAL {
       };
     } catch (error) {
       console.error('[COACH] getComprehensiveBriefing error:', error);
-      return {};
+      // 2026-09-11: a read failure is not "no data" — say so in the summary and the source contract.
+      return {
+        exists: false,
+        status: 'error',
+        source_state: 'read_failed',
+        source_record: null,
+        error: error.message,
+        readiness: { ready: false, failed: false, issues: {} },
+        events: [],
+        traffic: [],
+        news: [],
+      };
     }
   }
 
@@ -671,6 +698,7 @@ export class RideshareCoachDAL {
           home_timezone: driver_profiles.home_timezone,
           market: driver_profiles.market,
           rideshare_platforms: driver_profiles.rideshare_platforms,
+          selected_services: driver_profiles.selected_services,
           // Vehicle eligibility
           elig_economy: driver_profiles.elig_economy,
           elig_xl: driver_profiles.elig_xl,
@@ -682,6 +710,12 @@ export class RideshareCoachDAL {
           attr_electric: driver_profiles.attr_electric,
           attr_green: driver_profiles.attr_green,
           attr_wav: driver_profiles.attr_wav,
+          attr_ski: driver_profiles.attr_ski,
+          attr_car_seat: driver_profiles.attr_car_seat,
+          fuel_economy_mpg: driver_profiles.fuel_economy_mpg,
+          earnings_goal_daily: driver_profiles.earnings_goal_daily,
+          shift_hours_target: driver_profiles.shift_hours_target,
+          max_deadhead_mi: driver_profiles.max_deadhead_mi,
           // Service preferences
           pref_pet_friendly: driver_profiles.pref_pet_friendly,
           pref_teen: driver_profiles.pref_teen,
@@ -717,7 +751,8 @@ export class RideshareCoachDAL {
         .from(driver_vehicles)
         .where(and(
           eq(driver_vehicles.driver_profile_id, profile.id),
-          eq(driver_vehicles.is_primary, true)
+          eq(driver_vehicles.is_primary, true),
+          eq(driver_vehicles.is_active, true)
         ))
         .limit(1);
 
@@ -734,6 +769,36 @@ export class RideshareCoachDAL {
     } catch (error) {
       console.error('[COACH] getDriverProfile error:', error);
       return { profile: null, vehicle: null };
+    }
+  }
+
+  // Read on every Coach turn, scoped to the authenticated owner. A document or
+  // process cache cannot establish the driver's current saved Analyzer rules.
+  async getOfferRules(userId, profile = null) {
+    const unavailable = source_state => ({ source_state, config: null, version: null, hash: null, updated_at: null });
+    if (!userId) return unavailable('unavailable');
+    try {
+      const [row] = await db.select({
+        config: offer_rulesets.config, version: offer_rulesets.version,
+        config_hash: offer_rulesets.config_hash, updated_at: offer_rulesets.updated_at,
+      }).from(offer_rulesets).where(eq(offer_rulesets.user_id, userId)).limit(1);
+      if (!row) {
+        if (!profile || profile.user_id !== userId) return unavailable('unavailable');
+        const { config, sourceFields } = initialRulesetFromProfile(profile);
+        return { source_state: 'profile_defaults', config, version: null, hash: hashRuleset(config), updated_at: null, source_fields: sourceFields };
+      }
+      if (!row.config || typeof row.config !== 'object' || Array.isArray(row.config)
+        || !row.config.global || typeof row.config.global !== 'object' || Array.isArray(row.config.global)) {
+        return unavailable('invalid');
+      }
+      const parsed = validateRuleset(migrateRuleset(row.config));
+      if (!parsed.ok || !Number.isInteger(row.version) || row.version < 1 || hashRuleset(row.config) !== row.config_hash) {
+        return unavailable('invalid');
+      }
+      return { source_state: 'saved', config: parsed.config, version: row.version, hash: row.config_hash,
+        effective_hash: hashRuleset(parsed.config), stored_schema_version: row.config.schema_version ?? null, updated_at: row.updated_at };
+    } catch {
+      return unavailable('read_failed');
     }
   }
 
@@ -795,6 +860,7 @@ export class RideshareCoachDAL {
       let marketIntelligence = { marketPosition: null, intelligence: [] };
       let userNotes = [];
       let driverData = { profile: null, vehicle: null };
+      let offerRules = { source_state: 'unavailable', config: null };
       // 2026-02-17: FIX — offerData must be declared in outer scope (was const inside if block, causing ReferenceError)
       let offerData = { offers: [], stats: null };
       // 2026-05-05: Hoisted alongside offerData for the same reason — outer-scope visibility
@@ -828,13 +894,14 @@ export class RideshareCoachDAL {
         marketIntelligence = intel;
         userNotes = notes;
         driverData = driver;
+        offerRules = await this.getOfferRules(effectiveUserId, driverData.profile);
         offerData = offers || { offers: [], stats: null };
         coachOfferDecisions = coachDecisions || { decisions: [], stats: null };
         coachMemos = memos || [];
         coachSystemNotes = sysNotes || [];
       }
 
-      return {
+      const context = {
         snapshot,
         strategy,
         briefing,
@@ -846,6 +913,7 @@ export class RideshareCoachDAL {
         userNotes,
         driverProfile: driverData.profile,
         driverVehicle: driverData.vehicle,
+        offerRules,
         offerHistory: offerData,  // 2026-02-16: Offer log for coach
         offerPatterns,            // 2026-08-17: per-user offer patterns (time/day/area/product/month)
         coachOfferDecisions,      // 2026-05-05: Coach-driven decision intel
@@ -853,6 +921,7 @@ export class RideshareCoachDAL {
         coachSystemNotes,         // 2026-05-26: Coach's system-level observations for this driver
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
+      return { ...context, progress: getCoachContextProgress(context) };
     } catch (error) {
       console.error('[COACH] getCompleteContext error:', error);
       return {
@@ -867,6 +936,7 @@ export class RideshareCoachDAL {
         userNotes: [],
         driverProfile: null,
         driverVehicle: null,
+        offerRules: { source_state: 'read_failed', config: null },
         offerHistory: { offers: [], stats: null },
         coachOfferDecisions: { decisions: [], stats: null },
         coachMemos: [],
@@ -882,8 +952,16 @@ export class RideshareCoachDAL {
    */
   _determineStatus(snapshot, strategy, briefing, smartBlocks) {
     if (!snapshot) return 'missing_snapshot';
+    const strategyState = strategyContextState(strategy, briefing);
+    if (strategyState === 'read_failed') return 'strategy_read_failed';
+    if (strategyState === 'failed') return 'strategy_failed';
+    if (briefing?.source_state === 'read_failed') return 'briefing_read_failed';
+    if (briefing?.status === 'error' || briefing?.readiness?.failed) return 'briefing_failed';
+    if (getCoachContextProgress({ snapshot }).snapshot.state !== 'complete') return 'partial_snapshot';
     if (!strategy) return 'pending_strategy';
     if (!strategy.strategy_for_now) return 'pending_strategy';
+    if (strategyState !== 'complete') return 'partial_strategy';
+    if (!briefing?.readiness?.ready) return 'pending_briefing';
     if (smartBlocks.length === 0) return 'pending_blocks';
     return 'ready';
   }
@@ -968,19 +1046,15 @@ export class RideshareCoachDAL {
       if (driverProfile.attr_electric) attrs.push('Electric Vehicle');
       if (driverProfile.attr_green) attrs.push('Hybrid/Green');
       if (driverProfile.attr_wav) attrs.push('Wheelchair Accessible');
+      if (driverProfile.attr_ski) attrs.push('Ski rack / winter ready');
+      if (driverProfile.attr_car_seat) attrs.push('Child safety seat');
       if (attrs.length > 0) {
         prompt += `\nVehicle Features: ${attrs.join(', ')}`;
       }
 
       // Service preferences
-      const prefs = [];
-      if (driverProfile.pref_pet_friendly) prefs.push('accepts pets');
-      if (driverProfile.pref_teen) prefs.push('accepts unaccompanied teens');
-      if (driverProfile.pref_assist) prefs.push('provides assist rides');
-      if (driverProfile.pref_shared) prefs.push('takes shared rides');
-      if (prefs.length > 0) {
-        prompt += `\n⭐ Service Prefs: ${prefs.join(', ')}`;
-      }
+      prompt += `\n⭐ Service Prefs: ${formatDriverServicePreferences(driverProfile)}`;
+      prompt += `\nWork preferences: ${formatDriverEconomics(driverProfile)}`;
     }
 
     // ========== VEHICLE INFO ==========
@@ -1034,7 +1108,8 @@ export class RideshareCoachDAL {
         prompt += `\n\n🌤️  WEATHER CONDITIONS`;
         prompt += `\n   Temperature: ${snapshot.weather.tempF ?? snapshot.weather.temp ?? 'N/A'}°F`;
         prompt += `\n   Conditions: ${snapshot.weather.conditions || snapshot.weather.condition || 'N/A'}`;
-        if (snapshot.weather.windSpeed) prompt += `\n   Wind: ${snapshot.weather.windSpeed} mph`;
+        const wind = weatherWind(snapshot.weather);
+        if (wind) prompt += `\n   Wind: ${wind}`;
       }
 
       // Air Quality
@@ -1064,8 +1139,9 @@ export class RideshareCoachDAL {
 
     // ========== STRATEGY ==========
     if (strategy) {
+      prompt += `\n\nStrategy status: ${describeStrategyStatus(strategy, briefing)}`;
       if (strategy.strategy_for_now) {
-        prompt += `\n\n=== IMMEDIATE STRATEGY (Next 1hr) ===\n${strategy.strategy_for_now}`;
+        prompt += `\n\n=== SAVED STRATEGY (use its timestamp and state) ===\n${strategy.strategy_for_now}`;
       }
     } else if (status === 'pending_strategy') {
       prompt += `\n\n⏳ AI strategy is generating...`;
@@ -1077,17 +1153,17 @@ export class RideshareCoachDAL {
       if (briefing.weather_current) {
         prompt += `\n\n🌤️  REAL-TIME WEATHER (from Google Weather API)`;
         const w = briefing.weather_current;
-        prompt += `\n   Current: ${w.temperature?.degrees ?? 'N/A'}°${w.temperature?.unit === 'FAHRENHEIT' ? 'F' : 'C'}`;
+        prompt += `\n   Current: ${weatherTemperature(w)}`;
         prompt += `\n   Conditions: ${w.conditions || 'N/A'}`;
-        if (w.humidity) prompt += `\n   Humidity: ${w.humidity}%`;
-        if (w.windSpeed) prompt += `\n   Wind: ${w.windSpeed.value || 'N/A'} ${w.windSpeed.unit || 'mph'}`;
+        if (Number.isFinite(w.humidity)) prompt += `\n   Humidity: ${w.humidity}%`;
+        const wind = weatherWind(w);
+        if (wind) prompt += `\n   Wind: ${wind}`;
       }
 
       if (briefing.weather_forecast?.length > 0) {
         prompt += `\n   Forecast (next 6h): `;
         briefing.weather_forecast.slice(0, 3).forEach((h, i) => {
-          const temp = h.temperature?.degrees ?? 'N/A';
-          prompt += `${i > 0 ? ' | ' : ''}${temp}° `;
+          prompt += `${i > 0 ? ' | ' : ''}${weatherTemperature(h)} `;
         });
       }
 
@@ -1254,10 +1330,6 @@ export class RideshareCoachDAL {
 
       prompt += `\n\n   Recent offers:`;
       offerHistory.offers.slice(0, 5).forEach((offer, i) => {
-        // 2026-05-05: Read structured columns directly. The earlier `offer.parsed_data?.X`
-        // path was a leftover from the pre-2026-02-17 JSONB era — the SELECT in
-        // getOfferHistory pulls structured columns (price, total_miles, per_mile)
-        // and the JSONB blob was never selected, so price/miles always rendered as '?'.
         const price = offer.price != null ? `$${Number(offer.price).toFixed(2)}` : '?';
         const miles = offer.total_miles != null ? `${Number(offer.total_miles).toFixed(1)}mi` : '?';
         const pm = offer.per_mile != null ? `$${Number(offer.per_mile).toFixed(2)}/mi` : '';
@@ -1313,15 +1385,16 @@ export class RideshareCoachDAL {
     prompt += `\n\n📋 DATA ACCESS SUMMARY`;
     prompt += `\n   ✓ Driver Profile: ${driverProfile ? `${driverProfile.first_name} ${driverProfile.last_name}` : 'Not registered'}`;
     prompt += `\n   ✓ Vehicle: ${driverVehicle ? `${driverVehicle.year} ${driverVehicle.make} ${driverVehicle.model}` : 'Not set'}`;
-    prompt += `\n   ✓ Snapshot: ${snapshot ? 'Complete' : 'Unavailable'}`;
-    prompt += `\n   ✓ Strategy: ${strategy ? (strategy.strategy_for_now ? 'Ready' : 'In Progress') : 'Pending'}`;
-    prompt += `\n   ✓ Briefing: ${briefing && Object.keys(briefing).length > 0 ? 'Complete' : 'Unavailable'}`;
+    prompt += `\n   Snapshot: ${context.progress?.snapshot?.state || 'Unverified'} — observed ${contextTimestamp(snapshot?.created_at) || 'unknown time'}`;
+    prompt += `\n   Strategy: ${describeStrategyStatus(strategy, briefing)}`;
+    // 2026-09-11 (desktop-coach-review item 4): derived from status/generated_at/readiness.
+    prompt += `\n   ✓ Briefing: ${describeBriefingStatus(briefing)}`;
     prompt += `\n   ✓ Smart Blocks: ${smartBlocks?.length || 0} venues`;
     prompt += `\n   ✓ Feedback: ${feedback?.venue_feedback?.length || 0} venue votes`;
     prompt += `\n   ✓ Actions: ${actions?.length || 0} recorded`;
     prompt += `\n   ✓ Market Intel: ${marketIntelligence?.intelligence?.length || 0} items`;
     prompt += `\n   ✓ User Notes: ${userNotes?.length || 0} notes`;
-    prompt += `\n   ✓ Offer Log: ${offerHistory?.stats?.total || 0} analyzed`;
+    prompt += `\n   Offer Log: ${offerHistory?.source_state === 'read_failed' ? 'Read failed — no claim about offer availability' : `${offerHistory?.offers?.length || 0} stored rows in the recent ${offerHistory?.limit ?? 20}-offer window`}`;
     prompt += `\n   ✓ Coach System Notes: ${coachSystemNotes?.length || 0} observations`;
     prompt += `\n   ✓ Coach Memos: ${coachMemos?.length || 0} memos`;
     prompt += `\n   Status: ${status}`;
@@ -1346,50 +1419,29 @@ export class RideshareCoachDAL {
    * @returns {Promise<Object>} { offers: Array, stats: Object }
    */
   async getOfferHistory(userId, limit = 20) {
+    const windowLimit = Math.min(50, Math.max(1, Number.isInteger(limit) ? limit : 20));
     if (!userId) {
       console.warn('[COACH] getOfferHistory: no userId — returning empty history (offers are per-user)');
-      return { offers: [], stats: null };
+      return { offers: [], stats: null, source_state: 'unavailable', limit: windowLimit };
     }
     try {
       const history = await db
-        .select({
-          id: offer_intelligence.id,
-          decision: offer_intelligence.decision,
-          decision_reasoning: offer_intelligence.decision_reasoning,
-          price: offer_intelligence.price,
-          per_mile: offer_intelligence.per_mile,
-          total_miles: offer_intelligence.total_miles,
-          pickup_minutes: offer_intelligence.pickup_minutes,
-          pickup_address: offer_intelligence.pickup_address,
-          dropoff_address: offer_intelligence.dropoff_address,
-          product_type: offer_intelligence.product_type,
-          confidence_score: offer_intelligence.confidence_score,
-          user_override: offer_intelligence.user_override,
-          platform: offer_intelligence.platform,
-          market: offer_intelligence.market,
-          day_part: offer_intelligence.day_part,
-          h3_index: offer_intelligence.h3_index,
-          response_time_ms: offer_intelligence.response_time_ms,
-          created_at: offer_intelligence.created_at,
-        })
+        .select()
         .from(offer_intelligence)
-        .where(eq(offer_intelligence.user_id, userId))
+        .where(and(eq(offer_intelligence.user_id, userId), isNull(offer_intelligence.removed_at)))
         .orderBy(desc(offer_intelligence.created_at))
-        .limit(limit);
+        .limit(windowLimit);
 
       if (history.length === 0) {
-        return { offers: [], stats: null };
+        return { offers: [], stats: null, source_state: 'available', limit: windowLimit };
       }
 
       const accepted = history.filter(h => h.decision === 'ACCEPT');
       const rejected = history.filter(h => h.decision === 'REJECT');
-      const overrides = history.filter(h => h.user_override !== null);
-      // 2026-05-05: Read per_mile from the structured column. The legacy
-      // `h.parsed_data?.per_mile` returned undefined because the SELECT no
-      // longer pulls parsed_data_json; per_mile lives in its own column.
+      const overrides = history.filter(h => h.user_override != null);
       const perMileValues = history
-        .map(h => h.per_mile)
-        .filter(v => v != null && v > 0);
+        .map(h => h.per_mile == null ? null : Number(h.per_mile))
+        .filter(v => v != null && Number.isFinite(v) && v >= 0);
 
       const stats = {
         total: history.length,
@@ -1413,10 +1465,10 @@ export class RideshareCoachDAL {
         ...h,
         day_part: h.day_part ? (normalizeDayPartKey(h.day_part) ?? h.day_part) : null,
       }));
-      return { offers, stats };
+      return { offers, stats, source_state: 'available', limit: windowLimit };
     } catch (error) {
       console.error('[COACH] getOfferHistory error:', error);
-      return { offers: [], stats: null };
+      return { offers: [], stats: null, source_state: 'read_failed', limit: windowLimit };
     }
   }
 
@@ -1448,6 +1500,7 @@ export class RideshareCoachDAL {
           FROM offer_intelligence oi
           LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
           WHERE oi.user_id = ${userId}
+            AND oi.removed_at IS NULL
             AND oi.decision IN ('ACCEPT', 'REJECT')
             AND oi.created_at > NOW() - (${windowDays} || ' days')::interval
         ),
@@ -1557,83 +1610,6 @@ export class RideshareCoachDAL {
     }
   }
 
-  /**
-   * Log a Coach-driven offer decision. Called by executeActions when the Coach
-   * emits [LOG_OFFER_DECISION: {...}] after analyzing a screenshot.
-   */
-  async saveCoachOfferDecision(payload) {
-    try {
-      const [row] = await db
-        .insert(coach_offer_decisions)
-        .values(payload)
-        .returning();
-      console.log(`[COACH] saveCoachOfferDecision: ${row?.id} (${payload.ai_recommendation})`);
-      return row || null;
-    } catch (error) {
-      console.error('[COACH] saveCoachOfferDecision error:', error.message);
-      return null;
-    }
-  }
-
-  /**
-   * Update an existing decision row — typically when the user lifecycle resolves
-   * (e.g., accepted then cancelled, or completed). Scoped to user_id for safety.
-   */
-  async updateCoachOfferDecision(id, userId, fields) {
-    try {
-      const [row] = await db
-        .update(coach_offer_decisions)
-        .set({ ...fields, updated_at: new Date() })
-        .where(and(
-          eq(coach_offer_decisions.id, id),
-          eq(coach_offer_decisions.user_id, userId)
-        ))
-        .returning();
-      if (row) {
-        console.log(`[COACH] updateCoachOfferDecision: ${id} fields=${Object.keys(fields).join(',')}`);
-      } else {
-        console.warn(`[COACH] updateCoachOfferDecision: no row matched id=${id} user=${userId.slice(0, 8)}`);
-      }
-      return row || null;
-    } catch (error) {
-      console.error('[COACH] updateCoachOfferDecision error:', error.message);
-      return null;
-    }
-  }
-
-  /**
-   * Backfill nullable fields on a raw offer_intelligence row using Coach-confirmed
-   * ground truth from a screenshot. Identity fields (decision, device_id, created_at)
-   * are intentionally not editable here — Zod schema gates that at the action layer.
-   * 2026-08-11: user-scoped — the offer id is LLM-emitted text (BACKFILL_OFFER_INTEL
-   * action tag), so without the user predicate this was an unscoped cross-tenant write.
-   */
-  async updateOfferIntelligence(offerId, userId, fields) {
-    if (!userId) {
-      console.warn('[COACH] updateOfferIntelligence: no userId — refusing unscoped write');
-      return null;
-    }
-    try {
-      const [row] = await db
-        .update(offer_intelligence)
-        .set({ ...fields, updated_at: new Date() })
-        .where(and(
-          eq(offer_intelligence.id, offerId),
-          eq(offer_intelligence.user_id, userId)
-        ))
-        .returning();
-      if (row) {
-        console.log(`[COACH] updateOfferIntelligence (backfill): ${offerId} fields=${Object.keys(fields).join(',')}`);
-      } else {
-        console.warn(`[COACH] updateOfferIntelligence: no row matched id=${offerId} user=${userId.slice(0, 8)}`);
-      }
-      return row || null;
-    } catch (error) {
-      console.error('[COACH] updateOfferIntelligence error:', error.message);
-      return null;
-    }
-  }
-
   // ═══════════════════════════════════════════════════════════════════════════
   // SNAPSHOT HISTORY - User-level historical data access
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1662,6 +1638,7 @@ export class RideshareCoachDAL {
         .select({
           snapshot_id: snapshots.snapshot_id,
           created_at: snapshots.created_at,
+          timezone: snapshots.timezone,
           city: snapshots.city,
           state: snapshots.state,
           dow: snapshots.dow,
@@ -1847,16 +1824,18 @@ export class RideshareCoachDAL {
    * @param {string} messageId - Message ID
    * @param {boolean} starred - Whether to star or unstar
    */
-  async toggleMessageStar(messageId, starred) {
-    try {
-      await db
-        .update(coach_conversations)
-        .set({ is_starred: starred, updated_at: new Date() })
-        .where(eq(coach_conversations.id, messageId));
-      console.log(`[COACH] Message ${messageId} ${starred ? 'starred' : 'unstarred'}`);
-    } catch (error) {
-      console.error('[COACH] toggleMessageStar error:', error);
-    }
+  async toggleMessageStar(messageId, userId, starred) {
+    // 2026-09-10 (security finding [10], verified): the update was keyed by message id only
+    // (any driver could star/unstar anyone's message) and returned nothing, so the route's
+    // "found" branch was dead. Scope to the owner and return the row; DB errors propagate.
+    if (typeof messageId !== 'string' || !messageId || typeof userId !== 'string' || !userId) return null;
+    const [row] = await db
+      .update(coach_conversations)
+      .set({ is_starred: starred, updated_at: new Date() })
+      .where(and(eq(coach_conversations.id, messageId), eq(coach_conversations.user_id, userId)))
+      .returning({ id: coach_conversations.id, is_starred: coach_conversations.is_starred });
+    if (row) console.log(`[COACH] Message ${messageId.slice(0, 8)} ${starred ? 'starred' : 'unstarred'}`);
+    return row ?? null;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2214,7 +2193,8 @@ export class RideshareCoachDAL {
         reason,
         notes,
         deactivated_by = 'ai_coach',
-        snapshot_id // Optional: for real-time UI update
+        snapshot_id, // Optional: for real-time UI update
+        restrict_city = null // 2026-09-10: when set, only events in this city may match (driver-initiated)
       } = deactivationData;
 
       if (!reason) {
@@ -2232,7 +2212,10 @@ export class RideshareCoachDAL {
         const matchingEvents = await db
           .select({ id: discovered_events.id, title: discovered_events.title })
           .from(discovered_events)
-          .where(eq(discovered_events.is_active, true))
+          .where(and(
+            eq(discovered_events.is_active, true),
+            restrict_city ? ilike(discovered_events.city, restrict_city) : undefined
+          ))
           .orderBy(desc(discovered_events.discovered_at))
           .limit(100); // Check recent events
 
@@ -2407,70 +2390,27 @@ export class RideshareCoachDAL {
    */
   async addEvent(eventData) {
     try {
-      const {
-        title, venue_name, address, city, state,
-        event_start_date, event_start_time, event_end_time,
-        category = 'other', expected_attendance = 'medium',
-        notes, user_id
-      } = eventData;
-
-      if (!title || !event_start_date || !city || !state) {
-        console.warn('[COACH] addEvent: missing required fields (title, event_start_date, city, state)');
-        return null;
-      }
-
-      // Generate event hash for deduplication using the canonical pipeline function
-      const { generateEventHash } = await import('../../lib/events/pipeline/hashEvent.js');
-      const eventHash = generateEventHash({
-        title,
-        venue_name,
-        address,
-        event_start_date,
-        event_start_time
+      if (!eventData?.city || !eventData?.state || !eventData?.timezone) return null;
+      const { place_id: _unverifiedPlaceId, ...normalized } = normalizeEvent(eventData);
+      const validation = validateEvent(normalized, { timezone: eventData.timezone });
+      // Drivers may report a future schedule. Preserve it as unverified input;
+      // date-window exclusion is not permission to invent or repair bad clocks.
+      if (!validation.valid && !['starts_in_future', 'ended_before_today'].includes(validation.reason)) return null;
+      normalized.expected_attendance = ['low', 'medium', 'high'].includes(eventData.expected_attendance) ? eventData.expected_attendance : null;
+      const baseHash = generateEventHash(normalized);
+      return await withEventVenueLock(null, async tx => {
+        // Coach input has no provider-confirmed venue link. Do not attach a model
+        // place ID or merge a claimed venue name into a known catalog identity.
+        const eventHash = await resolveEventWriteHash(tx, { ...normalized, venue_id: null }, baseHash);
+        const [event] = await tx.insert(discovered_events).values({ ...normalized,
+          venue_id: null, event_hash: eventHash, is_active: true, is_verified: false,
+          schema_version: validation.valid ? VALIDATION_SCHEMA_VERSION : 0,
+        }).onConflictDoUpdate({ target: discovered_events.event_hash, set: {
+          title: normalized.title, category: normalized.category,
+          expected_attendance: normalized.expected_attendance, updated_at: new Date(),
+        } }).returning();
+        return event;
       });
-
-      // Upsert — if event already exists (same hash), update it instead of failing
-      const [event] = await db
-        .insert(discovered_events)
-        .values({
-          title,
-          venue_name: venue_name || null,
-          address: address || null,
-          city,
-          state,
-          event_start_date,
-          event_start_time: event_start_time || null,
-          event_end_date: event_start_date, // Default end date = start date
-          event_end_time: event_end_time || '11:59 PM',
-          category,
-          expected_attendance,
-          event_hash: eventHash,
-          is_active: true,
-          is_verified: false, // Coach-added events are unverified until confirmed
-          schema_version: VALIDATION_SCHEMA_VERSION,
-          deactivation_reason: null,
-          deactivated_at: null,
-          deactivated_by: null,
-        })
-        .onConflictDoUpdate({
-          target: discovered_events.event_hash,
-          set: {
-            title,
-            venue_name: venue_name || null,
-            address: address || null,
-            event_start_time: event_start_time || null,
-            event_end_time: event_end_time || '11:59 PM',
-            category,
-            expected_attendance,
-            is_active: true,
-            schema_version: VALIDATION_SCHEMA_VERSION,
-            updated_at: new Date(),
-          }
-        })
-        .returning();
-
-      console.log(`[COACH] addEvent: "${title}" on ${event_start_date} in ${city}, ${state} (hash: ${eventHash.slice(0, 8)})`);
-      return event;
     } catch (error) {
       console.error('[COACH] addEvent error:', error);
       return null;
@@ -2779,6 +2719,7 @@ export class RideshareCoachDAL {
    * @returns {Promise<number>} Number of tips extracted
    */
   async extractAndSaveTips(userId, responseContent, context = {}) {
+    let savedCount = 0;
     try {
       // Look for actionable patterns in the response
       const tipPatterns = [
@@ -2796,11 +2737,11 @@ export class RideshareCoachDAL {
       }
 
       // Save each unique tip as a user intel note
-      const savedCount = 0;
       const uniqueTips = [...new Set(extractedTips)].slice(0, 5); // Max 5 tips per response
 
       for (const tip of uniqueTips) {
-        await this.saveUserNote({
+        if (context.signal?.aborted) break;
+        const saved = await this.saveUserNote({
           user_id: userId,
           note_type: 'tip',
           category: 'strategy',
@@ -2810,15 +2751,16 @@ export class RideshareCoachDAL {
           importance: 60,
           created_by: 'ai_coach'
         });
+        if (saved) savedCount++;
       }
 
-      if (uniqueTips.length > 0) {
-        console.log(`[COACH] Extracted ${uniqueTips.length} tips from coach response`);
+      if (savedCount > 0) {
+        console.log(`[COACH] Extracted ${savedCount} tips from coach response`);
       }
-      return uniqueTips.length;
+      return savedCount;
     } catch (error) {
       console.error('[COACH] extractAndSaveTips error:', error);
-      return 0;
+      return savedCount;
     }
   }
 

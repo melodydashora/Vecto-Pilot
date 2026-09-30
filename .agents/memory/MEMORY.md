@@ -1,0 +1,1 @@
+- [Offer Analyzer mobile preview](offer-analyzer-preview.md) — automated screenshots can be blank from bot filtering; verify gated UI with isolated synthetic browser responses.

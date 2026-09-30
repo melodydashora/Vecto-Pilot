@@ -111,17 +111,8 @@ export interface ForLocationResponse {
     satellite_cities_sample: string[];
   };
   intel_count: number;
-  insights_count: number;
   by_type: Record<IntelType, IntelligenceItem[]>;
   intelligence: IntelligenceItem[];
-  market_insights: Array<{
-    id: string;
-    market_name: string;
-    intel_type: string;
-    title: string;
-    content: string;
-    priority: number;
-  }>;
 }
 
 // Market archetype detection based on city characteristics

@@ -15,7 +15,7 @@ import { briefingLog, OP, matrixLog } from '../../../logger/workflow.js';
 import { callModel } from '../../ai/adapters/index.js';
 import { haversineDistanceMiles } from '../../location/geo.js';
 import { safeJsonParse } from '../shared/safe-json-parse.js';
-import { writeSectionAndNotify, CHANNELS } from '../briefing-notify.js';
+import { writeSectionAndNotify, CHANNELS, errorMarker } from '../briefing-notify.js';
 
 /**
  * Get region-specific search terms for school authorities.
@@ -50,7 +50,8 @@ export function getSchoolSearchTerms(country) {
  * @returns {Promise<Array>} closures array (possibly empty)
  */
 export async function fetchSchoolClosures({ snapshot }) {
-  if (!process.env.GEMINI_API_KEY || !snapshot?.city || !snapshot?.state) return [];
+  if (!process.env.GEMINI_API_KEY) throw new Error('School closures provider not configured');
+  if (!snapshot?.city || !snapshot?.state) throw new Error('School closures snapshot missing location');
 
   const { city, state, lat, lng, country } = snapshot;
   const context = getSchoolSearchTerms(country);
@@ -112,12 +113,13 @@ NOTES:
       secondaryCat: 'SCHOOLS',
       location: 'pipelines/schools.js:fetchSchoolClosures',
     }, 'Briefer call failed', result.error);
-    return [];
+    throw new Error('School closures provider failed: ' + (result.error || 'unknown provider failure'));
   }
 
   try {
     const closures = safeJsonParse(result.output);
-    const closuresArray = Array.isArray(closures) ? closures : [];
+    if (!Array.isArray(closures)) throw new Error('School closures response is not a JSON array');
+    const closuresArray = closures;
 
     if (closuresArray.length === 0) {
       briefingLog.info(`No school closures found for ${city}, ${state}`);
@@ -164,7 +166,7 @@ NOTES:
     return nearbyClosures;
   } catch (parseErr) {
     briefingLog.warn(2, `School closures parse failed: ${parseErr.message}`, OP.AI);
-    return [];
+    throw parseErr;
   }
 }
 
@@ -202,10 +204,8 @@ export async function discoverSchools({ snapshot, snapshotId, cachedClosures = n
       closures = await fetchSchoolClosures({ snapshot });
       reason = closures.length > 0 ? null : 'No school closures found for this area';
     } catch (err) {
-      // Non-fatal — closures failing shouldn't prevent other data from being stored
-      console.error(`[BRIEFING] Closures fetch failed (non-fatal): ${err.message}`);
-      closures = [];
-      reason = `School closures fetch failed: ${err.message}`;
+      await writeSectionAndNotify(snapshotId, { school_closures: errorMarker(err) }, CHANNELS.SCHOOL_CLOSURES);
+      throw err;
     }
   }
 

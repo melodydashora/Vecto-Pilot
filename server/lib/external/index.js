@@ -18,7 +18,7 @@ export { semanticSearch } from './semantic-search.js';
 export { synthesizeSpeech } from './tts-handler.js';
 
 // Aviation
-export { getFAAStatus } from './faa-asws.js';
+export { fetchFAADelayData } from './faa-asws.js';
 
 // Module summary:
 // - TomTom: Moved to server/lib/traffic/tomtom.js (re-exported here for backwards compat)

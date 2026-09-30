@@ -69,9 +69,11 @@ export async function callGemini({
   topK,
   useSearch = false,
   thinkingLevel = null, // Gemini 3.x: "minimal"/"low"/"medium"/"high" on Flash (minimal added for 3.5), "low"/"high" on Pro — validated in validateThinkingLevel(); null = disabled
-  skipJsonExtraction = false
+  skipJsonExtraction = false,
+  signal,
 }) {
   try {
+    signal?.throwIfAborted();
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error('[AI] GEMINI_API_KEY not configured');
@@ -105,13 +107,20 @@ export async function callGemini({
 
     // Build config object for new SDK
     const config = {
+      ...(signal && { abortSignal: signal }),
       maxOutputTokens: maxTokens,
       temperature: finalTemperature,
       ...(topP !== undefined && { topP }),
       ...(topK !== undefined && { topK }),
       // 2026-03-02: Force JSON output when system/user requests it — prevents truncation
       // and eliminates need for post-processing code block stripping
-      ...(expectsJson && { responseMimeType: 'application/json' }),
+      // 2026-09-29: never together with Google Search grounding. Verified live (13 provider
+      // calls): grounding plus a bare JSON mime type, with no schema, returns zero candidates
+      // after 30-75 s on the pinned Briefer model, which failed every grounded Briefing
+      // section. Grounded roles get JSON through the prompt and the extraction below.
+      // Grounding with JSON mode answers only when a JSON schema is supplied, and this
+      // adapter has no schema input.
+      ...(expectsJson && !useSearch && { responseMimeType: 'application/json' }),
       // 2026-02-26: Safety filters set to OFF — news/traffic content about accidents,
       // violence, protests was being blocked. CIVIC_INTEGRITY removed (not a valid
       // adjustable category per Gemini API docs — caused silent request failures).
@@ -179,6 +188,7 @@ export async function callGemini({
     }
 
     const result = await ai.models.generateContent(generateParams);
+    signal?.throwIfAborted();
 
     // New SDK response: result.text or result.response.text()
     let output = (result?.text || result?.response?.text?.() || "").trim();
@@ -247,7 +257,9 @@ export async function callGemini({
         }
 
         if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-          if (jsonStart > 0 || jsonEnd < extractTarget.length - 1) {
+          // extractTarget differs from output when a prose preamble was stripped above.
+          // The slice must be applied then too, or the preamble is returned with the JSON.
+          if (jsonStart > 0 || jsonEnd < extractTarget.length - 1 || extractTarget !== output) {
             const extracted = extractTarget.slice(jsonStart, jsonEnd + 1);
             try {
               JSON.parse(extracted);
@@ -267,15 +279,22 @@ export async function callGemini({
       len: output?.length ?? 0
     });
 
-    return output
-      ? { ok: true, output }
-      : {
-          ok: false,
-          output: "",
-          error: ['Empty response from Gemini',
-            finishReason && `finishReason=${finishReason}`,
-            blockReason && `blockReason=${blockReason}`].filter(Boolean).join(' '),
-        };
+    if (output) return { ok: true, output };
+
+    // Counts only, never upstream content: enough to tell "no candidate came back" from
+    // "a candidate came back without text" after the router reduces the cause to a code.
+    const candidates = result?.candidates || result?.response?.candidates || [];
+    const usage = result?.usageMetadata || result?.response?.usageMetadata || {};
+    const cause = ['Empty response from Gemini',
+      `candidates=${candidates.length}`,
+      finishReason && `finishReason=${finishReason}`,
+      blockReason && `blockReason=${blockReason}`,
+      Number.isFinite(usage.promptTokenCount) && `promptTokens=${usage.promptTokenCount}`,
+      Number.isFinite(usage.thoughtsTokenCount) && `thoughtsTokens=${usage.thoughtsTokenCount}`,
+      `grounded=${Boolean(useSearch)}`,
+      `jsonMode=${Boolean(config.responseMimeType)}`].filter(Boolean).join(' ');
+    console.warn(`[AI] ${cause}`);
+    return { ok: false, output: "", error: cause };
   } catch (err) {
     console.error("[AI] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };

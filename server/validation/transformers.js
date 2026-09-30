@@ -158,6 +158,13 @@ export function toApiVenueData(venueData) {
  * @param {Object} dbBlock - Block from ranking_candidates table or merged candidate
  * @returns {Object} API-formatted block
  */
+function measuredNumber(value) {
+  if ((typeof value !== 'number' && typeof value !== 'string') ||
+      (typeof value === 'string' && !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
 export function toApiBlock(dbBlock) {
   if (!dbBlock) return null;
 
@@ -214,11 +221,9 @@ export function toApiBlock(dbBlock) {
   }
 
   // 5. Resolve Street View URL (snake/camel tolerant)
-  const streetViewUrl = dbBlock.streetViewUrl ??
-                        dbBlock.street_view_url ??
-                        dbBlock.features?.streetViewUrl ??
-                        dbBlock.features?.street_view_url ??
-                        null;
+  // 2026-09-10 (security finding [4]): legacy rows persisted a Street View URL carrying the
+  // server Maps key; never let it leave the server again. The client copies but never renders it.
+  const streetViewUrl = null;
 
   // 6. Resolve Closed Venue Reasoning (multiple legacy column names)
   const closedVenueReasoning = dbBlock.closedVenueReasoning ??
@@ -230,16 +235,16 @@ export function toApiBlock(dbBlock) {
   // 7. Construct Canonical API Object
   return {
     name: dbBlock.name,
-    address: dbBlock.address, // Prefer resolved address passed in by caller
+    address: dbBlock.address ?? dbBlock.features?.address ?? null,
     coordinates: dbBlock.coordinates || { lat: dbBlock.lat, lng: dbBlock.lng },
     placeId: dbBlock.placeId ?? dbBlock.place_id,
     venueId: dbBlock.venueId ?? dbBlock.venue_id ?? null,
 
-    // Metrics - coerce to numbers with defaults
-    estimatedDistanceMiles: Number(dbBlock.estimatedDistanceMiles ?? dbBlock.distance_miles ?? dbBlock.estimated_distance_miles ?? 0),
-    driveTimeMinutes: Number(dbBlock.driveTimeMinutes ?? dbBlock.drive_minutes ?? 0),
+    // Missing historical measurements remain unknown; measured zero is valid.
+    estimatedDistanceMiles: measuredNumber(dbBlock.estimatedDistanceMiles ?? dbBlock.distance_miles ?? dbBlock.estimated_distance_miles),
+    driveTimeMinutes: measuredNumber(dbBlock.driveTimeMinutes ?? dbBlock.drive_minutes),
     distanceSource: dbBlock.distanceSource ?? dbBlock.distance_source ?? "routes_api",
-    valuePerMin: Number(dbBlock.valuePerMin ?? dbBlock.value_per_min ?? 0),
+    valuePerMin: measuredNumber(dbBlock.valuePerMin ?? dbBlock.value_per_min),
     valueGrade: dbBlock.valueGrade ?? dbBlock.value_grade ?? null,
     notWorth: !!(dbBlock.notWorth ?? dbBlock.not_worth),
     surge: dbBlock.surge ?? null,

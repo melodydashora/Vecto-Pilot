@@ -2,7 +2,7 @@
 // Background worker spawning and management
 
 import { spawn } from 'node:child_process';
-import { openSync } from 'node:fs';
+import { openSync, closeSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -13,145 +13,66 @@ const children = new Map();
 let isShuttingDown = false;
 const workerLogPath = path.join(os.tmpdir(), 'worker.log');
 
-// 2026-02-25: Restart limits (ported from start-replit.js during Phase 6 refactor; that file was removed 2026-05-13)
-// Prevents infinite restart loops that exhaust DB connection pool
-const MAX_WORKER_RESTARTS = parseInt(process.env.MAX_WORKER_RESTARTS || '10', 10);
-const RESTART_BACKOFF_MS = parseInt(process.env.RESTART_BACKOFF_MS || '5000', 10);
-let consecutiveFailures = 0;
+// Both output modes share one lifecycle. A child error and its subsequent exit
+// are one failure, and old child callbacks cannot delete or replace a new child.
+const positiveInteger = (value, fallback) => /^\d+$/.test(value || '') && Number(value) > 0 ? Number(value) : fallback;
+const MAX_WORKER_RESTARTS = positiveInteger(process.env.MAX_WORKER_RESTARTS, 10);
+const RESTART_BACKOFF_MS = positiveInteger(process.env.RESTART_BACKOFF_MS, 5000);
+const workers = new Map();
 
-/**
- * Spawn a child process with auto-restart on crash
- * @param {string} name - Process name for logging
- * @param {string} command - Command to run
- * @param {string[]} args - Command arguments
- * @param {object} env - Additional environment variables
- * @returns {ChildProcess} The spawned child process
- */
-export function spawnChild(name, command, args, env = {}) {
-  console.log(`[GATEWAY] Starting ${name}...`);
+function spawnManaged(name, command, args, env, useLogFile) {
+  if (isShuttingDown) return null;
+  let record = workers.get(name);
+  if (record?.child || record?.timer) return record.child || null;
+  if (!record) { record = { child: null, timer: null, failures: 0 }; workers.set(name, record); }
+  if (record.failures >= MAX_WORKER_RESTARTS) return null;
 
-  const child = spawn(command, args, {
-    env: { ...process.env, ...env },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
-  child.stdout.on('data', (data) =>
-    console.log(`[${name}] ${data.toString().trim()}`)
-  );
-
-  child.stderr.on('data', (data) =>
-    console.error(`[${name}] ${data.toString().trim()}`)
-  );
-
-  child.on('error', (err) => {
-    console.error(`[GATEWAY] ${name} spawn error:`, err.message);
-    children.delete(name);
-    if (!isShuttingDown) {
-      setTimeout(() => spawnChild(name, command, args, env), 2000);
-    }
-  });
-
-  child.on('exit', (code, signal) => {
-    children.delete(name);
-    if (isShuttingDown) {
-      console.log(`[GATEWAY] ${name} stopped (${signal || code})`);
-      return;
-    }
-    if (code === 0) {
-      console.warn(`[GATEWAY] ${name} exited cleanly (code 0) - not restarting`);
-      return;
-    }
-    console.error(`[GATEWAY] ${name} exited with code ${code ?? 'null'}, restarting...`);
-    setTimeout(() => spawnChild(name, command, args, env), 2000);
-  });
-
-  children.set(name, child);
-  return child;
-}
-
-/**
- * Start strategy generator worker with restart limits.
- *
- * 2026-02-25: Added MAX_WORKER_RESTARTS guard (ported from start-replit.js; that file was removed 2026-05-13).
- * Without this, a crashing worker creates an infinite restart loop that
- * exhausts the DB connection pool and cascades failures to auth queries.
- *
- * @param {object} options
- * @param {boolean} options.useLogFile - Write output to /tmp/worker.log instead of stdout
- */
-export function startStrategyWorker(options = {}) {
-  const { useLogFile = false } = options;
-
-  console.log('[GATEWAY] Starting strategy generator worker...');
-
+  let child, descriptor;
+  let settled = false;
+  const finish = (code, error) => {
+    if (settled || workers.get(name) !== record || record.child !== child) return;
+    settled = true;
+    record.child = null;
+    if (children.get(name) === child) children.delete(name);
+    if (isShuttingDown) return;
+    if (code === 0 && !error) { record.failures = 0; return; }
+    record.failures += 1;
+    console.error(`[GATEWAY] ${name} stopped unexpectedly (failure ${record.failures}/${MAX_WORKER_RESTARTS})`);
+    if (record.failures >= MAX_WORKER_RESTARTS) return;
+    record.timer = setTimeout(() => {
+      record.timer = null;
+      if (!isShuttingDown && workers.get(name) === record && !record.child) {
+        spawnManaged(name, command, args, env, useLogFile);
+      }
+    }, RESTART_BACKOFF_MS);
+    record.timer.unref?.();
+  };
   try {
-    if (useLogFile) {
-      const workerLogFd = openSync(workerLogPath, 'a');
-
-      const worker = spawn('node', ['strategy-generator.js'], {
-        stdio: ['ignore', workerLogFd, workerLogFd],
-        env: { ...process.env },
-      });
-
-      worker.on('error', (err) => {
-        console.error('[gateway:worker:error] Failed to spawn worker:', err.message);
-        scheduleWorkerRestart(options);
-      });
-
-      worker.on('exit', (code, signal) => {
-        children.delete('strategy-worker');
-        if (isShuttingDown) {
-          console.log(`[GATEWAY] strategy-worker stopped (${signal || code})`);
-          return;
-        }
-        if (code === 0) {
-          console.warn('[GATEWAY] strategy-worker exited cleanly (code 0) - not restarting');
-          consecutiveFailures = 0;
-          return;
-        }
-        console.error(`[gateway:worker:exit] Worker exited with code ${code ?? 'null'}`);
-        scheduleWorkerRestart(options);
-      });
-
-      children.set('strategy-worker', worker);
-      console.log(`[GATEWAY] Worker started (PID: ${worker.pid})`);
-      console.log(`[GATEWAY] Worker logs: ${workerLogPath}`);
-      console.log(`[GATEWAY] Auto-restart enabled (max ${MAX_WORKER_RESTARTS} consecutive failures)`);
-      return worker;
-    } else {
-      // Use spawnChild for auto-restart with stdout/stderr piped
-      return spawnChild('strategy-generator', 'node', ['strategy-generator.js'], {});
-    }
-  } catch (e) {
-    console.error('[GATEWAY] Failed to start worker:', e?.message);
+    if (useLogFile) descriptor = openSync(workerLogPath, 'a', 0o600);
+    child = spawn(command, args, { env: { ...process.env, ...env },
+      stdio: useLogFile ? ['ignore', descriptor, descriptor] : ['ignore', 'pipe', 'pipe'] });
+    record.child = child; children.set(name, child);
+    child.stdout?.on('data', data => console.log(`[${name}] ${data.toString().trim()}`));
+    child.stderr?.on('data', data => console.error(`[${name}] ${data.toString().trim()}`));
+    child.on('error', error => finish(null, error));
+    child.on('exit', code => finish(code));
+    return child;
+  } catch (error) {
+    // Synchronous spawn/open failures use the same bounded restart policy.
+    child = null; record.child = null; finish(null, error);
     return null;
+  } finally {
+    // Child inherited the descriptor; the parent must not leak one per restart.
+    if (descriptor !== undefined) closeSync(descriptor);
   }
 }
 
-/**
- * Schedule a worker restart with backoff and failure limit.
- * Prevents infinite restart loops that exhaust DB connections.
- *
- * 2026-02-25: Extracted from start-replit.js during Phase 6 refactor; that file was removed 2026-05-13.
- */
-function scheduleWorkerRestart(options) {
-  if (isShuttingDown) return;
+export function spawnChild(name, command, args, env = {}) {
+  return spawnManaged(name, command, args, env, false);
+}
 
-  consecutiveFailures++;
-
-  if (consecutiveFailures >= MAX_WORKER_RESTARTS) {
-    console.error(`[GATEWAY] Worker hit ${MAX_WORKER_RESTARTS} consecutive failures — stopping restarts`);
-    console.error('[GATEWAY] Strategy generation is OFFLINE — manual intervention required');
-    console.error('[GATEWAY] Check /tmp/worker.log for crash details');
-    return;
-  }
-
-  console.log(`[gateway:worker:restart] Restarting in ${RESTART_BACKOFF_MS}ms (failures: ${consecutiveFailures}/${MAX_WORKER_RESTARTS})`);
-  setTimeout(() => {
-    // 2026-02-26: Do NOT reset consecutiveFailures here — only reset on code=0 exit (line 109).
-    // Previous bug: resetting here meant the counter never reached MAX, causing infinite restarts.
-    startStrategyWorker(options);
-  }, RESTART_BACKOFF_MS);
+export function startStrategyWorker({ useLogFile = false } = {}) {
+  return spawnManaged('strategy-worker', 'node', ['strategy-generator.js'], {}, useLogFile);
 }
 
 /**
@@ -206,6 +127,10 @@ export function getChildren() {
  */
 export function killAllChildren(signal = 'SIGTERM') {
   isShuttingDown = true;
+  for (const record of workers.values()) {
+    if (record.timer) clearTimeout(record.timer);
+    record.timer = null;
+  }
   children.forEach((child, name) => {
     console.log(`[GATEWAY] Stopping ${name}...`);
     child.kill(signal);

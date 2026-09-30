@@ -4,6 +4,8 @@
 export default {
   testEnvironment: 'node',
   transform: {},
+  // Test-file exclusions alone leave cached packages in Jest's module index.
+  modulePathIgnorePatterns: ['<rootDir>/\\.(?:cache|config|local|worktrees)/'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
@@ -17,6 +19,13 @@ export default {
   testPathIgnorePatterns: [
     '/node_modules/',
     '/.worktrees/',
+    // 2026-09-15: AI-session coordination bundles under .config/ carry test copies too.
+    '/.config/',
+    // 2026-09-13: opt-in integration suites (jest.integration.config.js +
+    // VECTO_RUN_DATABASE_TESTS=1). blocksApi boots a real gateway and rotates the dev
+    // server log; tactical-planner-cache needs a real DATABASE_URL.
+    '<rootDir>/tests/blocksApi\\.test\\.js$',
+    '<rootDir>/tests/strategy/tactical-planner-cache\\.test\\.js$',
   ],
   collectCoverageFrom: [
     'server/**/*.js',

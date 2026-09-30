@@ -377,6 +377,58 @@ memory_store({
 
 ---
 
+### migrations/*.sql is the DDL source of truth; shared/schema.js is a verified mirror
+
+**Decision:** Hand-written `migrations/*.sql` (applied by the boot runner) defines the schema.
+`shared/schema.js` must equal the live database and is checked, never assumed. Indexes,
+uniques and checks in schema.js use Drizzle builders only. An empty database is built from
+`migrations/00000_baseline.sql` (pg_dump, `BASELINE_THROUGH` marker), which the runner
+executes only when `public.snapshots` is absent.
+
+**Added:** 2026-09-13
+
+**Why:** 38 of 54 tables had no CREATE DDL anywhere in the repo, `001_init.sql` created a
+table that does not exist, and every schema.js index was a raw `sql` template Drizzle
+ignores (124 phantom indexes; hot tables ran on primary keys only). Neither artifact could
+rebuild the database. See `docs/architecture/audits/DB_SCHEMA_EVALUATION_2026-09-13.md`.
+
+**Implementation:** `server/db/run-migrations.js` (baseline handling), `migrations/00000_baseline.sql`,
+`migrations/20260913_schema_repair.sql`, parity method in the audit doc; `lessons_learned` #40, #41.
+
+### Vecto Pilot is platform-neutral — no integration with any rideshare or delivery platform
+
+**Decision:** The app serves rideshare and delivery drivers regardless of platform. No code,
+UI, doc, or policy text may claim or imply an integration, partnership or account link with
+Uber, Lyft, DoorDash or any platform. Platform names remain only as domain data (which
+platforms a driver works, offer-card parsing, market/coverage datasets, service-tier education).
+
+**Added:** 2026-09-13 (Melody: "we have no connection to Uber or its name … it matters not the platform used")
+
+**Why:** The Uber OAuth integration existed in code, env validation, the Settings UI and the
+privacy policy without any Uber relationship, which misrepresented the product and carried
+dead secrets.
+
+**Implementation:** Uber OAuth route/libs/components/tests/env removed; `uber_connections`
+dropped; privacy policy rewritten platform-neutral (`client/src/pages/co-pilot/PolicyPage.tsx`);
+`docs/architecture/AUTH.md` §1c; `docs/MASTER_ROADMAP.md` Workstream 2 closed.
+
+### Events deactivate at their venue-local day end, never by a guessed timezone
+
+**Decision:** `fn_deactivate_ended_events()` flips `is_active=false` /
+`deactivation_reason='event_ended'` once the event's end (or end of its end date) has passed
+in `venue_catalog.timezone` for the event's venue. Events whose venue has no timezone are
+skipped and counted, never deactivated on a UTC or hardcoded boundary. Run hourly by
+`server/jobs/event-cleanup.js` (fail-loud).
+
+**Added:** 2026-09-13 (todo #35)
+
+**Why:** The previous cleanup job called a legacy function against a non-existent table and
+swallowed the error ("skipping"), and was never started from the gateway — events never
+aged out. CLAUDE.md forbids hardcoded timezones and silent fallbacks.
+
+**Implementation:** `migrations/20260913_schema_repair.sql` §10, `server/jobs/event-cleanup.js`,
+`gateway-server.js` (started with the strategy worker).
+
 ## When to Update This Document
 
 Add a new decision when:

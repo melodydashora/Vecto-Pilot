@@ -8,11 +8,10 @@
 
 import { db } from '../../db/drizzle.js';
 import { venue_catalog, discovered_events } from '../../../shared/schema.js';
-import { eq, and, or, sql, ilike } from 'drizzle-orm';
+import { eq, and, or, sql, isNull, ilike } from 'drizzle-orm';
 import {
   normalizeVenueName,
-  generateCoordKey,
-  mergeVenueTypes
+  generateCoordKey
 } from './venue-utils.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 // 2026-02-17: Shared timezone resolution — set timezone + market_slug on venue creation
@@ -23,11 +22,111 @@ import { resolveTimezoneFromMarket, resolveTimezoneFromCoords } from '../locatio
 import { createWorkflowLogger } from '../../logger/workflow.js';
 const venueCacheLog = createWorkflowLogger('VENUES');
 import { validateVenueAddress } from './venue-address-validator.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 // 2026-04-11: Places (NEW) API re-resolution when cached address fails validation
 import { searchPlaceWithTextSearch } from './venue-address-resolver.js';
 
 // Re-export utils for backward compatibility
 export { normalizeVenueName };
+
+const countryCode = value => typeof value === 'string' && /^[A-Za-z]{2}$/.test(value.trim()) ? value.trim().toUpperCase() : null;
+const validTimezone = value => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: value }); return value; } catch { return null; }
+};
+const pendingIdentityRepairs = new Map();
+const identityRepairRetries = new Map();
+const IDENTITY_REPAIR_RETRY_MS = 5 * 60 * 1000;
+const IDENTITY_REPAIR_RETRY_LIMIT = 1000;
+
+/** Repair missing catalog facts from their own authorities, never caller hints. */
+export function repairVenueIdentity(venue) {
+  if (!venue?.venue_id || (countryCode(venue.country) && validTimezone(venue.timezone))) return Promise.resolve(venue);
+  const key = JSON.stringify([venue.venue_id, venue.place_id, venue.lat, venue.lng]);
+  if (pendingIdentityRepairs.has(key)) return pendingIdentityRepairs.get(key);
+  const now = Date.now();
+  for (const [entry, retryAt] of identityRepairRetries) if (retryAt <= now) identityRepairRetries.delete(entry);
+  if (identityRepairRetries.has(key)) return Promise.resolve(venue);
+  const pending = refreshVenueIdentity(venue).catch(err => {
+    venueCacheLog.warn(3, `[VENUE_IDENTITY_REPAIR] catalog repair failed for ${venue.venue_id}: ${err.message}`);
+    return venue;
+  }).then(result => {
+    if (!countryCode(result?.country) || !validTimezone(result?.timezone)) {
+      identityRepairRetries.set(key, Date.now() + IDENTITY_REPAIR_RETRY_MS);
+      // Failed repairs are a bounded retry receipt, never a saved venue cache.
+      while (identityRepairRetries.size > IDENTITY_REPAIR_RETRY_LIMIT) identityRepairRetries.delete(identityRepairRetries.keys().next().value);
+    }
+    return result;
+  }).finally(() => {
+    if (pendingIdentityRepairs.get(key) === pending) pendingIdentityRepairs.delete(key);
+  });
+  pendingIdentityRepairs.set(key, pending);
+  return pending;
+}
+
+async function refreshVenueIdentity(venue) {
+  const needsCountry = !countryCode(venue.country), needsTimezone = !validTimezone(venue.timezone);
+  const requests = [];
+  if (needsCountry) requests.push(['country', (async () => {
+    if (typeof venue.place_id !== 'string' || !venue.place_id.trim()) throw new Error('country has no provider identity');
+    if (!GOOGLE_MAPS_API_KEY) throw new Error('country provider is not configured');
+    const place = await requestCatalogDetails(venue.place_id, 'id,addressComponents');
+    if (place?.id !== venue.place_id) throw new Error('country provider returned a different identity');
+    const component = place.addressComponents?.find(part => part.types?.includes('country'));
+    const country = countryCode(component?.shortText);
+    if (!country) throw new Error('country provider returned no ISO-2 country code');
+    return country;
+  })()]);
+  if (needsTimezone) requests.push(['timezone', (async () => {
+    const point = normalizeCoordinates(venue.lat, venue.lng);
+    if (!point) throw new Error('timezone has no usable stored coordinates');
+    return requestVenueTimezone(point.lat, point.lng);
+  })()]);
+  const outcomes = await Promise.allSettled(requests.map(([, request]) => request));
+  const updates = {};
+  outcomes.forEach((outcome, index) => {
+    const field = requests[index][0];
+    if (outcome.status === 'fulfilled') {
+      // CAS each field independently so a concurrent repair of either fact wins.
+      updates[field] = sql`CASE WHEN ${venue_catalog[field]} IS NOT DISTINCT FROM ${venue[field] ?? null}
+        THEN ${outcome.value} ELSE ${venue_catalog[field]} END`;
+    } else {
+      venueCacheLog.warn(3, `[VENUE_IDENTITY_REPAIR] ${field} repair failed for ${venue.venue_id}: ${outcome.reason?.message || outcome.reason}`);
+    }
+  });
+  const identity = and(eq(venue_catalog.venue_id, venue.venue_id),
+    sql`${venue_catalog.place_id} IS NOT DISTINCT FROM ${venue.place_id ?? null}`);
+  if (Object.keys(updates).length) {
+    const [updated] = await db.update(venue_catalog).set({ ...updates, updated_at: new Date() }).where(and(identity,
+      sql`${venue_catalog.lat} IS NOT DISTINCT FROM ${venue.lat ?? null}`,
+      sql`${venue_catalog.lng} IS NOT DISTINCT FROM ${venue.lng ?? null}`)).returning();
+    if (updated) {
+      venueCacheLog.info(3, `[VENUE_IDENTITY_REPAIR] reconciled catalog identity facts for ${venue.venue_id}`);
+      return updated;
+    }
+  }
+  // Return the current row after a race, but never another provider identity.
+  const [current] = await db.select().from(venue_catalog).where(identity).limit(1);
+  return current || venue;
+}
+
+async function requestVenueTimezone(lat, lng) {
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => {
+      const error = Object.assign(new Error('venue timezone lookup timed out'), { code: 'upstream_timeout' });
+      controller.abort(error); reject(error);
+    }, CATALOG_DETAILS_TIMEOUT_MS);
+  });
+  try {
+    const timezone = await Promise.race([resolveTimezoneFromCoords(lat, lng, { signal: controller.signal }), deadline]);
+    if (!validTimezone(timezone)) throw new Error('timezone provider returned no valid IANA timezone');
+    return timezone;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * 2026-04-28 (Step 4, spec §5.3): Planner-grade venue completeness predicate.
@@ -56,7 +155,7 @@ export function isPlannerGradeVenue(venue) {
 
 /**
  * Look up a venue in the catalog.
- * Searches by: place_id (exact), normalized name + city/state, or coord_key.
+ * An explicit place_id is exact; otherwise combine known hints and require one match.
  *
  * @param {Object} criteria - Lookup criteria
  * @param {string} [criteria.placeId] - Google Place ID (exact match)
@@ -66,110 +165,66 @@ export function isPlannerGradeVenue(venue) {
  * @param {number} [criteria.lat] - Latitude for coord lookup
  * @param {number} [criteria.lng] - Longitude for coord lookup
  * @param {string} [criteria.coordKey] - Pre-computed coord_key
+ * @param {string} [criteria.country] - Known provider country (ISO-2)
  * @returns {Promise<Object|null>} Cached venue or null
  */
-export async function lookupVenue(criteria) {
-  const { placeId, venueName, city, state, lat, lng, coordKey } = criteria;
-
-  // Strategy 1: Exact match on place_id (most reliable)
-  if (placeId) {
-    const [venue] = await db
-      .select()
-      .from(venue_catalog)
-      .where(eq(venue_catalog.place_id, placeId))
-      .limit(1);
-
-    if (venue) {
-      await updateAccessStats(venue.venue_id);
-      return venue;
-    }
-  }
-
-  // Strategy 2: Normalized name + city/state
-  if (venueName && city && state) {
-    const normalized = normalizeVenueName(venueName);
-    const [venue] = await db
-      .select()
-      .from(venue_catalog)
-      .where(and(
-        eq(venue_catalog.normalized_name, normalized),
-        ilike(venue_catalog.city, city),
-        eq(venue_catalog.state, state.toUpperCase())
-      ))
-      .limit(1);
-
-    if (venue) {
-      await updateAccessStats(venue.venue_id);
-      return venue;
-    }
-  }
-
-  // Strategy 3: Coordinate proximity (6 decimal precision = ~11cm)
-  const coordKeyToUse = coordKey || (lat && lng ? generateCoordKey(lat, lng) : null);
-  if (coordKeyToUse) {
-    const [venue] = await db
-      .select()
-      .from(venue_catalog)
-      .where(eq(venue_catalog.coord_key, coordKeyToUse))
-      .limit(1);
-
-    if (venue) {
-      await updateAccessStats(venue.venue_id);
-      return venue;
-    }
-  }
-
-  return null;
+// A coordinate is a search hint, never a unique establishment identity. Combine
+// every supplied hint and require exactly one candidate; never drop a failed name
+// match and silently select its neighbor. Country stays unknown when not supplied.
+function venueLookupConditions(criteria) {
+  const conditions = [];
+  const coordKey = criteria.coordKey || generateCoordKey(criteria.lat, criteria.lng);
+  const name = normalizeVenueName(criteria.venueName);
+  if (name) conditions.push(eq(venue_catalog.normalized_name, name));
+  if (coordKey) conditions.push(eq(venue_catalog.coord_key, coordKey));
+  if (criteria.city) conditions.push(sql`lower(${venue_catalog.city}) = ${criteria.city.trim().toLowerCase()}`);
+  if (criteria.state) conditions.push(eq(venue_catalog.state, criteria.state.trim().toUpperCase()));
+  const country = countryCode(criteria.country);
+  if (criteria.country != null && !country) return null;
+  if (country) conditions.push(eq(venue_catalog.country, country));
+  // A locality alone is not a venue identity.
+  return name || coordKey ? conditions : null;
 }
 
-/**
- * Look up venue with fuzzy name matching (for LLM-generated event names).
- * Uses LIKE for partial matching when exact normalized match fails.
- *
- * @param {Object} criteria - Same as lookupVenue
- * @returns {Promise<Object|null>} Best matching venue or null
- */
+export async function lookupVenue(criteria) {
+  const conditions = criteria.placeId
+    ? [eq(venue_catalog.place_id, criteria.placeId)]
+    : venueLookupConditions(criteria);
+  if (!conditions) return null;
+  const results = await db.select().from(venue_catalog).where(and(...conditions)).limit(2);
+  if (results.length !== 1) return null;
+  await updateAccessStats(results[0].venue_id);
+  return results[0];
+}
+
+/** Find a single fuzzy-name candidate within the supplied locality/point. */
 export async function lookupVenueFuzzy(criteria) {
-  // First try exact match
   const exact = await lookupVenue(criteria);
-  if (exact) return exact;
-
+  if (exact || criteria.placeId) return exact;
   const { venueName, city, state } = criteria;
-  if (!venueName || !city || !state) return null;
-
   const normalized = normalizeVenueName(venueName);
-  if (!normalized) return null;
-
-  // Fuzzy: look for venues where name contains the search term or vice versa
-  // 2026-02-09: RELAXED - Search by State only, not City.
-  // This fixes linking errors where "Dallas" venues aren't found when searching from "Frisco".
-  // The normalized_name match is strong enough to prevent collisions within a state.
-  const results = await db
-    .select()
-    .from(venue_catalog)
-    .where(and(
-      or(
-        ilike(venue_catalog.normalized_name, `%${normalized}%`),
-        sql`${normalized} LIKE '%' || ${venue_catalog.normalized_name} || '%'`
-      ),
-      // ilike(venue_catalog.city, city), // Removed to allow cross-city matches in same metro
-      eq(venue_catalog.state, state.toUpperCase())
-    ))
-    .limit(5);
-
-  if (results.length === 1) {
-    await updateAccessStats(results[0].venue_id);
-    return results[0];
+  if (!normalized || !city || !state) return null;
+  // Use the same geographic bounds as exact lookup. String position, unlike
+  // LIKE, treats model/user punctuation as text rather than wildcard syntax.
+  const conditions = venueLookupConditions({ ...criteria, venueName: null });
+  if (!conditions) {
+    // The caller has a name + locality but no coordinate hint.
+    if (criteria.country != null && !countryCode(criteria.country)) return null;
   }
-
-  // If multiple matches, prefer the one with place_id (more reliable)
-  const withPlaceId = results.find(v => v.place_id);
-  if (withPlaceId) {
-    await updateAccessStats(withPlaceId.venue_id);
-    return withPlaceId;
-  }
-
-  return results[0] || null;
+  const geographic = conditions || [
+    sql`lower(${venue_catalog.city}) = ${city.trim().toLowerCase()}`,
+    eq(venue_catalog.state, state.trim().toUpperCase()),
+    ...(countryCode(criteria.country) ? [eq(venue_catalog.country, countryCode(criteria.country))] : []),
+  ];
+  const results = await db.select().from(venue_catalog).where(and(
+    ...geographic,
+    sql`${venue_catalog.normalized_name} <> ''`,
+    or(sql`strpos(${venue_catalog.normalized_name}, ${normalized}) > 0`,
+      sql`strpos(${normalized}, ${venue_catalog.normalized_name}) > 0`)
+  )).limit(2);
+  if (results.length !== 1) return null;
+  await updateAccessStats(results[0].venue_id);
+  return results[0];
 }
 
 /**
@@ -197,18 +252,15 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {number} [venue.capacityEstimate] - Estimated capacity
  * @param {number} [venue.expenseRank] - 1-4 expense ranking
  * @param {string} [venue.category] - Category for venue_catalog
- * @param {string} [venue.country] - Country code (ISO-2, default: 'US')
+ * @param {string} [venue.country] - Provider-resolved country code (ISO-2; unknown stays null)
  * @param {string} [venue.district] - Explicit district name
  * @param {boolean} [venue.isBar] - 2026-01-14: Progressive enrichment - is_bar flag
  * @param {boolean} [venue.isEventVenue] - 2026-01-14: Progressive enrichment - is_event_venue flag
  * @param {string} [venue.recordStatus] - 2026-01-14: Progressive enrichment - record_status
+ * @param {{insertOnly?: boolean}} [options] - Preserve an identified row that wins an insert race
  * @returns {Promise<Object>} Inserted venue record
  */
-// 2026-01-10: AUDIT FIX - insertVenue now uses onConflictDoUpdate instead of DoNothing
-// Previously: onConflictDoNothing().returning() returned undefined on conflict
-// This caused callers to think venue didn't exist when it actually did
-// See: docs/AUDIT_LEDGER.md - Breakpoint 3
-export async function insertVenue(venue) {
+export async function insertVenue(venue, options = {}) {
   const normalized = normalizeVenueName(venue.venueName);
   const coordKey = generateCoordKey(venue.lat, venue.lng);
 
@@ -229,11 +281,12 @@ export async function insertVenue(venue) {
     venue_name: venue.venueName,
     normalized_name: normalized,
     address: resolvedAddress,
+    address_1: venue.address1,
     city: venue.city,
     state: venue.state?.toUpperCase(),
     zip: venue.zip,
-    // 2026-01-10: D-004 Fix - Use ISO-3166-1 alpha-2 code
-    country: venue.country || 'US',
+    // An absent country is unknown, never proof that this global venue is in US.
+    country: countryCode(venue.country),
     lat: venue.lat,
     lng: venue.lng,
     coord_key: coordKey,
@@ -262,166 +315,104 @@ export async function insertVenue(venue) {
     record_status: venue.recordStatus || 'stub',
     // 2026-02-17: Market linkage + timezone (from resolveTimezoneFromMarket)
     market_slug: venue.marketSlug || null,
-    timezone: venue.timezone || null
+    timezone: validTimezone(venue.timezone)
   };
 
-  // 2026-01-10: AUDIT FIX - Use onConflictDoUpdate to always return a record
-  // Conflict on coord_key ensures we don't create duplicate venues at same location
-  // 2026-04-23: FIX — venue_catalog has THREE unique constraints (venue_id PK, coord_key,
-  // place_id). PostgreSQL only supports ONE ON CONFLICT target per INSERT. If Google Places
-  // returns drifted coords for the same place_id (common for re-resolved venues), the
-  // coord_key target doesn't match and the place_id constraint throws 23505. Wrap in
-  // try/catch and fall back to a place_id lookup so promotion never raises a raw constraint
-  // violation to callers.
-  try {
-    const [result] = await db
-      .insert(venue_catalog)
-      .values(insertValues)
-      .onConflictDoUpdate({
-        target: venue_catalog.coord_key,
-        set: {
-          // Update access stats and potentially missing fields on conflict
-          access_count: sql`COALESCE(${venue_catalog.access_count}, 0) + 1`,
-          last_accessed_at: new Date(),
-          updated_at: new Date(),
-          // Update place_id if we have one and existing doesn't (backfill)
-          place_id: sql`COALESCE(${venue_catalog.place_id}, ${venue.placeId})`,
-          // Update formatted_address if we have one and existing doesn't
-          formatted_address: sql`COALESCE(${venue_catalog.formatted_address}, ${venue.formattedAddress})`
-        }
-      })
-      .returning();
-
-    return result;
-  } catch (err) {
-    // Drizzle wraps pg errors in .cause/.original; unwrap to find the real PG code
-    const pgCode = err?.cause?.code || err?.original?.code || err?.code;
-    const constraint = err?.cause?.constraint || err?.original?.constraint || err?.constraint;
-
-    if (pgCode === '23505' && venue.placeId) {
-      // Most likely: place_id unique constraint collided because coord drifted for the
-      // same place. Return the existing venue (skip duplicate) and bump access stats.
-      const [byPlaceId] = await db
-        .select()
-        .from(venue_catalog)
-        .where(eq(venue_catalog.place_id, venue.placeId))
-        .limit(1);
-
-      if (byPlaceId) {
-        console.warn(
-          `[VENUE] insertVenue 23505 on ${constraint || 'unique'} — falling back to existing venue ${byPlaceId.venue_id} (place_id=${venue.placeId.slice(0, 12)}…)`
-        );
-        await db
-          .update(venue_catalog)
-          .set({
-            access_count: sql`COALESCE(${venue_catalog.access_count}, 0) + 1`,
-            last_accessed_at: new Date()
-          })
-          .where(eq(venue_catalog.venue_id, byPlaceId.venue_id))
-          .catch(() => {}); // non-blocking stats update
-        return byPlaceId;
-      }
-    }
-    throw err;
+  // Merge only supplied facts. This set is evaluated by PostgreSQL against the
+  // current row, so simultaneous promotions cannot erase flags/types/status set
+  // by another writer. Missing provider fields never clear a known value.
+  const update = {
+    access_count: sql`COALESCE(${venue_catalog.access_count}, 0) + 1`,
+    last_accessed_at: new Date(), updated_at: new Date(),
+    is_bar: sql`COALESCE(${venue_catalog.is_bar}, false) OR ${Boolean(venue.isBar)}`,
+    is_event_venue: sql`COALESCE(${venue_catalog.is_event_venue}, false) OR ${Boolean(venue.isEventVenue)}`,
+    record_status: sql`CASE
+      WHEN ${venue_catalog.record_status} = 'verified' OR ${venue.recordStatus || 'stub'} = 'verified' THEN 'verified'
+      WHEN ${venue_catalog.record_status} = 'enriched' OR ${venue.recordStatus || 'stub'} = 'enriched' THEN 'enriched'
+      ELSE 'stub' END`,
+    venue_types: sql`(SELECT COALESCE(jsonb_agg(DISTINCT item), '[]'::jsonb)
+      FROM jsonb_array_elements(COALESCE(${venue_catalog.venue_types}, '[]'::jsonb) || ${JSON.stringify(venueTypes)}::jsonb) AS types(item))`,
+  };
+  const supplied = {
+    venue_name: venue.venueName, normalized_name: normalized,
+    address: venue.address || venue.formattedAddress,
+    address_1: venue.address1, formatted_address: venue.formattedAddress,
+    city: venue.city, state: venue.state?.toUpperCase(), zip: venue.zip,
+    country: countryCode(venue.country),
+    ...(coordKey ? { lat: venue.lat, lng: venue.lng, coord_key: coordKey } : {}),
+    timezone: validTimezone(venue.timezone), market_slug: venue.marketSlug,
+    business_hours: venue.hours, hours_full_week: venue.hoursFullWeek, hours_source: venue.hoursSource,
+    capacity_estimate: venue.capacityEstimate, expense_rank: venue.expenseRank,
+    category: venue.category || venue.venueType, source: venue.source,
+    district, district_slug: districtSlug,
+  };
+  for (const [key, value] of Object.entries(supplied)) {
+    if (value != null && value !== '') update[key] = value;
   }
+
+  if (coordKey) {
+    // PostgreSQL evaluates this against the current row during conflict
+    // arbitration. A new point cannot inherit unsupported facts for the old
+    // one; an unchanged point retains its known observations.
+    const changedPoint = sql`(${venue_catalog.lat} IS DISTINCT FROM ${venue.lat} OR ${venue_catalog.lng} IS DISTINCT FROM ${venue.lng})`;
+    for (const [field, fresh] of [['timezone', validTimezone(venue.timezone)],
+      ['country', countryCode(venue.country)], ['market_slug', venue.marketSlug]]) {
+      if (fresh == null || fresh === '') update[field] = sql`CASE WHEN ${changedPoint} THEN NULL ELSE ${venue_catalog[field]} END`;
+    }
+  }
+
+  if (venue.placeId) {
+    // The database arbitrates simultaneous discoveries of the same Google ID.
+    // A different ID at this point inserts a different row.
+    const insert = db.insert(venue_catalog).values(insertValues);
+    if (options.insertOnly === true) {
+      const [created] = await insert.onConflictDoNothing({ target: venue_catalog.place_id }).returning();
+      return created || lookupVenue({ placeId: venue.placeId });
+    }
+    const [result] = await insert.onConflictDoUpdate({ target: venue_catalog.place_id, set: update }).returning();
+    return result;
+  }
+
+  // Unknown IDs are not promoted by proximity. Repeated identical unidentified
+  // evidence can reuse its own stub, but a different name/address/locality keeps
+  // its own row. Serialize the check+insert across workers without a coordinate
+  // uniqueness constraint that would exclude neighboring establishments.
+  if (!coordKey || !normalized) return null;
+  const identity = [coordKey, normalized, venue.city?.trim().toLowerCase() || null,
+    venue.state?.trim().toUpperCase() || null, countryCode(venue.country), resolvedAddress.trim().toLowerCase()];
+  return db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('venue_catalog:unidentified'), hashtext(${JSON.stringify(identity)}))`);
+    const matches = await tx.select().from(venue_catalog).where(and(
+      isNull(venue_catalog.place_id), eq(venue_catalog.coord_key, coordKey), eq(venue_catalog.normalized_name, normalized),
+      sql`lower(trim(${venue_catalog.city})) IS NOT DISTINCT FROM ${identity[2]}`,
+      sql`${venue_catalog.state} IS NOT DISTINCT FROM ${identity[3]}`,
+      sql`${venue_catalog.country} IS NOT DISTINCT FROM ${identity[4]}`,
+      sql`lower(trim(${venue_catalog.address})) = ${identity[5]}`
+    )).limit(2);
+    if (matches.length > 1) return null;
+    if (matches.length === 1) {
+      const [result] = await tx.update(venue_catalog).set(update)
+        .where(and(eq(venue_catalog.venue_id, matches[0].venue_id), isNull(venue_catalog.place_id))).returning();
+      // Another path may have verified the stub while this transaction waited.
+      // Never rewrite that newly established provider identity.
+      if (result) return result;
+    }
+    const [result] = await tx.insert(venue_catalog).values(insertValues).returning();
+    return result;
+  });
 }
 
-/**
- * Upsert a venue - insert if new, update if exists.
- * Matches on coord_key or (normalized_name + city + state).
- *
- * 2026-01-14: Progressive Enrichment - "Best Write Wins" merge logic
- * - Boolean flags (is_bar, is_event_venue): OR logic - once true, stays true
- * - record_status: MAX logic - verified > enriched > stub
- *
- * @param {Object} venue - Same as insertVenue
- * @param {Object} [options] - Additional options
- * @param {boolean} [options.isBar] - Set is_bar flag to true
- * @param {boolean} [options.isEventVenue] - Set is_event_venue flag to true
- * @param {string} [options.recordStatus] - Record status: 'stub', 'enriched', 'verified'
- * @returns {Promise<Object>} Upserted venue record
- */
+/** Insert or promote a catalog row using the same atomic identity writer. */
 export async function upsertVenue(venue, options = {}) {
-  const normalized = normalizeVenueName(venue.venueName);
-  const coordKey = generateCoordKey(venue.lat, venue.lng);
-
-  // Check if venue exists
-  // 2026-05-08: FIX — include placeId so lookupVenue's Strategy 1 (exact place_id match)
-  // runs first. Without it, coord drift causes a miss on all three strategies → insertVenue
-  // is called → 23505 on venue_catalog_place_id_unique for already-cataloged venues.
-  const existing = await lookupVenue({
-    placeId: venue.placeId,
-    venueName: venue.venueName,
-    city: venue.city,
-    state: venue.state,
-    lat: venue.lat,
-    lng: venue.lng,
-    coordKey
-  });
-
-  if (existing) {
-    // Merge venue_types
-    const mergedTypes = mergeVenueTypes(
-      existing.venue_types,
-      venue.venueTypes || (venue.venueType ? [venue.venueType] : [])
-    );
-
-    // District logic: Use new if available, fallback to existing, fallback to extraction
-    const newDistrict = venue.district || extractDistrictFromVenueName(venue.venueName);
-    const finalDistrict = newDistrict || existing.district;
-    const finalDistrictSlug = finalDistrict ? normalizeDistrictSlug(finalDistrict) : existing.district_slug;
-
-    // 2026-01-14: Progressive Enrichment - "Best Write Wins" merge logic
-    // Boolean flags: OR logic (once true, stays true)
-    const finalIsBar = existing.is_bar || options.isBar || false;
-    const finalIsEventVenue = existing.is_event_venue || options.isEventVenue || false;
-
-    // Record status: MAX logic (verified > enriched > stub)
-    const statusPriority = { 'stub': 0, 'enriched': 1, 'verified': 2 };
-    const existingPriority = statusPriority[existing.record_status] || 0;
-    const newPriority = statusPriority[options.recordStatus] || 0;
-    const finalRecordStatus = newPriority > existingPriority
-      ? options.recordStatus
-      : existing.record_status || 'stub';
-
-    const [updated] = await db
-      .update(venue_catalog)
-      .set({
-        lat: venue.lat,
-        lng: venue.lng,
-        coord_key: coordKey || existing.coord_key,
-        address: venue.address || existing.address,
-        formatted_address: venue.formattedAddress || existing.formatted_address,
-        place_id: venue.placeId || existing.place_id,
-        business_hours: venue.hours || existing.business_hours,
-        hours_full_week: venue.hoursFullWeek || existing.hours_full_week,
-        hours_source: venue.hoursSource || existing.hours_source,
-        venue_types: mergedTypes,
-        capacity_estimate: venue.capacityEstimate || existing.capacity_estimate,
-        expense_rank: venue.expenseRank || existing.expense_rank,
-        district: finalDistrict,
-        district_slug: finalDistrictSlug,
-        // 2026-01-14: Progressive Enrichment fields
-        is_bar: finalIsBar,
-        is_event_venue: finalIsEventVenue,
-        record_status: finalRecordStatus,
-        updated_at: new Date(),
-        access_count: sql`COALESCE(access_count, 0) + 1`,
-        last_accessed_at: new Date()
-      })
-      .where(eq(venue_catalog.venue_id, existing.venue_id))
-      .returning();
-
-    return updated;
+  if (!venue.placeId) {
+    const existing = await lookupVenue(venue);
+    // An unverified candidate can read an unambiguous known place, but cannot
+    // replace Google identity facts with its own address/coordinates.
+    if (existing?.place_id) return existing;
   }
-
-  // Insert new venue with progressive enrichment fields
-  return insertVenue({
-    ...venue,
-    isBar: options.isBar,
-    isEventVenue: options.isEventVenue,
-    recordStatus: options.recordStatus
-  });
+  return insertVenue({ ...venue, isBar: options.isBar ?? venue.isBar,
+    isEventVenue: options.isEventVenue ?? venue.isEventVenue,
+    recordStatus: options.recordStatus ?? venue.recordStatus });
 }
 
 /**
@@ -504,6 +495,7 @@ export async function getEventsForVenue(venueId, options = {}) {
  * @param {number} eventData.longitude - Longitude
  * @param {string} eventData.city - City
  * @param {string} eventData.state - State
+ * @param {string} [eventData.country] - Provider-resolved ISO alpha-2 country
  * @param {string} [eventData.placeId] - Google Place ID (ChIJ...) from geocoding
  * @param {string} [eventData.formattedAddress] - Verified formatted address from geocoding
  * @param {string} source - Data source (e.g., 'sync_events_gpt52')
@@ -517,6 +509,7 @@ export async function findOrCreateVenue(eventData, source) {
     longitude,
     city,
     state,
+    country,
     placeId,          // 2026-01-10: AUDIT FIX - Accept place_id from geocoding
     formattedAddress  // 2026-01-10: AUDIT FIX - Accept formatted_address from geocoding
   } = eventData;
@@ -529,68 +522,50 @@ export async function findOrCreateVenue(eventData, source) {
   // Check by place_id first (most reliable), then coord_key, then fuzzy match
   // This follows the standard: "venue identification should be place_id-first"
 
-  // Strategy 1: If we have a valid ChIJ place_id, check by that first
-  if (placeId && placeId.startsWith('ChIJ')) {
+  // A supplied Google place ID is authoritative (IDs have no required prefix).
+  if (placeId) {
     const byPlaceId = await lookupVenue({ placeId });
     if (byPlaceId) {
       // 2026-04-11: Validate cached address quality before returning
       const validated = await maybeReResolveAddress(byPlaceId, venueName, latitude, longitude, city, state);
       // 2026-02-26: Backfill missing data on existing venues (non-blocking)
-      maybeBackfillVenue(validated || byPlaceId, placeId);
-      return validated || byPlaceId;
+      const repaired = await repairVenueIdentity(validated || byPlaceId);
+      maybeBackfillVenue(repaired, placeId);
+      return repaired;
     }
   }
 
   // Strategy 2: Check by coord_key (exact coordinate match)
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  if (!placeId && Number.isFinite(latitude) && Number.isFinite(longitude)) {
     const coordKey = generateCoordKey(latitude, longitude);
-    const byCoords = await lookupVenue({ coordKey });
+    const byCoords = await lookupVenue({ coordKey, venueName, city, state, country });
     if (byCoords) {
-      // If we have a place_id and existing venue doesn't, update it
-      if (placeId && !byCoords.place_id) {
-        await db.update(venue_catalog)
-          .set({
-            place_id: placeId,
-            formatted_address: formattedAddress || byCoords.formatted_address,
-            updated_at: new Date()
-          })
-          .where(eq(venue_catalog.venue_id, byCoords.venue_id))
-          .catch(() => {}); // Non-blocking update
-      }
       // 2026-04-11: Validate cached address quality before returning
       const validated = await maybeReResolveAddress(byCoords, venueName, latitude, longitude, city, state);
       // 2026-02-26: Backfill missing data on existing venues (non-blocking)
-      maybeBackfillVenue(validated || byCoords, placeId || byCoords.place_id);
-      return validated || byCoords;
+      const repaired = await repairVenueIdentity(validated || byCoords);
+      maybeBackfillVenue(repaired, repaired.place_id);
+      return repaired;
     }
   }
 
   // Strategy 3: Fall back to fuzzy matching (last resort)
-  const existing = await lookupVenueFuzzy({
+  const existing = placeId ? null : await lookupVenueFuzzy({
     venueName,
     city,
     state,
+    country,
     lat: latitude,
     lng: longitude,
   });
 
   if (existing) {
-    // If we have a place_id and existing venue doesn't, update it
-    if (placeId && !existing.place_id) {
-      await db.update(venue_catalog)
-        .set({
-          place_id: placeId,
-          formatted_address: formattedAddress || existing.formatted_address,
-          updated_at: new Date()
-        })
-        .where(eq(venue_catalog.venue_id, existing.venue_id))
-        .catch(() => {}); // Non-blocking update
-    }
     // 2026-04-11: Validate cached address quality before returning
     const validated = await maybeReResolveAddress(existing, venueName, latitude, longitude, city, state);
     // 2026-02-26: Backfill missing data on existing venues (non-blocking)
-    maybeBackfillVenue(validated || existing, placeId || existing.place_id);
-    return validated || existing;
+    const repaired = await repairVenueIdentity(validated || existing);
+    maybeBackfillVenue(repaired, repaired.place_id);
+    return repaired;
   }
 
   // Only create if we have coordinates
@@ -609,12 +584,12 @@ export async function findOrCreateVenue(eventData, source) {
   let venueTimezone = null;
   let venueMarketSlug = null;
   try {
-    venueTimezone = await resolveTimezoneFromCoords(latitude, longitude);
-  } catch (_err) {
-    // Non-fatal — timezone omitted when unresolvable, never substituted
+    venueTimezone = await requestVenueTimezone(latitude, longitude);
+  } catch (err) {
+    venueCacheLog.warn(3, `[VENUE_CREATE] timezone lookup failed: ${err.message}`);
   }
   try {
-    const mktResult = await resolveTimezoneFromMarket(city, state);
+    const mktResult = await resolveTimezoneFromMarket(city, state, country);
     if (mktResult) {
       venueMarketSlug = mktResult.market_slug;
     }
@@ -628,6 +603,7 @@ export async function findOrCreateVenue(eventData, source) {
     venueName,
     city,
     state,
+    country,
     lat: latitude,
     lng: longitude,
     address: formattedAddress || address,  // Prefer verified formatted_address
@@ -656,7 +632,8 @@ export async function findOrCreateVenue(eventData, source) {
   // 2026-04-11: Validate newly created venue's address quality too
   if (created) {
     const validated = await maybeReResolveAddress(created, venueName, latitude, longitude, city, state);
-    return validated || created;
+    // Address repair can move the saved point and clear its old timezone.
+    return validated ? repairVenueIdentity(validated) : created;
   }
 
   return created;
@@ -704,7 +681,8 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
     // 50km radius — metro-wide search to find the real venue
     const placeResult = await searchPlaceWithTextSearch(searchLat, searchLng, searchName, { radius: 50000 });
 
-    if (!placeResult || !placeResult.formattedAddress) {
+    if (!placeResult || !placeResult.formattedAddress ||
+        (venue.place_id && placeResult.placeId !== venue.place_id)) {
       console.warn(`[VENUE] Re-resolution returned no result for "${searchName}"`);
       return null;
     }
@@ -721,11 +699,14 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
     }
 
     // Good address — update venue_catalog
-    // 2026-04-11: Round coords to 6 decimal places (~11cm precision) to match coord_key
-    const fixedLat = placeResult.lat ? parseFloat(Number(placeResult.lat).toFixed(6)) : venue.lat;
-    const fixedLng = placeResult.lng ? parseFloat(Number(placeResult.lng).toFixed(6)) : venue.lng;
+    // Preserve provider coordinate precision; only the lookup key is quantized.
+    const fixedLat = Number.isFinite(placeResult.lat) ? placeResult.lat : venue.lat;
+    const fixedLng = Number.isFinite(placeResult.lng) ? placeResult.lng : venue.lng;
+    const pointChanged = fixedLat !== venue.lat || fixedLng !== venue.lng;
 
-    const [updated] = await db.update(venue_catalog)
+    let updated;
+    try {
+      [updated] = await db.update(venue_catalog)
       .set({
         formatted_address: placeResult.formattedAddress,
         address: placeResult.formattedAddress,
@@ -733,14 +714,43 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
         city: placeResult.parsed?.city || venue.city,
         state: placeResult.parsed?.state || venue.state,
         zip: placeResult.parsed?.zip || venue.zip,
+        country: countryCode(placeResult.parsed?.country) || (pointChanged ? null : venue.country) || null,
         lat: fixedLat,
         lng: fixedLng,
         coord_key: generateCoordKey(fixedLat, fixedLng) || venue.coord_key,
+        // A valid zone for the old point is not evidence for a moved venue.
+        // findOrCreateVenue resolves the missing zone from the saved new point.
+        timezone: pointChanged ? null : venue.timezone,
+        market_slug: pointChanged ? null : venue.market_slug,
         place_id: placeResult.placeId || venue.place_id,
         updated_at: new Date()
       })
-      .where(eq(venue_catalog.venue_id, venue.venue_id))
+      .where(and(eq(venue_catalog.venue_id, venue.venue_id),
+        venue.place_id ? eq(venue_catalog.place_id, venue.place_id) : isNull(venue_catalog.place_id),
+        ...['address', 'formatted_address', 'address_1', 'city', 'state', 'zip', 'country', 'lat', 'lng', 'coord_key', 'timezone', 'market_slug']
+          .map(field => sql`${venue_catalog[field]} IS NOT DISTINCT FROM ${venue[field] ?? null}`)))
       .returning();
+    } catch (err) {
+      const code = err?.cause?.code || err?.original?.code || err?.code;
+      if (code !== '23505' || !placeResult.placeId) throw err;
+      // A parallel discovery may already own this provider ID. Reuse its
+      // canonical row below, rather than overwrite or return this stale stub.
+    }
+    if (!updated && placeResult.placeId) {
+      // A lost compare-and-set or ID conflict already has a canonical winner.
+      // Passing the stale response to the upsert writer would erase that winner.
+      const canonical = await lookupVenue({ placeId: placeResult.placeId });
+      if (canonical) return canonical;
+      return insertVenue({
+        venueName: placeResult.displayName || searchName, placeId: placeResult.placeId,
+        address: placeResult.formattedAddress, formattedAddress: placeResult.formattedAddress,
+        address1: placeResult.parsed?.address_1, city: placeResult.parsed?.city,
+        state: placeResult.parsed?.state, zip: placeResult.parsed?.zip,
+        country: placeResult.parsed?.country, lat: fixedLat, lng: fixedLng,
+        venueTypes: placeResult.types, source: 'google_places_new', discoverySource: 'address_repair',
+        isBar: venue.is_bar, isEventVenue: venue.is_event_venue, recordStatus: 'enriched',
+      }, { insertOnly: true });
+    }
 
     if (updated) {
       venueCacheLog.debug(`Fixed "${venue.venue_name}" address: "${addrToCheck}" -> "${placeResult.formattedAddress}"`);
@@ -832,18 +842,20 @@ export async function getVenuesByType(options) {
 // ─────────────────────────────────────────────────
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const pendingCatalogEnrichments = new Map();
+const CATALOG_DETAILS_TIMEOUT_MS = 15000;
 
 /**
  * 2026-02-26: Check if an existing venue needs enrichment and trigger it non-blockingly.
  * Enrichment is needed if the venue is missing phone, hours, or rating AND has a place_id.
  *
  * @param {Object} venue - Existing venue record from DB
- * @param {string|null} placeId - Google Place ID (ChIJ...)
+ * @param {string|null} placeId - Google Place ID (no prefix assumption)
  */
 // 2026-04-04: Also trigger on missing hours data (was only checking phone+rating).
 // Venues created via event discovery get place_id but no hours → shows "0 open".
 function maybeBackfillVenue(venue, placeId) {
-  if (!placeId || !placeId.startsWith('ChIJ')) return;
+  if (typeof placeId !== 'string' || !placeId.trim()) return;
   if (!venue?.venue_id) return;
 
   // Check if enrichment is needed: missing phone, rating, OR hours
@@ -868,13 +880,23 @@ function maybeBackfillVenue(venue, placeId) {
  * This is cheaper than searchNearby — single place lookup by known ID.
  *
  * @param {string} venueId - venue_catalog.venue_id to update
- * @param {string} placeId - Google Place ID (ChIJ...)
+ * @param {string} placeId - Google Place ID (no prefix assumption)
  */
 // 2026-04-04: Exported for batch backfill in venue-intelligence.js cache path
-export async function enrichVenueFromPlaceId(venueId, placeId) {
-  if (!GOOGLE_MAPS_API_KEY || !placeId) return;
+export function enrichVenueFromPlaceId(venueId, placeId) {
+  if (!GOOGLE_MAPS_API_KEY || !venueId || typeof placeId !== 'string' || !placeId.trim()) return Promise.resolve();
+  const key = JSON.stringify([venueId, placeId]);
+  if (pendingCatalogEnrichments.has(key)) return pendingCatalogEnrichments.get(key);
+  // Keep provider work AND its identity-bound write under one pending operation.
+  // Settled results are never a cache: later attempts get a fresh observation.
+  const pending = refreshCatalogDetails(venueId, placeId).finally(() => {
+    if (pendingCatalogEnrichments.get(key) === pending) pendingCatalogEnrichments.delete(key);
+  });
+  pendingCatalogEnrichments.set(key, pending);
+  return pending;
+}
 
-  const fieldMask = [
+async function requestCatalogDetails(placeId, fieldMask = [
     'displayName',
     'nationalPhoneNumber',
     'regularOpeningHours',
@@ -883,24 +905,38 @@ export async function enrichVenueFromPlaceId(venueId, placeId) {
     'businessStatus',
     'types',
     'primaryType'
-  ].join(',');
+  ].join(',')) {
 
-  const url = `https://places.googleapis.com/v1/places/${placeId}`;
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-      'X-Goog-FieldMask': fieldMask
-    }
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => {
+      const error = Object.assign(new Error('Catalog Places Details timed out'), { code: 'upstream_timeout' });
+      controller.abort(error);
+      reject(error);
+    }, CATALOG_DETAILS_TIMEOUT_MS);
   });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => 'unknown');
-    throw new Error(`Places (NEW) API ${response.status}: ${errText.slice(0, 200)}`);
+  try {
+    // Include body parsing in the deadline. Persistence is outside this race,
+    // so even a transport ignoring abort cannot publish a late response.
+    return await Promise.race([(async () => {
+      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+        method: 'GET', signal: controller.signal,
+        headers: { 'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY, 'X-Goog-FieldMask': fieldMask }
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => 'unknown');
+        throw new Error(`Places (NEW) API ${response.status}: ${errText.slice(0, 200)}`);
+      }
+      return response.json();
+    })(), deadline]);
+  } finally {
+    clearTimeout(timer);
   }
+}
 
-  const place = await response.json();
+async function refreshCatalogDetails(venueId, placeId) {
+  const place = await requestCatalogDetails(placeId);
 
   // Build update payload — only set fields that have data
   const updates = { updated_at: new Date() };
@@ -950,7 +986,7 @@ export async function enrichVenueFromPlaceId(venueId, placeId) {
 
   await db.update(venue_catalog)
     .set(updates)
-    .where(eq(venue_catalog.venue_id, venueId));
+    .where(and(eq(venue_catalog.venue_id, venueId), eq(venue_catalog.place_id, placeId)));
 
   venueCacheLog.debug(`Enriched venue ${venueId} from Places (NEW) API: phone=${!!updates.phone_number}, rating=${updates.google_rating || 'n/a'}, hours=${!!updates.business_hours}`);
 }

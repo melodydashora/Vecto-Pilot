@@ -29,11 +29,11 @@ await db.insert(rankings).values({
 3.  **`snapshots`**: Activity (what you did when) - **FOREVER**.
 
 **Session Rules:**
-- **Ephemeral**: `users` rows are deleted on logout or inactivity (60 min TTL). Do not store permanent settings here.
+- **Ephemeral**: on logout or inactivity (60 min TTL) the `users` row is KEPT and its `session_id` is set NULL (2026-01-06: DELETE was blocked by RESTRICT FKs from driver_profiles/auth_credentials). Do not store permanent settings here.
 - **No Location Data**: All location data goes to the `snapshots` table.
 - **Sliding Window**: `last_active_at` updates on every request.
 - **Highlander Rule**: One device per user (login on new device kills old session).
-- **Lazy Cleanup**: Expired sessions deleted on next `requireAuth` check.
+- **Lazy Cleanup**: expired sessions are cleared (session_id → NULL) on the next `requireAuth` check; see server/middleware/auth.js.
 
 **Key Fields:**
 - `current_snapshot_id`: Links to the user's ONE active snapshot.

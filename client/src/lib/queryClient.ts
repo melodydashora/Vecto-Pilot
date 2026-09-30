@@ -1,4 +1,5 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -17,6 +18,13 @@ const getBaseUrl = () => {
   return '';
 };
 
+// Keep app credentials on this origin even when a caller supplies an absolute URL.
+function requestAuthHeaders(fullUrl: string): Record<string, string> {
+  if (typeof window === 'undefined' || new URL(fullUrl, window.location.origin).origin !== window.location.origin) return {};
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -27,51 +35,23 @@ export async function apiRequest(
   
   const res = await fetch(fullUrl, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers: { ...(data !== undefined ? { "Content-Type": "application/json" } : {}), ...requestAuthHeaders(fullUrl) },
+    body: data !== undefined ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
 
-  // Don't throw on 400 and 401 responses as they might contain meaningful error messages
-  if (res.status !== 400 && res.status !== 401) {
-    await throwIfResNotOk(res);
-  }
+  await throwIfResNotOk(res);
   return res;
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const baseUrl = getBaseUrl();
-    const url = queryKey[0] as string;
-    const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
-    
-    const res = await fetch(fullUrl, {
-      credentials: "include",
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
-
+// Single app client. Provider consumers use useQueryClient so injected/test clients work too.
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
-    },
-    mutations: {
-      retry: false,
     },
   },
 });

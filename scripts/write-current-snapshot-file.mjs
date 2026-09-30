@@ -17,8 +17,6 @@ SELECT
   weather,
   air,
   permissions,
-  holiday,
-  is_holiday,
   lat,
   lng,
   city,
@@ -56,8 +54,6 @@ function formatSnapshot(row) {
     "weather",
     "air",
     "permissions",
-    "holiday",
-    "is_holiday",
     "lat",
     "lng",
     "city",
@@ -116,6 +112,7 @@ try {
   console.log(`[snapshot] wrote latest snapshot row to ${outputPath}`);
 } catch (err) {
   console.error("[snapshot] failed to write snapshot.txt:", err.message);
+  process.exitCode = 1;
 } finally {
   await pool.end();
 }

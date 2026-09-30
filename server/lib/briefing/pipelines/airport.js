@@ -168,13 +168,16 @@ async function fetchAirportConditions({ snapshot }) {
   const nearby = await findNearbyAirports(snapshot.lat, snapshot.lng);
 
   if (nearby.length === 0) {
-    // VERIFIED empty — a true geographic fact, not a failure or a guess
+    // The seeded catalog has no coverage receipt for this radius. An empty
+    // lookup cannot prove the geographic absence of airports.
     return {
       airports: [],
       busyPeriods: [],
-      recommendations: `No major airports within ${AIRPORT_RADIUS_MILES} miles of this location`,
-      reason: `verified: no airports in the ${AIRPORT_RADIUS_MILES}-mile radius`,
-      verifiedEmpty: true,
+      recommendations: 'Nearby airport coverage could not be verified.',
+      reason: `The airport catalog returned no matches in the ${AIRPORT_RADIUS_MILES}-mile radius; geographic coverage is unknown.`,
+      verifiedEmpty: false,
+      coverage: 'unknown',
+      isFallback: true,
       fetchedAt: new Date().toISOString()
     };
   }
@@ -199,18 +202,16 @@ async function fetchAirportConditions({ snapshot }) {
     reason: why
   });
 
-  // STEP 2 — FAA ASWS delay data per US airport (deterministic API, per-airport non-fatal)
+  // 2026-09-10 (Melody): failed FAA requests invalidate Briefing. Lack of
+  // coverage is a documented no-data result; a failed request is not.
   const faaByCode = {};
   await Promise.all(
     nearby
       .filter((a) => a.country === 'US')
       .map(async (a) => {
-        try {
-          const faa = await fetchFAADelayData(a.iata);
-          if (faa) faaByCode[a.iata] = faa;
-        } catch {
-          // per-airport FAA miss is recorded by absence; model research still runs
-        }
+        const faa = await fetchFAADelayData(a.iata, { strict: true });
+        if (!faa) throw new Error(`FAA returned no status for ${a.iata}`);
+        faaByCode[a.iata] = faa;
       })
   );
 
@@ -293,6 +294,10 @@ Return ONLY this JSON structure (placeholders in <angle brackets> are value type
     //  - merge FAA delay data per US airport
     //  - compute best_entry per lane type from returned checkpoint waits
     const byCode = new Map((parsed.airports || []).map((a) => [a.code, a]));
+    const missing = nearby.filter(a => !byCode.has(a.iata));
+    if (missing.length) {
+      return failureResult(`BRIEFING_AIRPORT omitted requested airports: ${missing.map(a => a.iata).join(', ')}`);
+    }
     const airportsOut = nearby.map((known) => {
       const researched = byCode.get(known.iata) || {};
       let terminals = Array.isArray(researched.terminals) ? researched.terminals : [];
@@ -350,9 +355,16 @@ Return ONLY this JSON structure (placeholders in <angle brackets> are value type
         terminals,
         best_entry: computeBestEntry(terminals),
         ...(faa ? {
-          faa_delay_minutes: faa.delay_minutes ?? 0,
+          faa_delay_minutes: faa.delay_minutes,
+          faa_has_delays: faa.has_delays,
+          faa_ground_stops: faa.ground_stops ?? [],
           faa_delay_reason: faa.delay_reason ?? null,
-          faa_closure_status: faa.closure_status ?? 'open',
+          faa_closure_status: faa.closure_status,
+          faa_closure_start: faa.closure_start ?? null,
+          faa_closure_end: faa.closure_end ?? null,
+          faa_supported: faa.supported,
+          faa_source_updated_at: faa.source_updated_at,
+          faa_fetched_at: faa.fetched_at,
         } : {}),
       };
     });

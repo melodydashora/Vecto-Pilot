@@ -11,7 +11,7 @@
 | Area | Implemented | Runnable | CI-Enforced | Coverage-Enforced |
 |------|-------------|----------|-------------|-------------------|
 | Unit (backend) | Yes — 10 files | `npm run test:unit` | No | No |
-| Unit (frontend) | Yes — 6 files | `npx jest -c jest.client.config.js` | No | No |
+| Unit (frontend) | Yes — 7 files (6 .tsx + 1 .ts) | `npm run test:client` | No | No |
 | Integration | Yes — 4 files | Manual via node | No | No |
 | E2E | Yes — Playwright | `npm run test:e2e` | No | No |
 | Load | No | — | — | — |
@@ -27,7 +27,7 @@
 | `npm test` | Unit + E2E (`test:unit && test:e2e`) | **Blessed entrypoint** |
 | `npm run test:unit` | Backend Jest tests (`tests/**/*.test.js`) | Primary |
 | `npm run test:e2e` | Playwright (`tests/e2e/copilot.spec.ts`) | Primary |
-| `npx jest -c jest.client.config.js` | Frontend Jest tests (`tests/**/*.test.tsx`) | Primary (no npm script alias) |
+| `npm run test:client` | Frontend Jest tests (`tests/**/*.test.{ts,tsx}`, ts-jest + jsdom; import.meta.env via tests/transformers/import-meta-env.cjs) | Primary (alias added 2026-09-10; 4 of 5 .tsx suites are content-rotted — todo #77) |
 | `node tests/scripts/smoke-test.js` | Deployment smoke check (5 endpoint status checks) | Primary |
 | `node tests/scripts/preflight-check.js` | Pre-deployment env check (DB, schema, health) | Primary |
 | `node tests/run-all-tests.js` | Gateway + Eidolon runner | LEGACY — predates Jest/Playwright |
@@ -89,7 +89,6 @@
 | `tests/schema-validation.test.js` | DB schema contracts | Schema field types/constraints |
 | `tests/auth-token-validation.test.js` | Token verification | HMAC-SHA256 sign/verify |
 | `tests/blocksApi.test.js` | Blocks API contract | Response shape validation |
-| `tests/auth/uber-oauth.test.js` | Uber OAuth | Token exchange flow |
 | `tests/coach-schema.test.js` | Coach schema metadata | Schema field exposure |
 | `tests/coach-validation.test.js` | Coach Zod schemas | All 11 action tag types |
 | `tests/events/pipeline.test.js` | Event pipeline | Discovery + deactivation |
@@ -323,8 +322,7 @@ Add: E2E journeys, load testing, coach integration
 6. POST /api/blocks-fast → 202 or 200
 7. GET /api/briefing/weather/:snapshotId → 200
 8. GET /events/strategy → SSE connection opens
-9. POST /api/translate → 200 + translated text
-10. GET /api/intelligence/markets-dropdown → 200 + markets
+9. GET /api/intelligence/markets-dropdown → 200 + markets
 ```
 
 ---

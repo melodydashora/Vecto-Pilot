@@ -76,7 +76,7 @@ const router = new HedgedRouter({
       const { model, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction } = config;
 
       const result = await callGemini({
-        model, system, user, images, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction
+        model, system, user, images, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction, signal
       });
       if (!result.ok) throw new Error(result.error);
       return result;
@@ -162,8 +162,9 @@ export async function callModel(role, params) {
       // 2026-04-04: FIX H-2 — Restored safety timeout. Was disabled (timeout: 0) per user request,
       // but indefinite hangs block the entire briefing pipeline. 120s is generous enough for
       // Gemini HIGH thinking + Google Search while catching genuinely stuck calls.
-      // Individual operations can still use withTimeout() for tighter per-call limits.
-      timeout: 120000
+      // Shorter callers pass a deadline signal so expiry reaches the SDK too.
+      timeout: 120000,
+      signal: params.signal,
     });
 
     const response = result.response;
@@ -212,10 +213,10 @@ export async function callModel(role, params) {
       || String(err.originalError?.message || '').includes('UNAVAILABLE');
     // 2026-08-17: pinned ids only — never a *-latest alias (registry doctrine, memory #342).
     // A 3.5-flash primary retries on pinned Pro; any other primary (incl. OFFER_ANALYZER's
-    // gemini-3.5-flash-lite) retries on 3.5-flash — vision-capable, fast enough for the
-    // Phase-1 20 s race.
+    // gemini-3.5-flash-lite) retries on 3.5-flash. The caller's remaining deadline
+    // applies to this retry as well; do not dispatch it after cancellation.
     const GEMINI_FALLBACK_MODEL = primaryConfig.model === 'gemini-3.5-flash' ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash';
-    if (is503 && primaryConfig.provider === 'google') {
+    if (is503 && primaryConfig.provider === 'google' && !params.signal?.aborted) {
       aiLog.debug(`RETRY ${primaryConfig.role} got 503 on ${primaryConfig.model} - retrying with ${GEMINI_FALLBACK_MODEL}...`);
       try {
         const needsSearch = roleUsesGoogleSearch(role);
@@ -228,6 +229,7 @@ export async function callModel(role, params) {
           temperature: primaryConfig.temperature || 0.2,
           useSearch: needsSearch,
           thinkingLevel: primaryConfig.thinkingLevel,
+          signal: params.signal,
         });
         if (retryResult.ok) {
           const retryDuration = Date.now() - callStart;
@@ -280,6 +282,12 @@ export async function callModelStream(role, { system, messageHistory, signal }) 
   const useSearch = roleUsesGoogleSearch(role);
 
   aiLog.debug(`STREAM Role=${canonicalRole} Model=${model} Provider=${provider}`);
+
+  if (canonicalRole === 'AI_COACH') {
+    if (provider !== 'openai') throw new Error('AI_COACH requires the OpenAI Responses transport');
+    const { callCoachResponses } = await import('./coach-responses.js');
+    return callCoachResponses(config, { system, messageHistory, signal });
+  }
 
   // 2. Currently only Gemini supports streaming via this adapter
   if (!model.startsWith('gemini-')) {

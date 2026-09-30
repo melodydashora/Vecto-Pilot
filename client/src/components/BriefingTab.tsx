@@ -2,6 +2,7 @@ import { useState, memo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Newspaper, Loader, MapPin, ChevronUp, ChevronDown } from "lucide-react";
+import { filterTodayEvents } from '@/utils/co-pilot-helpers';
 import EventsComponent from "./EventsComponent";
 import { WeatherCard } from "./briefing/WeatherCard";
 import { TrafficCard } from "./briefing/TrafficCard";
@@ -23,7 +24,7 @@ interface BriefingEvent {
   subtype?: string;
   latitude?: number;
   longitude?: number;
-  impact?: 'high' | 'medium' | 'low';
+  impact?: 'high' | 'medium' | 'low' | null;
   [key: string]: unknown;
 }
 
@@ -36,8 +37,11 @@ interface BriefingTabProps {
   eventsData?: {
     events?: BriefingEvent[];
     marketEvents?: BriefingEvent[];
-    market_name?: string;
-    reason?: string;
+    // 2026-09-13: null-tolerant — the provider now forwards the hook's envelope unchanged.
+    market_name?: string | null;
+    market_status?: 'complete' | 'partial' | 'unavailable';
+    unresolved_market_events?: number;
+    reason?: string | null;
     // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
     _pending?: boolean;
     _generationFailed?: boolean;
@@ -68,30 +72,6 @@ const BriefingTab = memo(function BriefingTab({
 }: BriefingTabProps) {
   const [expandedMarketEvents, setExpandedMarketEvents] = useState(false);
 
-  // Filter events for today (shared logic)
-  const isEventForToday = (event: BriefingEvent): boolean => {
-    if (!event.event_start_time || !event.event_start_date) return false;
-    if (!timezone) {
-      console.error('[BriefingTab] isEventForToday: Missing timezone');
-      return false;
-    }
-    try {
-      const now = new Date();
-      const todayStr = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).format(now);
-      const eventStartDate = event.event_start_date;
-      const eventEndDate = event.event_end_date || event.event_start_date;
-      return todayStr >= eventStartDate && todayStr <= eventEndDate;
-    } catch (err) {
-      console.error('[BriefingTab] isEventForToday: Date calculation error:', err);
-      return false;
-    }
-  };
-
   if (!snapshotId) {
     return (
       <Card data-testid="briefing-no-snapshot">
@@ -121,7 +101,7 @@ const BriefingTab = memo(function BriefingTab({
     subtype: event.event_type || event.subtype,
     venue: event.venue || event.location,
   }));
-  const marketEventsToday = allMarketEvents.filter(isEventForToday);
+  const marketEventsToday = filterTodayEvents(allMarketEvents, timezone ?? undefined);
 
   return (
     <div className="space-y-6" data-testid="briefing-container">
@@ -129,11 +109,6 @@ const BriefingTab = memo(function BriefingTab({
         <div className="flex items-center gap-2 flex-wrap">
           <Newspaper className="w-5 h-5 text-indigo-600" />
           <h2 className="text-lg font-semibold text-gray-800">Driver Briefing</h2>
-          {snapshotId && (
-            <Badge variant="outline" className="text-xs font-mono bg-gray-100 text-gray-600">
-              {snapshotId.slice(0, 8)}...
-            </Badge>
-          )}
         </div>
       </div>
 
@@ -188,6 +163,12 @@ const BriefingTab = memo(function BriefingTab({
         <EventsComponent events={allEvents} isLoading={false} timezone={timezone ?? undefined} />
       )}
 
+      {eventsData?.market_status === 'unavailable' && (
+        <p role="status" className="text-sm text-amber-800">Additional market events are temporarily unavailable.</p>
+      )}
+      {eventsData?.market_status === 'partial' && (
+        <p role="status" className="text-sm text-amber-800">Some market events have unconfirmed times and are not shown.</p>
+      )}
       {marketEventsToday.length > 0 && (
         <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
           <CardHeader
@@ -204,7 +185,7 @@ const BriefingTab = memo(function BriefingTab({
                   </Badge>
                 )}
                 <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
-                  {marketEventsToday.length} high-impact
+                  {marketEventsToday.length} major events
                 </Badge>
               </CardTitle>
               {expandedMarketEvents ? (

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
-import { apiRequest } from '@/lib/queryClient';
+import { useAuth } from '@/contexts/auth-context';
+import type { VenueFeedbackReceipt } from '@/hooks/useVenueFeedback';
 import { useToast } from '@/hooks/useToast';
 import { API_ROUTES } from '@/constants/apiRoutes';
 
@@ -19,6 +20,8 @@ interface FeedbackModalProps {
   isStrategyFeedback?: boolean;
   isAppFeedback?: boolean;
   onSuccess?: (sentiment: 'up' | 'down') => void;
+  onVenueSubmit?: (sentiment: 'up' | 'down', comment: string) => Promise<VenueFeedbackReceipt | null>;
+  onVenueReload?: () => Promise<boolean | undefined>;
 }
 
 export function FeedbackModal({
@@ -29,14 +32,24 @@ export function FeedbackModal({
   placeId,
   snapshotId,
   rankingId,
-  userId,
+  userId: _userId,
   isStrategyFeedback = false,
   isAppFeedback = false,
-  onSuccess
+  onSuccess,
+  onVenueSubmit,
+  onVenueReload
 }: FeedbackModalProps) {
   const [sentiment, setSentiment] = useState<'up' | 'down' | null>(initialSentiment);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { user, token } = useAuth();
+  const scopeKey = JSON.stringify([user?.userId, token, snapshotId, rankingId, placeId, isOpen]);
+  const scopeRef = useRef({ key: scopeKey, active: true, busy: false });
+  if (scopeRef.current.key !== scopeKey) {
+    scopeRef.current.active = false;
+    scopeRef.current = { key: scopeKey, active: true, busy: false };
+  }
   const { toast } = useToast();
 
   // Sync sentiment state when modal opens or initialSentiment changes
@@ -45,11 +58,19 @@ export function FeedbackModal({
       setSentiment(initialSentiment);
       setComment('');
       setIsSubmitting(false);
+      setError(null);
     }
-  }, [isOpen, initialSentiment]);
+  }, [isOpen, initialSentiment, scopeKey]);
+
+  useEffect(() => {
+    const scope = scopeRef.current;
+    scope.active = true;
+    return () => { scope.active = false; };
+  }, [scopeKey]);
 
   // Reset state when modal closes
   const handleClose = () => {
+    if (scopeRef.current.busy) return;
     setSentiment(null);
     setComment('');
     onClose();
@@ -65,82 +86,56 @@ export function FeedbackModal({
       return;
     }
 
-    // App feedback doesn't require ranking data
+    const scope = scopeRef.current;
+    if (scope.busy) return;
+    const current = () => scope.active && scopeRef.current === scope;
+
+    // App feedback doesn't require ranking data.
     if (!isAppFeedback && (!snapshotId || !rankingId)) {
       toast({
         title: 'No strategy loaded yet',
         description: 'Please wait for a strategy to load before giving feedback.',
         variant: 'default',
       });
-      onClose();
       return;
     }
-
+    if (!token || !user?.userId) { setError('Please sign in before sending feedback.'); return; }
+    scope.busy = true;
     setIsSubmitting(true);
+    setError(null);
 
-    // Choose endpoint based on feedback type
     const endpoint = isAppFeedback
       ? API_ROUTES.FEEDBACK.APP
       : (isStrategyFeedback ? API_ROUTES.FEEDBACK.STRATEGY : API_ROUTES.FEEDBACK.VENUE);
-    
-    // Build payload based on feedback type
-    const payload = isAppFeedback
-      ? {
-          snapshot_id: snapshotId || null,
-          sentiment,
-          comment: comment.trim() || null,
-        }
-      : (isStrategyFeedback 
-        ? {
-            userId,
-            snapshot_id: snapshotId,
-            ranking_id: rankingId,
-            sentiment,
-            comment: comment.trim() || null,
-          }
-        : {
-            userId,
-            snapshot_id: snapshotId,
-            ranking_id: rankingId,
-            place_id: placeId || null,
-            venue_name: venueName,
-            sentiment,
-            comment: comment.trim() || null,
-          });
-
-    // Close modal immediately for better UX
-    onSuccess?.(sentiment);
-    setSentiment(initialSentiment);
-    setComment('');
-    onClose();
-
-    // Submit feedback in background
-    toast({
-      title: 'Thanks for the feedback!',
-      description: 'Your feedback helps us improve recommendations.',
-    });
-
-    apiRequest('POST', endpoint, payload)
-      .catch((error: any) => {
-        console.error('Feedback submission error:', error);
-        
-        if (error.message?.includes('429')) {
-          toast({
-            title: 'Too many requests',
-            description: 'Please wait a moment before submitting more feedback.',
-            variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'Failed to submit feedback',
-            description: 'Please try again later.',
-            variant: 'destructive',
-          });
-        }
-      })
-      .finally(() => {
-        setIsSubmitting(false);
-      });
+    try {
+      let receipt: VenueFeedbackReceipt | null = null;
+      if (!isAppFeedback && !isStrategyFeedback) {
+        if (!onVenueSubmit) throw new Error('Venue feedback is unavailable. Reload the strategy and retry.');
+        receipt = await onVenueSubmit(sentiment, comment.trim());
+        if (!current() || !receipt) return;
+      } else {
+        const response = await fetch(endpoint, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ snapshot_id: snapshotId || null, ...(isStrategyFeedback && { ranking_id: rankingId }), sentiment, comment: comment.trim() || null }),
+        });
+        if (!current()) return;
+        if (!response.ok) throw new Error(response.status === 429 ? 'Too many requests. Wait a moment, then retry.' : 'Feedback was not confirmed. Please retry.');
+        const result = await response.json();
+        if (!current()) return;
+        if (result?.ok !== true) throw new Error('The server did not confirm your feedback. Please retry.');
+      }
+      onSuccess?.(sentiment);
+      setComment('');
+      onClose();
+      toast({ title: receipt?.action === 'dismiss' ? 'Venue removed from this strategy' : 'Feedback saved',
+        description: receipt?.replacement_status === 'replaced' ? `${receipt.replacement?.name} is now in your list. You can undo this choice.`
+          : receipt?.replacement_status === 'exhausted' ? 'No alternative is available in this strategy. You can undo this choice.' : 'Thanks for sharing your feedback.' });
+    } catch (cause) {
+      if (current()) setError(cause instanceof Error ? cause.message : 'Feedback was not confirmed. Please retry.');
+    } finally {
+      scope.busy = false;
+      if (current()) setIsSubmitting(false);
+    }
   };
 
   return (
@@ -168,6 +163,24 @@ export function FeedbackModal({
         </DialogHeader>
 
         <div className="space-y-4">
+          {!isAppFeedback && !isStrategyFeedback && sentiment === 'down' && (
+            <p className="text-sm text-gray-600">Remove this venue from your current strategy and show an available alternative. You can undo after it saves.</p>
+          )}
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+          {error && !isAppFeedback && !isStrategyFeedback && onVenueReload && (
+            <Button variant="outline" size="sm" disabled={isSubmitting} onClick={async () => {
+              const scope = scopeRef.current;
+              if (scope.busy) return;
+              scope.busy = true; setIsSubmitting(true);
+              try {
+                const loaded = await onVenueReload();
+                if (scope.active && scopeRef.current === scope && loaded) setError(null);
+              } finally {
+                scope.busy = false;
+                if (scope.active && scopeRef.current === scope) setIsSubmitting(false);
+              }
+            }}>Reload saved choices</Button>
+          )}
           {/* Sentiment Buttons - Only show if no initial sentiment */}
           {!initialSentiment && (
             <div className="flex items-center justify-center gap-4">
@@ -176,6 +189,7 @@ export function FeedbackModal({
                 variant={sentiment === 'up' ? 'default' : 'outline'}
                 size="lg"
                 onClick={() => setSentiment('up')}
+                disabled={isSubmitting}
                 className={sentiment === 'up' ? 'bg-green-600 hover:bg-green-700' : ''}
                 data-testid="button-thumbs-up"
               >
@@ -187,6 +201,7 @@ export function FeedbackModal({
                 variant={sentiment === 'down' ? 'default' : 'outline'}
                 size="lg"
                 onClick={() => setSentiment('down')}
+                disabled={isSubmitting}
                 className={sentiment === 'down' ? 'bg-red-600 hover:bg-red-700' : ''}
                 data-testid="button-thumbs-down"
               >
@@ -205,6 +220,7 @@ export function FeedbackModal({
               id="feedback-comment"
               placeholder="Share more details about your experience..."
               value={comment}
+              disabled={isSubmitting}
               onChange={(e) => setComment(e.target.value.slice(0, 1000))}
               rows={3}
               maxLength={1000}

@@ -1,6 +1,6 @@
 # Database Environments: Dev vs. Prod
 
-> **Last Updated:** 2026-04-24
+> **Last Updated:** 2026-09-29 (runtime TLS contract; provider history retained)
 > **Status:** Verified — **dev = Replit Helium local**; **prod = Neon serverless**. The 2026-04-05 "both Helium" claim was incorrect; see changelog.
 > **Priority:** CRITICAL — Read this document at every session start
 
@@ -60,7 +60,21 @@ Replit determines the environment at deployment time, not at runtime in our code
 - **Workspace (Dev):** `DATABASE_URL` → Replit's internal Helium PostgreSQL (local, `sslmode=disable`)
 - **Deployment (Prod):** `DATABASE_URL` → Neon serverless (PostgreSQL, SSL required, valid certs)
 
-The application code reads `process.env.DATABASE_URL` and connects. That's it. No branching, no env-file cascading needed.
+The application code selects its target only from `process.env.DATABASE_URL`.
+`server/db/connection-config.js` parses that URL once for the pool, LISTEN client
+(including reconnects), and migration runner. Exact known local targets
+(`helium`, `localhost`, `127.0.0.1`, `::1`, or Unix sockets) retain plaintext when
+TLS is absent or disabled; other targets require certificate and hostname
+verification. Explicit local TLS and URL CA/client certificate/key material are
+preserved. `NODE_ENV` and `REPLIT_DEPLOYMENT` do not choose the target or bypass
+verification. Invalid configuration fails without printing URL credentials.
+
+The old runtime used `rejectUnauthorized: false` in the pool/migration runner
+and different TLS configuration during LISTEN reconnect. Those implementations
+contradicted this document's verification requirement and were replaced on
+2026-09-29. Mocked lifecycle tests and actual parser/configuration tests verify
+this policy; they do **not** prove a live remote TLS handshake. See
+[`server/db/README.md`](../../server/db/README.md) for source and test entry points.
 
 ### 2. Replit Secrets
 
@@ -83,6 +97,18 @@ The application code reads `process.env.DATABASE_URL` and connects. That's it. N
   deterministically. Migrations MUST be idempotent/additive (`IF NOT EXISTS`,
   `ON CONFLICT`, type guards) — the runner re-executes post-cutoff files on any
   DB that hasn't recorded them.
+- **Empty-database path (2026-09-13):** `migrations/00000_baseline.sql` (full pg_dump
+  of dev, marker `BASELINE_THROUGH`) is executed by the runner only when
+  `public.snapshots` does not exist; on dev/prod it is recorded as baselined and never
+  runs. Verified: an empty Helium database built through the runner matched dev with 0
+  diffs across tables, columns, constraints, indexes, functions, triggers and policies.
+- **Pre-publish check for `20260913_schema_repair.sql` (prod has not run it yet):** it
+  drops 11 tables ONLY if they are empty and RAISES (boot fails loud) otherwise. Before
+  publishing, open Database Studio → Production Database and confirm zero rows in
+  `block_jobs, llm_venue_suggestions, eidolon_snapshots, venue_events, traffic_zones,
+  market_intel, driver_goals, driver_tasks, safe_zones, staging_saturation,
+  uber_connections`. If any has rows, decide (delete them, or keep the table) before
+  publishing; the error message names the table.
 - **History (kept so the lesson survives):** from the death of the original
   drizzle-kit pipeline (its artifacts live in `migrations/manual/`) until
   2026-08-06, parity was manual, and this doc falsely claimed "Replit runs
@@ -119,11 +145,33 @@ The application code reads `process.env.DATABASE_URL` and connects. That's it. N
 
 ---
 
+## Environment files and precedence (2026-09-15)
+
+Only two env files exist: `.env.local` (gitignored, workspace-only) and its tracked template
+`.env.local.example`. The old `.env` and `.env.example` copies were deleted; nothing loaded
+them for the app (the agent config-manager's `.env` editor is the one reader, now pointing at
+an absent file — treat it as legacy).
+
+| Where | Precedence, highest first |
+|---|---|
+| Workspace (Run button, workflows) | `.env.local` (sourced with `set -a` by `.replit` run), then Replit Secrets, then code defaults |
+| Deployment | Replit Secrets, then `.env.local` if present (loader fills only unset keys), then code defaults |
+
+`.env.local` was trimmed on 2026-09-15 to the keys the code actually reads (a repo-wide
+`process.env.X` / `import.meta.env.X` scan, 216 → 80 keys). Model names are never env
+keys — see `server/lib/ai/model-registry.js`. Replit Secrets were trimmed to the same
+consumed set; the app-required ones are `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`,
+`GOOGLE_MAPS_API_KEY`, `GOOGLEAQ_API_KEY`, `TOMTOM_API_KEY`, `VITE_GOOGLE_MAPS_API_KEY`,
+`VITE_GOOGLE_MAPS_MAP_ID`, `JWT_SECRET`, `VECTO_AGENT_SECRET`, `CLAUDE_BRIDGE_TOKEN`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CLIENT_URL`, `MCP_TOKEN` (+ `SENDGRID_API_KEY`
+for email, unset as of this date). `DATABASE_URL` is Replit-managed and stays the only DB selector.
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `server/db/connection-manager.js` | Pool config, conditional SSL, 57P01 handling, monitoring |
+| `server/db/connection-config.js` | Shared DATABASE_URL parsing, local/remote TLS and certificate preservation |
+| `server/db/connection-manager.js` | Shared pool, query handling, monitoring |
 | `server/db/db-client.js` | LISTEN/NOTIFY real-time client, keepalive |
 | `server/db/drizzle.js` | Drizzle ORM instance |
 | `server/config/load-env.js` | Environment loading |
@@ -150,6 +198,8 @@ The application code reads `process.env.DATABASE_URL` and connects. That's it. N
 ---
 
 ## Changelog
+
+- **2026-09-29:** Reconciled the documented strict TLS requirement with pool, migration-runner, and LISTEN/reconnect source. Added shared URL/certificate parsing and lifecycle regression coverage. No remote database handshake or deployment was performed for this verification.
 
 - **2026-04-24:** **CORRECTION.** The 2026-04-05 entry incorrectly stated "both dev and prod confirmed as Replit Helium." The 2026-04-18 NEON_AUTOSCALE audit (`docs/architecture/audits/NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md`) proved prod runs Neon serverless (direct endpoint `ep-noisy-cake-afv3ojg3`). This doc, CLAUDE.md Rule 13, and `server/db/connection-manager.js` inline comments have been updated to match reality. The "removed all Neon references" in the 2026-04-05 entry was premature — Neon was still the prod provider.
 - **2026-04-05:** Removed Neon references from `connection-manager.js` and `db-client.js` on the incorrect assumption that prod had also migrated to Helium. See 2026-04-24 correction above. Prod remained on Neon throughout.

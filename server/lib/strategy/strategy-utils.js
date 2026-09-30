@@ -2,12 +2,15 @@
 // Strategy-first gating utilities
 
 import { db } from '../../db/drizzle.js';
-import { strategies } from '../../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { withCurrentMainRun, MainRunAdmissionError } from '../main-run-admission.js';
+import { strategies, rankings, main_run_admissions } from '../../../shared/schema.js';
+import { assertCurrentStrategySource } from './strategy-source-store.js';
+import { eq, sql } from 'drizzle-orm';
 import { triadLog, OP, tagLog } from '../../logger/workflow.js';
-// 2026-06-11: vetted IANA-aware wall-clock→UTC conversion (replaces the hand-rolled
-// Intl offset math in createDateInTimezone, which had fragile month-end/DST heuristics).
+// Shared IANA-aware wall-clock conversion; never interpret event times in the server zone.
 import { fromZonedTime } from 'date-fns-tz';
+import { getLocalDateString } from '../../../shared/dayparts.js';
+import { normalizeDate, normalizeTime } from '../events/pipeline/normalizeEvent.js';
 
 /**
  * CRITICAL: Create strategy row with snapshot location data
@@ -17,8 +20,9 @@ import { fromZonedTime } from 'date-fns-tz';
  */
 export async function ensureStrategyRow(snapshotId) {
   try {
+    return await withCurrentMainRun(snapshotId, async tx => {
     // Check if strategy row already exists
-    const [existing] = await db.select().from(strategies)
+    const [existing] = await tx.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId))
       .limit(1);
     
@@ -28,19 +32,18 @@ export async function ensureStrategyRow(snapshotId) {
     
     // Fetch snapshot to get location data
     const { snapshots } = await import('../../../shared/schema.js');
-    const [snapshot] = await db.select().from(snapshots)
+    const [snapshot] = await tx.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId))
       .limit(1);
     
     if (!snapshot) {
-      triadLog.warn(1, `Snapshot ${snapshotId.slice(0, 8)} not found`);
-      return;
+      throw new Error(`Snapshot ${snapshotId.slice(0, 8)} not found while creating Strategy`);
     }
 
     // Create strategy row with location data from snapshot
     // CRITICAL: Explicitly set phase='starting' - don't rely on SQL defaults
     // PostgreSQL + Drizzle + onConflictDoNothing can leave phase as NULL otherwise
-    await db.insert(strategies).values({
+    await tx.insert(strategies).values({
       snapshot_id: snapshotId,
       user_id: snapshot.user_id,
       lat: snapshot.lat,
@@ -53,8 +56,11 @@ export async function ensureStrategyRow(snapshotId) {
     }).onConflictDoNothing();
 
     triadLog.done(1, `Strategy row created: ${snapshot.city}, ${snapshot.state}`, OP.DB);
+    });
   } catch (error) {
+    if (error instanceof MainRunAdmissionError) throw error;
     triadLog.error(1, `ensureStrategyRow failed`, error, OP.DB);
+    throw error;
   }
 }
 
@@ -251,17 +257,17 @@ const PIPELINE_PHASE_ORDER = [
  */
 export async function updatePhase(snapshotId, phase, options = {}) {
   try {
+    const changedAt = await withCurrentMainRun(snapshotId, async (tx, admission) => {
     const now = new Date();
 
     // 2026-04-28: Read current row to enforce idempotency + monotonic ordering.
-    // Single-row SELECT keyed on PRIMARY/UNIQUE column — cheap. If no row
-    // exists yet (ensureStrategyRow hasn't run), the existing UPDATE below
-    // will no-op naturally; we tolerate that by treating undefined as 'starting'.
-    const [currentRow] = await db.select({ phase: strategies.phase })
+    // A missing Strategy cannot publish progress; row creation must succeed first.
+    const [currentRow] = await tx.select({ phase: strategies.phase })
       .from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId))
       .limit(1);
-    const currentPhase = currentRow?.phase;
+    if (!currentRow) throw new Error('Cannot publish a phase without a persisted Strategy');
+    const currentPhase = currentRow.phase;
 
     if (currentPhase === phase) {
       // Idempotency: same phase, no-op. Caller may be the 2nd of N duplicate
@@ -292,22 +298,37 @@ export async function updatePhase(snapshotId, phase, options = {}) {
     };
 
     // When pipeline completes, finalize the status
+    let completedRanking = null;
     if (phase === 'complete') {
+      await assertCurrentStrategySource(snapshotId, tx);
+      const [ranking] = await tx.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+      if (!ranking) throw new Error('Cannot complete a run before its venue ranking is persisted');
+      completedRanking = ranking;
       updateData.status = 'ok';
     }
 
-    const result = await db.update(strategies)
+    await tx.update(strategies)
       .set(updateData)
       .where(eq(strategies.snapshot_id, snapshotId));
 
     // 2026-01-15: Also mark triad_jobs as complete when phase='complete'
     if (phase === 'complete') {
       const { triad_jobs } = await import('../../../shared/schema.js');
-      await db.update(triad_jobs)
+      await tx.update(triad_jobs)
         .set({ status: 'ok' })
-        .where(eq(triad_jobs.snapshot_id, snapshotId))
-        .catch(err => triadLog.warn(1, `Failed to update triad_job status: ${err.message}`));
+        .where(eq(triad_jobs.snapshot_id, snapshotId));
+      await tx.update(main_run_admissions).set({ status: 'complete', updated_at: now })
+        .where(eq(main_run_admissions.run_id, admission.run_id));
+      // PostgreSQL delivers this only after the entire completion transaction
+      // commits. Same-phase calls above cannot emit a duplicate readiness event.
+      const payload = JSON.stringify({ snapshot_id: snapshotId,
+        ranking_id: completedRanking.ranking_id, timestamp: now.toISOString() });
+      await tx.execute(sql`SELECT pg_notify('blocks_ready', ${payload})`);
     }
+
+    return now;
+    });
+    if (!changedAt) return;
 
     // 2026-04-27 (Commit 7 of CLEAR_CONSOLE_WORKFLOW): collapsed three lines
     // (caller [PHASE], updatePhase [PHASE-UPDATE], [strategy-utils] file-tag)
@@ -315,19 +336,20 @@ export async function updatePhase(snapshotId, phase, options = {}) {
     const statusNote = phase === 'complete' ? ' (status->ok)' : '';
     const main = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'STRATEGY' :
                  ['venues', 'routing', 'places', 'verifying', 'enriching'].includes(phase) ? 'VENUE' : 'WATERFALL';
-    tagLog([main, 'PHASE-UPDATE'], `${snapshotId.slice(0, 8)} -> ${phase}${statusNote} (updated at ${now.toISOString()})`);
+    tagLog([main, 'PHASE-UPDATE'], `${snapshotId.slice(0, 8)} -> ${phase}${statusNote} (updated at ${changedAt.toISOString()})`);
 
     // Emit phase_change SSE event if emitter provided
     if (options.phaseEmitter) {
       options.phaseEmitter.emit('change', {
         snapshot_id: snapshotId,
         phase,
-        phase_started_at: now.toISOString(),
+        phase_started_at: changedAt.toISOString(),
         expected_duration_ms: PHASE_EXPECTED_DURATIONS[phase] || 5000
       });
     }
   } catch (error) {
     triadLog.error(1, `Phase update failed`, error, OP.DB);
+    throw error;
   }
 }
 
@@ -361,276 +383,65 @@ export async function getPhaseTimingInfo(snapshotId) {
 // Events must have date/time info and must not have ended yet
 // ============================================================================
 
-/**
- * Extract end time from event object (handles multiple field naming conventions)
- *
- * 2026-01-06: Fixed timezone handling for discovered_events format.
- * Events store event_end_date ("2026-01-06") + event_end_time ("10:00 PM") separately.
- * Must combine and parse with timezone, otherwise "2026-01-06" becomes midnight UTC
- * which is 6PM previous day in Central Time - marking events as stale incorrectly.
- *
- * @param {Object} event - Event object
- * @param {string} timezone - IANA timezone like "America/Chicago" (optional)
- * @returns {Date|null} - Parsed end time or null if not available
- */
-function getEventEndTime(event, timezone = null) {
+// One read-time conversion for Briefing active windows and freshness. Offset ISO
+// strings already identify an instant; local clocks require the snapshot IANA
+// timezone. A malformed time never falls through to an invented all-day span.
+function calendarDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && normalizeDate(value) === value ? value : null;
+}
+function shiftCalendarDate(date, days) {
+  const result = new Date(`${date}T00:00:00Z`);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+}
+function localInstant(date, clock, timezone) {
+  getLocalDateString(new Date(), timezone); // shared fail-loud timezone validation
+  const result = fromZonedTime(`${date}T${clock}`, timezone);
+  return Number.isFinite(result.getTime()) ? result : null;
+}
+function timestampInstant(value, timezone) {
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+  if (typeof value !== 'string') return null;
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i);
+  if (!match || !calendarDate(match[1]) || Number(match[2]) > 23 || Number(match[3]) > 59 || Number(match[4] || 0) > 59) return null;
+  const result = match[5] ? new Date(value) : localInstant(match[1], value.split('T')[1], timezone);
+  return result && Number.isFinite(result.getTime()) ? result : null;
+}
+function explicitAllDay(event) {
+  return event?.all_day === true || event?.is_all_day === true || event?.allDay === true ||
+    (typeof (event?.event_start_time ?? event?.event_time) === 'string' &&
+      /^all[ -]?day$/i.test((event.event_start_time ?? event.event_time).trim()));
+}
+const START_TIMESTAMPS = ['start_time_iso', 'startsAt', 'starts_at', 'start_time', 'startTime'];
+const END_TIMESTAMPS = ['end_time_iso', 'endsAt', 'ends_at', 'end_time', 'endTime'];
+function suppliedTimestamp(event, fields, timezone) {
+  for (const field of fields) if (event[field] != null) return { supplied: true, value: timestampInstant(event[field], timezone) };
+  return { supplied: false, value: null };
+}
+export function getEventStartTime(event, timezone = null) {
   if (!event) return null;
-
-  // PRIORITY 1: Try ISO datetime fields first (already include time)
-  const isoFields = [
-    'end_time_iso',
-    'endsAt',
-    'ends_at',
-    'end_time',
-    'endTime'
-  ];
-
-  for (const field of isoFields) {
-    if (event[field]) {
-      const parsed = new Date(event[field]);
-      if (!isNaN(parsed.getTime())) {
-        // Verify it's a full datetime, not just a date (has time component)
-        const str = String(event[field]);
-        if (str.includes('T') || str.includes(':')) {
-          return parsed;
-        }
-      }
-    }
-  }
-
-  // PRIORITY 2: Combine event_end_date + event_end_time (discovered_events pattern)
-  // event_end_date: "2026-01-06", event_end_time: "10:00 PM"
-  if (event.event_end_date && event.event_end_time) {
-    const timeParts = parseTimeString(event.event_end_time);
-    if (timeParts) {
-      const dateStr = event.event_end_date; // "2026-01-06"
-      const [year, month, day] = dateStr.split('-').map(Number);
-
-      // If timezone provided, use it for proper UTC conversion
-      if (timezone) {
-        try {
-          return createDateInTimezone(year, month, day, timeParts.hours, timeParts.minutes, timezone);
-        } catch (e) {
-          // Fall back to server local time if timezone conversion fails
-        }
-      }
-
-      // No timezone - use server local time
-      const combined = new Date(year, month - 1, day, timeParts.hours, timeParts.minutes);
-      if (!isNaN(combined.getTime())) {
-        return combined;
-      }
-    }
-  }
-
-  // PRIORITY 3: event_end_date only (multi-day events) - use end of day in timezone
-  // For multi-day events like "Holiday Lights Dec 1 - Jan 4", the end date means the event
-  // ends at the END of that day, not at midnight (which would be start of day)
-  if (event.event_end_date) {
-    const dateStr = String(event.event_end_date);
-    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      const [year, month, day] = dateStr.split('-').map(Number);
-
-      // Use 11:59 PM in the specified timezone (end of day)
-      if (timezone) {
-        try {
-          return createDateInTimezone(year, month, day, 23, 59, timezone);
-        } catch (e) {
-          // Fall back to server local time
-        }
-      }
-
-      // No timezone - use server local time end of day
-      const parsed = new Date(year, month - 1, day, 23, 59, 59);
-      if (!isNaN(parsed.getTime())) {
-        return parsed;
-      }
-    }
-  }
-
-  // PRIORITY 4: Single-day event - use event_start_date + event_end_time
-  // Some events have event_start_date + event_start_time (start) + event_end_time (end) but no event_end_date
-  // 2026-01-10: Use canonical field name only - no fallbacks
-  if (event.event_start_date && event.event_end_time && !event.event_end_date) {
-    const timeParts = parseTimeString(event.event_end_time);
-    if (timeParts) {
-      const dateStr = event.event_start_date;
-      const [year, month, day] = dateStr.split('-').map(Number);
-
-      if (timezone) {
-        try {
-          return createDateInTimezone(year, month, day, timeParts.hours, timeParts.minutes, timezone);
-        } catch (e) {
-          // Fall back
-        }
-      }
-
-      const combined = new Date(year, month - 1, day, timeParts.hours, timeParts.minutes);
-      if (!isNaN(combined.getTime())) {
-        return combined;
-      }
-    }
-  }
-
-  return null;
+  const timestamp = suppliedTimestamp(event, START_TIMESTAMPS, timezone);
+  if (timestamp.supplied) return timestamp.value;
+  const date = calendarDate(event.event_start_date || event.event_date || event.startDate || event.start_date || event.date);
+  if (!date) return null;
+  if (explicitAllDay(event)) return localInstant(date, '00:00:00', timezone);
+  const time = normalizeTime(event.event_start_time ?? event.event_time);
+  return time ? localInstant(date, `${time}:00`, timezone) : null;
 }
-
-/**
- * Parse a human-readable time string like "3:30 PM" into hours and minutes
- * @param {string} timeStr - Time string like "3:30 PM", "15:30", "9:00 AM"
- * @returns {{hours: number, minutes: number}|null} - Parsed time or null
- */
-function parseTimeString(timeStr) {
-  if (!timeStr || typeof timeStr !== 'string') return null;
-
-  const time = timeStr.trim().toUpperCase();
-
-  // Handle 12-hour format: "3:30 PM", "9:00 AM"
-  const match12 = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-  if (match12) {
-    let hours = parseInt(match12[1], 10);
-    const minutes = parseInt(match12[2], 10);
-    const isPM = match12[3] === 'PM';
-
-    if (isPM && hours !== 12) hours += 12;
-    if (!isPM && hours === 12) hours = 0;
-
-    return { hours, minutes };
-  }
-
-  // Handle 24-hour format: "15:30", "09:00"
-  const match24 = time.match(/^(\d{1,2}):(\d{2})$/);
-  if (match24) {
-    return {
-      hours: parseInt(match24[1], 10),
-      minutes: parseInt(match24[2], 10)
-    };
-  }
-
-  return null;
-}
-
-/**
- * Convert a wall-clock date/time in a specific IANA timezone to a UTC Date.
- * Handles the case where the server runs in UTC but events store local wall-clock times.
- *
- * 2026-06-11: Reimplemented on date-fns-tz `fromZonedTime`. The previous hand-rolled
- * Intl.DateTimeFormat offset calculation used heuristic day-boundary corrections
- * (`tzDay === 1 && getUTCDate() > 27`) that were fragile across month boundaries and the
- * DST transition hour (the offset could be off by 60 min). fromZonedTime resolves the
- * offset (including DST gaps/overlaps) per the IANA database. Non-existent spring-forward
- * wall times resolve to the post-transition instant and ambiguous fall-back times to the
- * earlier offset — both acceptable for the 2-hour event-freshness window this feeds.
- *
- * @param {number} year - Year
- * @param {number} month - Month (1-12)
- * @param {number} day - Day
- * @param {number} hours - Hours (0-23)
- * @param {number} minutes - Minutes
- * @param {string} timezone - IANA timezone like "America/Chicago"
- * @returns {Date} - Date object in UTC
- */
-function createDateInTimezone(year, month, day, hours, minutes, timezone) {
-  const pad = (n) => String(n).padStart(2, '0');
-  const wallClock = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
-  return fromZonedTime(wallClock, timezone);
-}
-
-/**
- * Extract start time from event object (handles multiple field naming conventions)
- *
- * 2026-01-05: Fixed critical bug where event_date "2026-01-05" was parsed as midnight UTC,
- * causing Central Time events to appear as 6 PM previous day. Now combines event_date + event_time
- * with proper timezone handling.
- *
- * @param {Object} event - Event object
- * @param {string} timezone - IANA timezone like "America/Chicago" (default: server local)
- * @returns {Date|null} - Parsed start time or null if not available
- */
-function getEventStartTime(event, timezone = null) {
+export function getEventEndTime(event, timezone = null) {
   if (!event) return null;
-
-  // PRIORITY 1: Try ISO datetime fields first (already include time)
-  const isoFields = [
-    'start_time_iso',
-    'startsAt',
-    'starts_at',
-    'start_time',
-    'startTime'
-  ];
-
-  for (const field of isoFields) {
-    if (event[field]) {
-      const parsed = new Date(event[field]);
-      if (!isNaN(parsed.getTime())) {
-        // Verify it's a full datetime, not just a date (has time component)
-        const str = String(event[field]);
-        if (str.includes('T') || str.includes(':')) {
-          return parsed;
-        }
-      }
-    }
-  }
-
-  // PRIORITY 2: Combine event_start_date + event_start_time (canonical field names)
-  // 2026-01-10: Use canonical field names only - no fallbacks
-  if (event.event_start_date && event.event_start_time) {
-    const timeParts = parseTimeString(event.event_start_time);
-    if (timeParts) {
-      const dateStr = event.event_start_date; // "2026-01-05"
-      const [year, month, day] = dateStr.split('-').map(Number);
-
-      // If timezone provided, use it for proper UTC conversion
-      if (timezone) {
-        try {
-          return createDateInTimezone(year, month, day, timeParts.hours, timeParts.minutes, timezone);
-        } catch (e) {
-          // Fall back to server local time if timezone conversion fails
-        }
-      }
-
-      // No timezone - use server local time (will be UTC on most servers)
-      const combined = new Date(year, month - 1, day, timeParts.hours, timeParts.minutes);
-      if (!isNaN(combined.getTime())) {
-        return combined;
-      }
-    }
-  }
-
-  // PRIORITY 3: Fall back to date-only fields (use noon in timezone or local time)
-  // 2026-01-10: Use canonical field name only - no fallbacks
-  const dateFields = [
-    'event_start_date',  // Canonical DB column name
-    'startDate',         // ISO-style alternative
-    'start_date',        // Snake case alternative
-    'date'               // Generic fallback
-  ];
-
-  for (const field of dateFields) {
-    if (event[field]) {
-      const dateStr = String(event[field]);
-      // Only use if it looks like a date (not datetime)
-      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const [year, month, day] = dateStr.split('-').map(Number);
-
-        // Use noon in the specified timezone to avoid edge cases
-        if (timezone) {
-          try {
-            return createDateInTimezone(year, month, day, 12, 0, timezone);
-          } catch (e) {
-            // Fall back to server local time
-          }
-        }
-
-        const parsed = new Date(year, month - 1, day, 12, 0, 0);
-        if (!isNaN(parsed.getTime())) {
-          return parsed;
-        }
-      }
-    }
-  }
-
-  return null;
+  const timestamp = suppliedTimestamp(event, END_TIMESTAMPS, timezone);
+  if (timestamp.supplied) return timestamp.value;
+  const startDate = calendarDate(event.event_start_date || event.event_date || event.startDate || event.start_date || event.date);
+  let date = event.event_end_date != null ? calendarDate(event.event_end_date) : startDate;
+  if (!date || (startDate && date < startDate)) return null;
+  if (explicitAllDay(event)) return localInstant(date, '23:59:59.999', timezone);
+  const time = normalizeTime(event.event_end_time);
+  if (!time) return null;
+  const startTime = normalizeTime(event.event_start_time ?? event.event_time);
+  // Matches ingestion's existing overnight rule for older rows without end_date.
+  if (event.event_end_date == null && startTime && time <= startTime) date = shiftCalendarDate(date, 1);
+  return localInstant(date, `${time}:00`, timezone);
 }
 
 /**
@@ -675,6 +486,10 @@ export function isEventFresh(event, now = new Date(), timezone = null) {
   if (endTime) {
     return new Date(endTime.getTime() + POST_EVENT_SURGE_MS) > now;
   }
+
+  const suppliedEndClock = [event.event_end_time, ...END_TIMESTAMPS.map(key => event[key])]
+    .some(value => value != null);
+  if (suppliedEndClock) return false;
 
   // If no end time, use start time + default duration (3 hours) + post-surge
   const startTime = getEventStartTime(event, timezone);
@@ -742,40 +557,14 @@ export function filterFreshEvents(events, now = new Date(), timezone = null) {
  * @param {Object} newsItem - News item object
  * @returns {Date|null} - Parsed publication date or null if not available
  */
-function getNewsPublicationDate(newsItem) {
+function getNewsPublicationDate(newsItem, timezone) {
   if (!newsItem) return null;
-
-  // Try various field names used for news publication dates
-  const dateFields = [
-    'published_date',
-    'publishedDate',
-    'pubDate',
-    'pub_date',
-    'publication_date',
-    'date',
-    'created_at',
-    'createdAt'
-  ];
-
-  for (const field of dateFields) {
-    if (newsItem[field]) {
-      const parsed = new Date(newsItem[field]);
-      if (!isNaN(parsed.getTime())) {
-        return parsed;
-      }
-    }
+  for (const field of ['published_date', 'publishedDate', 'pubDate', 'pub_date', 'publication_date', 'date', 'created_at', 'createdAt']) {
+    if (newsItem[field] == null) continue;
+    const date = calendarDate(newsItem[field]);
+    return date ? localInstant(date, '00:00:00', timezone) : timestampInstant(newsItem[field], timezone);
   }
-
   return null;
-}
-
-/**
- * Check if a news item has a valid publication date
- * @param {Object} newsItem - News item object
- * @returns {boolean} - True if news item has a publication date
- */
-function hasValidPublicationDate(newsItem) {
-  return getNewsPublicationDate(newsItem) !== null;
 }
 
 // 2026-01-05: Changed from "today only" to "last 3 days" - yesterday's roadwork is still relevant
@@ -788,24 +577,19 @@ const NEWS_FRESHNESS_DAYS = 3;
  * @param {string} timezone - Timezone for date comparison (e.g., 'America/Chicago')
  * @returns {boolean} - True if news is within freshness window
  */
-export function isNewsFresh(newsItem, now = new Date(), timezone = 'UTC') {
-  if (!newsItem) return false;
-
-  const pubDate = getNewsPublicationDate(newsItem);
-  if (!pubDate) return false;
-
-  // Calculate the cutoff date (NEWS_FRESHNESS_DAYS days ago at midnight)
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - NEWS_FRESHNESS_DAYS);
-  cutoff.setHours(0, 0, 0, 0);
-
+export function isNewsFresh(newsItem, now = new Date(), timezone) {
+  if (!newsItem || !Number.isFinite(now.getTime())) return false;
+  const today = getLocalDateString(now, timezone);
+  const pubDate = getNewsPublicationDate(newsItem, timezone);
+  if (!pubDate || pubDate > now) return false;
+  const cutoff = localInstant(shiftCalendarDate(today, -NEWS_FRESHNESS_DAYS), '00:00:00', timezone);
   return pubDate >= cutoff;
 }
 
 /**
  * @deprecated Use isNewsFresh instead - renamed for clarity
  */
-export function isNewsFromToday(newsItem, now = new Date(), timezone = 'UTC') {
+export function isNewsFromToday(newsItem, now = new Date(), timezone) {
   return isNewsFresh(newsItem, now, timezone);
 }
 
@@ -816,10 +600,10 @@ export function isNewsFromToday(newsItem, now = new Date(), timezone = 'UTC') {
  *
  * @param {Array} newsItems - Array of news item objects
  * @param {Date} now - Reference time for comparison (default: current time)
- * @param {string} timezone - Timezone for date comparison (default: 'UTC')
+ * @param {string} timezone - Snapshot IANA timezone (required)
  * @returns {Array} - Filtered array of fresh news (last 3 days with valid dates)
  */
-export function filterFreshNews(newsItems, now = new Date(), timezone = 'UTC') {
+export function filterFreshNews(newsItems, now = new Date(), timezone) {
   if (!Array.isArray(newsItems)) {
     return [];
   }
@@ -830,7 +614,7 @@ export function filterFreshNews(newsItems, now = new Date(), timezone = 'UTC') {
 
   for (const item of newsItems) {
     // Check for valid publication date first - REQUIRED
-    if (!hasValidPublicationDate(item)) {
+    if (!getNewsPublicationDate(item, timezone)) {
       noDateCount++;
       continue;
     }

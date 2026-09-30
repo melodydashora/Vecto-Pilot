@@ -2,8 +2,7 @@
 // Siri Shortcut translation endpoint for driver-rider communication
 //
 // 2026-03-16: Created for FIFA World Cup rider translation feature.
-// Auth: Device-based (device_id header) — Siri Shortcuts cannot send JWT tokens.
-// Same auth pattern as analyze-offer.js.
+// Legacy public Siri hook. device_id is required metadata, not authentication.
 //
 // Siri Shortcut flow:
 //   Driver says "Vecto Translate" →
@@ -25,14 +24,11 @@ import {
 // TODO(auth-hardening Item 7, deferred 2026-05-13): treatment (B), symmetric
 // with analyze-offer.js — this router is intentionally left unauthenticated
 // pending Siri Shortcut migration to user_id auth. Owner: Melody. The file
-// header (line 5) states the historical rationale: "Auth: Device-based
-// (device_id header) — Siri Shortcuts cannot send JWT tokens" — that
-// constraint still holds today, and adding requireAuth here would break the
+// deployed Shortcut does not currently attach a user token. Adding requireAuth here would break the
 // live "Vecto Translate" Siri Shortcut Melody is actively demoing. The
-// in-app translator tab (client/src/components/co-pilot/TranslationOverlay.tsx)
-// runs through the JWT-authed /api/translate sibling mount, NOT
-// /api/hooks/translate, so this hook has no legitimate non-Siri consumer
-// today and migration scope is bounded. The follow-up workstream is tracked
+// browser Translator and its dedicated API were retired at Melody's request
+// on 2026-09-13. This independently used Siri hook remains; its identity migration
+// remains a separate workstream. The follow-up workstream is tracked
 // in claude_memory (session_id auth-hardening-pass-2026-05-13, tags
 // auth-hardening + item-7 + deferred) on a parallel migration path to
 // analyze-offer.js: migrate the Siri Shortcut to attach a per-user token,
@@ -41,13 +37,17 @@ const router = Router();
 
 /**
  * POST /api/hooks/translate
- * Translate text for Siri Shortcuts (device_id auth, no JWT)
+ * Translate text for Siri Shortcuts (public legacy hook, no JWT)
  *
  * Request:  { text: string, device_id: string, target_lang?: string, source_lang?: string }
  * Response: { success, voice, translatedText, detectedLang, targetLang }
  */
 router.post('/translate', translationLimiter, async (req, res) => {
   const startTime = Date.now();
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+  const onClose = () => { if (!res.writableEnded) controller.abort(); };
+  res.on('close', onClose);
 
   try {
     const {
@@ -55,17 +55,21 @@ router.post('/translate', translationLimiter, async (req, res) => {
       device_id,
       target_lang = 'en',
       source_lang = 'auto',
-    } = req.body;
+    } = req.body || {};
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({ error: 'Missing text payload' });
     }
 
-    if (!device_id) {
+    if (typeof device_id !== 'string' || !device_id.trim()) {
       return res.status(400).json({ error: 'Missing device_id' });
     }
 
-    console.log(`[HOOKS] 🌐 From ${device_id}: "${text.substring(0, 60)}..." (${source_lang} → ${target_lang})`);
+    const language = value => typeof value === 'string' && /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(value);
+    if (text.length > 4000 || !language(target_lang) || (source_lang !== 'auto' && !language(source_lang))) {
+      return res.status(400).json({ error: 'Invalid translation length or language' });
+    }
+    console.log(`[HOOKS] Translation request: ${text.length} characters (${source_lang} → ${target_lang})`);
 
     const userMessage = `Translate the following text.
 Source language: ${source_lang === 'auto' ? 'detect automatically' : source_lang}
@@ -76,13 +80,18 @@ Text: "${text}"`;
     const response = await callModel('UTIL_TRANSLATION', {
       system: TRANSLATION_SYSTEM_PROMPT,
       user: userMessage,
+      signal,
     });
 
+    signal.throwIfAborted();
     if (!response.success) {
       throw new Error(`Translation failed: ${response.error}`);
     }
 
     const result = parseTranslationResponse(response.text);
+    if (result.targetLang.toLowerCase() !== target_lang.toLowerCase()) {
+      throw new Error('Translation returned a different target language');
+    }
 
     const responseTimeMs = Date.now() - startTime;
 
@@ -98,11 +107,13 @@ Text: "${text}"`;
       translatedText: result.translatedText,
       detectedLang: result.detectedLang,
       targetLang: result.targetLang,
-      confidence: result.confidence || 95,
+      confidence: result.confidence,
       response_time_ms: responseTimeMs,
     });
 
   } catch (error) {
+    if (res.destroyed) return;
+    if (signal.aborted) return res.status(controller.signal.aborted ? 499 : 504).json({ success: false, voice: 'Translation canceled.', error: 'Translation canceled or timed out' });
     const responseTimeMs = Date.now() - startTime;
     console.error(`[HOOKS] Error (${responseTimeMs}ms):`, error.message);
     res.status(500).json({
@@ -111,6 +122,8 @@ Text: "${text}"`;
       error: error.message,
       response_time_ms: responseTimeMs,
     });
+  } finally {
+    res.off('close', onClose);
   }
 });
 

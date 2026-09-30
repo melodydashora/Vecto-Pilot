@@ -1,927 +1,120 @@
-# Events Discovery Pipeline — Authoritative Reference
-
-> **This is the single source of truth** for event discovery, venue matching, deduplication, freshness, and driver-relevant event logic. Supersedes: `EVENT_FRESHNESS_AND_TTL.md`, `VENUELOGIC.md` (event sections), `BRIEFING_AND_EVENTS_ISSUES.md`.
-
-**Last Updated:** 2026-06-11
-**Schema Version:** `VALIDATION_SCHEMA_VERSION = 6` (validateEvent.js)
-
----
-
-## 1. Event Discovery Pipeline (End-to-End Flow)
-
-### Data Flow Principle
-
-```
-Gemini discovers event NAMES and CATEGORIES
-         │
-         ▼
-Google Places (NEW) API (New) resolves VENUE ADDRESSES and COORDINATES
-         │
-         ▼
-Address quality VALIDATOR rejects or re-resolves garbage results
-         │
-         ▼
-Two-phase DEDUP (hash → semantic) removes duplicates
-         │
-         ▼
-DB store with venue_catalog truth (city/address/coords from Places (NEW) API, not Gemini)
-```
-
-**Invariant:** Gemini is treated as untrusted input for anything location-shaped. Gemini's
-role is naming ("what event is happening") and classification ("what category"). Google
-Places (NEW) API is the *only* source of truth for venue address, city, state, zip, coordinates,
-and `place_id`.
-
-### Full Pipeline Diagram
-
-```
-Driver Snapshot (city, state, lat, lng, timezone, market)
-          │
-          ▼
- ┌────────────────────┐
- │ Gemini 3 Pro       │  ← 2 parallel category searches (high_impact + local_entertainment)
- │ google_search      │    90s timeout each, via callModel('BRIEFING_EVENTS_DISCOVERY')
- │ grounding          │    Returns: title, venue_name, place_id (maybe), category, dates/times
- │                    │    Does NOT return trustworthy city/state/address
- └────────────────────┘
-          │
-          ▼
- ┌────────────────────┐
- │ 1. NORMALIZE       │  normalizeEvent.js: RawEvent → NormalizedEvent
- │    (ETL Phase 1)   │  • Canonical field names (event_start_date, event_start_time, …)
- │                    │  • city/state default to snapshot context (Gemini values untrusted)
- │                    │  • place_id kept only if it starts with "ChIJ"
- │                    │  • Category mapped via normalizeCategory() fuzzy rules
- │                    │  • Attendance mapped to high/medium/low
- │                    │  • "All Day" events → 08:00–22:00 window
- │                    │  • Missing start times → category-based defaults
- │                    │  • Missing end times → start + category-based duration
- └────────────────────┘
-          │
-          ▼
- ┌────────────────────┐
- │ 2. VALIDATE        │  validateEvent.js: 13 hard filter rules
- │    (ETL Phase 2)   │  • Title / venue / address / all 4 date+time fields required
- │                    │  • Reject TBD/Unknown/various patterns
- │                    │  • Reject events whose span does not include today (driver tz)
- │                    │  • Rule 12 fuzzy rescue: unmapped categories re-run through
- │                    │    normalizeCategory() before rejection (self-healing)
- └────────────────────┘
-          │
-          ▼
- ┌────────────────────┐
- │ 3. HASH (Phase 3a) │  hashEvent.js v4: MD5(canonicalizeMatchup(title) | venue_name | street | city | date-span)
- │                    │  • stripVenueSuffix() removes " at Venue", " @ Venue", " - Venue"
- │                    │  • city INCLUDED → prevents "Fair Park, Dallas" vs "Fair Park, Houston"
- │                    │  • time EXCLUDED → time corrections UPDATE, not duplicate
- └────────────────────┘
-          │
-          ▼
- ┌────────────────────┐
- │ 3b. HASH DEDUP     │  Phase 3b: exact-title hash dedup at merge point
- │    (write-time)    │  • Runs across merged category search results
- │                    │  • Case-insensitive title key
- └────────────────────┘
-          │
-          ▼
- ┌────────────────────┐
- │ 3c. SEMANTIC DEDUP │  deduplicateEventsSemantic.js: title-similarity + venue plausibility
- │    (write-time)    │  • Catches "Jon Wolfe" / "Jon Wolfe Concert" / "Jon Wolfe Live"
- │                    │  • Catches wrong stadium assignments (comedy at Globe Life Field)
- │                    │  • Scoring prefers specific venues over stadiums, longer titles
- └────────────────────┘
-          │
-          ▼
- ╔════════════════════════╗
- ║ 4. VENUE RESOLUTION    ║  THE CRITICAL STEP — Google Places (NEW) API (New) is source of truth
- ║    (ETL Phase 4)       ║
- ║                        ║  THREE-STEP PRIORITY CHAIN (pipelines/events.js):
- ║                        ║
- ║                        ║  (a) Place-ID CACHE HIT
- ║                        ║      lookupVenue({ placeId: "ChIJ…" })
- ║                        ║      If cached venue has formatted_address + lat + lng → USE
- ║                        ║
- ║                        ║  (b) PLACES API TEXT SEARCH  ← authoritative
- ║                        ║      searchPlaceWithTextSearch(snapshot.lat, snapshot.lng,
- ║                        ║                                 venue_name, { radius: 50000 })
- ║                        ║      Returns: placeId, formattedAddress, lat, lng, parsed.city
- ║                        ║      → findOrCreateVenue() with Places (NEW) API data
- ║                        ║
- ║                        ║  (c) GEOCODE FALLBACK
- ║                        ║      geocodeEventAddress(venue_name, city, state)
- ║                        ║      Only if Places (NEW) API returned nothing
- ║                        ║
- ║  ┌──────────────────────────────────────────────────────────────────┐
- ║  │ VALIDATION GATE (venue-cache.js: maybeReResolveAddress)          │
- ║  │ After EVERY findOrCreateVenue() return, validate address quality │
- ║  │ via venue-address-validator.js. If bad → Places (NEW) API re-resolve   │
- ║  │ (50km radius) → re-validate new result → update venue_catalog    │
- ║  │ in place. Refuses to replace bad with bad.                       │
- ║  └──────────────────────────────────────────────────────────────────┘
- ╚════════════════════════╝
-          │
-          ▼
- ┌────────────────────┐
- │ 5. STORE           │  discovered_events table (ON CONFLICT event_hash DO UPDATE)
- │    (ETL Phase 5)   │  • city/address/state from venue_catalog (Places (NEW) API), not Gemini
- │                    │  • venue_name kept as-is from Gemini for display
- │                    │  • venue_id FK to venue_catalog for coordinates
- │                    │  • onConflict updates ALL content fields including resolved
- │                    │    address/city/state (was a bug pre-2026-04-11: conflict branch
- │                    │    used raw event.address, reverting corrections)
- │                    │  • Post-resolution: validateVenueAddress() warning-only monitoring
- └────────────────────┘
-          │
-          ▼
- ┌────────────────────┐
- │ 6. FRESHNESS       │  strategy-utils.js: filterFreshEvents()
- │    FILTER          │  • Applied in briefing.js read endpoints (API layer)
- │                    │  • Timezone-aware using snapshot.timezone
- │                    │  • POST_EVENT_SURGE_MS = 2 hour extension past end time
- │                    │  • Inferred end = start + 3h + 2h surge if no end_time
- └────────────────────┘
-          │
-          ▼
- ┌────────────────────┐
- │ 7. READ-TIME       │  briefing.js read endpoints: local dedupeEvents() (2026-05-30)
- │    DEDUP (read)    │  • identity = normalized(title) | event_start_date | normalized(venue)
- │                    │    (time excluded so time corrections collapse)
- │                    │  • applied with the eventActiveToday today-window
- │                    │  • semantic dedup (deduplicateEventsSemantic) runs at WRITE time only
- └────────────────────┘
-```
-
-### Trigger
-
-Events are discovered **per-snapshot** by `discoverEvents` (`pipelines/events.js`), one arm of the briefing aggregator's Promise.allSettled pipeline fan-out (`briefing-aggregator.js`). There is **NO background event sync job**.
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `server/lib/events/pipeline/normalizeEvent.js` | RawEvent → NormalizedEvent, category/time defaults |
-| `server/lib/events/pipeline/validateEvent.js` | 13 hard filter rules + fuzzy category rescue |
-| `server/lib/events/pipeline/hashEvent.js` | MD5 hash (title\|venue_name\|city\|date) for storage dedup |
-| `server/lib/events/pipeline/deduplicateEventsSemantic.js` | **Title-similarity dedup + venue plausibility scoring** |
-| `server/lib/events/pipeline/geocodeEvent.js` | Google Geocoding API (fallback only) |
-| `server/lib/events/pipeline/types.js` | JSDoc type definitions |
-| `server/lib/venue/venue-address-resolver.js` | **Google Places (NEW) API (New)** — authoritative venue resolution (`searchPlaceWithTextSearch`) |
-| `server/lib/venue/venue-address-validator.js` | **Address quality validation** (string-only, no API calls) |
-| `server/lib/venue/venue-cache.js` | `findOrCreateVenue()`, `maybeReResolveAddress()` validation gate |
-| `server/lib/briefing/pipelines/events.js` | Orchestrator: Gemini prompt, three-step venue chain, DB storage (fetchEventsForBriefing) |
-| `server/api/briefing/briefing.js` | API routes, read-time dedup safety net, zombie recovery |
-| `server/lib/strategy/strategy-utils.js` | `filterFreshEvents()`, `isEventFresh()` — freshness + post-event surge |
-| `scripts/backfill-venue-addresses.js` | One-time backfill script (opt-in) for existing bad venue addresses |
-
----
-
-## 2. Venue Verification & Matching Rules
-
-**This is the critical correctness area.** Events MUST be matched to their correct venues with correct addresses and cities. All venue data comes from Google Places (NEW) API (New), never from Gemini.
-
-### Core Principle
-
-**Google Places (NEW) API (New) is the ONLY source of truth for venue data.** Gemini hallucinates city, address, and sometimes place_id. The snapshot provides metro-area context; Places (NEW) API resolves authoritative venue information.
-
-### The Bugs This Fixes
-
-1. **Wrong venue coordinates** — geocoding `"Dickies Arena, Dallas, TX"` returns wrong lat/lng
-2. **No authoritative address source** — venues stored with whatever Gemini guessed
-3. **Stale venue_catalog lat/lng** — causing navigation to wrong places (e.g., `"Globe Life Field"` → `"Hair salon in Frisco"`)
-4. **Garbage Places (NEW) API results leaking through** — `"Theatre, Frisco, TX 75034"` (venue name fragment in address) or `"Frisco, TX, USA"` (city-only, no street)
-5. **onConflict reverting corrections** — insert branch wrote resolved address, conflict branch wrote raw Gemini address, so every re-discovery wiped fixes
-
-### Three-Step Venue Resolution Priority Chain
-
-Implemented in `pipelines/events.js :: fetchEventsForBriefing()`. Every event discovered by Gemini flows through this chain:
-
-```
-Event from Gemini: { venue_name, place_id (maybe), title, category, date, time }
-                                    │
-                                    ▼
-        ┌────────────────────────────────────────────────────┐
-        │ STEP (a): PLACE-ID CACHE HIT                       │
-        │ lookupVenue({ placeId: event.place_id })           │
-        │                                                    │
-        │ If place_id starts with "ChIJ" AND cached venue    │
-        │ has formatted_address + lat + lng → use directly   │
-        │                                                    │
-        │ Cached but incomplete? → fall through to step (b)  │
-        └────────────────────────────────────────────────────┘
-                                    │
-                       (no cache hit or incomplete)
-                                    │
-                                    ▼
-        ┌────────────────────────────────────────────────────┐
-        │ STEP (b): GOOGLE PLACES API TEXT SEARCH            │
-        │ searchPlaceWithTextSearch(                         │
-        │   snapshot.lat, snapshot.lng,                      │
-        │   event.venue_name,                                │
-        │   { radius: 50000 }  // 50km metro-wide            │
-        │ )                                                  │
-        │                                                    │
-        │ Returns authoritative:                             │
-        │   • placeId (ChIJ…)                                │
-        │   • formattedAddress                               │
-        │   • lat, lng (6-decimal rounded, ~11cm precision)  │
-        │   • parsed.{city, state, zip, country, address_1}  │
-        │                                                    │
-        │ Then: findOrCreateVenue() with Places (NEW) API data     │
-        └────────────────────────────────────────────────────┘
-                                    │
-                          (Places (NEW) API returned nothing)
-                                    │
-                                    ▼
-        ┌────────────────────────────────────────────────────┐
-        │ STEP (c): GEOCODE FALLBACK                         │
-        │ geocodeEventAddress(venue_name, city, state)       │
-        │                                                    │
-        │ Uses snapshot city/state as context hint.          │
-        │ Last resort — only if Places (NEW) API failed.           │
-        └────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-              ┌─────────────────────────────────────┐
-              │ VALIDATION GATE (venue-cache.js)    │
-              │ maybeReResolveAddress(venue, …)     │
-              │ — see next subsection —             │
-              └─────────────────────────────────────┘
-                                    │
-                                    ▼
-                       Store with resolvedAddress,
-                       resolvedCity, resolvedState
-                       (same values on both INSERT
-                       and onConflictDoUpdate.set)
-```
-
-**Radius parameter contract:** `searchPlaceWithTextSearch(lat, lng, textQuery, options)` accepts `options.radius` in meters. Default `50` (50 m) for precise venue-coordinate lookups where you already have the venue's true location. Pass `50000` (50 km) for metro-wide event discovery where the bias point is the driver's snapshot location. Never pass values > 50,000 — Google Places (NEW) API rejects with a 400 error.
-
-### Validation Gate: `maybeReResolveAddress` (venue-cache.js)
-
-Every `findOrCreateVenue()` return path now flows through an address quality gate before the caller sees the venue record. This prevents bad cached data (e.g., a venue stored with `"Frisco, TX, USA"` instead of `"1000 Ballpark Way, Arlington, TX 76011"`) from silently propagating.
-
-**Gated return paths in `findOrCreateVenue`:**
-
-1. Place-ID cache hit path
-2. Coord-key cache hit path
-3. Fuzzy-name cache hit path
-4. Newly-created venue path
-
-**Gate logic:**
-
-```
-validateVenueAddress(venue.formatted_address)
-         │
-         ▼
-    valid? ──── YES ──► return null (caller uses original)
-         │
-         NO (hard fail or 2+ soft fails)
-         │
-         ▼
-searchPlaceWithTextSearch(venue.lat, venue.lng, venue_name, { radius: 50000 })
-         │
-         ▼
-    got result?  ──── NO ──► return null (log warning)
-         │
-         YES
-         │
-         ▼
-validateVenueAddress(newResult.formattedAddress)
-         │
-         ▼
-    valid? ──── NO ──► return null (refuse to replace bad with bad)
-         │
-         YES
-         │
-         ▼
-UPDATE venue_catalog
-  SET formatted_address, address, address_1, city, state, zip,
-      lat, lng (6-decimal rounded), coord_key, place_id, updated_at
-  WHERE venue_id = venue.venue_id
-  RETURNING *
-         │
-         ▼
-    return updated venue record
-```
-
-**Non-throwing:** Any error in the gate (API failure, DB error) falls through to `return null`, which the caller treats as "use the original venue record." The gate never rejects the event — it's a quality-improvement step, not a filter.
-
-**No-op on good data:** `validateVenueAddress` is string-only (no API calls), so the common case of a good cached address costs only a regex/string-comparison pass. Places (NEW) API is only hit when validation fails.
-
-### Address Quality Validator (`venue-address-validator.js`)
-
-Lightweight string-parsing validator. No API calls. Exported functions:
-
-- `validateVenueAddress({ formattedAddress, venueName, lat, lng, city })` → `{ valid: boolean, issues: string[] }`
-- `isAddressValid(formattedAddress, venueName)` → `boolean` (convenience wrapper)
-
-**Four checks:**
-
-| Check | Type | What It Catches |
-|-------|------|-----------------|
-| `ADDRESS_HAS_STREET_NUMBER` | Soft signal | Addresses with no digits at all (e.g., `"Frisco, TX, USA"`). Soft because international addresses legitimately lack numbers. |
-| `ADDRESS_NOT_GENERIC` | **Hard fail** | (1) Address starts with a generic venue type word (`theatre`, `arena`, `stadium`, `hall`, `club`, `bar`, `restaurant`, `church`, `park`, `hotel`, `cinema`, `coliseum`, `auditorium`, `field`, `gym`, `convention`, `expo`, … ~40 total). (2) Address is pure `"city, state"` or `"city, state, country"` with no street component. |
-| `ADDRESS_HAS_STREET_NAME` | Soft signal | No recognized street type pattern. Regex includes US/UK/Canada/AU (St, Ave, Blvd, Way, Mews, Crescent, …), German (Straße, Weg, Platz, Allee), French (Rue, Chemin, Allée), Spanish (Calle, Avenida, Paseo, Camino). |
-| `COORD_SANITY` | Soft signal (**placeholder — no-op**) | Reserved for a future metro-bounding-box lookup. Currently returns no issues. TODO in source. |
-
-**Scoring rules:**
-- Any **hard fail** → `valid: false`
-- **2 or more** soft-signal failures → `valid: false`
-- **1** soft-signal failure → `valid: true` (warning logged but allowed)
-- 0 failures → `valid: true`
-
-Failed validations log `[VENUE-VALIDATE] Address quality FAILED for "<name>": "<address>" — <issues>`.
-
-### Hard Rules
-
-- **Google Places (NEW) API is the venue authority** — city, address, state, zip, coordinates all come from Places (NEW) API
-- **Gemini provides venue NAME and event identity ONLY** — do NOT trust Gemini for city, address, coordinates, or place_id accuracy
-- **ALWAYS store venue_catalog city** in `discovered_events.city` (from Places (NEW) API, not snapshot, not Gemini)
-- **ALWAYS store venue_catalog formatted_address** in `discovered_events.address`
-- **New venues get** `is_event_venue = true`, `record_status = 'enriched'`, `venue_types = ['event_host']`
-- **`onConflictDoUpdate` MUST use resolved address/city/state**, not raw Gemini event fields — otherwise corrections are reverted on every re-discovery
-- **This is a GLOBAL pattern** — Google Places (NEW) API handles Tokyo, London, Dallas identically; the validator's street regex supports German, French, Spanish, and UK patterns
-
----
-
-## 3. Deduplication Strategy
-
-Three dedup layers run in sequence. Each catches different failure modes.
-
-### Layer 1: Hash-Based Dedup (Storage Level)
-
-**File:** `hashEvent.js` (v4, 2026-06-11)
-**Hash input:** `canonicalizeMatchup(normalize(title)) | normalize(venue_name) | extract_street(address) | normalize(city) | date`
-**Algorithm:** MD5, 32-char hex, stored in `discovered_events.event_hash` (UNIQUE constraint).
-**`date`:** `event_start_date` for single-day; `"start_end"` span for multi-day (a festival re-discovered mid-run keeps one identity).
-
-| Component | Why |
-|-----------|-----|
-| `title` | Core event identity. Stripped of `" at Venue"`, `" @ Venue"`, `" - Venue"` suffixes by `stripVenueSuffix()`, content prefixes, and parentheticals. Lowercased, non-alphanumerics removed. **v4 (2026-06-11):** `canonicalizeMatchup()` sorts the two sides of a `"a vs b"` title so `"Cowboys vs Eagles"` === `"Eagles vs Cowboys"`. Migration: v3 matchup rows re-hash via `migrate-event-hashes.js` (or drain through the collapse safety net). |
-| `venue_name` | Stable across discovery runs (unlike `address`, which varies). `"American Airlines Center"` stays consistent. |
-| `city` | Prevents collisions: `"Fair Park, Dallas"` != `"Fair Park, Houston"`. City comes from `venue_catalog` (Places (NEW) API) or snapshot context. |
-| `event_start_date` | Same event on different dates = different events. |
-| ~~`time`~~ | **Excluded.** Time corrections should UPDATE the existing row, not create a duplicate. `"Bruno Mars 7:00 PM"` and `"Bruno Mars 7:30 PM"` at same venue/date → same hash → UPDATE path. |
-
-**On conflict:** `ON CONFLICT (event_hash) DO UPDATE` — all content fields (`title`, `venue_name`, `address`, `city`, `state`, `event_start_date`, `event_start_time`, `event_end_time`, `category`, `venue_id`, `updated_at`) are updated with fresher data. **The conflict branch uses resolved venue data** (from Places (NEW) API), not raw Gemini event fields — this was a bug pre-2026-04-11.
-
-### Layer 2: Semantic Title-Similarity Dedup (Write Level)
-
-**File:** `deduplicateEventsSemantic.js` (new, 2026-04-11)
-**When:** At the Gemini merge point in `fetchEventsWithGemini3ProPreview()`, immediately after exact-title hash dedup, before venue resolution.
-
-**Why it exists:** Gemini's two parallel category searches often return the same event with slightly different titles (different enough to survive the exact-hash pass). Also, Gemini sometimes assigns the same event to both a small venue (correct) and a nearby stadium (wrong).
-
-**Two-phase approach inside the module:**
-
-1. **Grouping phase (O(n²) union-find):** For each pair of events, check if they belong to the same group.
-   - **Title match:** `titlesMatch(a, b)` — normalized equality OR substring containment OR primary-artist match. Normalization strips parentheticals, `"at Venue"` / `"- Venue"` suffixes, `"Live music:"` prefixes, non-alphanumerics, then pops trailing suffix words (`concert`, `live`, `show`, `tour`, `performance`, `experience`, `night`, `standup`, `comedy`, `acoustic`, `unplugged`, `in concert`, …). **2026-06-11:** `canonicalizeMatchup()` makes `"a vs b"` order-invariant (same helper as the hash stage), and a **matchup-asymmetry guard** blocks the looser containment/artist rules across a matchup and a non-matchup so a bare `"Cowboys"` can't absorb into the `"Cowboys vs Eagles"` game.
-   - **Time-slot match:** `sameTimeSlot(a, b, 120)` — same `event_start_date` required; if both have start times, within 120 minutes; if one or both lack times, same date is sufficient (conservative: prefer false positive over false negative).
-   - **Primary-artist extraction:** For titles like `"Fatboy Slim, Coco & Breezy, Jay Pryor"`, extracts `"fatboy slim"` (first segment before comma or `&`). Guards against splitting legitimate two-word artist names like `"Tito & Tarantula"` by requiring both sides of the `&` to be at least one/two words.
-   - **Acceptable n:** O(n²) is fine because n is typically 20–60 events per discovery run.
-
-2. **Selection phase:** From each group, keep the event with the highest `scoreEventPreference` score.
-
-**`scoreEventPreference(event)` weights:**
-
-| Criterion | Points |
-|-----------|--------|
-| Has `venue_name` | +5 |
-| **Non-stadium venue** (fails `LARGE_VENUE_PATTERNS` regex) | **+10** |
-| Has `address` | +3 |
-| Has `place_id` | +2 |
-| Has `event_start_time` | +1 |
-| Title length > 20 | +2 |
-| Title length > 40 | +1 more |
-
-`LARGE_VENUE_PATTERNS` catches: `stadium`, `\bfield\b`, `ballpark`, `coliseum`, `colosseum`, `\barena\b`, `speedway`, `raceway`, `racetrack`, `motor\s*speedway`, `fairground`, `fair\s*park`, `convention\s*center`, `expo\s*center`.
-
-**Example resolutions:**
-- `"Jon Wolfe"` / `"Jon Wolfe Concert"` / `"Jon Wolfe Live"` at Billy Bob's Texas → one event kept (longest title + non-stadium venue wins).
-- `"Jon Wolfe"` at Billy Bob's Texas vs. `"Jon Wolfe"` at Globe Life Field → Billy Bob's version kept (+10 non-stadium bonus).
-- `"Fatboy Slim"` vs. `"Fatboy Slim, Coco & Breezy, Jay Pryor"` at SILO Dallas → longer-title version kept (+2 for >20 char title).
-
-### Layer 3: Read-Level Dedup
-
-**File:** `briefing.js` read endpoints — local `dedupeEvents()` (2026-05-30): identity = normalized(title) | event_start_date | normalized(venue); time excluded so time corrections collapse. Applied with the `eventActiveToday` today-window on GET /events/:snapshotId and the market-proxy set. Semantic dedup (`deduplicateEventsSemantic`) runs at WRITE time only.
-
-### Title Normalization Reference
-
-```javascript
-// hashEvent.js (for storage hash)
-stripVenueSuffix("Cirque du Soleil at Cosm")    → "Cirque du Soleil"
-stripVenueSuffix("DJ Night @ The Club")         → "DJ Night"
-stripVenueSuffix("Festival - City Park")        → "Festival"
-normalizeForHash("Bruno Mars!!!")               → "bruno mars"
-
-// deduplicateEventsSemantic.js (for title-similarity grouping)
-normalizeTitleForComparison("Jon Wolfe Concert")                     → "jon wolfe"
-normalizeTitleForComparison("Jon Wolfe Live")                        → "jon wolfe"
-normalizeTitleForComparison("Fatboy Slim, Coco & Breezy, Jay Pryor") → "fatboy slim coco breezy jay pryor"
-normalizeTitleForComparison("Kathy Griffin Live")                    → "kathy griffin"
-```
-
----
-
-## 4. Event Freshness & TTL
-
-### Freshness Rules (Driver-Relevant Timeframes)
-
-Implemented in `strategy-utils.js :: isEventFresh()` and `filterFreshEvents()`.
-
-| Scenario | Behavior |
-|----------|----------|
-| Event in progress | Show (now is between start and end time) |
-| Event ended < 2 hours ago | Show (post-event pickup surge still relevant for drivers) |
-| Event ended > 2 hours ago | Remove (surge has dissipated) |
-| Event has no end time | Infer: start + 3 hours + 2 hour surge window |
-| Event has no date info at all | Remove (no way to determine relevance) |
-| Multi-day event | Keep showing until LAST day's end time + 2 hours |
-
-**Constants:**
-- `POST_EVENT_SURGE_MS = 2 * 60 * 60 * 1000` — 2 hour post-event extension
-- Default inferred duration: 3 hours (from `isEventFresh` when no `end_time`)
-
-### Timezone Handling
-
-**ALL freshness checks are timezone-aware.** The server runs in UTC, but events store local times like `"7:00 PM"` without a timezone, so the snapshot's IANA timezone must be passed explicitly.
-
-```javascript
-// CORRECT: Pass snapshot timezone for proper local time comparison
-filterFreshEvents(events, new Date(), snapshot.timezone);
-
-// WRONG: Comparing UTC server time against "7:00 PM" local time
-filterFreshEvents(events, new Date()); // DO NOT DO THIS
-```
-
-The internal `createDateInTimezone(year, month, day, hours, minutes, timezone)` utility converts local event times + IANA timezone to UTC `Date` objects for comparison. (2026-06-11: reimplemented on `date-fns-tz` `fromZonedTime`, replacing a hand-rolled `Intl` offset calc that mishandled midnight wall-times — en-US `hour12:false` formats 00:00 as "24" — and depended on the server's local timezone. See `tests/strategy/timezone-parity.test.js`.)
-
-### Freshness Filtering (API layer)
-
-Applied in `briefing.js` read endpoints: `filterFreshEvents(events, new Date(), snapshot.timezone)` plus the `eventActiveToday` today-window (2026-05-30). The write pipeline stores unfiltered; the client renders what the API returns (no client-side fallback).
-
-### Soft Deactivation & Lifecycle Hygiene
-
-Three soft, reversible cleanup steps run per-snapshot (opportunistically, before each discovery cycle, in `pipelines/events.js`) — there is **NO hourly cleanup job** and **NO background event sync job** (product invariant: events sync per-snapshot only — no cron, no worker). None of them ever deletes a row; venues in `venue_catalog` are persistent.
-
-1. **`deactivatePastEvents(timezone)`** — soft-deactivates (`is_active = false`, `deactivated_at = NOW()`) events whose end is past the `now − 2h` surge cutoff (timezone-aware).
-2. **`collapseDuplicateEventSpans()`** (2026-06-11) — a long-running show re-discovered across days inserts overlapping duplicate spans (the multi-day hash is `start_end`, and Gemini reports a slightly different run-start each day → different hash → no per-batch dedup). This collapses them: rows are clustered by **same `venue_id` + `titlesMatch` + overlapping date range** (all three required, so distinct concurrent shows at one venue are never merged), the widest-span row survives, the rest are deactivated with `deactivation_reason = 'duplicate_span'`. Example: 6 overlapping "Wicked" spans → 1. **Root-cause complement (2026-06-11): `mergeIntoOverlappingActiveSpan()` runs at WRITE time in the discovery upsert loop — before inserting a multi-day event it merges into an existing active same-venue + title-match + overlapping row (extending it to the union span) instead of inserting a new hash row, so duplicates are prevented at the source; the cleanup collapse stays as the after-the-fact safety net.**
-3. **`clearOrphanedEventVenueTags()`** (2026-06-11) — flips `venue_catalog.is_event_venue = false` for venues left with no active `discovered_events` (the tag was previously monotonic and had accumulated to ~95% orphaned). Never deletes the venue.
-
-One-time backfill of the existing backlog: `node server/scripts/backfill-event-venue-cleanup.mjs` (idempotent; run once per environment — dev/Helium and prod/Neon are separate backlogs).
-
----
-
-## 5. Venue Catalog Integration
-
-### When to Add New Venues
-
-A new `venue_catalog` entry is created when:
-- An event's venue doesn't match any existing venue by `place_id`, `coord_key`, or fuzzy name
-- Google Places (NEW) API returned authoritative data (lat/lng required for new venue creation)
-
-New event-discovered venues get:
-- `is_event_venue = true`
-- `record_status = 'enriched'` (Places (NEW) API address + coords, not full bar details)
-- `venue_types = ['event_host']`
-- Non-blocking enrichment from Google Places (NEW) API (phone, hours, rating, business status)
-
-### Validation Gate on Venue Creation
-
-**Every new and returned venue passes through `maybeReResolveAddress` before reaching the caller** (see section 2 for full gate logic). This means even brand-new venues are validated for address quality, and if the Places (NEW) API result that created them is garbage, the gate will re-resolve via a second Places (NEW) API call with a wider radius.
-
-### When to Flag Existing Venues
-
-An existing venue's `is_event_venue` flag is set to `true` when it's linked to a discovered event. **2026-06-11: it is also CLEARED back to `false` by `clearOrphanedEventVenueTags()` (cleanup-events.js) once the venue has no remaining active events** — so the tag now means "currently anchors ≥1 active event," not "ever hosted one." The venue row itself is never deleted.
-
-### Progressive Enrichment
-
-Venue data quality follows the "Best Write Wins" pattern:
-- Boolean flags during enrichment: OR logic — once true, stays true. **Exception (2026-06-11): `is_event_venue` is no longer monotonic — `clearOrphanedEventVenueTags()` flips it back to `false` when a venue has no active events, so it tracks current event-anchoring. `is_bar` remains monotonic.**
-- `record_status`: MAX logic — `stub` < `enriched` < `verified`
-- `place_id`: Backfilled on any match if existing venue doesn't have one
-- `formatted_address`: Overwritten by validation gate if quality check fails
-
-### Coordinate Precision
-
-All latitude/longitude values stored in `venue_catalog` are rounded to **6 decimal places** (~11 cm precision). This matches `coord_key` precision and eliminates floating-point noise from Google Places (NEW) API, which returns arbitrary precision values like `32.782698100000005`. Rounding happens in:
-- `searchPlaceWithTextSearch()` (return value)
-- `maybeReResolveAddress()` (update values)
-- `scripts/backfill-venue-addresses.js` (update values)
-
-### One-Time Backfill Script
-
-`scripts/backfill-venue-addresses.js` fixes existing bad venue data using a two-pass Places (NEW) API search:
-
-- **Pass 1:** Unbiased search by venue name alone (handles well-known venues where stored coords may be wrong)
-- **Pass 2:** Metro-biased fallback (50 km radius) for ambiguous venue names
-- **Distance sanity check:** Rejects Places results > 100 km from bias center
-- **Cascade:** Updates `discovered_events.city`/`state`/`address` for rows referencing each fixed venue
-- **Rate limit:** 5 venues per batch, 200 ms delay between batches
-- **CLI flags:** `--dry-run`, `--all`, `--limit N`, `--venue "name filter"`
-
-The script is **opt-in and not wired into any boot path, cron, or route**. Run manually.
-
----
-
-## 6. Nearby/Market Events Logic
-
-### Metro-Wide Discovery
-
-Events are discovered for the **entire metro market**, not just the driver's city:
-- Market resolved from `snapshot.market` (GPS-derived per snapshot from the resolved city/state via `market_cities` — D-107, 2026-05-12; `profile.market` is only a fallback when the coord lookup misses) or `getMarketForLocation(city, state)` (`server/lib/briefing/shared/get-market-for-location.js`; returns null on miss — no city substitution)
-- Gemini searches `"Dallas-Fort Worth metro"` not just `"Dallas"`
-- DB read queries filter by **state only** (not city) — now that venues store their actual Places-API-resolved city (e.g., `"Arlington"`, `"Fort Worth"`, `"Frisco"` for a Dallas driver), filtering by the driver's snapshot city would mask legitimate metro events
-
-**Affected queries (all state-scoped, no city filter):**
-- `pipelines/events.js :: fetchEventsForBriefing` post-discovery read
-- `briefing.js :: GET /events/:snapshotId`
-- `briefing.js :: GET /discovered-events/:snapshotId`
-
-### Event Categories
-
-| Category | Search Focus | Max Events |
-|----------|-------------|------------|
-| `high_impact` | Stadiums, arenas, concert halls, convention centers | 8 |
-| `local_entertainment` | Comedy, nightlife, bars, community events | 8 |
-
-### Distance Relevance
-
-Events carry `venue_lat`/`venue_lng` from the linked `venue_catalog` entry. The strategy LLM can calculate distance from the driver's position to prioritize nearby events.
-
----
-
-## 7. Rideshare Pro Tips Integration
-
-Events are enriched with driver-relevant intelligence in the strategy/consolidation phase.
-
-### What Drivers Need from Events
-
-| Data Point | Source | Why Drivers Care |
-|------------|--------|-----------------|
-| Event end time | `event_end_time` | Predict pickup surge timing |
-| Venue coordinates | `venue_catalog.lat/lng` (6-decimal) | GPS to staging area |
-| Expected attendance | `expected_attendance` | Gauge surge intensity |
-| Category | `category` | Sports = different surge pattern than concert |
-| Venue address | `venue_catalog.formatted_address` | Navigate to pickup zone |
-
-### Strategy LLM Context
-
-The consolidator (`consolidator.js`) enriches events with venue status:
-- Venue open/closed status from `hours_full_week`
-- Business hours in 12h format
-- 6-decimal coordinates for precise navigation
-
-### Event-Driven Strategy Tips
-
-The strategy LLM generates tips like:
-- "Mavericks game at AAC ends ~10:30 PM — position near Olive St exit by 10:15"
-- "Breakaway Festival at Fair Park — staging on Fitzhugh Ave, expect 20-min surge"
-- "Multiple nightlife events in Deep Ellum — stay in area until 2:30 AM"
-
----
-
-## 8. LLM Request Requirements
-
-### Snapshot-First Context Rule
-
-**The user's snapshot MUST be the first context sent to any LLM involved in event processing.**
-
-```javascript
-// REQUIRED: Snapshot data for event discovery
-const snapshot = {
-  city: 'Dallas',                        // Driver's current city (hint only)
-  state: 'TX',                           // Driver's state (used for DB filter)
-  lat: 32.7767,                          // Driver's latitude (used for Places (NEW) API bias)
-  lng: -96.7970,                         // Driver's longitude (used for Places (NEW) API bias)
-  timezone: 'America/Chicago',           // IANA timezone (REQUIRED, no fallback)
-  market: 'Dallas-Fort Worth',           // Metro market name
-  local_iso: '2026-04-11T14:30:00-05:00', // Local ISO timestamp
-  hour: 14                               // Local hour (0-23)
-};
-```
-
-### Non-Negotiable Requirements
-
-1. **Timezone is REQUIRED** — `fetchEventsWithGemini3ProPreview()` rejects if missing
-2. **Date computed from snapshot timezone** — not server UTC
-3. **Market determines search area** — broader than just the driver's city
-4. **No cross-provider fallback** — Gemini-only, to avoid format incompatibility
-5. **Gemini returns names/categories/times; Places (NEW) API returns everything else** — do not trust Gemini's `address`, `city`, `state`, or `lat/lng` fields
-
-### Gemini Prompt Structure
-
-```
-System: Strict categorization rules + allowed category list
-User:   "Find [category] happening TODAY ({date}) in the {market} metro area..."
-        - Requires: title, venue_name, place_id (best effort), category,
-          event_start_date, event_start_time, event_end_time
-        - Does NOT rely on: address, city (these come from Places (NEW) API)
-        - Market-agnostic search terms (no hardcoded league names)
-```
-
----
-
-## 9. Global App Considerations
-
-### Timezone Handling
-
-| Operation | Timezone Source | Notes |
-|-----------|---------------|-------|
-| Event discovery date | `snapshot.timezone` via `toLocaleDateString('en-CA', { timeZone })` | Local date, not UTC |
-| Freshness filtering | `snapshot.timezone` passed to `filterFreshEvents()` | All 3 filter layers |
-| Date validation (today check) | `new Date().toISOString()` in validateEvent.js | Server UTC — may need timezone fix for global |
-| Venue timezone | Resolved from market via `resolveTimezoneFromMarket()` | Stored on `venue_catalog.timezone` |
-
-### Locale Considerations
-
-- Event times stored as text strings (`"7:00 PM"`) — locale-agnostic
-- Addresses from Google Places (NEW) API respect the locale of the API key region
-- Category names are English-only (`concert`, `sports`, etc.) — for internal use, not display
-- Address validator supports international street patterns (German, French, Spanish, UK)
-
-### International Venues
-
-- `venue_catalog.country` defaults to `'US'` (ISO-2 code)
-- `coord_key` is locale-independent (pure lat/lng math)
-- Market names support international metros (not hardcoded to US)
-- Search terms in Gemini prompt are market-agnostic (no US-specific league names)
-- Address validator's `GENERIC_VENUE_WORDS` list uses English venue-type words — may need localization for non-English regions
-- `searchPlaceWithTextSearch` passes Google Places (NEW) API standard params, so Tokyo/London/Berlin work identically to Dallas
-
-### Known Gaps
-
-1. ~~**validateEvent.js date check** uses server UTC for "today" — may reject valid events in far-east timezones~~ **CLOSED 2026-04-28** — `validateEvent` now accepts `context.timezone`; both write and read paths thread driver tz (schema_version=6).
-2. **Event times as text** — no ISO 8601 storage means parsing is always needed
-3. **Country not in event discovery prompt** — assumes Gemini infers from metro area name
-4. **No multi-language event title support** — normalization assumes Latin characters
-5. **`COORD_SANITY` check in address validator is a no-op placeholder** — reserved for a future metro-bounding-box lookup
-
----
-
-## 10. Smart Blocks ↔ Event Venue Coordination (2026-04-11)
-
-### Design principle
-
-Smart Blocks must recommend the **closest high-impact venues first**. The 15-mile rule — "all venue recommendations must be within 15 miles of the driver's GPS coordinates" — is the supreme constraint and is never relaxed, not even for events. Event data enriches Smart Blocks in two distinct ways based on the event's distance from the driver, without weakening the 15-mile rule.
-
-This section describes the current post-2026-04-11-revert behavior. A full history of the three waves of work that led here (initial alignment, first followup, second revert) lives in `server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md`.
-
-### NEAR / FAR bucket model
-
-```
-Driver location
-    │
-    ├──── 15 mi radius (candidate zone) ────┐
-    │                                        │
-    │   NEAR EVENTS                          │      FAR EVENTS (15–60 mi)
-    │   (candidate venues — recommend        │      (surge flow intelligence —
-    │    directly with event-specific        │       NOT destinations; used to
-    │    pro_tips: pre-show drop-off,        │       reason about where demand
-    │    time window, post-show staging)     │       will ORIGINATE)
-    │                                        │
-    └────────────────────────────────────────┘
-```
-
-**NEAR EVENTS (≤ 15 mi):** Event venues in the driver's candidate radius. If a near event is high-impact and starting/ending within the next 2 hours, `VENUE_SCORER` recommends the event venue directly with event-specific `pro_tips` (time window, pickup surge prediction, pre-show drop-off window, post-show staging advice).
-
-**FAR EVENTS (> 15 mi):** Event venues beyond the candidate radius. They are NOT destinations — they violate the 15-mile rule and cannot be recommended. Instead, `VENUE_SCORER` uses them to reason about demand **origination**: event attendees travel FROM hotels, residential areas, and dining clusters NEAR the driver TO the far venue. That outflow creates pickup demand within the driver's 15-mile radius at the departure end — not at the event itself. `VENUE_SCORER` recommends the closest high-impact venues in the driver's radius that will benefit from the outflow (hotels near freeway on-ramps heading toward the far event, dining hubs, residential / entertainment centers where attendees pre-load before evening events).
-
-### Pipeline flow (post-revert, current state)
-
-```
-generateEnhancedSmartBlocks({ snapshotId, immediateStrategy, briefing, snapshot })
-    │
-    ├─ fetchTodayDiscoveredEventsWithVenue(state, today, driverLat, driverLng, 60)
-    │     → state-scoped SELECT + LEFT JOIN venue_catalog
-    │     → distance-annotated via haversine and sorted closest-first
-    │     → events beyond 60 mi dropped as out-of-metro noise
-    │     → returns todayEvents array with `_distanceMiles` on each row
-    │
-    ├─ filterBriefingForPlanner(briefing, snapshot, todayEvents)
-    │     → uses pre-fetched events directly (no further filtering)
-    │     → formatBriefingForPrompt buckets events by `_distanceMiles`:
-    │         • NEAR EVENTS block — candidate venues (≤ 15 mi)
-    │         • FAR EVENTS block — surge flow intelligence (> 15 mi)
-    │
-    ├─ generateTacticalPlan({ strategy, snapshot, briefingContext })
-    │     → VENUE_SCORER system prompt contains "EVENT INTELLIGENCE" block
-    │       framing events as intel, not a venue list
-    │     → 15-mile hard rule is the supreme constraint; all 4–6 recommendations
-    │       are within 15 mi of the driver
-    │     → when NEAR events exist, they are candidate venues
-    │     → when FAR events exist, they inform demand-origination reasoning
-    │
-    ├─ enrichVenues(picked, driver, snapshot)
-    │     → adds placeId, business hours, drive time
-    │
-    ├─ matchVenuesToEvents(enrichedVenues, todayEvents)
-    │     → place_id / venue_id / name match, no DB query, no distance filter
-    │     → in practice only near-bucket events get matched because
-    │       VENUE_SCORER only picked ≤ 15-mile venues
-    │
-    ├─ verifyVenueEventsBatch + catalog promotion
-    │
-    └─ Insert ranking_candidates with venue_events[] populated for matched venues
-```
-
-### Why far events stay in the prompt instead of being discarded
-
-Discarding far events would lose the surge-flow signal they carry. A driver with a distant event in range earns not at the event but at the **departure end** of the surge flow — a hotel, dining hub, or residential/entertainment center in the driver's 15-mile radius where attendees will be requesting rides. Without far events in the prompt, `VENUE_SCORER` has no way to know that those near-driver venues will see event-driven demand tonight. With them in the prompt (but explicitly framed as intelligence, not candidates), `VENUE_SCORER` can reason about which of the close high-impact venues will benefit from the outflow and prioritize them accordingly.
-
-This reframes event data as **a signal about which close-in venues will see demand** rather than **a list of distant venues to drive to**. The signal is valuable; the distant venue as a destination is not.
-
-### Metro context radius (default 60 mi)
-
-`fetchTodayDiscoveredEventsWithVenue` takes a `maxDistanceMiles` parameter (default 60) that caps the events reaching the prompt. This is a **data-layer choice** — it controls what events are worth reasoning over — and is NOT a `VENUE_SCORER` rule. 60 miles covers a typical large metro (the farthest point of a metropolitan area from a reasonable snapshot location) with headroom while excluding events from unrelated neighboring metros hundreds of miles away. Markets with tighter or broader geography can tune this without code changes by passing a different value.
-
-The **15-mile rule is separate** — it's the tactical-layer constraint on what the driver should actually drive to, enforced by the `VENUE_SCORER` prompt. Data-layer and tactical-layer constraints are deliberately decoupled: a 60-mile metro context radius is a choice about *what's worth reasoning over*; the 15-mile rule is a choice about *what to recommend as a destination*. They shouldn't be the same number.
-
-### Global applicability
-
-The NEAR / FAR bucket model is **distance-based only** and culture-neutral. A driver in any city with any metro layout sees the same mechanism: events within the candidate radius are candidates, events beyond are intelligence. The 15-mile candidate radius is the operational reality of rideshare earnings degradation with drive time, which is universal across markets. The 60-mile metro context radius is a default that works for a typical large metro; smaller markets or denser geographies can tune it down.
-
-### Files affected
-
-| File | Role |
-|------|------|
-| `server/lib/venue/enhanced-smart-blocks.js` | `fetchTodayDiscoveredEventsWithVenue` helper — state-scoped DB query with `LEFT JOIN venue_catalog`, distance annotation, closest-first sort. Wired to call once and pass the result to both the briefing filter and the event matcher. |
-| `server/lib/briefing/filter-for-planner.js` | `filterBriefingForPlanner` accepts pre-fetched events as a 3rd arg; `formatBriefingForPrompt` emits two bucketed blocks (NEAR ≤15 mi, FAR >15 mi) based on the `_distanceMiles` annotation. `NEAR_EVENT_RADIUS_MILES = 15` is the single source of truth for the split. |
-| `server/lib/strategy/tactical-planner.js` | `VENUE_SCORER` prompt contains the EVENT INTELLIGENCE block framing events as surge-flow intel. 15-mile rule is the single supreme distance constraint. Debug log reports NEAR/FAR split counts on every call. |
-| `server/lib/venue/event-matcher.js` | Matches via `place_id` / `venue_id` / name fallback against the pre-fetched events. Synchronous, no DB query. Distance plays no role in the matching itself (the matcher never sees far events that `VENUE_SCORER` didn't pick). |
-| `server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md` | Canonical history log of this work: initial design and alignment fix (sections 1–11), first followup fix that introduced the split 15/40 mi rule (section 12), second revert restoring the 15-mile rule and introducing the NEAR/FAR bucket model (section 13). |
-
-### History (at a glance)
-
-This coordination model is the result of three waves of work on 2026-04-11:
-
-1. **Initial Smart Blocks ↔ Event alignment fix** — Wired event data into the `VENUE_SCORER` prompt and rewrote the matcher to use strong identity keys. `VENUE_SCORER` output did not change on the first test run because of a 15-mile hard rule conflict with the CRITICAL event-priority instruction.
-
-2. **First followup fix** — Split the 15-mile rule into "general ≤ 15 mi, event ≤ 40 mi" so distant event venues would become eligible as recommendations. This made event venues appear in the output but **broke the closest-first invariant** — `VENUE_SCORER` started reaching for distant event arenas instead of closer high-impact venues that would have benefited from the same events' surge flow.
-
-3. **Second revert** (current state) — Restored the 15-mile rule as the single absolute distance constraint and reframed events as surge-flow intelligence via the NEAR / FAR bucket model documented above. Closest-first invariant restored. Event data still fully utilized, just differently.
-
-### Load-bearing lesson for future work
-
-> The 15-mile rule is not a bug. It encodes the driver's operational reality: rideshare earnings degrade rapidly with drive time, and the closest high-impact venue nearly always beats a distant one — even if the distant one has a confirmed event. When event data seems to conflict with the 15-mile rule, the resolution is **not** to weaken the rule — it is to find the near-driver venue that benefits from the far event's surge flow.
-
-### Strategist-layer NEAR/FAR annotation (2026-04-11)
-
-Event distance annotation and NEAR/FAR bucketing now happen at **two** layers of the pipeline, both using the same 15-mile threshold to keep the mental model consistent across the system:
-
-1. **Strategist layer** — `server/lib/ai/providers/consolidator.js` annotates events with `distance_mi` + `estimated_attendance` and tags them `[NEAR X.Xmi]` / `[FAR X.Xmi]` before the STRATEGY_TACTICAL prompt is built. The strategist uses this to phase advice hour by hour, recommend NEAR event venues directly, and reason about surge flow from FAR events.
-2. **Smart Blocks / VENUE_SCORER layer** — `server/lib/briefing/filter-for-planner.js` + `server/lib/venue/enhanced-smart-blocks.js` annotate events the same way before the VENUE_SCORER prompt is built. VENUE_SCORER enforces the 15-mile rule as the supreme venue-eligibility constraint.
-
-Both layers share `NEAR_EVENT_RADIUS_MILES = 15` as the single source of truth. They both read `venue_lat` / `venue_lng` from the same source — `briefings.events` for the strategist, `discovered_events` JOIN `venue_catalog` for VENUE_SCORER — so distance computations agree. This gives the strategist and VENUE_SCORER the same event data and the same mental model: if the strategist says "recommend The Downtown Theater (NEAR, 3.2mi)," VENUE_SCORER will see the same event with the same distance and make the same call.
-
-**See also:** `server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md` for the strategist enrichment design, and `server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md` for the VENUE_SCORER 15-mile rule history.
-
-### See also
-
-- `server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md` — full plan with root cause analysis, rejected alternatives, and the history of all three waves of work
-- `server/lib/venue/README.md` § "Smart Blocks ↔ Event Venue Coordination" — venue module perspective on the NEAR/FAR model
-- `server/lib/briefing/README.md` § "Event Bucketing in `formatBriefingForPrompt`" — briefing module perspective
-- `docs/architecture/VENUES.md` — Smart Blocks pipeline reference
-- `CHANGELOG.md` — entries under `[Unreleased] — 2026-04-11` documenting all three waves
-
----
-
-## Canonical Field Names
-
-| Field | Format | Required | Description |
-|-------|--------|----------|-------------|
-| `event_start_date` | `YYYY-MM-DD` | Yes | Event start date |
-| `event_start_time` | `HH:MM` (24h) or `h:mm AM/PM` | Yes | Event start time |
-| `event_end_date` | `YYYY-MM-DD` | No | Defaults to `event_start_date` for single-day |
-| `event_end_time` | `HH:MM` (24h) or `h:mm AM/PM` | Yes | Required since schema v3 |
-| `city` | Text | Yes | **Venue's actual city (from Google Places (NEW) API, NOT Gemini)** |
-| `state` | 2-letter code | Yes | State code (from Places (NEW) API, NOT Gemini) |
-| `venue_name` | Text | Yes | Actual venue name (kept from Gemini for display) |
-| `address` | Text | Yes | **Venue's street address (from Google Places (NEW) API, NOT Gemini)** |
-| `place_id` | `ChIJ…` or null | No | Google Places ID |
-| `category` | Enum | Yes | `concert` / `sports` / `comedy` / `theater` / `festival` / `nightlife` / `convention` / `community` / `other` |
-| `expected_attendance` | Enum | No | `high` / `medium` / `low` (default: `medium`) |
-| `event_hash` | MD5 hex (32 chars) | Yes | Deduplication hash (canonicalizeMatchup(title)\|venue_name\|street\|city\|date-span) |
-
----
-
-## Validation Rules (13 Hard Filters)
-
-Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION = 6`.
-
-| # | Rule | Field | Rejection Reason |
-|---|------|-------|-----------------|
-| 1 | Title must exist | `title` | `missing_title` |
-| 2 | Title not TBD/Unknown | `title` | `tbd_in_title` |
-| 3 | Must have venue OR address | `venue_name/address` | `missing_location` |
-| 4 | Venue not TBD/Unknown | `venue_name` | `tbd_in_venue` |
-| 5 | Address not TBD/Unknown | `address` | `tbd_in_address` |
-| 6 | Start time required | `event_start_time` | `missing_start_time` |
-| 7 | Start time not TBD | `event_start_time` | `tbd_in_start_time` |
-| 8 | End time required | `event_end_time` | `missing_end_time` |
-| 9 | End time not TBD | `event_end_time` | `tbd_in_end_time` |
-| 10 | Start date required | `event_start_date` | `missing_start_date` |
-| 11 | Date format `YYYY-MM-DD` | `event_start_date` | `invalid_date_format` |
-| 12 | Category from allowed list (with fuzzy rescue) | `category` | `missing_or_invalid_category` |
-| 13 | Event span must include today (driver tz) | `event_start_date`/`event_end_date` | `starts_in_future` / `ended_before_today` |
-
-**Invalid patterns matched** (case-insensitive): `\btbd\b`, `\bunknown\b`, `venue\s*tbd`, `location\s*tbd`, `time\s*tbd`, `\(tbd\)`, `to\s*be\s*determined`, `not\s*yet\s*announced`, `coming\s*soon`, `various\s*(locations?|venues?)`.
-
-**Rule 12 fuzzy rescue (2026-04-05, self-healing):** If `event.category` is missing or not in the allowed list, `validateEvent` calls `normalizeCategory(event.category, event.subtype)` as a last-ditch remap before rejecting. This handles cases where Gemini returns unmapped values like `"live_music"`, `"game"`, `"hockey"`, `"concert_live"`. If the remap produces an allowed category, `event.category` is mutated in place and validation continues. Only unrecoverable values fall through to `missing_or_invalid_category`.
-
-**Rule 13 window:** the event span must include `today` in the driver's local timezone — `validateEvent` rejects `event_start_date > today` (`starts_in_future`) and `event_end_date < today` (`ended_before_today`), so multi-day events that are active today are kept (2026-05-05 multi-day-inclusive fix). `today` is computed via `toLocaleDateString('en-CA', { timeZone: context.timezone })`. **2026-06-11: `context.timezone` is REQUIRED — the former silent UTC fallback was removed and Rule 13 now THROWS if it is missing (NO FALLBACKS), because a UTC "today" wrongly strips valid local-today events for AHEAD-timezone drivers (memory #255). Already-ended *same-day* events are not caught here (date-only compare); they are dropped downstream by `isEventFresh`'s 2-hour instant window.**
-
----
-
-## Database Schema
-
-### `discovered_events`
-
-```sql
-id                  UUID PRIMARY KEY
-title               TEXT NOT NULL
-venue_name          TEXT                 -- From Gemini (display name)
-address             TEXT                 -- From Google Places (NEW) API via venue_catalog
-city                TEXT NOT NULL        -- From Google Places (NEW) API, NOT Gemini, NOT snapshot
-state               TEXT NOT NULL        -- From Google Places (NEW) API, NOT Gemini
-venue_id            UUID FK -> venue_catalog  -- Enables map pins, coordinates
-event_start_date    TEXT NOT NULL        -- YYYY-MM-DD
-event_start_time    TEXT                 -- "7:00 PM" or "19:00"
-event_end_date      TEXT                 -- Defaults to event_start_date
-event_end_time      TEXT NOT NULL        -- Required since schema v3
-category            TEXT NOT NULL DEFAULT 'other'
-expected_attendance TEXT DEFAULT 'medium'
-event_hash          TEXT NOT NULL UNIQUE -- MD5(canonicalizeMatchup(title)|venue_name|street|city|date-span) for dedup
-is_verified         BOOLEAN DEFAULT false  -- Human verified
-is_active           BOOLEAN DEFAULT true
-schema_version      INTEGER NOT NULL DEFAULT 1  -- VALIDATION_SCHEMA_VERSION stamped at write; enables skipping read-time revalidation
-deactivated_at      TIMESTAMP
-deactivation_reason TEXT
-deactivated_by      TEXT               -- 'ai_coach' or user_id
-discovered_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-
-### `venue_catalog` (Event-Relevant Fields)
-
-```sql
-venue_id            UUID PRIMARY KEY
-place_id            TEXT UNIQUE         -- Google Places ID (ChIJ...)
-venue_name          VARCHAR(500) NOT NULL
-normalized_name     TEXT                -- Lowercase alphanumeric for fuzzy matching
-address             VARCHAR(500) NOT NULL
-address_1           TEXT                -- Street line only
-formatted_address   TEXT                -- Google-formatted full address (validated)
-city                TEXT                -- From Google Places (NEW) API
-state               TEXT
-zip                 TEXT
-country             TEXT DEFAULT 'US'
-lat                 DOUBLE PRECISION    -- 6-decimal rounded
-lng                 DOUBLE PRECISION    -- 6-decimal rounded
-coord_key           TEXT UNIQUE         -- "lat6d_lng6d" format
-is_event_venue      BOOLEAN DEFAULT false  -- Set when linked to discovered event
-record_status       TEXT DEFAULT 'stub'    -- stub | enriched | verified
-timezone            TEXT                   -- IANA timezone
-market_slug         TEXT                   -- Metro market identifier
-```
-
----
-
-## Dead Code / Deprecated
-
-These files are referenced in older docs but are NOT active in the pipeline:
-
-| File | Status | Notes |
-|------|--------|-------|
-| `server/jobs/event-cleanup.js` | Dead code | Never imported in gateway-server.js |
-| `server/lib/subagents/event-verifier.js` | Dead code | Never called; replaced by rule-based validation |
-| `EVENT_FRESHNESS_AND_TTL.md` sections 4-5 | Inaccurate | TTL automation, cleanup loop, `expires_at` column never implemented |
-| Background event sync job | Forbidden (product invariant: events sync per-snapshot only — no cron, no worker) | Events sync per-snapshot only; no cron, no worker |
-
----
-
-## Change Log
-
-| Date | Change | Files |
-|------|--------|-------|
-| 2026-06-11 | **Write-time span merge + "Tonight + run window" display**: Added `mergeIntoOverlappingActiveSpan()` — write-time root-cause guard that merges a new multi-day event into an existing active same-venue + title-match + overlapping span instead of inserting a duplicate hash row (collapse cleanup kept as safety net). Frontend: `formatEventRunDisplay()` shows an active multi-day run as "Today … · runs through &lt;end&gt;" instead of the run START date (which read as stale) — applied in `EventsComponent` (briefing tab) and `MapTab` (map popups). | cleanup-events.js, pipelines/events.js, co-pilot-helpers.ts, EventsComponent.tsx, MapTab.tsx |
-| 2026-06-11 | **Event-lifecycle hygiene: span-collapse + event-venue-tag clearing**: Added `collapseDuplicateEventSpans()` (soft-deactivates cross-day duplicate run spans — same `venue_id` + `titlesMatch` + overlapping dates — keeping the widest; e.g. 6 "Wicked" → 1) and `clearOrphanedEventVenueTags()` (flips `is_event_venue=false` for venues with no active events; **never deletes venues**), both wired into the opportunistic per-snapshot cleanup after `deactivatePastEvents`. One-time dev backfill: collapsed 10 spans, cleared 505 orphaned tags (964 venue rows untouched). Prod/Neon backfill still pending. | cleanup-events.js, pipelines/events.js, scripts/backfill-event-venue-cleanup.mjs |
-| 2026-06-11 | **Rule 13 fail-loud + tz-library swap + dead-code removal**: Rule 13's silent UTC fallback removed — `validateEvent` now THROWS on missing `context.timezone` (NO FALLBACKS, memory #255); `fetchEventsForBriefing` gained a top-level tz guard and dropped its scattered UTC ternaries; consolidator `filterEventsReadTime` now threads `snapshot.timezone`; `POST /filter-invalid-events` returns **400** on missing tz instead of WARN+UTC. `createDateInTimezone` reimplemented on `date-fns-tz` `fromZonedTime` (fixes a midnight-"24" + server-tz bug). Deleted the dead `filterEventsForPlanner`/`isLargeEvent`/`LARGE_EVENT_*` (memory #258). Repaired 4 date-rotted validate tests + added Rule 13 / AHEAD-tz (Kiritimati) + tz-parity regression suites; jest now ignores `.worktrees`. | validateEvent.js, pipelines/events.js, consolidator.js, briefing.js, strategy-utils.js, filter-for-planner.js, tests/events/pipeline.test.js, tests/strategy/timezone-parity.test.js, jest.config.js |
-| 2026-04-28 | **Read-path Rule 13 tz-awareness (schema v5 → v6)**: `filterInvalidEvents` shim now accepts `{ timezone }`; threaded by `briefing-service.js:1607` (read-after-fetch revalidation), `briefing.js:1216` (`POST /filter-invalid-events` API — WARN-on-missing), and `dump-last-briefing.js`. Also fixed Path B (`GET /api/briefing/events/:snapshotId`) multi-day predicate from start-only to overlap window. Closes the gap commit 5cecd113 left open. | validateEvent.js, briefing-service.js, briefing.js, dump-last-briefing.js |
-| 2026-04-28 | **Write-path Rule 13 tz-awareness (schema v4 → v5) + multi-day predicate (Path A) + planner-grade gate**: `validateEvent` accepts `context.timezone`; `briefing-service.js:1339` threads `snapshot.timezone`; `enhanced-smart-blocks.js:213-272` uses `lte/gte` overlap predicate + `isPlannerGradeVenue` 3-bucket classification. Five hardening steps from `PLAN_events-pipeline-verification-2026-04-28.md` landed atomically as commit `5cecd113`. | validateEvent.js, briefing-service.js, enhanced-smart-blocks.js, venue-cache.js |
-| 2026-04-11 | **Address quality validation layer**: `venue-address-validator.js` (4 checks, hard fail + soft signals, international patterns). `maybeReResolveAddress()` gate on all 4 `findOrCreateVenue` return paths — re-resolves bad addresses via Places (NEW) API 50km search, re-validates to refuse replacing bad with bad. | venue-address-validator.js, venue-cache.js |
-| 2026-04-11 | **Semantic title-similarity dedup**: `deduplicateEventsSemantic.js` with `titlesMatch`, `scoreEventPreference` (+10 for non-stadium venue), `LARGE_VENUE_PATTERNS` regex. Integrated at write time in `fetchEventsWithGemini3ProPreview` and read time in `briefing.js`. Two-phase with hash dedup. | deduplicateEventsSemantic.js, briefing-service.js, briefing.js |
-| 2026-04-11 | **`onConflictDoUpdate` fix**: conflict branch now uses resolved address/city/state (was silently reverting corrections to raw Gemini data on every re-discovery). | briefing-service.js |
-| 2026-04-11 | **Coordinate precision**: 6-decimal rounding (~11cm) in `searchPlaceWithTextSearch`, `maybeReResolveAddress`, and backfill script to match `coord_key` precision and eliminate FP noise. | venue-address-resolver.js, venue-cache.js, backfill-venue-addresses.js |
-| 2026-04-11 | **One-time backfill script**: `scripts/backfill-venue-addresses.js` with two-pass search (unbiased → metro-biased), distance sanity check, cascade to `discovered_events`. Opt-in, not wired into boot. | backfill-venue-addresses.js |
-| 2026-04-10 | **Venue resolution via Google Places (NEW) API (New)**: three-step priority chain (place-ID cache → `searchPlaceWithTextSearch` 50km radius → geocode fallback). City, address, coordinates all come from Places (NEW) API, not Gemini. DB queries by state (metro-wide). `searchPlaceWithTextSearch` exported with configurable radius. | briefing-service.js, venue-address-resolver.js, briefing.js |
-| 2026-04-10 | **Freshness: 1hr post-surge window** for driver relevance; default duration 3h (was 4h) | strategy-utils.js |
-| 2026-04-10 | **Hash v2**: `title\|venue_name\|city\|date` (removed time, added city, venue_name instead of venue_address) | hashEvent.js |
-| 2026-04-05 | `ALLOWED_CATEGORIES` aligned in Gemini prompt and `validateEvent.js`; Rule 12 gains fuzzy rescue via `normalizeCategory` | briefing-service.js, validateEvent.js |
-| 2026-04-04 | `ON CONFLICT` now updates all content fields (was only `updated_at`) | briefing-service.js |
-| 2026-03-28 | ALWAYS geocode even when Gemini provides `place_id` | briefing-service.js |
-| 2026-02-26 | Gemini-only discovery (no cross-provider fallback); category + today-only rules added (schema v4) | briefing-service.js, validateEvent.js |
-| 2026-02-17 | Venue creation gap fixed: geocode + `findOrCreateVenue` | briefing-service.js |
-| 2026-02-17 | All-day events get 08:00-22:00 window; category-based default times | normalizeEvent.js |
-| 2026-01-14 | Progressive enrichment: `is_event_venue`, `record_status` | venue-cache.js |
-| 2026-01-10 | Symmetric field naming (`event_start_date`, etc.) | All pipeline files |
+# Events: discovery, shared storage and driver presentation
+
+Source-reconciled September 29, 2026, on `main` at `6e983906`. This is the canonical event pipeline guide; code establishes current behavior and tests establish the verification boundary. The changes described here are **not a deployment receipt**. No application database migration, historical event repair or live provider check was performed by this documentation pass.
+
+A wrong venue, invented end time or silently missing performance can send a driver to the wrong place or keep them driving for demand that is not there. Event names and published schedule reports are discovery inputs. Provider-confirmed location and preserved source uncertainty determine what can be stored, mapped and recommended.
+
+The full admitted waterfall is in [ai-pipeline.md](architecture/ai-pipeline.md). Catalog identity, Google Places/Routes and the 15-mile recommendation boundary belong in [VENUES.md](architecture/VENUES.md). Independent Concierge and Coach entry points are traced in [INDEPENDENT_PIPELINES.md](architecture/INDEPENDENT_PIPELINES.md). Those guides and this one have different scopes; none replaces actual source or implies Offer Analyzer data is now connected to MAIN.
+
+## Triggers and ownership
+
+| Entry | Current behavior and source |
+|---|---|
+| MAIN | Explicit Continue admits a run and its fresh saved snapshot. [Briefing aggregator](../server/lib/briefing/briefing-aggregator.js) checks admission/readiness, claims a generation, then runs events alongside the other Briefing sections. Login alone is not the generation trigger. |
+| Event collector | [events.js](../server/lib/briefing/pipelines/events.js) `discoverEvents` calls `fetchEventsForBriefing`, then publishes the event section through the Briefing generation fence. A failed category or write/read does not become a successful empty result. |
+| Saved API reads | [Briefing routes](../server/api/briefing/briefing.js) require authenticated ownership of the snapshot. `/events/:snapshotId` reads today's saved market events after checking section readiness; `/discovered-events/:snapshotId` exposes its explicit seven-day saved-data window. `/current` and POST `/generate` are compatibility readers, not another discovery pipeline. |
+| Public Concierge | [concierge-service.js](../server/lib/concierge/concierge-service.js) uses its anonymous GPS/token context, nearby saved data and a separate discovery trigger. Google verifies candidates before shared catalog/event writes. It does not admit or complete MAIN. |
+| Coach ADD_EVENT | [rideshare-coach-dal.js](../server/lib/ai/rideshare-coach-dal.js) validates a reported schedule, preserves it as unverified input and does not invent a catalog link or trust a model place ID. Future reports are not stamped as validated current discovery. |
+| Old sync entry points | [sync-events.mjs](../server/scripts/sync-events.mjs) and [event-sync-job.js](../server/jobs/event-sync-job.js) now fail explicitly as retired. They do not load providers, initialize a database or start a timer. There is no second manual five-provider MAIN collector. |
+
+There is no active scheduled event-sync or hourly cleanup loop. Opportunistic lifecycle cleanup runs when MAIN fetches events. A dormant legacy file is not proof that a job runs; [route mounting](../server/bootstrap/routes.js) and [worker startup](../server/bootstrap/workers.js) establish runtime ownership.
+
+## MAIN input to saved events
+
+| Step | Source and handoff |
+|---|---|
+| Location context | The collector requires snapshot city/state, ISO-2 country, coordinates and IANA timezone. Market identity comes from the saved snapshot or [the country-scoped market resolver](../server/lib/briefing/shared/get-market-for-location.js). An unresolved market is explicit; it is not replaced with another user's profile market. |
+| Lifecycle cleanup | `deactivatePastEvents`, `collapseDuplicateEventSpans`, then `clearOrphanedEventVenueTags` in [cleanup-events.js](../server/lib/briefing/cleanup-events.js). Cleanup errors preserve rows and are reported; they are not proof that the catalog was repaired. |
+| Discovery | Two category searches, `high_impact` and `local_entertainment`, call registry role `BRIEFING_EVENTS_DISCOVERY` with Google Search grounding. The source owns category limits, model assignment and deadlines. A successful array or `{events/items}` wrapper is accepted; malformed output, missing required schedule facts, provider errors and timeouts remain failures. There is no cross-provider fallback that hides a failed category. |
+| Normalize | [normalizeEvent.js](../server/lib/events/pipeline/normalizeEvent.js) maps canonical names/dates/clocks/categories. Missing, invalid or “All Day” clocks are not turned into category-based 08:00–22:00 windows or guessed durations. A supplied end date is preserved/validated; only absent end dates can receive the existing overnight rollover from known clocks. MAIN's discovery boundary already requires all four schedule fields. |
+| Validate | [validateEvent.js](../server/lib/events/pipeline/validateEvent.js), currently `VALIDATION_SCHEMA_VERSION = 7`, rejects missing/TBD content, malformed dates/clocks and reversed date spans. Its today test requires an IANA timezone. MAIN defers date-window-only exclusions until the venue-local instants are known; invalid required content fails discovery. |
+| Deduplicate candidates | Raw category merge and normalized dedup operate on different representations. They are intentional layers, not duplicate provider pipelines. Both preserve stated date/start/end differences; [semantic dedup](../server/lib/events/pipeline/deduplicateEventsSemantic.js) only groups equal known schedules. Its title/venue preference remains a heuristic, not independent event verification. |
+| Resolve venue | `resolveEventVenue` uses an unambiguous saved name/locality/country identity with provider ID, address, coordinates and valid venue timezone. Otherwise it asks [Places Text Search](../server/lib/venue/venue-address-resolver.js), then the existing [Google Geocoding fallback](../server/lib/events/pipeline/geocodeEvent.js). Partial geocodes and results without required provider identity/locality/country/coordinates fail verification. Model-supplied IDs, addresses and coordinates are hints, not authority. |
+| Link catalog | [findOrCreateVenue](../server/lib/venue/venue-cache.js) preserves explicit provider identity. The returned catalog row must have the same provider ID and usable venue timezone. Full provider coordinate precision is retained; a six-decimal lookup key is not sensor/provider precision. |
+| Verify date overlap | [toBriefingEvent / eventOverlapsDisplayDays](../server/lib/events/market-event-reader.js) compare actual venue-local instants with the driver's display day. Neighboring venue and driver calendar dates can differ. Only a valid overlap is published. |
+| Store | Hash resolved venue facts, then hold the shared venue transaction through span matching, hash arbitration, event insert/update and event-tag refresh. Both insert and conflict branches retain provider-confirmed name/address/city/state. |
+| Read and publish | `readMarketEvents` returns active events from the same known country and canonical metro, or the exact local city/state when no mapping exists. Rows are normalized with venue timezone/coordinates, revalidated, then wrapped as `{items, reason}`. `discoverEvents` writes/notifies its section; final Briefing reconciliation gates Strategy. Existing rows cannot make failed fresh discovery successful. |
+
+The discovery prompt includes the saved ISO-2 country, uses one current driver-local date shared with the saved reader, and separates the driver's calendar day from the venue's local dates/clocks, retains full driver-coordinate precision and asks for published schedules. An optional place-ID hint is opaque and never invented; Google resolution establishes identity. `expected_attendance` is retained only when the source provides an accepted value; missing impact is unknown. An estimated demand category is not measured attendance, ride volume or guaranteed earnings.
+
+Category work starts inside its 90-second cancellation scope, and each venue resolution has one 15-second scope shared through cache/Places/geocoding. The signal reaches provider calls; post-await checks prevent late results from starting fallback or new catalog/event writes and Briefing publication. Event transactions also check cancellation before continuing and after insertion; an already pending database statement is not transport-cancelled. `fetchEventsForBriefing` / `discoverEvents` accept optional caller cancellation, but the aggregator does not currently supply that signal. Local provider deadlines still apply.
+
+## Stored identities and concurrent writers
+
+[shared/schema.js](../shared/schema.js) is the column definition; copied SQL schemas in older guides have been removed. The important relationships are:
+
+- `snapshots` → owned `briefings` / `strategies` / `rankings`.
+- `discovered_events.venue_id` → `venue_catalog.venue_id`; a report's UUID is not its venue's UUID.
+- `venue_catalog.place_id` is unique provider identity. Coordinates may be shared by distinct establishments.
+- `discovered_events.event_hash` is the unique stored report identity. It is not evidence that every report describes one real-world event.
+- Matched saved event evidence belongs in `ranking_candidates.venue_events`. `rankings.extras` is not a schema column or an event storage channel; its ignored write was removed.
+
+[hashEvent.js](../server/lib/events/pipeline/hashEvent.js) retains the legacy base hash of normalized title, venue, street, city and date/date-span. Matchup order is canonicalized. The base hash excludes clocks for compatibility, but that is **not permission to overwrite another performance**: `resolveEventWriteHash` locks the base hash and creates a stable timed/identity variant when saved venue/date/start/end facts conflict. Original first-show hashes remain unchanged. Distinct times may be corrections or different performances; without evidence the store keeps both.
+
+`withEventVenueLock` holds a transaction-scoped advisory lock through MAIN/Concierge overlap checks and insertion. Coach's unresolved-venue reports still use the shared hash lock. `mergeIntoOverlappingActiveSpan` requires one unambiguous same-venue, matching-title, equal-known-clock multi-day candidate. SQL `LEAST`/`GREATEST` extends its span without shrinking a concurrent extension. A single overnight performance, one-day performance, unknown clock or ambiguous set is not collapsed into a repeating run.
+
+Discovery can refresh an existing report's factual fields but cannot undo manual or unattributed deactivation. Only explicitly attributed automatic expiry (`cleanup` / `past_event`) can be reactivated through MAIN's discovery conflict path. Concierge's existing-row write does not overwrite it. The active-event tag is refreshed within the same venue transaction.
+
+The shared catalog writer atomically merges enrichment without acquiring another business's provider ID by proximity. Ambiguous name/coordinate matches fail closed. Address-repair races return the correct canonical provider row; optional Details backfill accepts non-ChIJ IDs, shares pending work through persistence and rejects late transport/body results after its deadline. See [catalog identity and rollout](architecture/VENUES.md#identity-hours-and-google-contracts) for the full contract.
+
+**Catalog migration is required and not applied to the app database:** [20260929_venue_catalog_colocated_identity.sql](../migrations/20260929_venue_catalog_colocated_identity.sql) removes only venue-coordinate uniqueness and adds a nonunique lookup index. It preserves unique venue place IDs and the separate `coords_cache.coord_key` uniqueness. Old coordinate-conflict writers must be drained before that migration; start the matching new writers afterward. No historical rows were merged, deleted or reassigned by this review.
+
+## Freshness, cleanup and display
+
+| Boundary | Current behavior |
+|---|---|
+| Stored schedule | Canonical `event_start_date`, `event_start_time`, `event_end_date`, `event_end_time`; dates/clocks are text and require parsing. Provider-validated current discovery has the current validation marker. A schema marker is not a timezone or evidence of human verification. |
+| Instant conversion | [strategy-utils.js](../server/lib/strategy/strategy-utils.js) uses explicit offset timestamps as instants; local date/clocks require an IANA timezone. The market projection supplies venue-local ISO instants, so a driver in another timezone does not reinterpret the venue clock. Malformed supplied timestamps do not fall through to invented all-day spans. |
+| Read freshness | `filterFreshEvents` keeps a known end until end + two hours for departure pickups. Its legacy missing-end fallback is start + three hours + two hours, only when no end was supplied; malformed supplied ends are rejected. MAIN/Concierge ingest requires valid schedule facts, so this compatibility fallback is not permission to store guessed ends. |
+| Display day | Today's Briefing view also requires overlap with the driver's display day. The broader discovered-events endpoint is an explicit seven-day read. A two-hour freshness allowance does not override every caller's date-window predicate. |
+| Expiry cleanup | `deactivatePastEvents()` evaluates each row using its joined venue timezone and valid stored end. It soft-deactivates after the same two-hour allowance and rechecks observed end/venue fields before updating. Missing/invalid timezone or timing is preserved and counted for repair. One driver's timezone no longer expires another market's events. |
+| Duplicate-span cleanup | `collapseDuplicateEventSpans()` re-reads under the shared venue lock and deactivates only contained compatible multi-day duplicates. Partially overlapping, single-day, overnight and ambiguous source variants remain intact. |
+| Venue tag cleanup | `clearOrphanedEventVenueTags()` rechecks active associations under the venue lock before clearing `is_event_venue`. It does not delete venues. `is_bar` and general enrichment status are separate fields. |
+| User/operator changes | [Briefing moderation routes](../server/api/briefing/briefing.js) and [Coach writes](../server/lib/ai/rideshare-coach-dal.js) have their own authorization/scope checks. Shared catalog data is not an authorization grant to modify any market. |
+
+The lifecycle uses `is_active`, `deactivated_at`, `deactivated_by` and `deactivation_reason`. It does **not** have the historical proposed `events_facts` table, event `expires_at` column or claimed TTL validation trigger. The absence of that old design is not an instruction to implement another scheduler.
+
+[market-event-reader.js](../server/lib/events/market-event-reader.js) scopes country and canonical market membership **before limiting results**, includes explicit cross-state metro mappings, then resolves venue-local instants against the requested display window. Unknown/invalid venue schedules are counted. MAIN treats unresolved saved schedules as an error; saved compatibility responses expose `unresolved_events`. A persisted event without a verified catalog link is not silently assigned coordinates for the map.
+
+[reconcileEventLists](../server/lib/events/event-read-reconciliation.js) is presentation-only. It groups compatible reports only with resolved venue identity and matching date/start slot; exact titles and a narrow supported concert-title reversal can match. Different lineups cannot bridge through a shorter title. Original report IDs and variants remain available. Conflicting ends remove the representative end clock and set `event_end_conflict`; visibility is evaluated on each original report, preventing an unresolved end from appearing ongoing forever.
+
+[EventsComponent](../client/src/components/EventsComponent.tsx) and the [client date helpers](../client/src/utils/co-pilot-helpers.ts) render the reports, schedule uncertainty and active multi-day run window. [Briefing queries](../client/src/hooks/useBriefingQueries.ts) use the saved response and its pending/failure contract. Client rendering does not run another provider discovery pass or supply invented timing to conceal a failed section.
+
+## Strategy and nearby venue context
+
+Event intelligence can help explain pickup demand near a driver without making a distant event a destination. The retained distinction is **near event venues within 15 miles** versus **far event context out to the default 60-mile context radius**. The planner's destination radius remains separate from an empty pickup-distance preference or distance from home.
+
+[enhanced-smart-blocks.js](../server/lib/venue/enhanced-smart-blocks.js), [filter-for-planner.js](../server/lib/briefing/filter-for-planner.js), [tactical-planner.js](../server/lib/strategy/tactical-planner.js) and [event-matcher.js](../server/lib/venue/event-matcher.js) own the actual context, identity, radius and saved-card checks. Event matching never falls from conflicting authoritative IDs to a convenient name. A venue map point is not a verified safe staging/parking spot. Forecast demand and tips remain advice, not evidence of future ride availability.
+
+The historical three-step April decision—initial alignment, a temporary 40-mile event exception, then restoration of the 15-mile destination rule—is preserved in [SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md](../server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md). The [Strategist enrichment plan](../server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md) preserves its own rationale. Those plans explain why; current [venue documentation](architecture/VENUES.md) describes the source after the September fixes.
+
+## Preserved history and explicit remaining limits
+
+| Historical finding or design | Reconciled status |
+|---|---|
+| February venue-creation gap | MAIN now resolves Google data and calls `findOrCreateVenue`; the old assertion that it only performs a read-only fuzzy lookup is obsolete. This does not certify every existing row. |
+| Two discovery implementations | MAIN has one collector. The old manual multi-provider script/job is explicitly retired. Concierge and Coach remain intentional separate entry points sharing storage contracts. |
+| Cleanup orphaned after removing a timer; UTC date bug | Opportunistic cleanup is wired to MAIN and uses each venue's timezone. It preserves unresolved legacy timing rather than guessing. No claim that every old row has been backfilled. |
+| Missing `sql` import silently hid market events | The former duplicated market-query code was replaced with the shared country/metro reader; current failures are visible. The old seven-day outage narrative remains historical evidence in Git, not a current incident claim. |
+| Proposed TTL trigger/cleanup loop/LLM verifier | Those were not the active runtime mechanism. Required event validity is established by canonical validation and provider identity boundaries. Historical unused-file inventories are removed; no source deletion is authorized merely by the old inventory. |
+| Venue role fields described as “awaiting a decision” | Current catalog/event writers set `is_bar`, `is_event_venue` and `record_status`; current cleanup clears orphan event tags. The old generic-category/empty-role samples are not current field contracts. [VENUES.md](architecture/VENUES.md) owns venue provenance and separate Bars behavior. |
+| July cross-venue span-dedup investigation (historical todo #5) | **Not declared closed.** Span merging keys on canonical venue UUID. The same physical place represented by distinct/null provider identities can still escape convergence. Adding place-ID equality was shown ineffective for non-null IDs already unique in the catalog; that attempted fix was reverted. Allowing genuinely distinct colocated businesses does not prove they should be merged. Catalog equivalence requires evidence and must not erase real neighboring establishments. |
+| Text clocks and DST | Stored local clocks lack an occurrence offset for an ambiguous daylight-saving transition. Cleanup chooses the conservative later PostgreSQL occurrence; the storage format cannot prove which occurrence a source intended. No timezone-storage migration was performed. |
+| Global language/address coverage | Title/hash normalization now preserves Unicode letters/numbers/marks, so the old “Latin-only” claim is obsolete. English suffix/venue heuristics and [address-validator](../server/lib/venue/venue-address-validator.js) street patterns do not establish full language coverage. Its `COORD_SANITY` slot remains a no-op; it is not geographic verification. |
+| Country in discovery prompt | Saved ISO-2 country now reaches the search prompt as well as venue resolution and market reads. Search and read use one current driver-local day, not an older snapshot wall-clock date. Coverage still depends on source search results and catalog mappings. |
+| Historical repair claims | June reports of development cleanup and pending production backfill are historical, not evidence of today's database state. [Address repair script](../scripts/backfill-venue-addresses.js) and [event/venue cleanup script](../server/scripts/backfill-event-venue-cleanup.mjs) remain separate operator tools, not startup steps. They were not run or recertified by this documentation pass. |
+
+The current semantic candidate dedup still uses title plausibility and venue preference before provider identity resolution. Equal clocks and similar titles are not universal proof of one real-world event. That heuristic and unresolved physical-venue equivalence are explicit limits; this document does not mark them solved by storage locks.
+
+## Verification and recovery
+
+Focused source tests include:
+
+- [MAIN collector market/venue-time tests](../tests/events/main-collector-market.test.js), [market reader SQL tests](../tests/events/market-event-reader.test.js), [discovery failures](../tests/events/discovery-failure.test.js), [Briefing event failure contracts](../tests/briefing/briefing-events-failures.test.js).
+- [Normalization/validation pipeline](../tests/events/pipeline.test.js), [event integrity](../tests/events/integrity-regressions.test.js), [timezone parity](../tests/strategy/timezone-parity.test.js), [presentation reconciliation](../tests/events/event-read-reconciliation.test.js).
+- [Shared writer SQL](../tests/events/shared-writer-sql.test.js), [cleanup race tests](../tests/cleanupEvents.test.js), [Coach writer](../tests/coach/event-writer.test.js), [Concierge pipeline](../tests/concierge-pipeline.test.js).
+- [Catalog identity/migration SQL](../tests/venue/catalog-colocation-sql.test.js), [optional Details lifecycle](../tests/venue/catalog-enrichment-lifecycle.test.js), and saved candidate evidence tests listed in [the venue verification receipt](architecture/VENUES_PIPELINE_AUDIT.md).
+
+On September 29 the root review additionally ran the shared event-writer SQL suite against disposable local PostgreSQL with pooled connections and real advisory locks: **5/5 passed**, covering performance variants, simultaneous span extensions, rollback and moderation. The server was stopped afterward. PGlite tests exercise actual data/migration SQL but serialize one connection and omit advisory-lock execution; they are a different evidence boundary. Current combined pipeline verification belongs in [the ordered review](architecture/audits/PIPELINE_REVIEW_2026-09-29.md). No provider quota/billing, live credential, deployed schema or physical-device claim follows from these tests.
+
+This guide replaces the conflicting active inventories in `EVENT_FRESHNESS_AND_TTL.md`, `VENUELOGIC.md` and `BRIEFING_AND_EVENTS_ISSUES.md`. Unique reasoning and unresolved findings are retained above; the exact original documents and the former 928-line EVENTS guide are recoverable from Git at `6e98390697dfd3d677702bc64fe206b2383f5279`. [The combined removal ledger](architecture/removals/2026-09-29-pipeline-review.md#event-documentation-consolidation) records the paths, preservation decisions and recovery command. No second public archive of the stale guidance was created.

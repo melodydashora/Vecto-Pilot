@@ -1,108 +1,49 @@
-> **Gemini Analysis (2026-02-11):**
-> This file is the index for all documentation. It organizes docs by domain (Architecture, AI Tools, Memory, etc.) and provides quick links to key references like `ARCHITECTURE.md` and `CLAUDE.md`.
-
-> **Last Verified:** 2026-01-06
-
 # Documentation
 
-## Folder Structure
+Use this index to find the relevant source and supporting documentation. A guide's
+date or filename does not establish that it matches today's code or deployment.
+Pipeline work includes tracing the code, verifying data handoffs, correcting proven
+bugs, and updating or removing the documentation affected by the change.
 
-| Folder | Purpose |
-|--------|---------|
-| [architecture/](architecture/README.md) | Technical architecture docs (21 documents) |
-| [ai-tools/](ai-tools/README.md) | AI-powered tools documentation |
-| [memory/](memory/README.md) | Memory layer and session logs |
-| [preflight/](preflight/README.md) | Pre-flight check cards (<50 lines each) |
-| [review-queue/](review-queue/README.md) | Automated change analysis (pending items) |
-| [reviewed-queue/](reviewed-queue/README.md) | Completed reviews with extracted rules |
-| [melswork/](melswork/README.md) | Owner-maintained documentation |
+## Start here
 
-## Architecture Documentation
+| Need | Read |
+|---|---|
+| Session startup and continuity | [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [partnership agreement](../AI_PARTNERSHIP_AGREEMENT.md) |
+| Find a subsystem and its source | [Architecture index](architecture/README.md) |
+| Database environment boundaries | [Database environments](architecture/DATABASE_ENVIRONMENTS.md) |
+| Project memory, lessons and open work | [Existing MCP continuity connection](architecture/mcp-server.md) |
+| Before changing an area | [Preflight cards](preflight/README.md) |
+| Known documentation conflicts | [Discrepancy record](DOC_DISCREPANCIES.md) |
 
-Detailed technical documentation split by domain. See [architecture/README.md](architecture/README.md) for full index.
+## Pipeline references
 
-| Document | Purpose |
-|----------|---------|
-| [API Reference](architecture/api-reference.md) | Complete API endpoint documentation |
-| [Authentication](architecture/authentication.md) | JWT auth, login, registration flow |
-| [Database Schema](architecture/database-schema.md) | PostgreSQL tables and relationships |
-| [AI Pipeline](architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
-| [Rideshare Coach](architecture/ai-coach.md) | Rideshare Coach system architecture |
-| [Event Discovery](architecture/event-discovery.md) | Multi-model AI event search system |
-| [Constraints](architecture/CONSTRAINTS.md) | Critical rules and limitations |
-| [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
-| [Client Structure](architecture/client-structure.md) | Frontend architecture |
-| [Server Structure](architecture/server-structure.md) | Backend architecture |
-| [Decisions](architecture/decisions.md) | Architecture decision log |
+| Area | Reference |
+|---|---|
+| Offer Analyzer | [Full source trace](architecture/OFFER_ANALYZER.md), [remaining gates](architecture/OFFER_ANALYZER_ROADMAP.md), [Melody's specification](OFFER_ANALYZER_DRIVER_RULESET.md) |
+| Phone setup | [iPhone](architecture/SIRI_SHORTCUT_ANALYZE.md), [Android](architecture/ANDROID_SHORTCUT_ANALYZE.md) |
+| Routes | [API routes registry](api-routes-registry.md), [actual route mounting](../server/bootstrap/routes.js) |
+| Models and providers | [AI role map](AI_ROLE_MAP.md), [model registry](../server/lib/ai/model-registry.js) |
+| Events | [Discovery, shared storage and freshness](EVENTS.md), [venue identity and recommendations](architecture/VENUES.md) |
+| Data model | [Schema reference](architecture/DB_SCHEMA.md), [actual schema](../shared/schema.js), [migrations](../migrations/README.md) |
+| Client | [Client source index](../client/src/README.md) |
+| Server | [API source index](../server/api/README.md), [library source index](../server/lib/README.md) |
 
-## Additional Files
+The Analyzer trace was reconciled with source on September 29. Other pipeline guides
+remain starting points for their own source reviews; this index does not certify them.
 
-| Document | Purpose |
-|----------|---------|
-| [AI Partnership Plan](AI_PARTNERSHIP_PLAN.md) | Documentation improvement roadmap |
-| [API Routes Registry](api-routes-registry.md) | Complete API route listing |
-| [Checkpoint AI Partnership](CHECKPOINT_AI_PARTNERSHIP.md) | Partnership progress checkpoint |
-| [Database Schema (Detailed)](DATABASE_SCHEMA.md) | Comprehensive schema dump |
-| [Data Flow Map](DATA_FLOW_MAP.json) | JSON data flow mapping |
-| [Doc Discrepancies](DOC_DISCREPANCIES.md) | Known documentation discrepancies |
-| [Event Freshness & TTL](EVENT_FRESHNESS_AND_TTL.md) | Event caching and freshness rules |
-| [Mismatched](MISMATCHED.md) | Identified mismatches |
-| [Monthly Review Checklist](MONTHLY_REVIEW_CHECKLIST.md) | Documentation maintenance checklist |
+## Plans, history and research
 
-## Research
+| Location | How to use it |
+|---|---|
+| [coordination/](coordination/) | Dated handoffs; reconcile reported state with today's checkout. |
+| [review-queue/](review-queue/README.md), [plans/](plans/README.md) | Work-item plans; current status belongs in the existing continuity tables. |
+| [reviewed-queue/](reviewed-queue/README.md), [architecture/audits/](architecture/audits/README.md) | Historical findings and verification evidence, not current runtime contracts. |
+| [architecture/removals/](architecture/removals/README.md) | Reasons and recovery pointers for removed or replaced material. |
+| [archive/](archive/) | Preserved historical context. |
+| [research/](research/README.md) | Research inputs; verify time-sensitive claims before implementation. |
+| [melswork/](melswork/README.md) | Melody's working material and requirements. |
 
-Research findings that inform platform development:
-
-| Document | Purpose |
-|----------|---------|
-| [Rideshare Algorithm Research](research/rideshare-algorithm-research.md) | Platform algorithm behaviors, detection rules, surge patterns |
-| [Mobile Subscription Architecture](research/mobile-subscription-architecture.md) | iOS/Android separate solutions for subscription services |
-
-## Quick Links
-
-### Folder Documentation
-Every folder has a README explaining its purpose. Start here:
-
-**Server:**
-- [server/api/](../server/api/README.md) - API routes by domain
-- [server/lib/](../server/lib/README.md) - Business logic
-- [server/config/](../server/config/README.md) - Configuration
-- [server/middleware/](../server/middleware/README.md) - Middleware
-- [server/bootstrap/](../server/bootstrap/README.md) - Startup
-- [server/jobs/](../server/jobs/README.md) - Background workers
-
-**Client:**
-- [client/src/](../client/src/README.md) - Frontend overview
-- [client/src/pages/](../client/src/pages/README.md) - Page components (auth, co-pilot)
-- [client/src/layouts/](../client/src/layouts/README.md) - Layout components (CoPilotLayout)
-- [client/src/contexts/](../client/src/contexts/README.md) - React contexts (auth, location, co-pilot)
-- [client/src/components/](../client/src/components/README.md) - UI components
-- [client/src/hooks/](../client/src/hooks/README.md) - Custom hooks
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| [CLAUDE.md](../CLAUDE.md) | AI assistant instructions |
-| [ARCHITECTURE.md](../ARCHITECTURE.md) | Complete system overview |
-| [LESSONS_LEARNED.md](../LESSONS_LEARNED.md) | Historical issues and fixes |
-| [REORGANIZATION_PLAN.md](../REORGANIZATION_PLAN.md) | Codebase organization status |
-
-## Development
-
-```bash
-# Start development server
-npm run dev
-
-# Run type checking
-npm run typecheck
-
-# Run linting
-npm run lint
-
-# Run tests
-npm run test
-
-# Pre-PR checklist
-npm run lint && npm run typecheck && npm run build
-```
+For current implementation searches, scope `rg` to the relevant source directories.
+Read a linked historical record when its reasoning is needed. Duplicated or superseded
+guidance should be removed with a recovery pointer instead of accumulating another copy.

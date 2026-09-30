@@ -13,18 +13,182 @@
 import { createWorkflowLogger } from '../../logger/workflow.js';
 const resolverLog = createWorkflowLogger('VENUES');
 
-import { db } from '../../db/drizzle.js';
-import { eq, and, sql } from 'drizzle-orm';
-import { venue_catalog } from '../../../shared/schema.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { isPlusCode } from '../../api/utils/http-helpers.js';
 import {
   generateCoordKey,
-  normalizeVenueName,
   parseAddressComponents
 } from './venue-utils.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-29: TEXT-SEARCH IDENTITY ACCEPTANCE
+// ─────────────────────────────────────────────────────────────────────────────
+// A provider text search answers with its best guess, not with proof. Its first
+// result used to become a venue's place_id with no comparison at all, and the
+// planner accepted a 0.4 word overlap ("The <A>" matched "The <B>" on "the").
+// A result now becomes an identity only with meaningful agreement:
+//   - NAME: function words carry nothing; venue-kind words ("bar", "hall") never
+//     establish agreement on their own; the two names must share a distinctive
+//     word and must not BOTH hold a word the other lacks.
+//   - or ADDRESS: the provider's street number and street name are both present
+//     in what was asked for.
+// Stage names used in logs: VENUE_TEXT_SEARCH (transport), VENUE_TEXT_IDENTITY
+// (acceptance).
+const SEARCH_STAGE = 'VENUE_TEXT_SEARCH';
+const IDENTITY_STAGE = 'VENUE_TEXT_IDENTITY';
+
+const IDENTITY_STOPWORDS = new Set(['the', 'a', 'an', 'and', 'at', 'of', 'in', 'on', 'by', 'for', 'to', 'with', 'from',
+  'de', 'del', 'la', 'las', 'el', 'los', 'le', 'les']);
+const GENERIC_VENUE_WORDS = new Set(['bar', 'pub', 'tavern', 'saloon', 'lounge', 'club', 'nightclub', 'grill', 'restaurant',
+  'cafe', 'kitchen', 'bistro', 'cantina', 'diner', 'eatery', 'brewery', 'taproom', 'winery', 'distillery', 'hotel', 'inn',
+  'resort', 'hall', 'center', 'theater', 'amphitheater', 'arena', 'stadium', 'field', 'park', 'pavilion', 'ballroom', 'plaza',
+  'venue', 'room', 'house', 'garden', 'gardens', 'complex', 'coliseum', 'auditorium', 'mall', 'market', 'museum', 'gallery',
+  'library', 'church', 'school', 'university', 'college', 'company']);
+// One word, several spellings. Both sides are compared in the same spelling.
+const TOKEN_SPELLINGS = new Map([['theatre', 'theater'], ['centre', 'center'], ['ctr', 'center'],
+  ['amphitheatre', 'amphitheater'], ['grille', 'grill'], ['co', 'company']]);
+// Normalize spelling without erasing the street type or direction: Main Avenue
+// and Main Street, or North Main and South Main, can be different addresses.
+const STREET_TOKEN_SPELLINGS = new Map([['st', 'street'], ['ave', 'avenue'], ['blvd', 'boulevard'], ['dr', 'drive'],
+  ['rd', 'road'], ['ln', 'lane'], ['ct', 'court'], ['pl', 'place'], ['pkwy', 'parkway'], ['hwy', 'highway'],
+  ['cir', 'circle'], ['trl', 'trail'], ['ter', 'terrace'], ['n', 'north'], ['s', 'south'], ['e', 'east'], ['w', 'west'],
+  ['ne', 'northeast'], ['nw', 'northwest'], ['se', 'southeast'], ['sw', 'southwest'],
+  ['ste', 'suite'], ['apt', 'apartment'], ['fl', 'floor']]);
+
+const identityTokens = value => (typeof value === 'string' ? value : '')
+  .normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
+  .replace(/&/g, ' and ').replace(/['’`]/g, '')
+  .replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/).filter(Boolean)
+  .map(token => TOKEN_SPELLINGS.get(token) || token);
+const componentText = component => [component?.longText, component?.shortText, component?.long_name, component?.short_name];
+const LOCALITY_COMPONENT_TYPES = ['locality', 'postal_town', 'administrative_area_level_1', 'country'];
+
+function localityTokens(expected, place) {
+  const words = new Set();
+  for (const component of Array.isArray(place?.addressComponents) ? place.addressComponents : []) {
+    if (!LOCALITY_COMPONENT_TYPES.some(type => component?.types?.includes(type))) continue;
+    for (const text of componentText(component)) for (const token of identityTokens(text)) words.add(token);
+  }
+  for (const text of [expected?.city, expected?.state]) for (const token of identityTokens(text)) words.add(token);
+  return words;
+}
+
+/** Content words of a name: function words removed, a trailing city/state/country dropped. */
+function nameWords(name, locality) {
+  const words = identityTokens(name).filter(token => !IDENTITY_STOPWORDS.has(token));
+  // "<Venue> <City>" and "<Venue>" are one place. Only a trailing locality is
+  // dropped, and never the whole name.
+  while (words.length > 1 && locality.has(words[words.length - 1])) words.pop();
+  return [...new Set(words)];
+}
+
+function compareNames(asked, returned, locality) {
+  const want = nameWords(asked, locality), have = nameWords(returned, locality);
+  if (!want.length) return { ok: false, reason: 'the requested name holds no identifying word' };
+  if (!have.length) return { ok: false, reason: 'the provider name holds no identifying word' };
+  const wantOnly = want.filter(word => !have.includes(word)), haveOnly = have.filter(word => !want.includes(word));
+  const shared = want.filter(word => have.includes(word));
+  const distinctive = words => words.filter(word => !GENERIC_VENUE_WORDS.has(word));
+  if (wantOnly.length && haveOnly.length) {
+    return { ok: false, reason: `names disagree: requested has "${wantOnly.join(' ')}", provider has "${haveOnly.join(' ')}"` };
+  }
+  if (!distinctive(shared).length) {
+    // Two names made only of venue-kind words agree only when they are the same words.
+    if (!distinctive(want).length && !distinctive(have).length && !wantOnly.length && !haveOnly.length) return { ok: true, reason: null };
+    return { ok: false, reason: shared.length
+      ? `names share only the venue-kind word "${shared.join(' ')}"` : 'names share no word' };
+  }
+  return { ok: true, reason: null };
+}
+
+function providerStreet(place) {
+  const components = Array.isArray(place?.addressComponents) ? place.addressComponents : [];
+  const text = type => componentText(components.find(component => component?.types?.includes(type))).find(Boolean) || '';
+  const streetNumber = text('street_number'), streetRoute = text('route');
+  // Partial components (and their parsed address_1) must not hide a complete
+  // provider formatted address: that would bypass a known branch conflict.
+  const streets = [streetNumber && streetRoute ? `${streetNumber} ${streetRoute}` : null,
+    typeof place?.formattedAddress === 'string' ? place.formattedAddress.split(',')[0] : null, place?.parsed?.address_1];
+  for (const street of streets) {
+    const words = identityTokens(street);
+    const number = words.find(word => /^\d+[a-z]?$/.test(word));
+    const route = words.filter(word => word !== number && !IDENTITY_STOPWORDS.has(word))
+      .map(word => STREET_TOKEN_SPELLINGS.get(word) || word);
+    if (number && route.length) return { number, route };
+  }
+  return null;
+}
+
+function compareStreetAddress(askedText, place) {
+  const street = providerStreet(place);
+  if (!street || typeof askedText !== 'string') return { matches: false, conflicts: false };
+  // Compare one numbered street segment. Words in a venue name, another
+  // address segment or the city cannot stand in for the requested street.
+  const asked = askedText.split(',').filter(segment => /^\s*\d+[a-z]?(?:\s|$)/i.test(segment))
+    .map(segment => providerStreet({ formattedAddress: segment })).filter(Boolean);
+  const matches = asked.some(address => address.number === street.number && address.route.length === street.route.length &&
+    street.route.every((word, index) => word === address.route[index]));
+  return { matches, conflicts: asked.length > 0 && !matches };
+}
+
+/**
+ * Decide whether a provider text-search result is the place that was asked for.
+ * Pure: no provider, database or log access.
+ *
+ * @param {Object} expected
+ * @param {string} [expected.name] - the requested venue name (model or catalog)
+ * @param {string} [expected.address] - the requested street address
+ * @param {string} [expected.query] - the search text, used when name and address are not given separately
+ * @param {string} [expected.city] - requested city (a trailing city in a name is not identity)
+ * @param {string} [expected.state] - requested state
+ * @param {Object} place
+ * @param {string} place.displayName - provider name
+ * @param {string} [place.formattedAddress]
+ * @param {Array} [place.addressComponents] - provider address components
+ * @param {Object} [place.parsed] - parseAddressComponents() output
+ * @returns {{accepted: boolean, evidence: 'name'|'address'|null, requestedName: string|null, reason: string|null}}
+ */
+export function verifyPlaceIdentity(expected = {}, place = {}) {
+  const text = value => typeof value === 'string' && value.trim() ? value.trim() : null;
+  const name = text(expected.name), address = text(expected.address), query = text(expected.query);
+  // Without separate fields the leading segment of "name, address, city, ..." is the name.
+  const requestedName = name || (query ? text(query.split(',')[0]) : null);
+  const accept = evidence => ({ accepted: true, evidence, requestedName, reason: null });
+  const reject = reason => ({ accepted: false, evidence: null, requestedName, reason });
+  if (!requestedName && !address) return reject('nothing was supplied to compare the provider result with');
+  const locality = localityTokens(expected, place);
+  const providerName = text(place?.displayName);
+  const nameVerdict = requestedName && providerName ? compareNames(requestedName, providerName, locality) : null;
+  const queryParts = query?.split(',');
+  // "13 Celsius Wine" is a venue name, not a street at number 13. Exclude
+  // the name segment when the explicit name or provider comparison identifies
+  // it as such; separately supplied or later street segments still constrain it.
+  const leadingName = queryParts && (name ? compareNames(name, queryParts[0], locality).ok : nameVerdict?.ok);
+  const askedAddress = address || (leadingName ? queryParts.slice(1).join(',') : query);
+  const streetComparison = compareStreetAddress(askedAddress, place);
+  // Chain businesses can share a name. A known contradictory street address
+  // rules out that branch even when the names agree exactly.
+  if (streetComparison.conflicts) return reject('the provider street address conflicts with the requested street address');
+  const reasons = [];
+  if (requestedName) {
+    if (!providerName) reasons.push('the provider result has no name');
+    else {
+      if (nameVerdict.ok) return accept('name');
+      reasons.push(nameVerdict.reason);
+      // Address/locality words elsewhere in the query cannot repair a failed
+      // venue-name comparison. Callers with separate fields pass explicit expectations.
+    }
+  }
+  if (askedAddress) {
+    if (streetComparison.matches) return accept('address');
+    reasons.push(providerStreet(place) ? 'the provider street address is not in what was requested'
+      : 'the provider result has no street number and street name to compare');
+  }
+  return reject(reasons.join('; '));
+}
 
 /**
  * Resolve venue coordinates to a formatted address
@@ -46,29 +210,18 @@ const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchTe
 export async function resolveVenueAddress(lat, lng, venueName = null, options = {}) {
   const { skipCache = false, upsertCache = true } = options;
 
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (!normalizeCoordinates(lat, lng)) return null;
 
   const coordKey = generateCoordKey(lat, lng);
-  const normalizedName = normalizeVenueName(venueName);
 
   try {
     // Step 1: Check venue_catalog cache by coord_key
     if (!skipCache && coordKey) {
-      const [cached] = await db.select()
-        .from(venue_catalog)
-        .where(eq(venue_catalog.coord_key, coordKey))
-        .limit(1);
-
+      // Dynamic import avoids the cache's address-repair dependency cycle while
+      // keeping all identity/ambiguity rules and access tracking in one place.
+      const { lookupVenue } = await import('./venue-cache.js');
+      const cached = await lookupVenue({ coordKey, venueName });
       if (cached) {
-        // Update access tracking
-        await db.update(venue_catalog)
-          .set({
-            access_count: (cached.access_count || 0) + 1,
-            last_accessed_at: new Date()
-          })
-          .where(eq(venue_catalog.venue_id, cached.venue_id))
-          .catch(() => {}); // Non-blocking
-
         return {
           venue_id: cached.venue_id,
           formatted_address: cached.formatted_address || cached.address,
@@ -88,7 +241,7 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
 
     // Step 2: Try Google Places (NEW) API (New) with 50m radius
     if (venueName && GOOGLE_MAPS_API_KEY) {
-      const placeResult = await searchPlaceWithTextSearch(lat, lng, venueName);
+      const placeResult = await searchPlaceWithTextSearch(lat, lng, venueName, { expectedName: venueName });
 
       if (placeResult) {
         // Upsert into venue_catalog
@@ -98,10 +251,8 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
             place_id: placeResult.placeId,
             formatted_address: placeResult.formattedAddress,
             ...placeResult.parsed,
-            lat: placeResult.lat ?? lat,
-            lng: placeResult.lng ?? lng,
-            coord_key: coordKey,
-            normalized_name: normalizedName,
+            lat: placeResult.lat,
+            lng: placeResult.lng,
             source: 'google_places_new'
           });
         }
@@ -115,8 +266,8 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
           zip: placeResult.parsed.zip,
           country: placeResult.parsed.country,
           place_id: placeResult.placeId,
-          lat: placeResult.lat || lat,
-          lng: placeResult.lng || lng,
+          lat: placeResult.lat,
+          lng: placeResult.lng,
           source: 'google_places_new'
         };
       }
@@ -134,8 +285,6 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
           ...geocodeResult.parsed,
           lat,
           lng,
-          coord_key: coordKey,
-          normalized_name: normalizedName,
           source: 'geocoding'
         });
       }
@@ -166,24 +315,37 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
 }
 
 /**
- * Search for a place using Google Places (NEW) API (New) with configurable locationBias.
+ * Search for a place using Google Places (NEW) API (New) with configurable locationBias,
+ * and say what happened: found, absent, rejected, provider failure or cancelled.
+ *
+ * 2026-09-29: a provider outage used to be indistinguishable from "no such venue"
+ * (both were null), and the first result was accepted with no comparison.
  *
  * @param {number} lat - Latitude for location bias center
  * @param {number} lng - Longitude for location bias center
- * @param {string} textQuery - Venue name to search
+ * @param {string} textQuery - Search text
  * @param {Object} [options] - Search options
  * @param {number} [options.radius=50] - Location bias radius in meters.
- * @param {AbortSignal} [options.signal] - 2026-08-17: optional abort (e.g. AbortSignal.timeout) — the Offer Analyzer bounds this call.
- *   Use 50 (default) for precise venue-coordinate lookups where you already have the venue's location.
- *   Use 50000 (50km) for metro-wide event discovery where lat/lng is the driver's snapshot location.
- * @returns {Promise<Object|null>} - Place result: { placeId, displayName, formattedAddress, lat, lng, types, parsed: { city, state, zip, country } }
+ * @param {AbortSignal} [options.signal] - optional abort
+ * @param {string} [options.expectedName] - requested venue name, compared with the provider name
+ * @param {string} [options.expectedAddress] - requested street address, compared with the provider address
+ * @param {boolean} [options.callerVerifiesIdentity] - true ONLY when the caller runs its own
+ *   relevance gate on the returned place (the result is then returned unjudged)
+ * @returns {Promise<{outcome: 'found'|'absent'|'rejected'|'provider_failure'|'aborted', place: Object|null, reason: string|null}>}
  */
-// 2026-04-10: Exported for use in briefing-service.js event venue resolution pipeline.
-// Added optional radius parameter for metro-wide event discovery (50km vs default 50m).
-export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {}) {
-  if (!GOOGLE_MAPS_API_KEY || !textQuery) return null;
+export async function resolvePlaceByTextSearch(lat, lng, textQuery, options = {}) {
+  const result = (outcome, place, reason) => ({ outcome, place, reason });
+  if (typeof textQuery !== 'string' || !textQuery.trim()) return result('absent', null, 'no search text was supplied');
   const radius = options.radius ?? 50.0;
+  // The search text can be a rider's address (Offer Analyzer), so transport logs
+  // describe the request and the cause, never the text.
+  const failure = reason => {
+    resolverLog.warn(3, `[${SEARCH_STAGE}] Places provider failure (radius ${radius} m): ${reason}`);
+    return result('provider_failure', null, reason);
+  };
+  if (!GOOGLE_MAPS_API_KEY) return failure('Places provider is not configured');
 
+  let data;
   try {
     const response = await fetch(PLACES_TEXT_SEARCH_URL, {
       method: 'POST',
@@ -204,45 +366,86 @@ export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {
         maxResultCount: 1
       })
     });
-
-    if (!response.ok) {
-      console.warn(`[VENUE] Places (NEW) API error: ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json();
-    const place = data.places?.[0];
-
-    if (!place) return null;
-
-    // Parse address components into granular fields
-    const parsed = parseAddressComponents(place.addressComponents || []);
-
-    // Reject plus codes
-    if (place.formattedAddress && isPlusCode(place.formattedAddress)) {
-      resolverLog.debug(`Rejecting plus code: ${place.formattedAddress}`);
-      return null;
-    }
-
-    // 2026-04-11: Round coords to 6 decimal places (~11cm) — consistent with coord_key precision.
-    // Google API returns arbitrary precision (e.g., 32.782698100000005) which causes
-    // floating-point noise in DB storage and drift between lat/lng and coord_key.
-    const rawLat = place.location?.latitude;
-    const rawLng = place.location?.longitude;
-
-    return {
-      placeId: place.id,
-      displayName: place.displayName?.text,
-      formattedAddress: place.formattedAddress,
-      lat: rawLat != null ? parseFloat(Number(rawLat).toFixed(6)) : null,
-      lng: rawLng != null ? parseFloat(Number(rawLng).toFixed(6)) : null,
-      types: place.types || [],
-      parsed
-    };
+    if (!response.ok) return failure(`HTTP ${response.status}`);
+    data = await response.json();
   } catch (err) {
-    console.warn('[VENUE] Places (NEW) API search failed:', err.message);
-    return null;
+    if (options.signal?.aborted) {
+      resolverLog.debug(`[${SEARCH_STAGE}] cancelled by the caller: ${err?.message || err}`);
+      return result('aborted', null, `cancelled by the caller: ${err?.message || err}`);
+    }
+    return failure(err?.message || String(err));
   }
+
+  const place = data?.places?.[0];
+  if (!place) return result('absent', null, 'Places provider returned no result');
+
+  // Parse address components into granular fields
+  const parsed = parseAddressComponents(place.addressComponents || []);
+
+  // Reject plus codes
+  if (place.formattedAddress && isPlusCode(place.formattedAddress)) {
+    resolverLog.debug(`[${IDENTITY_STAGE}] rejected: the provider address is a plus code (${place.formattedAddress})`);
+    return result('rejected', null, 'the provider address is a plus code, not a street address');
+  }
+
+  // coord_key precision is a lookup convention, not permission to discard
+  // provider coordinates used by navigation, routing and event linking.
+  const point = normalizeCoordinates(place.location?.latitude, place.location?.longitude);
+  if (!point) {
+    resolverLog.warn(3, `[${IDENTITY_STAGE}] rejected provider place ${place.id || '(no id)'}: it has no usable coordinates`);
+    return result('rejected', null, 'the provider result has no usable coordinates');
+  }
+
+  const displayName = place.displayName?.text;
+  let verdict;
+  if (options.callerVerifiesIdentity === true) {
+    verdict = { accepted: true, evidence: 'caller', requestedName: null, reason: null };
+  } else {
+    verdict = verifyPlaceIdentity({ name: options.expectedName, address: options.expectedAddress, query: textQuery },
+      { displayName, formattedAddress: place.formattedAddress, addressComponents: place.addressComponents, parsed });
+    if (!verdict.accepted) {
+      resolverLog.warn(3, `[${IDENTITY_STAGE}] rejected: asked for "${verdict.requestedName ?? ''}", ` +
+        `Places provider returned "${displayName ?? ''}" (${place.id || 'no id'}): ${verdict.reason}`);
+      return result('rejected', null, verdict.reason);
+    }
+  }
+
+  return result('found', {
+    placeId: place.id,
+    displayName,
+    formattedAddress: place.formattedAddress,
+    lat: point.lat,
+    lng: point.lng,
+    types: place.types || [],
+    parsed,
+    // The name that was asked for stays next to the provider's name, so a
+    // mismatch that was accepted on address evidence remains visible.
+    requestedName: verdict.requestedName,
+    identityEvidence: verdict.evidence
+  }, null);
+}
+
+/**
+ * Search for a place using Google Places (NEW) API (New) with configurable locationBias.
+ *
+ * Returns the place, or null for every other outcome. Callers that must tell a
+ * provider outage from "not found" use resolvePlaceByTextSearch(), which returns
+ * the outcome and its reason; every non-found outcome is logged there.
+ *
+ * @param {number} lat - Latitude for location bias center
+ * @param {number} lng - Longitude for location bias center
+ * @param {string} textQuery - Venue name to search
+ * @param {Object} [options] - Search options (see resolvePlaceByTextSearch)
+ * @param {number} [options.radius=50] - Location bias radius in meters.
+ * @param {AbortSignal} [options.signal] - 2026-08-17: optional abort (e.g. AbortSignal.timeout) — the Offer Analyzer bounds this call.
+ *   Use 50 (default) for precise venue-coordinate lookups where you already have the venue's location.
+ *   Use 50000 (50km) for metro-wide event discovery where lat/lng is the driver's snapshot location.
+ * @returns {Promise<Object|null>} - Place result: { placeId, displayName, formattedAddress, lat, lng, types, parsed: { city, state, zip, country }, requestedName, identityEvidence }
+ */
+// 2026-04-10: Exported for use in briefing-service.js event venue resolution pipeline.
+// Added optional radius parameter for metro-wide event discovery (50km vs default 50m).
+export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {}) {
+  return (await resolvePlaceByTextSearch(lat, lng, textQuery, options)).place;
 }
 
 /**
@@ -289,82 +492,19 @@ async function reverseGeocode(lat, lng) {
   }
 }
 
-/**
- * Upsert venue into venue_catalog
- *
- * Uses coord_key for conflict detection
- *
- * @param {Object} venue - Venue data to upsert
- */
+/** Cache provider results through the catalog's single identity writer. */
 async function upsertVenueCatalog(venue) {
   try {
-    // Check if venue exists by coord_key or place_id
-    const existingQuery = [];
-
-    if (venue.coord_key) {
-      existingQuery.push(eq(venue_catalog.coord_key, venue.coord_key));
-    }
-    if (venue.place_id) {
-      existingQuery.push(eq(venue_catalog.place_id, venue.place_id));
-    }
-
-    if (existingQuery.length === 0) return;
-
-    const [existing] = await db.select({ venue_id: venue_catalog.venue_id })
-      .from(venue_catalog)
-      .where(existingQuery.length === 1 ? existingQuery[0] : sql`${existingQuery[0]} OR ${existingQuery[1]}`)
-      .limit(1);
-
-    if (existing) {
-      // Update existing venue
-      await db.update(venue_catalog)
-        .set({
-          formatted_address: venue.formatted_address,
-          address_1: venue.address_1,
-          city: venue.city,
-          state: venue.state,
-          zip: venue.zip,
-          country: venue.country,
-          source: venue.source,
-          updated_at: new Date(),
-          access_count: sql`COALESCE(access_count, 0) + 1`,
-          last_accessed_at: new Date()
-        })
-        .where(eq(venue_catalog.venue_id, existing.venue_id));
-    } else {
-      // Insert new venue
-      // 2026-01-14: Set record_status: 'stub' for address-resolver-only venues
-      await db.insert(venue_catalog)
-        .values({
-          venue_name: venue.venue_name,
-          address: venue.formatted_address,
-          lat: venue.lat,
-          lng: venue.lng,
-          city: venue.city,
-          state: venue.state,
-          zip: venue.zip,
-          // 2026-01-10: D-004 Fix - Use ISO-3166-1 alpha-2 code
-          country: venue.country || 'US',
-          formatted_address: venue.formatted_address,
-          address_1: venue.address_1,
-          place_id: venue.place_id,
-          coord_key: venue.coord_key,
-          normalized_name: venue.normalized_name,
-          category: 'venue', // Default category
-          source: venue.source,
-          discovery_source: 'address_resolver',
-          access_count: 1,
-          last_accessed_at: new Date(),
-          updated_at: new Date(),
-          // 2026-01-14: Progressive Enrichment - address resolver creates stubs
-          is_bar: false,
-          is_event_venue: false,
-          record_status: 'stub'
-        })
-        .onConflictDoNothing(); // Handle race conditions
-    }
+    const { insertVenue } = await import('./venue-cache.js');
+    await insertVenue({
+      venueName: venue.venue_name, placeId: venue.place_id,
+      address: venue.formatted_address, formattedAddress: venue.formatted_address,
+      address1: venue.address_1, city: venue.city, state: venue.state,
+      zip: venue.zip, country: venue.country, lat: venue.lat, lng: venue.lng,
+      source: venue.source, discoverySource: 'address_resolver', recordStatus: 'stub',
+    });
   } catch (err) {
-    // Non-blocking - log and continue
+    // Cache writes are optional; keep the verified provider response on failure.
     console.warn('[VENUE] Upsert failed:', err.message);
   }
 }
@@ -373,23 +513,27 @@ async function upsertVenueCatalog(venue) {
  * Batch resolve addresses for multiple venues (optimized for performance)
  *
  * @param {Array} venues - Array of {lat, lng, name}
- * @returns {Promise<Object>} - Map of venue key → address result
+ * @returns {Promise<Object>} Map keyed by "lat,lng" for unique points; repeated
+ * points use "lat,lng#index" (zero-based input index) so no input is overwritten.
  */
 export async function resolveVenueAddressesBatch(venues) {
   const results = {};
+  const counts = new Map();
+  for (const venue of venues) {
+    const point = `${venue.lat},${venue.lng}`;
+    counts.set(point, (counts.get(point) || 0) + 1);
+  }
 
   // Resolve in parallel with Promise.all but limit concurrency to 5 simultaneous requests
   const chunks = [];
   for (let i = 0; i < venues.length; i += 5) {
-    chunks.push(venues.slice(i, i + 5));
+    chunks.push(venues.slice(i, i + 5).map((venue, offset) => ({ venue, index: i + offset })));
   }
 
   for (const chunk of chunks) {
-    const promises = chunk.map(async (v) => {
-      const key = `${v.lat},${v.lng}`;
-      // 2026-01-05: With name + 6-decimal coords, resolution should NEVER fail
-      // If it does, it's an upstream issue (API key, network) that must be fixed
-      // Let errors propagate - don't mask with null
+    const promises = chunk.map(async ({ venue: v, index }) => {
+      const point = `${v.lat},${v.lng}`;
+      const key = counts.get(point) > 1 ? `${point}#${index}` : point;
       const result = await resolveVenueAddress(v.lat, v.lng, v.name);
       return { key, result };
     });

@@ -28,10 +28,14 @@
 import express from 'express';
 import { db } from '../../db/drizzle.js';
 // 2026-02-17: Renamed us_market_cities → market_cities (market consolidation)
-import { market_intelligence, platform_data, ranking_candidates, market_cities, market_intel, markets } from '../../../shared/schema.js';
+// 2026-09-13: market_intel removed (never populated; table dropped by 20260913_schema_repair.sql)
+import { market_intelligence, platform_data, ranking_candidates, market_cities, markets } from '../../../shared/schema.js';
 import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 // 2026-02-12: Added requireAuth - intelligence routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
+import { requireOperator } from '../../middleware/require-operator.js';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
+import { ensureMarket } from '../../lib/markets/ensure-market.js';
 
 const router = express.Router();
 
@@ -264,76 +268,29 @@ router.get('/markets', async (_req, res) => {
  *   state       - User's state (optional)
  */
 router.post('/add-market', async (req, res) => {
+  // 2026-09-10: shared helper (server/lib/markets/ensure-market.js). This authenticated route
+  // now serves SettingsPage only; registration creates its own market inside POST /api/auth/register
+  // (Astra product finding #16 — the signup page could never reach this route pre-registration).
   try {
-    const { market_name, city, state, state_abbr } = req.body;
-
-    if (!market_name || market_name.trim().length < 2) {
-      return res.status(400).json({ error: 'Market name is required (min 2 characters)' });
-    }
-
-    const trimmedMarket = market_name.trim();
-
-    // Check if market already exists
-    const existing = await db
-      .select()
-      .from(market_cities)
-      .where(ilike(market_cities.market_name, trimmedMarket))
-      .limit(1);
-
-    if (existing.length > 0) {
-      return res.json({
-        success: true,
-        message: 'Market already exists',
-        market_name: existing[0].market_name,
-        already_existed: true
-      });
-    }
-
-    // 2026-02-17: Create both markets + market_cities entries (FK integrity)
-    const cityName = city?.trim() || trimmedMarket;
-    const stateName = state?.trim() || 'Unknown';
-    const stateAbbr = state_abbr?.trim() || null;
-
-    // Generate slug: "Dallas-Fort Worth" + "TX" → "dallas-fort-worth-tx"
-    const slug = (trimmedMarket.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-      + (stateAbbr ? `-${stateAbbr.toLowerCase()}` : ''));
-
-    // Create the market definition first (source of truth)
-    await db.insert(markets).values({
-      market_slug: slug,
-      market_name: trimmedMarket,
-      primary_city: cityName,
-      state: stateName,
-      state_abbr: stateAbbr,
-      country_code: 'US',
-      timezone: 'America/Chicago', // Placeholder — will be resolved on first snapshot
-      has_uber: true,
-      has_lyft: true,
-      is_active: true,
-    }).onConflictDoNothing();
-
-    // Then create the city → market mapping with FK
-    await db.insert(market_cities).values({
-      market_slug: slug,
-      market_name: trimmedMarket,
-      city: cityName,
-      state: stateName,
-      state_abbr: stateAbbr,
-      country_code: 'US',
-      region_type: 'Core',
-      source_ref: 'user_signup'
-    });
-
-    res.json({
+    const { market_name, city, state, state_abbr } = req.body || {};
+    const result = await ensureMarket({ market_name, city, state, state_abbr, source_ref: 'user_settings' });
+    return res.json({
       success: true,
-      message: 'New market added',
-      market_name: trimmedMarket,
-      market_slug: slug,
-      already_existed: false
+      message: result.already_existed ? 'Market already exists' : 'New market added',
+      market_name: result.market_name,
+      market_slug: result.market_slug,
+      already_existed: result.already_existed,
     });
   } catch (error) {
+    if (error.code === 'MARKET_NAME_INVALID' || error.code === 'MARKET_STATE_REQUIRED') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'MARKET_TIMEZONE_UNRESOLVED') {
+      console.error('[INTEL] add-market:', error.message);
+      return res.status(502).json({ error: 'market_timezone_unresolved', message: error.message });
+    }
     console.error('Error adding new market:', error);
-    res.status(500).json({ error: 'Failed to add market' });
+    return res.status(500).json({ error: 'Failed to add market' });
   }
 });
 
@@ -353,7 +310,6 @@ router.post('/add-market', async (req, res) => {
  * Returns:
  *   - The resolved market for the city
  *   - Market intelligence items
- *   - Market-level intel from market_intel table
  *
  * Example: GET /api/intelligence/for-location?city=Frisco&state=TX
  *   → Returns Dallas market intel (Frisco is a satellite of Dallas)
@@ -451,17 +407,6 @@ router.get('/for-location', async (req, res) => {
       .orderBy(desc(market_intelligence.priority))
       .limit(Math.min(parseInt(limit) || 20, 50));
 
-    // Also fetch from market_intel (our new simplified intel table)
-    const marketInsights = await db
-      .select()
-      .from(market_intel)
-      .where(and(
-        eq(market_intel.is_active, true),
-        ilike(market_intel.market_name, market_name)
-      ))
-      .orderBy(asc(market_intel.priority))
-      .limit(Math.min(parseInt(limit) || 20, 50));
-
     // Get all cities in this market (for context)
     const marketCities = await db
       .select({
@@ -503,11 +448,8 @@ router.get('/for-location', async (req, res) => {
       },
       // Intelligence data
       intel_count: intelligence.length,
-      insights_count: marketInsights.length,
       by_type: byType,
       intelligence,
-      // Market-level insights from market_intel table
-      market_insights: marketInsights,
     });
   } catch (error) {
     console.error('Error fetching intelligence for location:', error);
@@ -651,35 +593,14 @@ router.get('/coach/:market', async (req, res) => {
 });
 
 /**
- * GET /api/intelligence/:id
- * Get a specific intelligence item by ID
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const [item] = await db
-      .select()
-      .from(market_intelligence)
-      .where(eq(market_intelligence.id, id));
-
-    if (!item) {
-      return res.status(404).json({ error: 'Intelligence item not found' });
-    }
-
-    res.json(item);
-  } catch (error) {
-    console.error('Error fetching intelligence item:', error);
-    res.status(500).json({ error: 'Failed to fetch intelligence item' });
-  }
-});
-
-/**
  * POST /api/intelligence
  * Create a new intelligence item
  * Used by AI Coach and admin to add new intelligence
  */
-router.post('/', async (req, res) => {
+// 2026-09-10 (security finding [5], verified): shared research intelligence (not per-user) —
+// any driver could overwrite entries, soft-delete them, or forge is_verified. Operators only;
+// drivers contribute through the Coach / feedback paths.
+router.post('/', requireOperator, async (req, res) => {
   try {
     const {
       market,
@@ -764,7 +685,7 @@ router.post('/', async (req, res) => {
  * PUT /api/intelligence/:id
  * Update an intelligence item
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireOperator, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -815,7 +736,7 @@ router.put('/:id', async (req, res) => {
  * DELETE /api/intelligence/:id
  * Soft delete an intelligence item (set is_active to false)
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireOperator, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1105,6 +1026,11 @@ router.get('/staging-areas', async (req, res) => {
     if (!snapshotId) {
       return res.status(400).json({ error: 'snapshotId is required' });
     }
+
+    // 2026-09-13: staging areas are per-snapshot driver data — reject an unowned
+    // snapshot (404, no enumeration) before reading ranking_candidates.
+    const owned = await verifySnapshotOwnership(snapshotId, req.auth.userId);
+    if (!owned.ok) return res.status(owned.status).json(owned.body);
 
     // Fetch staging areas from ranking_candidates that have staging coordinates
     const stagingAreas = await db
@@ -1471,6 +1397,34 @@ router.get('/demand-patterns', async (req, res) => {
   } catch (error) {
     console.error('Error fetching demand patterns:', error);
     res.status(500).json({ error: 'Failed to fetch demand patterns' });
+  }
+});
+
+/**
+ * GET /api/intelligence/:id
+ * Get a specific intelligence item by ID
+ *
+ * 2026-09-13: registered LAST. Declared earlier it shadowed every later fixed-path
+ * GET (/types, /lookup, /staging-areas, /demand-patterns) — Express matched ':id'
+ * first and returned 404 'Intelligence item not found'.
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [item] = await db
+      .select()
+      .from(market_intelligence)
+      .where(eq(market_intelligence.id, id));
+
+    if (!item) {
+      return res.status(404).json({ error: 'Intelligence item not found' });
+    }
+
+    res.json(item);
+  } catch (error) {
+    console.error('Error fetching intelligence item:', error);
+    res.status(500).json({ error: 'Failed to fetch intelligence item' });
   }
 });
 

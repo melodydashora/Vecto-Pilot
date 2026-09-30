@@ -9,15 +9,17 @@
  *   - server/lib/venue/venue-enrichment.js:433 getCoordsKey()
  *   - server/lib/venue/venue-utils.js:83 generateCoordKey()
  *
- * GPS PRECISION: 6 decimals = ~11cm accuracy
+ * COORDINATE RESOLUTION: 6 latitude decimals represent about 11cm.
  *   - 4 decimals = ~11m (too imprecise, causes cache collisions)
- *   - 6 decimals = ~11cm (exact, required for venue matching)
+ *   - 6 decimals retain the required resolution for venue matching.
  *   - 8 decimals = ~1.1mm (overkill, wastes storage)
  *
  * FORMAT: "lat_lng" (e.g., "33.081234_-96.812345")
  *   - Used as cache key in coords_cache, places_cache
  *   - Used for venue deduplication in venue_catalog.coord_key
  */
+
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 
 /**
  * Generate a coordinate key from lat/lng
@@ -32,11 +34,8 @@
  * coordsKey(null, null)              // null
  */
 export function coordsKey(lat, lng) {
-  // Preserve null-check behavior from venue-utils.js for backward compatibility
-  if (lat == null || lng == null || isNaN(Number(lat)) || isNaN(Number(lng))) {
-    return null;
-  }
-  return `${Number(lat).toFixed(6)}_${Number(lng).toFixed(6)}`;
+  const coords = normalizeCoordinates(lat, lng);
+  return coords ? `${coords.lat.toFixed(6)}_${coords.lng.toFixed(6)}` : null;
 }
 
 /**
@@ -49,8 +48,8 @@ export function coordsKey(lat, lng) {
  * parseCoordKey("33.081235_-96.812346") // { lat: 33.081235, lng: -96.812346 }
  */
 export function parseCoordKey(key) {
-  const [lat, lng] = key.split('_').map(Number);
-  return { lat, lng };
+  if (!isValidCoordKey(key)) return null;
+  return normalizeCoordinates(...key.split('_'));
 }
 
 /**
@@ -63,10 +62,7 @@ export function isValidCoordKey(key) {
   if (typeof key !== 'string') return false;
   const parts = key.split('_');
   if (parts.length !== 2) return false;
-  const [lat, lng] = parts.map(Number);
-  return !isNaN(lat) && !isNaN(lng) &&
-         lat >= -90 && lat <= 90 &&
-         lng >= -180 && lng <= 180;
+  return normalizeCoordinates(...parts) !== null;
 }
 
 // Legacy aliases for backward compatibility

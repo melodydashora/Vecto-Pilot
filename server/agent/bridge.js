@@ -1,3 +1,5 @@
+import { isOperator } from '../middleware/require-operator.js';
+import { hasDotSegments } from './path-guard.js';
 // 2026-05-08: Bridge — proxy unhandled /agent/* paths from gateway to standalone agent-server.js
 // Reason: gateway-embedded agent (server/agent/routes.js) lacks fs/shell/sql/search-internet endpoints
 // that exist on the standalone server (agent-server.js, port 43717, loopback-only).
@@ -29,6 +31,16 @@ export async function proxyToStandaloneAgent(req, res) {
     });
   }
 
+  // 2026-09-10 (security finding [7]): the bridge fronts fs/shell/sql on the standalone
+  // agent server with an injected AGENT_TOKEN. Only service accounts (bridge / agent secret)
+  // and operators may cross it — a driver JWT that passed requireAuth must not. Dot segments
+  // are rejected before anything is forwarded (fetch() would normalize `/memory/../shell`).
+  if (!(req.auth?.isAgent === true || isOperator(req.auth))) {
+    return res.status(403).json({ error: 'AGENT_BRIDGE_FORBIDDEN', message: 'The agent bridge is restricted to service accounts and operators' });
+  }
+  if (hasDotSegments(req.url)) {
+    return res.status(400).json({ error: 'AGENT_BAD_PATH', message: 'Dot segments are not allowed in agent paths' });
+  }
   // req.url is path AFTER the /agent mount prefix (e.g. /shell, /fs/read).
   // We need to forward to /agent/<path> on the standalone server.
   const upstreamUrl = `${STANDALONE_BASE}/agent${req.url}`;

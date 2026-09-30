@@ -15,9 +15,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, ArrowLeft } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
 
-const resetPasswordSchema = z.object({
-  code: z.string().optional(),
-  email: z.string().email('Please enter a valid email').optional(),
+// September 13, 2026: token links omit SMS identity fields; validate only the active flow.
+const resetPasswordSchema = (isTokenReset: boolean) => z.object({
+  code: isTokenReset ? z.string().optional() : z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+  email: isTokenReset ? z.string().optional() : z.string().email('Please enter a valid email'),
   newPassword: z.string()
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -29,7 +30,7 @@ const resetPasswordSchema = z.object({
   path: ['confirmPassword'],
 });
 
-type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
+type ResetPasswordFormData = z.infer<ReturnType<typeof resetPasswordSchema>>;
 
 export default function ResetPasswordPage() {
   const _navigate = useNavigate();
@@ -44,7 +45,7 @@ export default function ResetPasswordPage() {
   const isTokenReset = !!token;
 
   const form = useForm<ResetPasswordFormData>({
-    resolver: zodResolver(resetPasswordSchema),
+    resolver: zodResolver(resetPasswordSchema(isTokenReset)),
     defaultValues: {
       code: '',
       email: '',

@@ -5,7 +5,7 @@ AGENT DIRECTIVE: This is a read-only map of the system. Do not modify this file 
 
 **Vecto Pilot Terminology & Codebase Reference**
 
-> **Scope:** This file is a TERMINOLOGY GLOSSARY. For endpoint inventories see [API_REFERENCE.md](docs/architecture/API_REFERENCE.md). For architecture see [docs/architecture/README.md](docs/architecture/README.md). For AI roles see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md).
+> **Scope:** This file is a TERMINOLOGY GLOSSARY. For endpoint inventories see [API routes registry](docs/api-routes-registry.md). For architecture see [docs/architecture/README.md](docs/architecture/README.md). For AI roles see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md).
 
 This document defines the core terminology used throughout Vecto Pilot and maps each concept to its implementation in the codebase.
 
@@ -152,14 +152,11 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 - `server/lib/ai/router/hedged-router.js` - HedgedRouter (hedging, circuit breaker; siblings concurrency-gate.js, error-classifier.js)
 - `server/lib/ai/model-registry.js` - FALLBACK_ENABLED_ROLES + getFallbackConfig()
 
-**Configuration:**
-- `PREFERRED_MODEL` - Primary model selection
-- `FALLBACK_MODELS` - Fallback model chain
-
-**Fallback Behavior:**
-- Primary is Google provider → fallback to OpenAI (cross-provider)
-- Primary is Anthropic/OpenAI → fallback to Google Flash model
-- Fallback is enabled ONLY for STRATEGY_TACTICAL, STRATEGY_CONTEXT, STRATEGY_CORE, VENUE_FILTER (`FALLBACK_ENABLED_ROLES`). All BRIEFING_* roles (cost: hedging doubled briefing spend) and OFFER_ANALYZER (vision can't hedge to a non-vision provider) have no fallback.
+**Configuration and fallback:** Current pinned role/model/fallback definitions are in
+`server/lib/ai/model-registry.js`; request/retry/cancellation behavior is in the router
+and adapters. Analyzer cross-provider fallback eligibility is distinct from the
+adapter's same-provider retry, which must not restart after cancellation. Old model
+selection environment variables are not the current registry contract.
 
 ---
 
@@ -270,41 +267,15 @@ The adapter layer detects provider from model ID prefix:
 - `UTIL_*` - Utility roles for validation/parsing (no direct DB write)
 - `DOCS_*` - Internal documentation generation
 
-**Complete Role Registry:**
+**Current role registry:** `server/lib/ai/model-registry.js` is authoritative for
+pinned models, settings and fallback eligibility; see
+[AI preflight](docs/preflight/ai-models.md). The retired environment-override table
+is recoverable at the September29 reconciliation base commit.
 
-| Role | Purpose | Override Env Var | Features |
-|------|---------|------------------|----------|
-| **BRIEFINGS TABLE** ||||
-| `BRIEFING_TRAFFIC` | Traffic conditions analysis | `BRIEFING_TRAFFIC_MODEL` | web search, extended thinking |
-| `BRIEFING_NEWS` | Local news research | `BRIEFING_NEWS_MODEL` | web search, extended thinking |
-| `BRIEFING_EVENTS_DISCOVERY` | Event discovery (parallel category search) | `BRIEFING_EVENTS_MODEL` | web search, extended thinking |
-| `BRIEFING_FALLBACK` | General fallback for failed briefing calls | `BRIEFING_FALLBACK_MODEL` | web search, extended thinking |
-| `BRIEFING_SCHOOLS` | School closure detection | `BRIEFING_SCHOOLS_MODEL` | web search, extended thinking |
-| `BRIEFING_AIRPORT` | Airport delay/disruption data | `BRIEFING_AIRPORT_MODEL` | web search |
-| `BRIEFING_HOLIDAY` | Holiday detection | `BRIEFING_HOLIDAY_MODEL` | web search, extended thinking |
-| **STRATEGIES TABLE** ||||
-| `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | |
-| `STRATEGY_CONTEXT` | Real-time context gathering | `STRATEGY_CONTEXT_MODEL` | extended thinking |
-| `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy | `STRATEGY_TACTICAL_MODEL` | fallback enabled |
-| **RANKING_CANDIDATES TABLE (SmartBlocks)** ||||
-| `VENUE_SCORER` | Tactical venue recommendations (4-6 venues with coords) | `VENUE_SCORER_MODEL` | reasoning |
-| `VENUE_FILTER` | Fast low-cost venue classification | `VENUE_FILTER_MODEL` | minimal tokens |
-| `VENUE_TRAFFIC` | Venue-specific traffic intelligence | `VENUE_TRAFFIC_MODEL` | web search |
-| `VENUE_EVENT_VERIFIER` | Verify events at specific venues | `VENUE_EVENT_VERIFIER_MODEL` | minimal tokens |
-| **COACH_CONVERSATIONS TABLE** ||||
-| `AI_COACH` | Rideshare Coach conversation (streaming) | `AI_COACH_MODEL` | web search, vision, OCR, **streaming required** |
-| **OFFER ANALYSIS** ||||
-| `OFFER_ANALYZER` | Phase 1: Quick offer screenshot analysis | `OFFER_ANALYZER_MODEL` | vision |
-| `OFFER_ANALYZER_DEEP` | Phase 2: Deep offer analysis | `OFFER_ANALYZER_DEEP_MODEL` | vision, thinking |
-| **CONCIERGE (Public)** ||||
-| `CONCIERGE_SEARCH` | Public event/venue search | `CONCIERGE_SEARCH_MODEL` | web search, thinking |
-| `CONCIERGE_CHAT` | Public conversational interface | `CONCIERGE_CHAT_MODEL` | web search, thinking |
-| **UTILITIES** ||||
-| `UTIL_RESEARCH` | General research queries | `UTIL_RESEARCH_MODEL` | web search |
-| `UTIL_MARKET_PARSER` | Parse unstructured market research | `UTIL_PARSER_MODEL` | reasoning |
-| `UTIL_TRANSLATION` | Text translation | `UTIL_TRANSLATION_MODEL` | minimal tokens |
-| **INTERNAL** ||||
-| `DOCS_GENERATOR` | Documentation generation | `DOCS_GENERATOR_MODEL` | extended thinking, skip JSON extraction |
+`OFFER_ANALYZER` handles immediate extraction/judgment; `OFFER_ANALYZER_DEEP`
+enriches eligible captures in process. The driver receives reconciled speech, while
+Coach reads stored evidence/current owner rules and does not issue live-offer verdicts.
+See [Analyzer boundaries](docs/architecture/OFFER_ANALYZER.md).
 
 **Usage Pattern:**
 ```javascript

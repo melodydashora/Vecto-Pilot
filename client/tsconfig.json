@@ -5,7 +5,7 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "types": ["vite/client"],
+    "types": ["vite/client", "google.maps"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": false,

@@ -3,7 +3,7 @@
  *
  * Canonical event hashing for deduplication.
  *
- * HASH CONTRACT (2026-06-11, v4 — matchup order-invariance):
+ * HASH CONTRACT (2026-09-13, v5 — Unicode-safe identity; existing ASCII keys unchanged):
  * ═══════════════════════════════════════════════════════════════════════════
  * Hash input = canonicalizeMatchup(normalize(title)) | normalize(venue_name) | extract_street(address) | normalize(city) | date
  * Hash algorithm = MD5 (32-char hex)
@@ -117,9 +117,10 @@ function extractStreetName(address) {
 function normalizeForHash(str) {
   if (!str || typeof str !== 'string') return '';
   return str
+    .normalize('NFC')
     .toLowerCase()
     .replace(/["'"]/g, '')           // Remove quotes
-    .replace(/[^a-z0-9\s]/g, '')     // Remove special chars
+    .replace(/[^\p{L}\p{N}\p{M}\s]/gu, '')     // Remove special chars
     .replace(/\s+/g, ' ')            // Collapse whitespace
     .trim();
 }

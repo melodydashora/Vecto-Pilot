@@ -52,24 +52,30 @@ export function normalizeDate(dateStr) {
 
   // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return trimmed;
+    if (trimmed.startsWith('0000-')) return null;
+    const parsed = new Date(`${trimmed}T00:00:00Z`);
+    return !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === trimmed ? trimmed : null;
   }
 
   // Try MM/DD/YYYY
   const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (slashMatch) {
     const [, month, day, year] = slashMatch;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    return normalizeDate(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
   }
 
-  // Try Month DD, YYYY or DD Month YYYY
-  try {
-    const parsed = new Date(trimmed);
-    if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().split('T')[0];
-    }
-  } catch {
-    // Parsing failed
+  // Parse named calendar dates explicitly so JavaScript cannot silently roll
+  // "February 30" into March. No locale/server-timezone round trip.
+  const monthFirst = trimmed.match(/^([A-Za-z]+) (\d{1,2}),? (\d{4})$/);
+  const dayFirst = trimmed.match(/^(\d{1,2}) ([A-Za-z]+) (\d{4})$/);
+  if (monthFirst || dayFirst) {
+    const monthName = (monthFirst ? monthFirst[1] : dayFirst[2]).toLowerCase();
+    const day = monthFirst ? monthFirst[2] : dayFirst[1];
+    const year = monthFirst ? monthFirst[3] : dayFirst[3];
+    const months = ['january', 'february', 'march', 'april', 'may', 'june',
+      'july', 'august', 'september', 'october', 'november', 'december'];
+    const month = months.findIndex(name => name === monthName || name.slice(0, 3) === monthName) + 1;
+    if (month) return normalizeDate(`${year}-${String(month).padStart(2, '0')}-${day.padStart(2, '0')}`);
   }
 
   return null;
@@ -86,18 +92,15 @@ export function normalizeTime(timeStr) {
 
   const trimmed = timeStr.trim().toUpperCase();
 
-  // Already HH:MM format
-  if (/^\d{2}:\d{2}$/.test(trimmed)) {
-    return trimmed;
-  }
-
   // Parse "7 PM", "7:30 PM", "19:00", etc.
-  const match = trimmed.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/i);
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
   if (!match) return null;
 
   let hour = parseInt(match[1], 10);
   const minute = match[2] || '00';
   const period = (match[3] || '').toUpperCase();
+
+  if (Number(minute) > 59 || (period && (hour < 1 || hour > 12))) return null;
 
   // Convert to 24-hour
   if (period === 'PM' && hour !== 12) hour += 12;
@@ -167,25 +170,10 @@ export function normalizeAttendance(attendance) {
 }
 
 /**
- * Add duration to a time string (HH:MM)
- * @param {string} startTime - Start time in HH:MM
- * @param {number} durationHours - Duration to add in hours
- * @returns {string} New time in HH:MM
- */
-function addDuration(startTime, durationHours) {
-  if (!startTime) return '';
-  const [h, m] = startTime.split(':').map(Number);
-  let newH = h + durationHours;
-  // Handle midnight rollover (simple wrap for 24h clock)
-  if (newH >= 24) newH -= 24;
-  return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-}
-
-/**
  * 2026-05-05: P0-2 fix per events_e2e_audit.md.
  * Decide event_end_date for a normalized event, accounting for overnight rollover.
  *
- * If the provider supplied an explicit event_end_date, trust it (caller knows best).
+ * An explicit event_end_date must normalize successfully; invalid input stays empty for validation.
  * Otherwise, if event_end_time is at or before event_start_time (e.g. nightlife
  * 20:00 → 02:00), the event crosses midnight; end_date = start_date + 1 day.
  * Else end_date = start_date (single-day event).
@@ -200,8 +188,7 @@ function addDuration(startTime, durationHours) {
  * @returns {string} YYYY-MM-DD
  */
 function inferEndDate(startDate, startTime, endTime, providerEndDate) {
-  const explicit = normalizeDate(providerEndDate);
-  if (explicit) return explicit;
+  if (providerEndDate) return normalizeDate(providerEndDate) || '';
   if (!startDate) return '';
   if (!startTime || !endTime) return startDate;
   // String comparison works because both are HH:MM 24-hour
@@ -232,50 +219,19 @@ export function normalizeEvent(rawEvent, context = {}) {
   // Date/Time Normalization
   const event_start_date = normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date);
 
-  // 2026-02-17: Detect "All Day" events BEFORE normalizeTime (which returns null for non-time strings)
-  const rawStartTime = rawEvent.event_time || rawEvent.event_start_time || rawEvent.time || '';
-  const rawEndTime = rawEvent.event_end_time || rawEvent.end_time || '';
-  const isAllDay = /all\s*day/i.test(rawStartTime) || /all\s*day/i.test(rawEndTime);
+  // 2026-09-13: Preserve unknown timing for the validation boundary. The prior
+  // category defaults and duration estimates turned TBD/All Day into invented
+  // pickup windows that were stored as verified schedule facts.
+  const event_start_time = normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time);
+  const event_end_time = normalizeTime(rawEvent.event_end_time || rawEvent.end_time);
 
-  let event_start_time = normalizeTime(rawStartTime);
-  let event_end_time = normalizeTime(rawEndTime);
-
-  // 2026-02-17: Handle "All Day" events — assign full-day window instead of rejecting
-  // Rideshare impact: All-day events (festivals, fairs, conventions) generate demand throughout the day
-  if (isAllDay && !event_start_time && !event_end_time) {
-    event_start_time = '08:00';
-    event_end_time = '22:00';
-  }
-
-  // 2026-02-17: Last resort — if BOTH times are still null, assign category-based defaults
-  // This prevents rejection of events where Gemini returned no time info at all
-  if (!event_start_time && !event_end_time && event_start_date) {
-    if (category === 'nightlife') {
-      event_start_time = '20:00';
-      event_end_time = '02:00';
-    } else if (category === 'festival' || category === 'convention' || category === 'community') {
-      event_start_time = '09:00';
-      event_end_time = '21:00';
-    } else {
-      event_start_time = '18:00'; // Default evening event
-      event_end_time = '22:00';
-    }
-  }
-
-  // 2026-02-05: Auto-estimate end time if missing (Requirement: End time MUST be resolved)
-  if (event_start_time && !event_end_time) {
-    let duration = 3; // Default 3 hours
-    if (category === 'festival' || category === 'convention') duration = 4;
-    else if (category === 'comedy' || category === 'theater') duration = 2;
-    else if (category === 'sports' || category === 'concert') duration = 3;
-
-    event_end_time = addDuration(event_start_time, duration);
-  }
-
-  // 2026-02-26: Pass through place_id from Gemini (Google Places ID for venue linking).
-  // "unknown" or empty means Gemini couldn't resolve it — geocoding will still work as fallback.
-  const rawPlaceId = (rawEvent.place_id || '').trim();
-  const place_id = rawPlaceId.startsWith('ChIJ') ? rawPlaceId : null;
+  // Preserve bounded opaque provider-ID hints without assuming a Google prefix.
+  // This is untrusted model input; MAIN/Concierge still resolve provider identity.
+  const rawPlaceId = typeof rawEvent.place_id === 'string' ? rawEvent.place_id.trim() : '';
+  const place_id = rawPlaceId && rawPlaceId.length <= 255 &&
+    !/^(unknown|n\/a|null|none)$/i.test(rawPlaceId) &&
+    !Array.from(rawPlaceId).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127)
+    ? rawPlaceId : null;
 
   return {
     // Title - prefer 'title', fallback to 'name'

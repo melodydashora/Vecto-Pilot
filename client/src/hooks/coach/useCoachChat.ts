@@ -11,7 +11,9 @@ import { useMemory } from '@/hooks/useMemory';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { applyDonePayload } from '@/utils/coach/actionsResult';
-import { stripActionTags } from '@/utils/coach/stripActionTags';
+import { readCoachEvents } from '@/utils/coach/readCoachEvents';
+import { confirmedCoachReply } from '@/utils/coach/confirmedReply';
+import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
 
 export interface CoachAttachment {
   name: string;
@@ -150,6 +152,24 @@ export function useCoachChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [compressingFiles, setCompressingFiles] = useState<Set<string>>(new Set());
 
+  // 2026-09-11 (desktop-coach-review.md item 3): stream identity fence. A stream
+  // that started under one (userId, snapshotId) must not touch messages state,
+  // localStorage (useChatPersistence keys by identity), or the delta/done/notes
+  // callbacks once this hook serves another identity or has unmounted. The
+  // cleanup runs on identity change AND on unmount: abort the in-flight request,
+  // bump the generation so late deltas / done payloads are dropped, and clear
+  // isStreaming here because the stale send()'s finally is fenced and must not
+  // clobber a newer stream's flag.
+  const generationRef = useRef(0);
+  useEffect(() => {
+    return () => {
+      generationRef.current += 1;
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      setIsStreaming(false);
+    };
+  }, [userId, snapshotId]);
+
   const { logConversation, summarizeConversation } = useMemory({
     userId,
     loadOnMount: false,
@@ -268,7 +288,9 @@ export function useCoachChat({
     const messageText = text;
     const filesToSend = attachmentsOverride ?? attachments;
     if (!messageText && filesToSend.length === 0) return;
-    if (isStreaming) return;
+    // React's busy state updates on the next render. The controller is the
+    // synchronous admission lock, including callbacks captured by an older render.
+    if (isStreaming || controllerRef.current) return;
 
     // Precheck: total attachment payload must fit under server's 10 MB limit
     // with headroom for message + thread history + snapshot + IDs.
@@ -282,12 +304,15 @@ export function useCoachChat({
       return;
     }
 
+    const controller = new AbortController();
+    controllerRef.current = controller;
     if (!attachmentsOverride) setAttachments([]);
     setMsgs((m) => [...m, { role: "user", content: messageText || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
     setIsStreaming(true);
 
-    controllerRef.current?.abort();
-    controllerRef.current = new AbortController();
+    // Identity fence (2026-09-11): everything after an await checks `stale()`.
+    const generation = ++generationRef.current;
+    const stale = () => generation !== generationRef.current;
 
     try {
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -321,8 +346,9 @@ export function useCoachChat({
           } : undefined,
           strategyReady
         }),
-        signal: controllerRef.current.signal,
+        signal: controller.signal,
       });
+      if (stale()) return;
 
       if (!res.ok && res.headers.get("content-type")?.includes("text/event-stream") === false) {
         // 2026-08-11: read the body ONCE. res.json() consumes the stream even
@@ -330,6 +356,10 @@ export function useCoachChat({
         // "body stream already read" whenever the error body wasn't JSON
         // (e.g., the platform proxy's HTML page during a server restart).
         const raw = await res.text();
+        // 2026-09-11: error bodies can arrive after an identity change just like
+        // SSE events. Do not write the new thread through the old storage setter
+        // or release a newer request's busy flag when that transport finishes.
+        if (stale()) return;
         let errData: { code?: string; message?: string; error?: string } = {};
         try { errData = JSON.parse(raw); } catch { /* non-JSON error body */ }
         if (errData.code === 'missing_timezone') {
@@ -352,20 +382,15 @@ export function useCoachChat({
         return;
       }
 
-      const reader = res.body!.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
       let fullResponse = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        acc += dec.decode(value, { stream: true });
-
-        for (const line of acc.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const msg = JSON.parse(line.slice(5).trim());
+      // 2026-09-11: the candidate's line-boundary-safe reader (readCoachEvents) replaces the
+      // hand-rolled loop; the sprint's identity fence (desktop-coach-review item 3) stays: a
+      // stale generation drops every late event. Returning out of the for-await runs the
+      // reader's finally (cancel + release), so no state, storage or callback writes happen.
+      let completion: DonePayloadMeta | undefined;
+      for await (const msg of readCoachEvents(res.body)) {
+            if (stale()) return;
+            if (msg.done) completion = msg;
             if (msg.delta) {
               fullResponse += msg.delta;
               setMsgs((m) => {
@@ -404,35 +429,32 @@ export function useCoachChat({
                 },
               });
             }
-          } catch (_err) {
-            // Ignore parse errors for partial SSE data
-          }
-        }
-        const lastNl = acc.lastIndexOf("\n");
-        if (lastNl >= 0) acc = acc.slice(lastNl + 1);
       }
 
-      if (fullResponse) {
-        // Deltas streamed raw tag JSON into the visible message — replace the
-        // displayed content with the tag-stripped text now the stream is done.
-        const displayText = stripActionTags(fullResponse);
-        if (displayText !== fullResponse) {
-          setMsgs((m) => {
-            const copy = [...m];
-            const last = copy[copy.length - 1];
-            if (last?.role === 'assistant') last.content = displayText;
-            return copy;
-          });
-        }
-        onStreamComplete?.(displayText, { userMessage: messageText });
-      }
+      if (stale()) return;
+      // 2026-09-11: displayed/spoken text comes from the server's durable receipts and
+      // action errors (confirmedCoachReply), never from the model's own "saved" prose.
+      const displayText = confirmedCoachReply(fullResponse, completion);
+      setMsgs(m => {
+        const copy = [...m];
+        const last = copy[copy.length - 1];
+        if (last?.role === 'assistant') copy[copy.length - 1] = { ...last, content: displayText };
+        return copy;
+      });
+      onStreamComplete?.(displayText, { userMessage: messageText });
     } catch (err: unknown) {
+      if (stale()) return;
       const error = err as Error;
       if (error.name !== 'AbortError') {
         setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Connection error: ${error.message}` }]);
       }
     } finally {
-      setIsStreaming(false);
+      // Fenced: a stale stream's teardown must not reset a newer stream's flag;
+      // the identity-change cleanup already cleared it for the stale one.
+      if (!stale()) {
+        if (controllerRef.current === controller) controllerRef.current = null;
+        setIsStreaming(false);
+      }
     }
   }, [
     attachments,

@@ -8,133 +8,51 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 
 ---
 
-## 📲 EXTERNAL INPUT SOURCES (Level 4 Architecture)
+## 📲 Offer Analyzer inputs and downstream data
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      HEADLESS CLIENT INTEGRATION                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ⚠️  DUAL AUTH MODEL:                                                    │
-│  • App users: JWT sign-up/sign-in (email + password)                    │
-│  • Headless clients (phone shortcuts): per-user shortcut token         │
-│    (X-Shortcut-Token; no JWT). device_id = telemetry, not a credential   │
-│  • user_id in offer tables has NO FK constraint (nullable)              │
-│  • user linking = the shortcut token minted on the Offer Analyzer page │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  iOS Siri Shortcut — THREE INPUT MODES                           │  │
-│  │                                                                    │  │
-│  │  Flow A: "Vecto Analyze" (Text/OCR Mode)                         │  │
-│  │  • User shares screenshot → iOS OCR extracts text                 │  │
-│  │  • POST { text, device_id, latitude, longitude }                  │  │
-│  │  • Server: regex pre-parser (<1ms) → AI decision                  │  │
-│  │                                                                    │  │
-│  │  Flow B: "Vecto Vision" (Base64 Image Mode)                      │  │
-│  │  • User shares screenshot → JPEG compress → base64 encode         │  │
-│  │  • POST { image, image_type, device_id, latitude, longitude }     │  │
-│  │  • Server: sends base64 to Gemini Flash vision API                │  │
-│  │                                                                    │  │
-│  │  Flow C: "Vecto Vision" (Multipart Upload — Fastest)              │  │
-│  │  • User shares screenshot → JPEG compress → multipart form-data   │  │
-│  │  • Server: Multer captures bytes → base64 internally (<1ms)       │  │
-│  │  • Eliminates ~200ms base64 encoding on iOS client                │  │
-│  │                                                                    │  │
-│  │  All modes → POST /api/hooks/analyze-offer                        │  │
-│  │  NO JWT token — device_id plus optional x-shortcut-token header  │  │
-│  │  (maps to user_id + per-driver ruleset; absent → DEFAULT_RULESET,│  │
-│  │  null user_id)                                                   │  │
-│  │  TODO: User onboarding for Shortcut setup (needs more testing)    │  │
-│  └────────────────────┬─────────────────────────────────────────────┘  │
-│                       ↓                                                  │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  POST /api/hooks/analyze-offer (server/api/hooks/analyze-offer.js)│  │
-│  │  • Auth: BYPASSES requireAuth (headless endpoint)                 │  │
-│  │  • Accepts: text, base64 image, or multipart image upload         │  │
-│  │  • Pre-parser: regex extraction                                  │  │
-│  │    (server/lib/offers/parse-offer-text.js)                       │  │
-│  │  • Vision/text: role OFFER_ANALYZER (pinned gemini-3.5-flash)     │  │
-│  │  • AI Decision: ACCEPT/REJECT with reasoning + confidence score   │  │
-│  │  • Stores to: offer_intelligence table (30+ ML-ready columns)     │  │
-│  │  • NOTE: user_id has NO FK — allows headless inserts              │  │
-│  └────────────────────┬─────────────────────────────────────────────┘  │
-│                       ↓                                                  │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  offer_intelligence table (migrated from intercepted_signals)     │  │
-│  │  • Structured numeric columns (NOT JSONB blobs)                   │  │
-│  │  • Offer metrics: price, per_mile, per_minute, hourly_rate, surge │  │
-│  │  • Geography: pickup/dropoff addresses + lat/lng, H3 index        │  │
-│  │  • Temporal: local_date, local_hour, day_part, is_weekend         │  │
-│  │  • ML training: decision + user_override = labeled training data  │  │
-│  │  • Sequence: offer_session_id, sequence_num (pattern analysis)    │  │
-│  │  • Quality: parse_confidence, input_mode (text vs vision)         │  │
-│  │  • 13 indexes for daypart/geographic/platform analytics          │  │
-│  └────────────────────┬─────────────────────────────────────────────┘  │
-│                       ↓                                                  │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  OfferAnalyzerPage.tsx (/co-pilot/offer-analyzer)                │  │
-│  │  • Per-driver rules editor (offer_rulesets) + Siri Shortcut token│  │
-│  │  • Offer history + outcome recording (offer_outcomes)            │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  Additional Headless Endpoints (shortcut-token REQUIRED, user-scoped):  │
-│  • GET  /api/hooks/offer-history?limit=20  (X-Shortcut-Token header)    │
-│  • POST /api/hooks/offer-override (driver disagrees with AI)            │
-│  • POST /api/hooks/offer-cleanup (maintenance)                          │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+> Analyzer section reconciled against source on 2026-09-29. Other diagrams retain
+> historical system context; consult actual source before treating them as current.
+> [Canonical Analyzer reference](docs/architecture/OFFER_ANALYZER.md).
+
+```text
+Signed-in browser capture          Configured native phone automation
+current screenshot + precise GPS   OCR/image + shortcut token; GPS optional
+                 \                 /
+                  /api/hooks/analyze-offer
+                  owner rules + selected-service provenance
+                  parse/sanity -> numeric and model reconciliation
+                              |
+                  Phase 1 decision/voice + original timestamp
+                              |
+                  eligible in-process Phase 2 enrichment
+                  trusted address/timezone resolution -> storage
+                              |
+              offer_intelligence -> owner SSE/history -> Coach evidence
+                        |
+              separate driver override / revisioned offer_outcomes
 ```
 
-### Why No FK Constraint on user_id?
+The shortcut token maps to an owner; `device_id` is telemetry, not identity, and a
+headless request needs no browser login session. Anonymous defaults are marked
+personally unverified; supplied invalid tokens/rules do not silently use defaults.
+Current selected services are distinct from vehicle eligibility. Legacy-null selection
+is unverified; explicit selections gate disabled/unknown service classification.
 
-> **Shipped 2026-07-03:** the shortcut-token identity bridge replaced device_id as the identity for headless ingestion (docs/architecture/OFFER_ANALYZER.md §7). The no-FK rationale below still holds.
+The quick browser page and downloaded Android launcher require screenshot selection;
+they are not unattended cross-app capture. Both text and vision inputs enter Phase 1.
+The original decision survives later deep-model dissent. A spoken result does not
+prove a row was stored; Phase 2 has no durable queue and unresolved trusted timezone
+prevents storage.
 
-| Constraint Type | Problem with Headless Clients |
-|-----------------|-------------------------------|
-| `user_id UUID NOT NULL REFERENCES users(user_id)` | ❌ INSERT fails - Siri has no user session |
-| `user_id UUID REFERENCES users(user_id)` | ❌ INSERT fails if device_id not in users table |
-| `user_id UUID` (no FK, nullable) | ✅ INSERT succeeds - "fire and forget" pattern |
+The authenticated editor owns rules, tokens, visible history, reversible removal and
+explicit outcomes. Legacy hook history/override/cleanup require the owner token;
+cleanup remains hard deletion. Coach reads owner rules, full recent offer records and
+patterns; retired model-emitted offer mutations cannot overwrite capture evidence.
 
-The `device_id` is the PRIMARY identifier for headless clients. The `user_id` can be linked later when the driver opens the app and logs in from that device.
-
-### Offer Interceptor Data Flow (Vision + Text)
-
-```
-iOS Device                      Vecto Server                    Database
-    │                               │                              │
-    │  1. Screenshot shared         │                              │
-    │  ──────────────────────►      │                              │
-    │  (Siri Shortcut triggers)     │                              │
-    │                               │                              │
-    │  2a. OCR text (Flow A)        │                              │
-    │  ──── OR ────                 │                              │
-    │  2b. JPEG image (Flow B/C)    │                              │
-    │  ──────────────────────►      │                              │
-    │  POST /api/hooks/analyze-offer│                              │
-    │  { text|image, source }       │  ← token optional            │
-    │  + X-Shortcut-Token header    │    (no token = default rules)│
-    │                               │  3a. regex pre-parse + rules │
-    │                               │      → fast REJECT (no model)│
-    │                               │  3b. else OFFER_ANALYZER     │
-    │                               │      (text and/or vision)    │
-    │  4. Immediate response        │                              │
-    │  ◄──────────────────────      │                              │
-    │  { voice, notification,       │                              │
-    │    decision, reason, notices }│                              │
-    │                               │  Phase 2 (async, after resp):│
-    │                               │  OFFER_ANALYZER_DEEP →       │
-    │                               │  INSERT offer_intelligence   │
-    │                               │  → pg_notify → SSE (per user)│
-    │                               │                              │
-    │  5. Siri speaks decision      │                              │
-    │  ◄── (TTS in Shortcut)        │                              │
-    │                               │                              │
-    │                               │  6. SSE push to app          │
-    │                               │  ─────────────────────────►  │
-    │                               │  OfferAnalyzerPage offer list│
-    │                               │  updates                     │
-    │                               │                              │
-```
+MAIN is a separate Continue → location/snapshot → briefing → Strategist → VenuePlanner
+→ enrichment/output sequence. Admission pins settings for freshness checks. Current
+MAIN prompt projection supplies profile/vehicle only; Analyzer integration is held for
+later review. It does not consume offer history through that receipt.
 
 ---
 
@@ -358,31 +276,27 @@ iOS Device                      Vecto Server                    Database
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Anthropic Claude Sonnet 4.5 (Strategic Overview)               │   │
+│  │ Anthropic adapter (registry-selected roles)               │   │
 │  │ • File: server/lib/ai/adapters/anthropic-adapter.js             │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ OpenAI GPT-5.2 (Consolidation, Venues, TTS, Voice)            │   │
+│  │ OpenAI adapter (registry-selected roles and voice)            │   │
 │  │ • File: server/lib/ai/adapters/openai-adapter.js                │   │
-│  │ • Voice: Realtime API for AICoach (integrated, currently off)   │   │
+│  │ • Coach: active GPT live voice delegates to registry brain   │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini 3.0 Pro + Search (Events, Traffic, News, Coach)  │   │
+│  │ Google adapters (registry-selected extraction/briefing roles)  │   │
 │  │ • File: server/lib/ai/adapters/gemini-adapter.js                │   │
-│  │ • Rideshare Coach: gemini-pro-latest (streaming, vision, search)  │   │
+│  │ • Coach has separate Responses/live paths; see chat README  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini 3.5 Flash (Offer Analysis — Vision)              │   │
-│  │ • Role: OFFER_ANALYZER (gemini-3.5-flash, MINIMAL thinking)      │   │
+│  │ Offer Analysis (registry-selected role)              │   │
+│  │ • Roles: OFFER_ANALYZER / OFFER_ANALYZER_DEEP      │   │
 │  │ • SDK: @google/genai (API key auth, NOT Vertex AI)              │   │
-│  │ • Verdict from screenshot/text (<3s target; rules fast lane ms) │   │
-│  │ • Fallback: deterministic rules engine (no cross-provider hedge)│   │
+│  │ • Screenshot/text + deterministic reconciliation; <3s goal │   │
+│  │ • Model failure is not proof that judgment checks passed│   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini (Event Verification — VENUE_EVENT_VERIFIER role)  │   │
-│  │ • File: server/lib/venue/venue-event-verifier.js                │   │
-│  │   via server/lib/ai/adapters/gemini-adapter.js                  │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google APIs (Maps Platform)                                    │   │
 │  │ • Places API, Routes API, Geocoding, Weather, AQ, Timezone     │   │
@@ -392,42 +306,19 @@ iOS Device                      Vecto Server                    Database
 
 ---
 
-## 🔄 WATERFALL PIPELINE (POST /api/blocks-fast)
+## 🔄 MAIN waterfall
 
-**Synchronous execution flow:**
+The [source-linked pipeline trace](docs/architecture/ai-pipeline.md) is canonical:
+explicit Continue → admitted configuration → fresh saved GPS snapshot → seven
+parallel Briefing sections → complete saved Briefing → Strategist → venue planner
+→ verified Places/Routes → atomic ranking publication → saved display.
 
-```
-1. POST /api/blocks-fast { snapshotId }
-   ↓
-2. Parallel Providers (Promise.allSettled):
-   ├─ Strategist (Claude Sonnet 4.5)
-   │  └─ strategies.minstrategy ✓
-   ├─ Briefing (Gemini 3.0 Pro + Google Search)
-   │  └─ briefings.{news, events, traffic, closures, airport} ✓
-   └─ Holiday Detection (briefing pipeline — server/lib/briefing/pipelines/holiday.js)
-      └─ briefings.holiday ✓
-   ↓
-3. Consolidator — STRATEGY_TACTICAL role (model: see registry)
-   └─ strategies.strategy_for_now ✓ (NOW strategy — sole live strategy output)
-   ↓
-4. Enhanced Smart Blocks:
-   ├─ GPT-5.2 Tactical Planner
-   │  └─ venue coords + staging coords
-   ├─ Google Places API
-   │  └─ business hours, place_id
-   ├─ Google Routes API
-   │  └─ distance, drive time
-   ├─ Gemini 2.5 Pro
-   │  └─ event verification
-   └─ Google Geocoding
-      └─ venue addresses
-   ↓
-5. rankings + ranking_candidates tables populated ✓
-   ↓
-6. Return { ok: true }
-```
-
-**Total time:** 35-50 seconds (full waterfall, synchronous)
+The Strategist waits for Briefing; `minstrategy`, a separate active CORE stage and
+an event-verifier model pass are not current stages. SSE signals readers to refetch
+saved state. There is no fixed measured duration promised by this source map.
+The [independent pipeline guide](docs/architecture/INDEPENDENT_PIPELINES.md) covers
+horizontal lifecycles and the [Google API inventory](docs/architecture/google-cloud-apis.md)
+distinguishes actual use from enabled console services.
 
 ---
 
@@ -448,7 +339,7 @@ The UI uses **React Router** with:
 |-------|-----------|---------------------|
 | `/co-pilot/strategy` | StrategyPage.tsx | CoPilotContext (strategy, blocks) |
 | `/co-pilot/bars` | VenueManagerPage.tsx | `/api/venues/nearby`, BarsDataGrid |
-| `/co-pilot/briefing` | BriefingPage.tsx | useBriefingQueries (6 endpoints) |
+| `/co-pilot/briefing` | BriefingPage.tsx | useBriefingQueries (one aggregate, seven required sections) |
 | `/co-pilot/intel` | IntelPage.tsx | RideshareIntelTab (static intelligence) |
 | `/co-pilot/about` | AboutPage.tsx | Static (no API) |
 | `/co-pilot/policy` | PolicyPage.tsx | Static (no API) |
@@ -529,12 +420,12 @@ countries (ISO 3166-1 reference)
 
 1. **Single Source of Truth:** PostgreSQL database is authoritative for all data
 2. **Route-Based UI:** React Router with 14 co-pilot routes + auth + public pages, shared CoPilotContext
-3. **Dual Auth Model:** JWT for app users, device_id for headless Siri clients
+3. **Dual Auth Model:** JWT for app users, owner shortcut token for headless capture; device_id is telemetry
 4. **Domain-Organized APIs:** server/api/* folders by domain (auth, briefing, chat, etc.)
 5. **Model-Agnostic Providers:** Each AI role is pluggable via adapters (model-registry.js)
 6. **Enrichment Pipeline:** Google APIs provide verified data + place_id stored
 7. **Venue Persistence:** venue_catalog with cache-first pattern reduces API costs
-8. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
+8. **Snapshot-Centric MAIN:** Snapshot-scoped strategy data; offers also have independent owner/capture-session scope
 9. **Real-Time Updates:** SSE for briefing_ready, strategy_ready, blocks_ready
 10. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
 11. **Global Markets:** 338 pre-stored markets (267 US + 71 international) skip Google Timezone API
@@ -548,12 +439,12 @@ countries (ISO 3166-1 reference)
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 1 | Shortcut user onboarding flow | Built (OfferAnalyzerPage SetupCard + token; end-user guides SIRI_/ANDROID_SHORTCUT_ANALYZE.md); SetupCard content refresh pending (roadmap L3) | Melody device-testing the 2026-08-14 build |
+| 1 | Offer capture setup | Browser capture/token-free launcher and legacy native setup are distinct | Current physical-phone verification remains a gate; see Analyzer roadmap. |
 | 2 | GreetingBanner: show holiday + greeting together | UI fix needed | Currently shows one OR the other |
 | 3 | Daypart mismatch: getGreeting() (3 periods) vs classifyDayPart() (7) | Review needed | GreetingBanner vs GlobalHeader inconsistency |
-| 4 | OpenAI Realtime voice for AICoach | Integrated, disabled | Functions prefixed with `_`, needs activation |
+| 4 | Coach voice | Active GPT live voice delegates to the brain | Legacy routes remain separate; see `server/api/chat/README.md`. |
 | 5 | Capture AICoach uploaded images for ML training | Feature idea | Heatmaps/surge maps could train models |
-| 6 | Consider email-based auth for headless clients | Future | Would replace device_id once onboarding is mature |
+| 6 | Headless owner identity | Shortcut token is implemented | device_id is not an authentication mechanism. |
 
 ---
 

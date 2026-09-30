@@ -52,41 +52,23 @@ Output format:
  * @throws {Error} If JSON cannot be extracted
  */
 export function parseTranslationResponse(responseText) {
-  // 2026-04-09: Enhanced parser with 3-attempt fallback chain.
-  // Gemini Flash sometimes returns markdown fences, prose preamble, or truncated JSON.
-
-  // Attempt 1: Direct parse after stripping markdown fences
-  try {
-    const cleaned = responseText
-      .replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch { /* fall through */ }
-
-  // Attempt 2: Extract first JSON object from prose
-  try {
-    const firstBrace = responseText.indexOf('{');
-    const lastBrace = responseText.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      return JSON.parse(responseText.slice(firstBrace, lastBrace + 1));
-    }
-  } catch { /* fall through */ }
-
-  // Attempt 3: Aggressive cleanup — strip markdown links, control chars, then retry
-  try {
-    let aggressive = responseText
-      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')  // [text](url) → text
-      .replace(/\([^)]*\.(com|org|net|io)[^)]*\)/g, '') // (domain.com) fragments
-      .replace(/```json/g, '').replace(/```/g, '')
-      .replace(/[\x00-\x1f]/g, ' ')  // control chars → space
-      .trim();
-    const firstBrace = aggressive.indexOf('{');
-    const lastBrace = aggressive.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      return JSON.parse(aggressive.slice(firstBrace, lastBrace + 1));
-    }
-  } catch { /* fall through */ }
-
-  // Log the raw response for debugging before throwing
-  console.error('[TRANSLATION] All parse attempts failed. Raw response (first 300 chars):', responseText.substring(0, 300));
+  if (typeof responseText !== 'string') throw new Error('Failed to parse translation response');
+  const cleaned = responseText.replace(/```(?:json)?/gi, '').trim();
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  const candidates = [cleaned];
+  if (firstBrace >= 0 && lastBrace > firstBrace) candidates.push(cleaned.slice(firstBrace, lastBrace + 1));
+  for (const candidate of candidates) {
+    try {
+      const result = JSON.parse(candidate);
+      const language = value => typeof value === 'string' && /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(value);
+      if (!result || Array.isArray(result) || typeof result.translatedText !== 'string' || !result.translatedText.trim()
+        || !language(result.detectedLang) || !language(result.targetLang)
+        || !Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 100) continue;
+      return { translatedText: result.translatedText.trim(), detectedLang: result.detectedLang,
+        targetLang: result.targetLang, confidence: result.confidence };
+    } catch { /* Try structural JSON extraction without rewriting translated meaning. */ }
+  }
+  // Never log rider speech or model translations on a parse failure.
   throw new Error('Failed to parse translation response');
 }

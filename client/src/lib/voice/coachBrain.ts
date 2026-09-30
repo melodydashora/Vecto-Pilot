@@ -1,26 +1,20 @@
 // client/src/lib/voice/coachBrain.ts
-// 2026-08-11 (todo #33): the BRAIN call — ask_coach_backend's executor.
-//
-// Routes a live-voice question through the existing /api/chat pipeline
-// (AI_COACH role: gemini text brain, HIGH thinking, google_search grounding,
-// and the full server-side action-tag surface — SAVE_NOTE, event CRUD,
-// COACH_MEMO, zone/market intel, offer decisions). The mouth model receives
-// the accumulated answer as a function response and speaks its own rendition,
-// so the entire Coach tool surface transfers to voice with zero new tools.
-//
-// The SSE consumption mirrors useCoachChat's parser (data: {delta} lines,
-// done on stream close); action tags are stripped from the returned text so
-// the mouth never reads tag JSON aloud (the server already EXECUTED them).
+// Typed and spoken requests share /api/chat, full current source context,
+// GPT Responses search and confirmed action receipts. The voice receives
+// only completed answers, never action tags or unconfirmed success claims.
 
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { cleanTextForTTS } from '@/utils/coach/cleanTextForTTS';
-import { stripActionTags } from '@/utils/coach/stripActionTags';
+import { confirmedCoachReply } from '@/utils/coach/confirmedReply';
+import { readCoachEvents } from '@/utils/coach/readCoachEvents';
 import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
 import type { ThreadTurn } from './types';
 
 export interface CoachBrainParams {
   userId: string;
+  /** Live sessions retain the credential that owns their transcript and actions. */
+  authToken?: string | null;
   snapshotId?: string;
   /** Minimal snapshot fields the chat endpoint's timezone gate expects. */
   snapshot?: {
@@ -43,8 +37,10 @@ export interface CoachBrainParams {
    * what "it" is. Capped to the last 20 turns at send time.
    */
   threadHistory?: ThreadTurn[];
-  /** External abort (session teardown) — combined with the 60s timeout. */
+  /** External abort (session teardown) — combined with the 180s timeout. */
   signal?: AbortSignal;
+  /** Reconcile continued speech without repeating actions or automatic learning. */
+  answerOnly?: boolean;
   /** Done-payload metadata (actions_result / persistence_error) consumer. */
   onActionsResult?: (payload: DonePayloadMeta) => void;
   /**
@@ -56,7 +52,7 @@ export interface CoachBrainParams {
   onBrainAnswer?: (displayText: string) => void;
 }
 
-const BRAIN_TIMEOUT_MS = 60_000;
+const BRAIN_TIMEOUT_MS = 180_000;
 
 /**
  * Ask the Coach backend one self-contained question; resolve to the final
@@ -65,18 +61,21 @@ const BRAIN_TIMEOUT_MS = 60_000;
  * session degrades loudly, never silently.
  */
 export async function askCoachBrain(
-  { userId, snapshotId, snapshot, conversationId, threadHistory, signal, onActionsResult, onBrainAnswer }: CoachBrainParams,
+  { userId, authToken, snapshotId, snapshot, conversationId, threadHistory, signal, answerOnly = false, onActionsResult, onBrainAnswer }: CoachBrainParams,
   question: string
 ): Promise<string> {
-  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  const token = authToken === undefined ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : authToken;
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), BRAIN_TIMEOUT_MS);
+  const timer = window.setTimeout(() => controller.abort(), answerOnly ? 30000 : BRAIN_TIMEOUT_MS);
   // External abort (session teardown) chains into the fetch controller.
   // Manual chaining instead of AbortSignal.any — wider browser support.
   if (signal?.aborted) controller.abort();
-  signal?.addEventListener('abort', () => controller.abort(), { once: true });
+  const onAbort = () => controller.abort();
+  signal?.addEventListener('abort', onAbort, { once: true });
+  const assertActive = () => { if (controller.signal.aborted) throw new DOMException('Coach request canceled', 'AbortError'); };
 
   try {
+    assertActive();
     const res = await fetch(API_ROUTES.CHAT.SEND, {
       method: 'POST',
       headers: {
@@ -97,10 +96,12 @@ export async function askCoachBrain(
         snapshot,
         conversationId,
         source: 'voice',
+        answerOnly,
       }),
       signal: controller.signal,
     });
 
+    assertActive();
     if (!res.ok) {
       const raw = await res.text();
       let msg = `coach backend HTTP ${res.status}`;
@@ -111,44 +112,25 @@ export async function askCoachBrain(
       throw new Error(msg);
     }
 
-    const reader = res.body!.getReader();
-    const dec = new TextDecoder();
-    let acc = '';
     let full = '';
-    let streamError: string | null = null;
-
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      acc += dec.decode(value, { stream: true });
-      for (const line of acc.split('\n')) {
-        if (!line.startsWith('data:')) continue;
-        try {
-          const msg = JSON.parse(line.slice(5).trim());
-          if (msg.delta) full += msg.delta;
-          if (typeof msg.error === 'string') streamError = msg.error;
-          // Done payload carries actions_result / persistence_error — surface
-          // through the same handler classic mode uses (notes refresh, errors).
-          if (msg.done && (msg.actions_result || msg.persistence_error)) {
-            onActionsResult?.(msg);
-          }
-        } catch { /* partial SSE line */ }
+    let completion: DonePayloadMeta | undefined;
+    for await (const msg of readCoachEvents(res.body)) {
+      assertActive();
+      if (msg.delta) full += msg.delta;
+      if (msg.done) {
+        completion = msg;
+        if (msg.actions_result || msg.persistence_error) onActionsResult?.(msg);
       }
-      const lastNl = acc.lastIndexOf('\n');
-      if (lastNl >= 0) acc = acc.slice(lastNl + 1);
     }
-
-    if (streamError && !full) throw new Error(streamError);
-
-    // Display text first (links/markdown intact) — the consumer surfaces
-    // rich content (links) into the chat thread.
-    const display = stripActionTags(full);
+    assertActive();
+    const display = confirmedCoachReply(full, completion);
     if (display) onBrainAnswer?.(display);
 
-    const cleaned = cleanTextForTTS(full).trim();
+    const cleaned = cleanTextForTTS(display).trim();
     if (!cleaned) throw new Error('coach backend returned an empty answer');
     return cleaned;
   } finally {
+    signal?.removeEventListener('abort', onAbort);
     window.clearTimeout(timer);
   }
 }

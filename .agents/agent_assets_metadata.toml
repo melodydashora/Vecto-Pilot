@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "hCA-arnq6IpKiXiIpqCih"
+uri = "file://screenshots/offer-analyzer-gates-mobile.png"
+type = "image"
+title = "Offer Analyzer — Gates (mobile)"
+description = "390px preview of the actual app UI with synthetic authentication, location, and rule responses; no real offers loaded."
+logical_id = "7ea1d586-ce9e-404f-a4fd-392eca42e0c1"
+content_hash = "sha256:38f3faeace1312829fb7add26c2c68f06e699284675dce232db79117a7b19538"
+size = 99080
+mtime_ms = 1790632137400
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:69f9de93-7dc3-48aa-9050-4c395406d344/7ea1d586-ce9e-404f-a4fd-392eca42e0c1/216369a7-9a57-47c4-8994-3203b0d184b4"
+storage_version_token = "1790632159944237"
+content_type = "image/png"
+
+[[outputs]]
+id = "YXLN_VuLKZ7aUgqkmMZ3G"
+uri = "file://screenshots/offer-analyzer-daily-mobile.png"
+type = "image"
+title = "Offer Analyzer — Daily Offers (mobile)"
+description = "390px preview of the daily review queue with an empty synthetic day; no real offers loaded."
+logical_id = "5341f176-aaec-49c2-aa75-4665963633f8"
+content_hash = "sha256:99fd08f3fd5e591ef61334d71c8cb9252bacb15d947524702a36b28635a9ddc5"
+size = 95519
+mtime_ms = 1790632138044
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:69f9de93-7dc3-48aa-9050-4c395406d344/5341f176-aaec-49c2-aa75-4665963633f8/d806d117-70cf-42cf-bb13-1fea9bf36808"
+storage_version_token = "1790632160797800"
+content_type = "image/png"

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { getRoleConfig } from "../lib/ai/model-registry.js";
 
 // UNIFIED CONFIGURATION - Claude Opus 4.7 (Agent/Assistant/Eidolon) — 2026-05-08
 const AGENT_OVERRIDE_ORDER = ["anthropic"]; // Single provider
@@ -6,7 +7,7 @@ const AGENT_OVERRIDE_ORDER = ["anthropic"]; // Single provider
 const CLAUDE_KEY = process.env.AGENT_OVERRIDE_API_KEY_C || process.env.ANTHROPIC_API_KEY;
 
 // Claude Opus 4.7 - unified across all AI systems (max — upgraded 2026-05-08)
-const CLAUDE_MODEL = process.env.AGENT_OVERRIDE_CLAUDE_MODEL || process.env.AGENT_MODEL || "claude-opus-4-8";
+const CLAUDE_MODEL = getRoleConfig('AGENT_TASK').model; // 2026-09-15: pinned in the registry, no env override
 
 // Match Eidolon's ULTRA-ENHANCED parameters
 const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS || process.env.AGENT_MAX_TOKENS || "200000", 10);

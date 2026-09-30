@@ -9,6 +9,10 @@
  */
 
 export const API_ROUTES = {
+  MAIN_RUNS: {
+    SETUP: '/api/main-runs/setup',
+    CONTINUE: '/api/main-runs/continue',
+  },
   // =========================================================================
   // Authentication
   // =========================================================================
@@ -37,6 +41,7 @@ export const API_ROUTES = {
     RESOLVE_WITH_PARAMS: (lat: number, lng: number, accuracy: number) =>
       `/api/location/resolve?lat=${lat}&lng=${lng}&accuracy=${accuracy}&coord_source=gps`,
     SNAPSHOT: '/api/location/snapshot',
+    NEWS_BRIEFING: '/api/location/news-briefing',
     SNAPSHOT_ENRICH: (snapshotId: string) => `/api/location/snapshot/${snapshotId}/enrich`,
     TIMEZONE_WITH_COORDS: (lat: number, lng: number) => `/api/location/timezone?lat=${lat}&lng=${lng}`,
     WEATHER: '/api/location/weather',
@@ -66,7 +71,6 @@ export const API_ROUTES = {
 
   STRATEGY: {
     TACTICAL_PLAN: '/api/strategy/tactical-plan',
-    RETRY: (snapshotId: string) => `/api/strategy/${snapshotId}/retry`,
     HISTORY: '/api/strategy/history',
     // Legacy — prefer BLOCKS.STRATEGY for polling, BRIEFING.* for section data
     LEGACY_GET: (snapshotId: string) => `/api/strategy/${snapshotId}`,
@@ -168,17 +172,11 @@ export const API_ROUTES = {
   TTS: '/api/tts',
 
   // =========================================================================
-  // Translation (real-time driver-rider communication)
-  // 2026-03-16: Added for FIFA World Cup rider translation feature
-  // =========================================================================
-  TRANSLATE: {
-    SEND: '/api/translate',
-    LANGUAGES: '/api/translate/languages',
-  },
-
-  // =========================================================================
   // Realtime voice (todo #33 switcher: OpenAI WebRTC arm + Gemini Live arm)
   // =========================================================================
+  COACH_LIVE: {
+    SESSION: '/api/coach-live/session',
+  },
   REALTIME: {
     TOKEN: '/api/realtime/token',
   },
@@ -206,6 +204,8 @@ export const API_ROUTES = {
   // Concierge (QR code sharing + public event discovery)
   // =========================================================================
   CONCIERGE: {
+    SESSION: '/api/concierge/session',
+    PUBLIC_CONTEXT: (token: string, lat: number, lng: number) => `/api/concierge/p/${encodeURIComponent(token)}/context?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`,
     TOKEN: '/api/concierge/token',
     PREVIEW: '/api/concierge/preview',
     PUBLIC_PROFILE: (token: string) => `/api/concierge/p/${token}`,
@@ -223,6 +223,7 @@ export const API_ROUTES = {
   // 2026-07-03 (todo #10): docs/architecture/OFFER_ANALYZER.md §12
   // =========================================================================
   OFFER_ANALYZER: {
+    ANALYZE: '/api/hooks/analyze-offer',
     RULES: '/api/offer-analyzer/rules',
     SHORTCUT_TOKEN: '/api/offer-analyzer/shortcut-token',
     SHORTCUT_TOKEN_REGENERATE: '/api/offer-analyzer/shortcut-token/regenerate',

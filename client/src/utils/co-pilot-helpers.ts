@@ -21,6 +21,7 @@ import { DEBUG_SSE_ENABLED, DEBUG_BLOCKS_ENABLED } from '@/constants/featureFlag
 
 interface SSESubscription {
   eventSource: EventSource;
+  token: string;
   subscribers: Set<(data: any) => void>;
   isConnected: boolean;
 }
@@ -43,8 +44,15 @@ function subscribeSSE(
   callback: (data: any) => void
 ): () => void {
   const key = `${endpoint}:${eventName}`;
-
+  const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
   let subscription = sseConnections.get(key);
+  if (subscription && subscription.token !== token) {
+    subscription.eventSource.close();
+    subscription.subscribers.clear();
+    sseConnections.delete(key);
+    subscription = undefined;
+  }
+  if (!token) return () => {};
 
   if (!subscription) {
     // Create new connection - first subscriber for this endpoint
@@ -56,15 +64,21 @@ function subscribeSSE(
     // requireAuthAllowQueryToken wrapper accepts ?token= when no Authorization
     // header is present. If no token is available the EventSource will receive
     // 401 from the server and the existing onerror handler below fires.
-    const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
-    const endpointWithToken = token
-      ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
-      : endpoint;
+    const endpointWithToken = `${endpoint}${endpoint.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
     const eventSource = new EventSource(endpointWithToken);
     subscription = {
       eventSource,
+      token,
       subscribers: new Set(),
       isConnected: false,
+    };
+    const current = subscription;
+    const broadcast = (data: any) => {
+      if (sseConnections.get(key) !== current || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== token) return;
+      for (const subscriber of current.subscribers) {
+        try { subscriber(data); }
+        catch (error) { console.warn('[SSE Manager] Subscriber failed:', error); }
+      }
     };
 
     eventSource.onopen = () => {
@@ -77,7 +91,7 @@ function subscribeSSE(
         const data = JSON.parse(event.data);
         if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 📢 Event received: ${eventName}`, data.snapshot_id?.slice(0, 8) || 'no-id');
         // Broadcast to all subscribers
-        subscription!.subscribers.forEach(sub => sub(data));
+        broadcast(data);
       } catch (e) {
         console.warn(`[SSE Manager] Failed to parse ${eventName} event:`, e);
       }
@@ -91,7 +105,7 @@ function subscribeSSE(
       try {
         const data = JSON.parse(event.data);
         if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 🤝 Initial-state handshake: ${endpoint}`, data.snapshot_id?.slice(0, 8) || 'no-id');
-        subscription!.subscribers.forEach(sub => sub(data));
+        broadcast(data);
       } catch (e) {
         console.warn(`[SSE Manager] Failed to parse state event:`, e);
       }
@@ -115,14 +129,16 @@ function subscribeSSE(
   }
 
   // Add this callback to subscribers
-  subscription.subscribers.add(callback);
+  // Each subscription owns its registration, even if two consumers reuse a callback.
+  const registeredCallback = (data: any) => callback(data);
+  subscription.subscribers.add(registeredCallback);
   if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 👥 Subscribers for ${key}: ${subscription.subscribers.size}`);
 
   // Return unsubscribe function
   return () => {
     const sub = sseConnections.get(key);
-    if (sub) {
-      sub.subscribers.delete(callback);
+    if (sub && sub === subscription) {
+      sub.subscribers.delete(registeredCallback);
       if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 👤 Unsubscribed from ${key}, ${sub.subscribers.size} remaining`);
 
       // Close connection when last subscriber leaves
@@ -202,8 +218,8 @@ export async function logAction(
         ranking_id: rankingId || null, // NO FALLBACKS - send null if missing
         action,
         block_id: blockId || null,
-        dwell_ms: dwellMs || null,
-        from_rank: fromRank || null,
+        dwell_ms: dwellMs ?? null,
+        from_rank: fromRank ?? null,
         // 2026-01-09: user_id removed - server derives from JWT for security
       }),
     });
@@ -308,14 +324,14 @@ export function subscribeOfferAnalyzed(
  *
  * Uses singleton connection manager - multiple components share one connection
  */
-export function subscribePhaseChange(callback: (data: {
+export function subscribePhaseChange(snapshotId: string | null | undefined, callback: (data: {
   snapshot_id: string;
   phase: string;
   phase_started_at: string;
   expected_duration_ms: number;
 }) => void): () => void {
   // Phase change uses 'message' event type (onmessage), not a named event
-  return subscribeSSE('/events/phase', 'message', (data) => {
+  return subscribeSSE(withSnapshotParam('/events/phase', snapshotId), 'message', (data) => {
     if (data.snapshot_id) {
       callback(data);
     }
@@ -430,6 +446,32 @@ export interface FilterableEvent {
   event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
   event_start_time?: string;
   event_end_time?: string;
+  start_time_iso?: string | null;
+  end_time_iso?: string | null;
+  timezone?: string | null;
+  event_end_conflict?: boolean;
+  event_variants?: FilterableEvent[];
+}
+
+/** Present verified absolute instants in the selected display timezone. */
+export function eventDisplayFields(event: FilterableEvent, timezone?: string): Partial<FilterableEvent> | null {
+  if (!Object.prototype.hasOwnProperty.call(event, 'start_time_iso')) {
+    return event.event_end_conflict ? { event_end_time: undefined } : {};
+  }
+  const instant = (value: unknown) => typeof value === 'string' && /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+    && Number.isFinite(Date.parse(value)) ? new Date(value) : null;
+  const start = instant(event.start_time_iso);
+  if (!start || !timezone) return null;
+  const end = instant(event.end_time_iso);
+  try {
+    const date = (value: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+    const time = (value: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(value);
+    return { event_start_date: date(start), event_start_time: time(start),
+      event_end_date: end ? date(end) : undefined,
+      // The calendar span still supports day classification. A representative
+      // end clock is not settled evidence when the original reports disagree.
+      event_end_time: end && !event.event_end_conflict ? time(end) : undefined };
+  } catch { return null; }
 }
 
 /**
@@ -463,6 +505,9 @@ function todayInTimezone(timezone?: string): string {
  * full day off near midnight for the local driver). Falls back to UTC when absent.
  */
 export function isEventToday(event: FilterableEvent, timezone?: string): boolean {
+  const display = eventDisplayFields(event, timezone);
+  if (display === null) return false;
+  event = { ...event, ...display };
   if (!event.event_start_date) return false;
 
   const today = todayInTimezone(timezone); // YYYY-MM-DD in the driver's timezone
@@ -501,7 +546,10 @@ export function hasValidEventTime(event: FilterableEvent): boolean {
 export function filterTodayEvents<T extends FilterableEvent>(events: T[], timezone?: string): T[] {
   if (!events || !Array.isArray(events)) return [];
   // 2026-06-11: thread timezone so map markers reflect the driver's "today", not UTC.
-  return events.filter(event => isEventToday(event, timezone) && hasValidEventTime(event));
+  return events.filter(event => {
+    const display = eventDisplayFields(event, timezone);
+    return display !== null && isEventToday(event, timezone) && hasValidEventTime({ ...event, ...display });
+  });
 }
 
 /**
@@ -534,9 +582,12 @@ export function filterValidEvents<T extends FilterableEvent>(
   const upcomingEvents: T[] = [];
   const invalidEvents: T[] = [];
 
-  for (const event of events) {
+  for (const source of events) {
+    const display = eventDisplayFields(source, timezone);
+    if (display === null) { invalidEvents.push(source); continue; }
+    const event = { ...source, ...display };
     if (!hasValidEventTime(event)) {
-      invalidEvents.push(event);
+      invalidEvents.push(source);
       // 2026-04-05: Removed per-event console.log — fired every render cycle (~500ms).
       // Caller-level summary log in EventsComponent is sufficient for debugging.
       continue;
@@ -551,16 +602,16 @@ export function filterValidEvents<T extends FilterableEvent>(
       : (event.event_start_date === today);
 
     if (isTodayEvent) {
-      todayEvents.push(event);
+      todayEvents.push(source);
     } else if (event.event_start_date && event.event_start_date > today) {
       // Event starts in the future
-      upcomingEvents.push(event);
+      upcomingEvents.push(source);
     } else if (effectiveEndDate && effectiveEndDate < today) {
       // Event has ended (past)
-      invalidEvents.push(event);
+      invalidEvents.push(source);
     } else {
       // Fallback - shouldn't happen but handle gracefully
-      invalidEvents.push(event);
+      invalidEvents.push(source);
     }
   }
 
@@ -863,4 +914,3 @@ export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
 
   return result;
 }
-

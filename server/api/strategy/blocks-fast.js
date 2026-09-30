@@ -17,7 +17,7 @@
 //   3. VENUE_SCORER role → venue recommendations (ranking_candidates table)
 //      Input: strategy + briefing + live discovered_events (NEAR/FAR bucketed)
 //   4. Google APIs → distances, business hours, enrichment
-//   5. VENUE_EVENT_VERIFIER role → event verification
+//   5. Saved validated events → identity and local-calendar badge matching
 //
 // RACE CONDITION PREVENTION:
 //   Uses PostgreSQL Advisory Locks to prevent duplicate AI calls when
@@ -32,9 +32,11 @@
 //
 // ============================================================================
 import { Router } from 'express';
+import { getSnapshotReadiness, assertSnapshotReady } from '../../lib/location/snapshot-readiness.js';
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings } from '../../../shared/schema.js';
+import { assertMainRunForSnapshot, withCurrentMainRun, MainRunAdmissionError } from '../../lib/main-run-admission.js';
+import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings, main_run_admissions } from '../../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { isStrategyReady, ensureStrategyRow, updatePhase } from '../../lib/strategy/strategy-utils.js';
 // 2026-01-10: S-004 FIX - Use canonical status constants instead of hardcoded strings
@@ -46,9 +48,11 @@ import {
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
+import { getBriefingReadiness, BriefingNotReadyError, assertBriefingReady, cachedBriefingRetryReason } from '../../lib/briefing/briefing-readiness.js';
 import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
+import { readStrategySource, assertCurrentStrategySource } from '../../lib/strategy/strategy-source-store.js';
+import { strategyMatchesBriefing, StrategySourceChangedError, STRATEGY_SOURCE_RETRY } from '../../lib/strategy/strategy-source.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
-import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
 import { isPlusCode } from '../utils/http-helpers.js';
 // 2026-01-09: Only import phaseEmitter (for phase progress updates)
 // strategyEmitter/blocksEmitter removed - DB NOTIFY is canonical for readiness events
@@ -58,6 +62,7 @@ import { phaseEmitter } from '../../events/phase-emitter.js';
 import { sseLog, venuesLog, dbLog, briefingLog, matrixLog } from '../../logger/workflow.js';
 // 2026-01-10: Import canonical transformer (single source of truth for block mapping)
 import { toApiBlock } from '../../validation/transformers.js';
+import { applyVenueFeedbackExclusions, readSavedVenueFeedback, VenueFeedbackError } from '../../lib/venue/venue-feedback.js';
 
 const router = Router();
 
@@ -80,47 +85,9 @@ const router = Router();
 //   - If phase 2 fails, status remains 'running' (can be retried/cleaned)
 //   - See: .serena/memories/strategy-pipeline-audit-2026-01-10.md
 
-/**
- * Try to acquire a transaction-scoped advisory lock for a snapshot.
- * Must be called inside a db.transaction() block.
- * Lock auto-releases when transaction commits or rollbacks.
- *
- * 2026-01-10: S-002 FIX - Changed from session-level to transaction-scoped
- *
- * @param {string} snapshotId - Snapshot UUID to lock
- * @returns {Promise<boolean>} true if lock acquired, false if already held
- */
-async function tryAcquireXactLock(snapshotId) {
-  const result = await db.execute(
-    sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) as acquired`
-  );
-  return result.rows[0]?.acquired === true;
-}
-
-/**
- * Check if a generation lock is currently held (for status checking only).
- * This is a non-blocking check that doesn't acquire the lock.
- *
- * @param {string} snapshotId - Snapshot UUID to check
- * @returns {Promise<boolean>} true if lock is NOT held (available), false if held
- */
-async function isLockAvailable(snapshotId) {
-  // pg_try_advisory_lock returns true if we got it - if so, release immediately
-  const result = await db.execute(
-    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
-  );
-  const acquired = result.rows[0]?.acquired === true;
-  if (acquired) {
-    // Release immediately - we just wanted to check
-    await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`);
-  }
-  return acquired; // If we got it (and released), it was available
-}
-
-// DEPRECATED: Session-level locks - kept for reference only
-// async function tryAcquireGenerationLock(snapshotId) { ... }
-// async function waitForGenerationLock(snapshotId) { ... }
-// async function releaseGenerationLock(snapshotId) { ... }
+// 2026-09-10: removed two unreferenced helpers (tryAcquireXactLock, isLockAvailable) and
+// the deprecated session-lock stubs — the ONLY lock pattern in this file is the
+// transaction-scoped pg_try_advisory_xact_lock inside ensureSmartBlocksExist.
 
 // ============================================================================
 // SHARED HELPERS - DRY principle: single source of truth for blocks logic
@@ -144,12 +111,14 @@ async function isLockAvailable(snapshotId) {
  * @param {string} options.userId - Authenticated user ID (required for ownership)
  * @returns {Promise<{ranking: Object|null, generated: boolean, error: string|null}>}
  */
-async function ensureSmartBlocksExist(snapshotId, options = {}) {
+export async function ensureSmartBlocksExist(snapshotId, options = {}) {
+  await assertMainRunForSnapshot(snapshotId);
   // Check if blocks already exist
   const [existingRanking] = await db.select().from(rankings)
     .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
   if (existingRanking) {
+    await assertCurrentStrategySource(snapshotId);
     return { ranking: existingRanking, generated: false, error: null };
   }
 
@@ -162,7 +131,8 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
 
   try {
     // Short transaction to atomically check and claim
-    await db.transaction(async (tx) => {
+    await withCurrentMainRun(snapshotId, async (tx, admission) => {
+      if (admission.status === 'complete') throw new MainRunAdmissionError(409, 'main_run_restart_required', 'Continue with saved preferences to start a fresh run.');
       // Try to acquire transaction-scoped advisory lock
       const lockResult = await tx.execute(
         sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) as acquired`
@@ -176,11 +146,11 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       }
 
       // Lock acquired - check if strategy is ready and not already being processed
-      if (!strategyRow) {
-        const [row] = await tx.select().from(strategies)
-          .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-        strategyRow = row;
-      }
+      // Supplied rows may predate another worker's claim. Always re-read under
+      // the owner lock before claiming this same admitted venue stage.
+      const [row] = await tx.select().from(strategies)
+        .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+      strategyRow = row;
 
       if (!strategyRow?.strategy_for_now) {
         venuesLog.warn(`[S-002] No strategy_for_now for ${snapshotId.slice(0, 8)}`);
@@ -218,6 +188,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       // Transaction commits here, advisory lock auto-releases
     });
   } catch (err) {
+    if (err instanceof MainRunAdmissionError) throw err;
     venuesLog.error(4, `[S-002] Lock transaction failed`, err);
     return { ranking: null, generated: false, error: `lock_failed: ${err.message}` };
   }
@@ -229,30 +200,31 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     // Poll with exponential backoff (max 30s)
     for (let i = 0; i < 10; i++) {
       await new Promise(r => setTimeout(r, Math.min(1000 * (i + 1), 5000)));
+      await assertMainRunForSnapshot(snapshotId);
       const [ranking] = await db.select().from(rankings)
         .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
+        await assertCurrentStrategySource(snapshotId);
         return { ranking, generated: false, error: null };
       }
     }
     return { ranking: null, generated: false, error: 'generation_timeout' };
   }
 
-  // Validate we have all required data
-  if (!strategyRow?.strategy_for_now) {
-    return { ranking: null, generated: false, error: 'missing_immediate_strategy' };
-  }
-  if (!briefingRow) {
-    return { ranking: null, generated: false, error: 'missing_briefing' };
-  }
-  if (!snapshot) {
-    return { ranking: null, generated: false, error: 'missing_snapshot' };
-  }
-
-  // Phase 2: Generate SmartBlocks (outside transaction - makes external API calls)
+  // Phase 2: Generate outside the transaction. Every failure after claiming
+  // goes through the terminal-admission path, including missing source data.
   venuesLog.info(`Generating venue cards for ${snapshotId.slice(0, 8)}`);
-
   try {
+    const [persistedSnapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    snapshot = assertSnapshotReady(persistedSnapshot, snapshotId);
+    // Re-read after claiming. A refresh may have replaced the supplied Briefing;
+    // the catch below releases our venue claim if this guard fails.
+    const [persistedBriefing] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    assertBriefingReady(persistedBriefing, snapshotId);
+    briefingRow = persistedBriefing;
+    await assertCurrentStrategySource(snapshotId);
     // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
     await generateEnhancedSmartBlocks({
       snapshotId,
@@ -268,20 +240,26 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
     if (newRanking) {
+      await assertCurrentStrategySource(snapshotId);
       venuesLog.done(4, `Venue cards generated for ${snapshotId.slice(0, 8)}`);
       await updatePhase(snapshotId, 'complete', { phaseEmitter: options.phaseEmitter });
       return { ranking: newRanking, generated: true, error: null };
     } else {
-      venuesLog.warn(4, `Venue cards generated but no ranking found`);
-      return { ranking: null, generated: true, error: 'ranking_not_created' };
+      throw new Error('Venue generation completed without a persisted ranking');
     }
   } catch (err) {
+    if (err instanceof MainRunAdmissionError) throw err;
     venuesLog.error(4, `SmartBlocks generation failed`, err);
-    // Reset status so retry is possible
-    await db.update(strategies).set({
-      status: STRATEGY_STATUS.OK,
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId)).catch(() => {});
+    // Retain the successfully saved Strategy, but require a new Continue after
+    // venue failure. A later GET must not retry providers on this same snapshot.
+    await withCurrentMainRun(snapshotId, async (tx, admission) => {
+      if (admission.status === 'complete') return;
+      await tx.update(strategies).set({ status: STRATEGY_STATUS.OK, updated_at: new Date() })
+        .where(eq(strategies.snapshot_id, snapshotId));
+      await tx.update(main_run_admissions).set({ status: 'failed', updated_at: new Date() })
+        .where(eq(main_run_admissions.run_id, admission.run_id));
+    });
+    if (err instanceof BriefingNotReadyError || err instanceof StrategySourceChangedError) throw err;
     return { ranking: null, generated: false, error: err.message };
   }
 }
@@ -305,56 +283,18 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
  * @param {boolean} options.logPlusCodes - Whether to log filtered Plus Codes
  * @returns {Promise<Array>} Formatted blocks ready for client
  */
-async function mapCandidatesToBlocks(candidates, options = {}) {
-  const { isHoliday = false, hasSpecialHours = false, logPlusCodes = false } = options;
-
-  // Step 1: Batch resolve venue addresses for all candidates in parallel
-  const venueKeys = candidates.map(c => ({ lat: c.lat, lng: c.lng, name: c.name }));
-  const addressMap = await resolveVenueAddressesBatch(venueKeys);
-
-  // Step 2-4: Map each candidate using canonical transformer
-  // toApiBlock imported at top of file from '../../validation/transformers.js'
-  return candidates.map(c => {
-    const coordKey = `${c.lat},${c.lng}`;
-
-    // Step 2: Extract and filter address
-    const venueData = addressMap[coordKey];
-    let resolvedAddress = venueData?.formatted_address || venueData?.address || null;
-
-    // Filter Plus Codes
-    if (resolvedAddress && isPlusCode(resolvedAddress)) {
-      if (logPlusCodes) {
-        console.log(`[VENUE] Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
-      }
-      resolvedAddress = null;
-    }
-
-    // Fallback to candidate address if not a Plus Code
-    if (!resolvedAddress && c.address && !isPlusCode(c.address)) {
-      resolvedAddress = c.address;
-    }
-
-    // Final Plus Code check
-    if (resolvedAddress && isPlusCode(resolvedAddress)) {
-      if (logPlusCodes) {
-        console.log(`[VENUE] Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
-      }
-      resolvedAddress = null;
-    }
-
-    // Step 3: Prepare input for transformer with resolved address
-    // If holiday/special hours, suppress businessHours by setting to null
-    const inputForTransformer = {
-      ...c,
-      address: resolvedAddress || c.address,
-      // Suppress business hours on holidays (transformer will pass through null)
-      businessHours: (isHoliday || hasSpecialHours) ? null : c.business_hours,
-      business_hours: (isHoliday || hasSpecialHours) ? null : c.business_hours
-    };
-
-    // Step 4: Use canonical transformer (single source of truth for field mapping)
-    // toApiBlock handles: snake/camel variants, event_start_time/event_time, staging normalization
-    return toApiBlock(inputForTransformer);
+export async function mapCandidatesToBlocks(candidates, options = {}) {
+  const { isHoliday = false, hasSpecialHours = false } = options;
+  // A saved ranking read must not perform a new fuzzy Places lookup or write to
+  // the catalog. Its address belongs to the same provider identity as its route.
+  return candidates.map(candidate => {
+    const savedAddress = candidate.address || candidate.features?.address || null;
+    const address = savedAddress && !isPlusCode(savedAddress) ? savedAddress : null;
+    return toApiBlock({ ...candidate, address,
+      features: { ...candidate.features, address },
+      businessHours: (isHoliday || hasSpecialHours) ? null : candidate.business_hours,
+      business_hours: (isHoliday || hasSpecialHours) ? null : candidate.business_hours,
+    });
   });
 }
 
@@ -382,7 +322,7 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
   const sorted = filtered.sort((a, b) => {
     const valueDiff = (b.valuePerMin || 0) - (a.valuePerMin || 0);
     if (Math.abs(valueDiff) > 0.01) return valueDiff; // Different value tiers
-    return (a.estimatedDistanceMiles || 999) - (b.estimatedDistanceMiles || 999); // Same tier: closest first
+    return (a.estimatedDistanceMiles ?? Infinity) - (b.estimatedDistanceMiles ?? Infinity); // Same tier: closest first
   });
 
   return { blocks: sorted, rejected };
@@ -391,6 +331,21 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
 // ============================================================================
 // ROUTES
 // ============================================================================
+
+// 2026-09-11: An explicit persisted-only reload for feedback receipts. This never
+// invokes readiness repair, model generation or external address resolution.
+router.get('/saved', requireAuth, async (req, res) => {
+  try {
+    const state = await readSavedVenueFeedback(db, {
+      userId: req.auth.userId, snapshotId: req.query.snapshotId, rankingId: req.query.rankingId,
+    });
+    return res.json(state);
+  } catch (error) {
+    if (error instanceof VenueFeedbackError) return res.status(error.status).json({ ok: false, error: error.code, message: error.message });
+    venuesLog.error(4, 'Saved recommendation read failed');
+    return res.status(500).json({ ok: false, error: 'saved_blocks_failed', message: 'Saved recommendations could not be loaded.' });
+  }
+});
 
 // GET endpoint - return existing blocks for a snapshot
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
@@ -408,6 +363,8 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   }
 
   try {
+    await assertMainRunForSnapshot(snapshotId, { auth: req.auth,
+      runId: req.headers['x-main-run-id'] || req.query.runId });
     // GATE 1: Strategy must be ready before blocks
     const { ready, strategy, status } = await isStrategyReady(snapshotId);
     venuesLog.info(`Strategy check: ready=${ready}, status=${status}`);
@@ -422,8 +379,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     }
 
     // Fetch strategy row (model-agnostic columns)
-    const [strategyRow] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    const { strategy: strategyRow, briefing: currentBriefing } = await readStrategySource(snapshotId);
 
     const briefing = strategyRow ? {
       strategyForNow: strategyRow.strategy_for_now || null
@@ -439,12 +395,54 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 
     // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
     // User can only access blocks for their own snapshots
-    if (snapshot.user_id && snapshot.user_id !== authUserId) {
+    // 2026-09-10: NULL-owned snapshots are orphan data and are rejected everywhere else
+    // (require-snapshot-ownership.js); this inline check let them through to the paid pipeline.
+    if (!snapshot.user_id || snapshot.user_id !== authUserId) {
       venuesLog.warn(`Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
+    // Cached results and missing-ranking generation share the same source gate.
+    const snapshotReadiness = getSnapshotReadiness(snapshot, snapshotId);
+    if (!snapshotReadiness.ready) {
+      return res.status(503).json({
+        ok: false, status: 'error', error: 'snapshot_incomplete', snapshotId,
+        message: 'Current location data is incomplete. Refresh your location before using Strategy.',
+        missingFields: snapshotReadiness.missingFields, strategyFresh: false,
+        retry: 'new_snapshot', blocks: [],
+      });
+    }
+
+    const readiness = getBriefingReadiness(currentBriefing, snapshotId);
+    if (readiness.failed) throw new BriefingNotReadyError(currentBriefing, snapshotId);
+    const retryReason = cachedBriefingRetryReason(currentBriefing, snapshotId);
+    if (retryReason) {
+      return res.status(500).json({
+        status: 'error', error: 'briefing_failed', snapshotId, message: retryReason,
+        retry: 'new_snapshot', strategyFresh: false,
+      });
+    }
+    if (!readiness.ready) {
+      // Keep saved guidance available as previous data; never label it fresh or
+      // start venue models from an incomplete replacement Briefing.
+      const [savedRanking] = await db.select().from(rankings)
+        .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+      const candidates = savedRanking ? await db.select().from(ranking_candidates)
+        .where(eq(ranking_candidates.ranking_id, savedRanking.ranking_id))
+        .orderBy(ranking_candidates.rank) : [];
+      const feedbackState = savedRanking ? await applyVenueFeedbackExclusions(db, {
+        userId: authUserId, snapshotId, rankingId: savedRanking.ranking_id, blocks: candidates.map(toApiBlock),
+      }) : { blocks: [] };
+      return res.status(202).json({
+        ok: false, status: 'pending', reason: 'briefing_pending', snapshotId,
+        briefingStatus: 'pending', strategyFresh: false, waitFor: ['briefing'],
+        strategy: { strategyForNow: strategyRow?.strategy_for_now || '' },
+        briefing, ...feedbackState, rankingId: savedRanking?.ranking_id,
+      });
+    }
+
     // GATE 2: Ensure blocks exist (generate if missing)
+    if (!strategyMatchesBriefing(strategyRow, currentBriefing, snapshotId)) throw new StrategySourceChangedError();
     // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
     const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
       strategyRow,
@@ -489,7 +487,11 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     const hasSpecialHours = !!(holidaySection?.holiday && holidaySection?.is_holiday === true);
 
     // Map candidates to blocks and filter/sort
-    const allBlocks = await mapCandidatesToBlocks(candidates, { isHoliday, hasSpecialHours });
+    const feedbackState = await applyVenueFeedbackExclusions(db, {
+      userId: authUserId, snapshotId, rankingId: ranking.ranking_id, blocks: candidates.map(toApiBlock),
+    });
+    const allBlocks = feedbackState.scope_revision > 0
+      ? feedbackState.blocks : await mapCandidatesToBlocks(candidates, { isHoliday, hasSpecialHours });
     const { blocks, rejected } = filterAndSortBlocks(allBlocks);
 
     const audit = [
@@ -498,14 +500,20 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       { step: 'sorting', method: 'value_desc_distance_asc' }
     ];
 
-    return res.json({ blocks, rankingId: ranking.ranking_id, briefing, audit });
+    await assertCurrentStrategySource(snapshotId);
+    return res.json({ ...feedbackState, blocks, rankingId: ranking.ranking_id, briefing, audit });
   } catch (error) {
+    if (error instanceof MainRunAdmissionError) return res.status(error.status).json({ error: error.code, message: error.message, strategyFresh: false, blocks: [] });
     matrixLog.error({
       category: 'STRATEGY',
       action: 'GET_REQUEST_FAIL',
       location: 'blocks-fast.js:getHandler',
     }, 'GET request failed', error);
-    return res.status(500).json({ error: 'internal_error', blocks: [] });
+    return res.status(500).json(error instanceof StrategySourceChangedError
+      ? { status: 'error', error: error.code, message: error.message, snapshotId, retry: 'new_snapshot', strategyFresh: false, blocks: [] }
+      : error instanceof BriefingNotReadyError
+      ? { status: 'error', error: 'briefing_failed', message: error.message, snapshotId, blocks: [] }
+      : { error: 'internal_error', blocks: [] });
   }
 });
 
@@ -578,7 +586,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
     // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
     // User can only generate blocks for their own snapshots
-    if (snapshot.user_id && snapshot.user_id !== authUserId) {
+    // 2026-09-10: NULL-owned snapshots are orphan data and are rejected everywhere else
+    // (require-snapshot-ownership.js); this inline check let them through to the paid pipeline.
+    if (!snapshot.user_id || snapshot.user_id !== authUserId) {
       matrixLog.warn({
         category: 'STRATEGY',
         action: 'AUTH_MISMATCH',
@@ -586,6 +596,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       }, `Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
+
+    await assertMainRunForSnapshot(snapshotId, { auth: req.auth, runId: req.body?.runId });
 
     // CRITICAL: Validate formatted_address exists - LLMs cannot reverse geocode
     if (!snapshot.formatted_address) {
@@ -606,18 +618,15 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // Client exponential backoff (co-pilot-context.tsx) sends header on each retry; server returns
     // 503 once count >= MAX instead of the indefinite 202 loop. Required-field list mirrors the
     // enrichment endpoint (location.js §Phase 3 resolution) for diagnostic symmetry.
-    if (snapshot.status !== 'ok') {
+    const snapshotReadiness = getSnapshotReadiness(snapshot, snapshotId);
+    if (!snapshotReadiness.ready) {
       const MAX_SNAPSHOT_RETRIES = 5;
-      const SNAPSHOT_REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
 
       const retryHeader = req.headers['x-snapshot-retry-count'];
       const retryCountParsed = retryHeader != null ? parseInt(String(retryHeader), 10) : 0;
       const retryCount = Number.isFinite(retryCountParsed) ? retryCountParsed : 0;
 
-      const missingFields = SNAPSHOT_REQUIRED_FIELDS.filter(f => {
-        const v = snapshot[f];
-        return v === null || v === undefined || v === '';
-      });
+      const missingFields = snapshotReadiness.missingFields;
 
       if (retryCount >= MAX_SNAPSHOT_RETRIES) {
         console.error(`[VENUE] HARD FAIL: snapshot ${snapshotId.slice(0, 8)} still pending after ${retryCount} retries. Missing: ${missingFields.join(', ') || '(unknown)'}`);
@@ -659,10 +668,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // 2026-01-10: S-004 FIX - Use canonical status constants
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
-    // 2026-01-10: STALENESS FIX - Reset stale strategies that never completed
-    // Root cause: Previous session left status='pending_blocks' but blocks never generated.
-    // Without this check, app serves stale cached data and TRIAD pipeline never runs.
-    // Staleness threshold: 30 minutes (TRIAD pipeline should complete in ~2 minutes)
+    // A stopped run requires a fresh explicit Continue. Preserve its strategy,
+    // Briefing and job evidence instead of deleting them to retry old context.
     const STALENESS_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
     if (existingStrategy) {
       const strategyAge = Date.now() - new Date(existingStrategy.updated_at || existingStrategy.created_at).getTime();
@@ -675,30 +682,14 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       if (isStale && (isStuckPendingBlocks || isStuckInProgress)) {
         matrixLog.warn({
           category: 'STRATEGY',
-          action: 'STALENESS_RESET',
+          action: 'STALE_RUN_REQUIRES_CONTINUE',
           location: 'blocks-fast.js:postHandler',
-        }, `STALENESS FIX: Resetting stale strategy (status=${existingStrategy.status}, age=${Math.round(strategyAge/60000)}min) for ${snapshotId.slice(0, 8)}`);
+        }, `Preserving stopped strategy (status=${existingStrategy.status}, age=${Math.round(strategyAge/60000)}min) for ${snapshotId.slice(0, 8)}`);
 
-        // Reset strategy status so fresh pipeline runs
-        await db.update(strategies).set({
-          status: STRATEGY_STATUS.PENDING,
-          phase: 'starting',
-          strategy_for_now: null,
-          updated_at: new Date()
-        }).where(eq(strategies.snapshot_id, snapshotId));
-
-        // Delete stale triad_job so new one can be created
-        await db.delete(triad_jobs).where(eq(triad_jobs.snapshot_id, snapshotId));
-
-        // Delete stale briefing so fresh data is generated
-        await db.delete(briefings).where(eq(briefings.snapshot_id, snapshotId));
-
-        matrixLog.info({
-          category: 'STRATEGY',
-          action: 'STALENESS_RESET_COMPLETE',
-          location: 'blocks-fast.js:postHandler',
-        }, `STALENESS FIX: Reset complete, running fresh pipeline for ${snapshotId.slice(0, 8)}`);
-        // Fall through to create new job and run full pipeline
+        return sendOnce(409, {
+          error: 'main_run_restart_required', retry: 'new_snapshot', strategyFresh: false,
+          message: 'This run stopped before completing. Review saved setup and Continue to start a fresh run.',
+        });
       } else if (!isStale && STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status)) {
         // Recent strategy is still running - don't interfere
         matrixLog.info({
@@ -717,11 +708,29 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     }
 
     // Re-fetch strategy after potential reset
-    const [currentStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    const { strategy: currentStrategy, briefing: currentBriefing } = await readStrategySource(snapshotId);
 
     // If strategy is COMPLETE/OK/PENDING_BLOCKS, generate SmartBlocks if not already done
     // 2026-01-10: S-004 FIX - Use isStrategyComplete() which handles legacy 'complete' value
     if (currentStrategy && isStrategyComplete(currentStrategy.status)) {
+      const readiness = getBriefingReadiness(currentBriefing, snapshotId);
+      const retryReason = cachedBriefingRetryReason(currentBriefing, snapshotId);
+      if (retryReason) {
+        return sendOnce(500, {
+          status: 'error', error: 'briefing_failed', snapshotId, message: retryReason,
+          retry: 'new_snapshot', strategyFresh: false,
+        });
+      }
+      if (readiness.failed) {
+        return sendOnce(500, {
+          ok: false, status: 'error', error: 'briefing_failed', snapshotId,
+          message: new BriefingNotReadyError(currentBriefing, snapshotId).message,
+        });
+      }
+      if (readiness.ready && !strategyMatchesBriefing(currentStrategy, currentBriefing, snapshotId)) {
+        return sendOnce(500, { status: 'error', error: 'strategy_source_changed', snapshotId,
+          message: STRATEGY_SOURCE_RETRY, retry: 'new_snapshot', strategyFresh: false });
+      }
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
         matrixLog.info({
@@ -733,18 +742,34 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         const candidates = await db.select().from(ranking_candidates)
           .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
           .orderBy(ranking_candidates.rank);
-        const blocks = await mapCandidatesToBlocks(candidates, { isHoliday: false, hasSpecialHours: false });
-        return sendOnce(200, {
-          ok: true,
-          status: 'ok',
-          reason: 'blocks_ready',
+        const feedbackState = await applyVenueFeedbackExclusions(db, {
+          userId: authUserId, snapshotId, rankingId: ranking.ranking_id, blocks: candidates.map(toApiBlock),
+        });
+        const blocks = readiness.ready && feedbackState.scope_revision === 0
+          ? await mapCandidatesToBlocks(candidates, { isHoliday: false, hasSpecialHours: false })
+          : feedbackState.blocks;
+        if (readiness.ready) await assertCurrentStrategySource(snapshotId);
+        return sendOnce(readiness.ready ? 200 : 202, {
+          ok: readiness.ready,
+          status: readiness.ready ? 'ok' : 'pending',
+          reason: readiness.ready ? 'blocks_ready' : 'briefing_pending',
+          briefingStatus: readiness.ready ? 'complete' : 'pending',
+          ...(!readiness.ready ? { strategyFresh: false, waitFor: ['briefing'] } : {}),
           snapshotId: snapshotId,
+          ...feedbackState,
           blocks,
           rankingId: ranking.ranking_id,
           // 2026-01-10: D-027 - Use camelCase for API response (single contract)
           strategy: {
             strategyForNow: currentStrategy.strategy_for_now || ''
           }
+        });
+      }
+      if (!readiness.ready) {
+        return sendOnce(202, {
+          ok: false, status: 'pending', reason: 'briefing_pending', snapshotId,
+          briefingStatus: 'pending', strategyFresh: false, waitFor: ['briefing'],
+          strategy: { strategyForNow: currentStrategy.strategy_for_now || '' },
         });
       }
       // Strategy is ready but blocks don't exist yet - generate them
@@ -754,14 +779,14 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
     try {
       // 2026-01-09: FIX - Use snake_case property name to match Drizzle schema
-      const [job] = await db.insert(triad_jobs).values({
+      const [job] = await withCurrentMainRun(snapshotId, tx => tx.insert(triad_jobs).values({
         snapshot_id: snapshotId,
         formatted_address: snapshot.formatted_address,
         city: snapshot.city,
         state: snapshot.state,
         kind: 'triad',
         status: 'queued'
-      }).onConflictDoNothing().returning();
+      }).onConflictDoNothing().returning());
 
       if (job) {
         // New job created - run full pipeline synchronously (no worker needed)
@@ -801,66 +826,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           const briefingResult = await runBriefing(snapshotId, { snapshot });
           freshBriefing = briefingResult.briefing;
 
-          // =========================================================================
-          // 2026-04-05: BRIEFING READINESS GATE — DATA CORRECTNESS > SPEED
-          // The strategy MUST NOT proceed with null briefing fields. If runBriefing
-          // returns incomplete data (race condition with concurrent subsystems), poll
-          // the DB for up to 90 seconds until all critical fields are populated.
-          // =========================================================================
-          const BRIEFING_WAIT_TIMEOUT_MS = 90000;
-          const BRIEFING_POLL_INTERVAL_MS = 3000;
-          const briefingStartWait = Date.now();
-
-          function checkBriefingReady(row) {
-            return {
-              traffic: row?.traffic_conditions !== null && row?.traffic_conditions !== undefined,
-              events: row?.events !== null && row?.events !== undefined,
-              news: row?.news !== null && row?.news !== undefined,
-              weather: row?.weather_current !== null && row?.weather_current !== undefined,
-              airport: row?.airport_conditions !== null && row?.airport_conditions !== undefined,
-              schools: row?.school_closures !== null && row?.school_closures !== undefined,
-            };
-          }
-
-          let readiness = checkBriefingReady(freshBriefing);
-          let allReady = Object.values(readiness).every(Boolean);
-
-          if (!allReady) {
-            const missing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
-            matrixLog.warn({
-              category: 'BRIEFING',
-              action: 'BRIEFING_GATE_PENDING',
-              location: 'blocks-fast.js:postHandler',
-            }, `Briefing incomplete after runBriefing — missing: ${missing.join(', ')}. Polling DB (max ${BRIEFING_WAIT_TIMEOUT_MS / 1000}s)`);
-
-            while (!allReady && (Date.now() - briefingStartWait) < BRIEFING_WAIT_TIMEOUT_MS) {
-              await new Promise(r => setTimeout(r, BRIEFING_POLL_INTERVAL_MS));
-              const [dbRow] = await db.select().from(briefings)
-                .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-              if (dbRow) {
-                freshBriefing = dbRow;
-                readiness = checkBriefingReady(freshBriefing);
-                allReady = Object.values(readiness).every(Boolean);
-              }
-            }
-
-            const elapsed = ((Date.now() - briefingStartWait) / 1000).toFixed(1);
-            if (allReady) {
-              matrixLog.info({
-                category: 'BRIEFING',
-                action: 'BRIEFING_GATE_COMPLETE',
-                location: 'blocks-fast.js:postHandler',
-              }, `Briefing gate: all fields populated after ${elapsed}s`);
-            } else {
-              const stillMissing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
-              matrixLog.warn({
-                category: 'BRIEFING',
-                action: 'BRIEFING_GATE_TIMEOUT',
-                location: 'blocks-fast.js:postHandler',
-              }, `Briefing gate TIMEOUT after ${elapsed}s — proceeding with incomplete data. Still missing: ${stillMissing.join(', ')}`);
-            }
-          }
-
+          // runBriefing resolves only after the complete row has been persisted.
+          // Lock contention and timeout use the same strict gate as direct callers.
           // 2026-04-05: Re-read snapshot AFTER briefing is ready (fixes weather race condition).
           // The snapshot enrichment (weather fetch) may complete after the initial snapshot read.
           // Re-reading ensures strategy sees the fully enriched snapshot.
@@ -877,7 +844,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             category: 'BRIEFING',
             action: 'VERIFY',
             location: 'blocks-fast.js:postHandler',
-          }, `Briefing row populated (traffic=${readiness.traffic}, events=${readiness.events}, news=${readiness.news}, weather=${readiness.weather}, schools=${readiness.schools}, airport=${readiness.airport})`);
+          }, 'Complete Briefing persisted; all sections verified');
           matrixLog.info({
             category: 'STRATEGY',
             action: 'VERIFY',
@@ -886,13 +853,16 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
+          if (briefingErr instanceof MainRunAdmissionError) throw briefingErr;
           briefingLog.error(2, `Briefing failed (BLOCKING): ${briefingErr.message}`);
           // Mark strategy as error so client knows to retry
-          await db.update(strategies).set({
-            status: 'error',
-            error_message: `briefing_failed: ${briefingErr.message}`.slice(0, 500),
-            updated_at: new Date()
-          }).where(eq(strategies.snapshot_id, snapshotId));
+          await withCurrentMainRun(snapshotId, async (tx, admission) => {
+            await tx.update(strategies).set({
+              status: 'error', error_message: `briefing_failed: ${briefingErr.message}`.slice(0, 500), updated_at: new Date(),
+            }).where(eq(strategies.snapshot_id, snapshotId));
+            await tx.update(main_run_admissions).set({ status: 'failed', updated_at: new Date() })
+              .where(eq(main_run_admissions.run_id, admission.run_id));
+          });
 
           return sendOnce(500, {
             error: 'briefing_failed',
@@ -938,7 +908,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
         try {
           // STRATEGY_TACTICAL → strategy_for_now (immediate 1hr strategy for Strategy Tab)
-          // 2026-01-10: Pass fresh briefing directly (no DB re-read for stale data)
+          // The shared Strategy guard re-reads final Briefing status before the model call
           await runImmediateStrategy(snapshotId, { snapshot, briefingRow: freshBriefing });
 
           // 2026-01-09: Removed strategyEmitter.emit - DB NOTIFY 'strategy_ready' is canonical
@@ -1031,6 +1001,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             hasSpecialHours: false,
             logPlusCodes: true
           });
+          const feedbackState = await applyVenueFeedbackExclusions(db, {
+            userId: authUserId, snapshotId, rankingId: ranking.ranking_id, blocks,
+          });
 
           // Fetch strategy for response
           const [strategyRow] = await db.select().from(strategies)
@@ -1053,7 +1026,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           return sendOnce(200, {
             status: 'ok',
             snapshotId: snapshotId,
-            blocks: blocks,
+            ...feedbackState,
             rankingId: ranking.ranking_id,
             // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {
@@ -1062,25 +1035,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             message: 'Smart blocks generated successfully'
           });
         } else {
-          venuesLog.warn(4, `No ranking found for ${snapshotId.slice(0, 8)} after generation`);
-
-          // Ensure phase is marked complete even without ranking
-          await updatePhase(snapshotId, 'complete', { phaseEmitter });
-
-          // Still include strategy even if no ranking
-          const [strategyRow] = await db.select().from(strategies)
-            .where(eq(strategies.snapshot_id, snapshotId))
-            .limit(1);
-
-          return sendOnce(200, {
-            status: 'ok',
-            snapshotId: snapshotId,
-            blocks: [],
-            strategy: {
-              strategyForNow: strategyRow?.strategy_for_now || ''
-            },
-            message: 'Smart blocks generated (details pending)'
-          });
+          throw new Error('SmartBlocks generation completed without a persisted ranking');
         }
       } else {
         // Job already exists - use shared helper to ensure blocks exist
@@ -1124,17 +1079,34 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         });
       }
     } catch (jobErr) {
+      if (jobErr instanceof MainRunAdmissionError) return sendOnce(jobErr.status, { error: jobErr.code, message: jobErr.message, strategyFresh: false });
+      try {
+        await withCurrentMainRun(snapshotId, (tx, admission) => {
+          // Response mapping/notification can fail after atomic completion;
+          // that failure must not relabel persisted successful history.
+          if (admission.status === 'complete') return;
+          return tx.update(main_run_admissions).set({ status: 'failed', updated_at: new Date() })
+            .where(eq(main_run_admissions.run_id, admission.run_id));
+        });
+      } catch (failureWriteError) {
+        // A superseding save/session/run must retain its status; return the
+        // original provider failure without overwriting any historical result.
+        if (!(failureWriteError instanceof MainRunAdmissionError)) throw failureWriteError;
+      }
       matrixLog.error({
         category: 'STRATEGY',
         action: 'WATERFALL_FAIL',
         location: 'blocks-fast.js:postHandler',
       }, 'Waterfall error', jobErr);
       return sendOnce(500, {
-        error: 'waterfall_failed',
+        error: jobErr instanceof StrategySourceChangedError ? jobErr.code : jobErr instanceof BriefingNotReadyError ? 'briefing_failed' : 'waterfall_failed',
+        ...(jobErr instanceof StrategySourceChangedError ? { status: 'error', snapshotId, retry: 'new_snapshot', strategyFresh: false } : {}),
+        ...(jobErr instanceof BriefingNotReadyError ? { status: 'error', snapshotId } : {}),
         message: jobErr.message
       });
     }
   } catch (error) {
+    if (error instanceof MainRunAdmissionError) return sendOnce(error.status, { error: error.code, message: error.message, strategyFresh: false });
     matrixLog.error({
       category: 'STRATEGY',
       action: 'UNEXPECTED_FAIL',

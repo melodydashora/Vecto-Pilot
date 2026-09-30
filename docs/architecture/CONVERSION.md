@@ -95,7 +95,6 @@ The server API is already client-agnostic. Native apps use the **exact same REST
 | Briefing | GET /api/briefing/* (6 endpoints) | Bearer token |
 | SSE | GET /events/* (4 endpoints) | Stateless |
 | Offers | POST /api/hooks/analyze-offer | X-Shortcut-Token (optional per-user token; no JWT) |
-| Translation | POST /api/translate | Bearer token |
 | TTS | POST /api/tts | Bearer token |
 
 ### API Versioning (Future)

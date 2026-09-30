@@ -1,9 +1,9 @@
 // Anthropic Claude Sonnet 4.5 (2025-09-29) — Raw HTTP Messages API
-// Model from env: ANTHROPIC_MODEL (required)
+// Model: pass explicitly (registry pin); no env read (2026-09-15)
 // Temperature from env: ANTHROPIC_TEMPERATURE (default: 0.2)
 export async function callClaude45Raw({
   apiKey = process.env.ANTHROPIC_API_KEY,
-  model = process.env.ANTHROPIC_MODEL,
+  model,
   system,
   user,
   max_tokens = parseInt(process.env.ANTHROPIC_MAX_TOKENS || "64000"),
@@ -11,7 +11,7 @@ export async function callClaude45Raw({
   abortSignal
 }) {
   if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
-  if (!model) throw new Error("Missing ANTHROPIC_MODEL environment variable");
+  if (!model) throw new Error("callClaude45Raw requires an explicit model (use the registry pin)");
   const body = {
     model,
     max_tokens,

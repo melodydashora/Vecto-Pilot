@@ -1,25 +1,28 @@
-import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial, numeric, check } from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial, numeric, check, index, uniqueIndex, unique } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
-// Users table: SESSION TRACKING ONLY (Ephemeral)
+// Users table: one row per driver, carrying the CURRENT session pointer.
 // 2026-01-05: Simplified per SAVE-IMPORTANT.md architecture
+// 2026-09-13: comment corrected to match the code (DB_SCHEMA_EVALUATION_2026-09-13 §3.1).
 //
 // Three Tables, Three Purposes:
-//   - driver_profiles: Identity (who you are) - FOREVER
-//   - users: Session (who's online now) - TEMPORARY (60 min TTL)
+//   - driver_profiles: Identity details (name, email, home, eligibility) - FOREVER
+//   - users: The user_id every other table keys on + current session pointer - FOREVER
 //   - snapshots: Activity (what you did when) - FOREVER
 //
-// Session Rules:
-//   - Created on login, deleted on logout or 60 min inactivity
+// Session Rules (server/middleware/auth.js):
+//   - session_id set on login; NULLED on logout, after 60 min inactivity, or at the 2 h hard limit
+//   - Rows are NEVER deleted — driver_profiles, auth_credentials, offer_rulesets, offer_outcomes,
+//     coach_conversations and news_deactivations FK here with ON DELETE RESTRICT
 //   - Sliding window: last_active_at updates on every request
 //   - Highlander Rule: One session per user (re-login replaces the previous session)
-//   - Lazy Cleanup: Expired sessions deleted on next requireAuth check
 //
 // NO LOCATION DATA - all location goes to snapshots table
 export const users = pgTable("users", {
   user_id: uuid("user_id").primaryKey().defaultRandom(), // Links to driver_profiles
   session_id: uuid("session_id"),                        // Current session UUID
   current_snapshot_id: uuid("current_snapshot_id"),      // Their ONE active snapshot
+  current_main_run_id: uuid("current_main_run_id"),      // Explicit Continue admission, separate from auth/shift identities
   // Session timing (sliding window)
   session_start_at: timestamp("session_start_at", { withTimezone: true }).notNull().defaultNow(), // When session began
   last_active_at: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),     // Last activity (60 min TTL from here)
@@ -134,6 +137,7 @@ export const briefings = pgTable("briefings", {
   // a fabricated 'none'.
   holiday: jsonb("holiday"),
   status: text("status"), // Briefing status: pending, complete, error
+  generation_token: uuid("generation_token"), // Fences writes from superseded Briefing generations
   generated_at: timestamp("generated_at", { withTimezone: true }), // When briefing was fully generated
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -143,7 +147,9 @@ export const briefings = pgTable("briefings", {
 export const rankings = pgTable("rankings", {
   ranking_id: uuid("ranking_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id),
+  // 2026-09-13: ON DELETE CASCADE added (migrations/20260913_schema_repair.sql) — was the only
+  // snapshot FK without it; snapshot.js had to pre-delete rankings by hand.
+  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   correlation_id: uuid("correlation_id"),
   user_id: uuid("user_id"),
   // Resolved precise location from snapshot
@@ -216,12 +222,12 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   // 2026-04-16: Driver preference scoring — home distance + deadhead flag
   beyond_deadhead: boolean("beyond_deadhead"), // True when venue exceeds driver's max_deadhead_mi
   distance_from_home_mi: doublePrecision("distance_from_home_mi"), // Haversine miles from driver home
-}, (table) => ({
+}, (table) => [
   // Foreign key indexes for performance optimization (Issue #28)
-  idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
-  idxSnapshotId: sql`create index if not exists idx_ranking_candidates_snapshot_id on ${table} (snapshot_id)`,
-  idxVenueId: sql`create index if not exists idx_ranking_candidates_venue_id on ${table} (venue_id) where venue_id is not null`,
-}));
+  index('idx_ranking_candidates_ranking_id').on(table.ranking_id),
+  index('idx_ranking_candidates_snapshot_id').on(table.snapshot_id),
+  index('idx_ranking_candidates_venue_id').on(table.venue_id).where(sql`venue_id is not null`),
+]);
 
 export const actions = pgTable("actions", {
   action_id: uuid("action_id").primaryKey(),
@@ -238,10 +244,10 @@ export const actions = pgTable("actions", {
   dwell_ms: integer("dwell_ms"),
   from_rank: integer("from_rank"),
   raw: jsonb("raw"),
-}, (table) => ({
+}, (table) => [
   // Foreign key index for performance (Issue #28)
-  idxSnapshotId: sql`create index if not exists idx_actions_snapshot_id on ${table} (snapshot_id)`,
-}));
+  index('idx_actions_snapshot_id').on(table.snapshot_id),
+]);
 
 export const venue_catalog = pgTable("venue_catalog", {
   venue_id: uuid("venue_id").primaryKey().defaultRandom(),
@@ -292,13 +298,14 @@ export const venue_catalog = pgTable("venue_catalog", {
 
   // Lookup & Deduplication
   normalized_name: text("normalized_name"),  // Lowercase alphanumeric for fuzzy matching
-  coord_key: text("coord_key").unique(),     // "33.123456_-96.123456" (6 decimal precision)
+  coord_key: text("coord_key"),              // Location lookup only; distinct places can share a point
 
   // Multi-Role Tagging (replaces single venue_type from venue_cache)
   venue_types: jsonb("venue_types").default(sql`'[]'`), // ['bar', 'event_host', 'restaurant', 'stadium']
 
   // Market Linkage
-  market_slug: text("market_slug"),  // References markets(market_slug) - FK added via ALTER
+  // 2026-09-13: FK to markets made real (migrations/20260913_schema_repair.sql); NULL allowed.
+  market_slug: text("market_slug").references(() => markets.market_slug),
   // 2026-02-17: IANA timezone for venue (from market lookup at creation time)
   // Used for isOpen calculation without requiring snapshot context
   timezone: text("timezone"),
@@ -332,19 +339,19 @@ export const venue_catalog = pgTable("venue_catalog", {
   is_event_venue: boolean("is_event_venue").default(false).notNull(), // Discovered via events
   // record_status: 'stub' (geocode only), 'enriched' (has details), 'verified' (trusted source)
   record_status: text("record_status").default('stub').notNull(),
-}, (table) => ({
+}, (table) => [
   // Indexes for efficient lookups
-  idxCoordKey: sql`create unique index if not exists idx_venue_catalog_coord_key on ${table} (coord_key) where coord_key is not null`,
-  idxNormalizedName: sql`create index if not exists idx_venue_catalog_normalized_name on ${table} (normalized_name)`,
-  idxCityState: sql`create index if not exists idx_venue_catalog_city_state on ${table} (city, state)`,
-  idxMarketSlug: sql`create index if not exists idx_venue_catalog_market_slug on ${table} (market_slug)`,
-  idxVenueTypes: sql`create index if not exists idx_venue_catalog_venue_types on ${table} using gin (venue_types)`,
-  idxExpenseRank: sql`create index if not exists idx_venue_catalog_expense_rank on ${table} (expense_rank) where expense_rank is not null`,
+  index('idx_venue_catalog_coord_key').on(table.coord_key),
+  index('idx_venue_catalog_normalized_name').on(table.normalized_name),
+  index('idx_venue_catalog_city_state').on(table.city, table.state),
+  index('idx_venue_catalog_market_slug').on(table.market_slug),
+  index('idx_venue_catalog_venue_types').using('gin', table.venue_types),
+  index('idx_venue_catalog_expense_rank').on(table.expense_rank).where(sql`expense_rank is not null`),
   // 2026-01-14: Progressive Enrichment indexes
-  idxIsBar: sql`create index if not exists idx_venue_catalog_is_bar on ${table} (is_bar) where is_bar = true`,
-  idxIsEventVenue: sql`create index if not exists idx_venue_catalog_is_event_venue on ${table} (is_event_venue) where is_event_venue = true`,
-  idxRecordStatus: sql`create index if not exists idx_venue_catalog_record_status on ${table} (record_status)`,
-}));
+  index('idx_venue_catalog_is_bar').on(table.is_bar).where(sql`is_bar = true`),
+  index('idx_venue_catalog_is_event_venue').on(table.is_event_venue).where(sql`is_event_venue = true`),
+  index('idx_venue_catalog_record_status').on(table.record_status),
+]);
 
 export const venue_metrics = pgTable("venue_metrics", {
   venue_id: uuid("venue_id").primaryKey().references(() => venue_catalog.venue_id),
@@ -354,16 +361,6 @@ export const venue_metrics = pgTable("venue_metrics", {
   negative_feedback: integer("negative_feedback").notNull().default(0),
   reliability_score: doublePrecision("reliability_score").notNull().default(0.5),
   last_verified_by_driver: timestamp("last_verified_by_driver", { withTimezone: true }),
-});
-
-export const block_jobs = pgTable("block_jobs", {
-  id: uuid("id").primaryKey(),
-  status: text("status").notNull(), // 'pending' | 'running' | 'succeeded' | 'failed'
-  request_body: jsonb("request_body").notNull(),
-  result: jsonb("result"),
-  error: text("error"),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const triad_jobs = pgTable("triad_jobs", {
@@ -377,6 +374,30 @@ export const triad_jobs = pgTable("triad_jobs", {
   status: text("status").notNull().default('queued'), // queued|running|ok|error
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Durable intent and immutable settings receipt. A run is admitted BEFORE fresh
+// location collection; binding its one snapshot does not create another intent.
+export const main_run_admissions = pgTable('main_run_admissions', {
+  run_id: uuid('run_id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull().references(() => users.user_id, { onDelete: 'restrict' }),
+  session_id: uuid('session_id').notNull(),
+  request_id: uuid('request_id').notNull(),
+  settings_revision: integer('settings_revision').notNull(),
+  rules_version: integer('rules_version').notNull(),
+  rules_hash: text('rules_hash').notNull(),
+  configuration: jsonb('configuration').notNull(),
+  snapshot_id: uuid('snapshot_id').unique().references(() => snapshots.snapshot_id, { onDelete: 'restrict' }),
+  status: text('status').notNull().default('awaiting_snapshot'),
+  error_code: text('error_code'),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  unique('main_run_admissions_intent_unique').on(table.user_id, table.session_id, table.request_id),
+  index('main_run_admissions_user_created_idx').on(table.user_id, table.created_at),
+  check('main_run_admissions_settings_revision_check', sql`${table.settings_revision} >= 1`),
+  check('main_run_admissions_rules_version_check', sql`${table.rules_version} >= 1`),
+  check('main_run_admissions_status_check', sql`${table.status} IN ('awaiting_snapshot', 'running', 'complete', 'failed')`),
+]);
 
 export const http_idem = pgTable("http_idem", {
   key: text("key").primaryKey(),
@@ -412,14 +433,14 @@ export const venue_feedback = pgTable("venue_feedback", {
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
+}, (table) => [
   // One vote per user per venue per ranking (allows updates)
-  uniqueUserRankPlace: sql`unique(user_id, ranking_id, place_id)`,
-  idxRanking: sql`create index if not exists ix_feedback_ranking on ${table} (ranking_id)`,
-  idxPlace: sql`create index if not exists ix_feedback_place on ${table} (place_id)`,
+  unique('venue_feedback_user_id_ranking_id_place_id_key').on(table.user_id, table.ranking_id, table.place_id),
+  index('ix_feedback_ranking').on(table.ranking_id),
+  index('ix_feedback_place').on(table.place_id),
   // Foreign key index for performance (Issue #28)
-  idxSnapshotId: sql`create index if not exists idx_venue_feedback_snapshot_id on ${table} (snapshot_id)`,
-}));
+  index('idx_venue_feedback_snapshot_id').on(table.snapshot_id),
+]);
 
 // Strategy-level feedback (separate scope)
 export const strategy_feedback = pgTable("strategy_feedback", {
@@ -434,10 +455,10 @@ export const strategy_feedback = pgTable("strategy_feedback", {
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
+}, (table) => [
   // One vote per user per ranking for strategy
-  uniqueUserRank: sql`unique(user_id, ranking_id)`,
-}));
+  unique('strategy_feedback_user_id_ranking_id_key').on(table.user_id, table.ranking_id),
+]);
 
 // General app feedback (simplified - just snapshot context)
 export const app_feedback = pgTable("app_feedback", {
@@ -474,24 +495,6 @@ export const travel_disruptions = pgTable("travel_disruptions", {
   next_update_at: timestamp("next_update_at", { withTimezone: true }),
 });
 
-export const llm_venue_suggestions = pgTable("llm_venue_suggestions", {
-  suggestion_id: uuid("suggestion_id").primaryKey().defaultRandom(),
-  suggested_at: timestamp("suggested_at", { withTimezone: true }).notNull().defaultNow(),
-  model_name: text("model_name").notNull(),
-  ranking_id: uuid("ranking_id").references(() => rankings.ranking_id),
-  venue_name: text("venue_name").notNull(),
-  suggested_category: text("suggested_category"),
-  llm_reasoning: text("llm_reasoning"),
-  validation_status: text("validation_status").notNull().default('pending'),
-  place_id_found: text("place_id_found"),
-  venue_id_created: uuid("venue_id_created").references(() => venue_catalog.venue_id),
-  validated_at: timestamp("validated_at", { withTimezone: true }),
-  rejection_reason: text("rejection_reason"),
-  // Full LLM analysis payload (detailed breakdown, rationale, etc.)
-  // JSONB allows unlimited nested object size
-  llm_analysis: jsonb('llm_analysis'),
-});
-
 export const agent_memory = pgTable("agent_memory", {
   id: uuid("id").primaryKey().defaultRandom(),
   scope: text("scope").notNull(),
@@ -501,12 +504,12 @@ export const agent_memory = pgTable("agent_memory", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
-}, (table) => ({
-  uniqueScopeKey: sql`unique(scope, key, user_id)`,
-  idxScope: sql`create index if not exists idx_agent_memory_scope on ${table} (scope)`,
-  idxUser: sql`create index if not exists idx_agent_memory_user on ${table} (user_id)`,
-  idxExpires: sql`create index if not exists idx_agent_memory_expires on ${table} (expires_at)`,
-}));
+}, (table) => [
+  unique('agent_memory_scope_key_user_id_key').on(table.scope, table.key, table.user_id),
+  index('idx_agent_memory_scope').on(table.scope),
+  index('idx_agent_memory_user').on(table.user_id),
+  index('idx_agent_memory_expires').on(table.expires_at),
+]);
 
 // Enhanced memory tables for thread-aware context tracking
 export const assistant_memory = pgTable("assistant_memory", {
@@ -518,12 +521,12 @@ export const assistant_memory = pgTable("assistant_memory", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
-}, (table) => ({
-  uniqueScopeKey: sql`unique(scope, key, user_id)`,
-  idxScope: sql`create index if not exists idx_assistant_memory_scope on ${table} (scope)`,
-  idxUser: sql`create index if not exists idx_assistant_memory_user on ${table} (user_id)`,
-  idxExpires: sql`create index if not exists idx_assistant_memory_expires on ${table} (expires_at)`,
-}));
+}, (table) => [
+  unique('assistant_memory_scope_key_user_id_key').on(table.scope, table.key, table.user_id),
+  index('idx_assistant_memory_scope').on(table.scope),
+  index('idx_assistant_memory_user').on(table.user_id),
+  index('idx_assistant_memory_expires').on(table.expires_at),
+]);
 
 export const eidolon_memory = pgTable("eidolon_memory", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -534,12 +537,12 @@ export const eidolon_memory = pgTable("eidolon_memory", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
-}, (table) => ({
-  uniqueScopeKey: sql`unique(scope, key, user_id)`,
-  idxScope: sql`create index if not exists idx_eidolon_memory_scope on ${table} (scope)`,
-  idxUser: sql`create index if not exists idx_eidolon_memory_user on ${table} (user_id)`,
-  idxExpires: sql`create index if not exists idx_eidolon_memory_expires on ${table} (expires_at)`,
-}));
+}, (table) => [
+  unique('eidolon_memory_scope_key_user_id_key').on(table.scope, table.key, table.user_id),
+  index('idx_eidolon_memory_scope').on(table.scope),
+  index('idx_eidolon_memory_user').on(table.user_id),
+  index('idx_eidolon_memory_expires').on(table.expires_at),
+]);
 
 export const cross_thread_memory = pgTable("cross_thread_memory", {
   id: serial("id").primaryKey(),
@@ -550,51 +553,12 @@ export const cross_thread_memory = pgTable("cross_thread_memory", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
-}, (table) => ({
-  uniqueScopeKey: sql`unique(scope, key, user_id)`,
-  idxScope: sql`create index if not exists idx_cross_thread_memory_scope on ${table} (scope)`,
-  idxUser: sql`create index if not exists idx_cross_thread_memory_user on ${table} (user_id)`,
-  idxExpires: sql`create index if not exists idx_cross_thread_memory_expires on ${table} (expires_at)`,
-}));
-
-// Eidolon snapshot storage for project/session state persistence
-export const eidolon_snapshots = pgTable("eidolon_snapshots", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  snapshot_id: uuid("snapshot_id"),
-  user_id: uuid("user_id"),
-  session_id: text("session_id"),
-  scope: text("scope").notNull(),
-  state: jsonb("state").notNull(),
-  metadata: jsonb("metadata"),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  expires_at: timestamp("expires_at", { withTimezone: true }),
-}, (table) => ({
-  idxSnapshot: sql`create index if not exists idx_eidolon_snapshots_snapshot_id on ${table} (snapshot_id)`,
-  idxScope: sql`create index if not exists idx_eidolon_snapshots_scope on ${table} (scope)`,
-  idxUser: sql`create index if not exists idx_eidolon_snapshots_user on ${table} (user_id)`,
-  idxSession: sql`create index if not exists idx_eidolon_snapshots_session on ${table} (session_id)`,
-  idxExpires: sql`create index if not exists idx_eidolon_snapshots_expires on ${table} (expires_at)`,
-}));
-
-export const venue_events = pgTable("venue_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  venue_id: uuid("venue_id"),
-  place_id: text("place_id"),
-  title: text("title").notNull(),
-  starts_at: timestamp("starts_at", { withTimezone: true }),
-  ends_at: timestamp("ends_at", { withTimezone: true }),
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
-  source: text("source").notNull(),
-  radius_m: integer("radius_m"),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxVenueId: sql`create index if not exists idx_venue_events_venue_id on ${table} (venue_id)`,
-  idxCoords: sql`create index if not exists idx_venue_events_coords on ${table} (lat, lng)`,
-  idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
-}));
+}, (table) => [
+  unique('cross_thread_memory_scope_key_user_id_key').on(table.scope, table.key, table.user_id),
+  index('idx_cross_thread_memory_scope').on(table.scope),
+  index('idx_cross_thread_memory_user').on(table.user_id),
+  index('idx_cross_thread_memory_expires').on(table.expires_at),
+]);
 
 // Discovered events from BRIEFING_EVENTS_DISCOVERY role (Gemini + Google Search)
 // Populated per-snapshot via briefing pipeline, used for rideshare demand prediction
@@ -607,7 +571,8 @@ export const discovered_events = pgTable("discovered_events", {
   city: text("city").notNull(),
   state: text("state").notNull(),
   // 2026-04-04: FIX H-7 — Removed zip, lat, lng from schema.
-  // Migration 20260110_drop_discovered_events_unused_cols.sql dropped these columns.
+  // 2026-09-13: the 20260110 drop had never actually run (baselined, not executed);
+  // migrations/20260913_schema_repair.sql drops the three columns for real.
   // Geocoding lives in venue_catalog (source of truth for coordinates).
   // Events link to venues via venue_id FK below.
   // Reference to venue_catalog (enables venue → events queries for SmartBlocks)
@@ -615,9 +580,9 @@ export const discovered_events = pgTable("discovered_events", {
   venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),
   // Event timing (2026-01-10: Renamed for symmetric naming convention)
   event_start_date: text("event_start_date").notNull(), // YYYY-MM-DD format
-  event_start_time: text("event_start_time"), // e.g., "7:00 PM", "All Day"
+  event_start_time: text("event_start_time"), // 24-hour "HH:MM" (e.g., "19:00"); free text tolerated ("All Day")
   event_end_date: text("event_end_date"), // For multi-day events (defaults to event_start_date in normalizeEvent)
-  event_end_time: text("event_end_time").notNull(), // e.g., "10:00 PM"
+  event_end_time: text("event_end_time").notNull(), // 24-hour "HH:MM" (e.g., "22:00")
   // Categorization
   category: text("category").notNull().default('other'), // concert, sports, theater, conference, festival, nightlife, civic, academic, airport, other
   expected_attendance: text("expected_attendance").default('medium'), // high, medium, low
@@ -640,16 +605,15 @@ export const discovered_events = pgTable("discovered_events", {
   deactivation_reason: text("deactivation_reason"), // 'event_ended' | 'incorrect_time' | 'no_longer_relevant' | 'cancelled' | 'duplicate' | 'other'
   deactivated_at: timestamp("deactivated_at", { withTimezone: true }),
   deactivated_by: text("deactivated_by"), // 'ai_coach' | user_id
-}, (table) => ({
-  idxCity: sql`create index if not exists idx_discovered_events_city on ${table} (city, state)`,
+}, (table) => [
+  index('idx_discovered_events_city').on(table.city, table.state),
   // 2026-01-10: Fixed D-020 - column renamed from event_date to event_start_date
-  idxDate: sql`create index if not exists idx_discovered_events_start_date on ${table} (event_start_date)`,
-  idxCategory: sql`create index if not exists idx_discovered_events_category on ${table} (category)`,
-  idxHash: sql`create unique index if not exists idx_discovered_events_hash on ${table} (event_hash)`,
-  idxDiscoveredAt: sql`create index if not exists idx_discovered_events_discovered_at on ${table} (discovered_at desc)`,
+  index('idx_discovered_events_start_date').on(table.event_start_date),
+  index('idx_discovered_events_category').on(table.category),
+  index('idx_discovered_events_discovered_at').on(table.discovered_at.desc()),
   // Index for venue → events join (SmartBlocks "event tonight" flag)
-  idxVenueId: sql`create index if not exists idx_discovered_events_venue_id on ${table} (venue_id) where venue_id is not null`,
-}));
+  index('idx_discovered_events_venue_id').on(table.venue_id).where(sql`venue_id is not null`),
+]);
 
 // 2026-04-29: Plan G — discovered_traffic cache table.
 // Snapshot-scoped TomTom incident cache. Decouples map render from briefing
@@ -659,7 +623,7 @@ export const discovered_events = pgTable("discovered_events", {
 // their snapshot. Same pattern as discovered_events; aligns with Rule 11 snapshot fidelity.
 export const discovered_traffic = pgTable("discovered_traffic", {
   id: uuid("id").primaryKey().defaultRandom(),
-  snapshot_id: uuid("snapshot_id").notNull(), // FK enforced at DB level via migration
+  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }), // discovered_traffic_snapshot_id_fkey (20260429)
   incident_id: text("incident_id").notNull(), // TomTom's stable id; per-snapshot dedup
   category: text("category").notNull(), // 'Jam' | 'Lane Closed' | 'Road Works' | 'Accident' | etc.
   severity: text("severity").notNull(), // 'high' | 'medium' | 'low'
@@ -674,45 +638,13 @@ export const discovered_traffic = pgTable("discovered_traffic", {
   lng: doublePrecision("lng").notNull(),
   raw_payload: jsonb("raw_payload"), // full TomTom incident object (forensics)
   fetched_at: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  uniqSnapshotIncident: sql`create unique index if not exists discovered_traffic_snapshot_incident_unique on ${table} (snapshot_id, incident_id)`,
-  idxSnapshot: sql`create index if not exists idx_discovered_traffic_snapshot on ${table} (snapshot_id)`,
-}));
-
-// Traffic zones for real-time traffic intelligence
-export const traffic_zones = pgTable("traffic_zones", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  city: text("city"),
-  state: text("state"),
-  traffic_density: integer("traffic_density"), // 1-10 scale
-  density_level: text("density_level"), // 'low' | 'medium' | 'high'
-  congestion_areas: jsonb("congestion_areas"), // Array of congestion hotspots
-  high_demand_zones: jsonb("high_demand_zones"), // Array of high-demand areas
-  driver_advice: text("driver_advice"),
-  sources: jsonb("sources"), // Gemini search sources
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  expires_at: timestamp("expires_at", { withTimezone: true }), // Traffic data expires after ~15 min
-}, (table) => ({
-  idxCoords: sql`create index if not exists idx_traffic_zones_coords on ${table} (lat, lng)`,
-  idxCity: sql`create index if not exists idx_traffic_zones_city on ${table} (city)`,
-}));
+}, (table) => [
+  uniqueIndex('discovered_traffic_snapshot_incident_unique').on(table.snapshot_id, table.incident_id),
+  index('idx_discovered_traffic_snapshot').on(table.snapshot_id),
+]);
 
 // nearby_venues table DELETED 2026-01-05 - Consolidated into venue_catalog
 // See: /home/runner/.claude/plans/noble-purring-yeti.md
-
-export const agent_changes = pgTable("agent_changes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  change_type: text("change_type").notNull(),
-  description: text("description").notNull(),
-  file_path: text("file_path"),
-  details: jsonb("details"),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxCreatedAt: sql`create index if not exists idx_agent_changes_created_at on ${table} (created_at desc)`,
-  idxChangeType: sql`create index if not exists idx_agent_changes_type on ${table} (change_type)`,
-}));
 
 export const connection_audit = pgTable("connection_audit", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -723,9 +655,9 @@ export const connection_audit = pgTable("connection_audit", {
   reason: text("reason"),
   deploy_mode: text("deploy_mode"),
   details: jsonb("details"),
-}, (table) => ({
-  idxEventTime: sql`create index if not exists idx_connection_audit_event_time on ${table} (event, occurred_at desc)`,
-}));
+}, (table) => [
+  index('idx_connection_audit_event_time').on(table.event, table.occurred_at.desc()),
+]);
 
 // Coords cache: Global lookup table for geocode/timezone data by coordinate hash
 // Uses 6-decimal precision for coord_key (~11cm) - EXACT location matching only
@@ -754,10 +686,9 @@ export const coords_cache = pgTable("coords_cache", {
   // Metadata
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   hit_count: integer("hit_count").notNull().default(0), // Track cache utilization
-}, (table) => ({
-  idxCoordKey: sql`create unique index if not exists idx_coords_cache_coord_key on ${table} (coord_key)`,
-  idxCityState: sql`create index if not exists idx_coords_cache_city_state on ${table} (city, state)`,
-}));
+}, (table) => [
+  index('idx_coords_cache_city_state').on(table.city, table.state),
+]);
 
 // Platform data: Rideshare platform coverage by city/market
 // Stores which rideshare platforms (Uber, Lyft, etc.) operate in each city
@@ -786,17 +717,17 @@ export const platform_data = pgTable("platform_data", {
   // Metadata
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxPlatform: sql`create index if not exists idx_platform_data_platform on ${table} (platform)`,
-  idxCountry: sql`create index if not exists idx_platform_data_country on ${table} (country)`,
-  idxCountryCode: sql`create index if not exists idx_platform_data_country_code on ${table} (country_code)`,
-  idxCityRegion: sql`create index if not exists idx_platform_data_city_region on ${table} (city, region)`,
-  idxMarket: sql`create index if not exists idx_platform_data_market on ${table} (market)`,
+}, (table) => [
+  index('idx_platform_data_platform').on(table.platform),
+  index('idx_platform_data_country').on(table.country),
+  index('idx_platform_data_country_code').on(table.country_code),
+  index('idx_platform_data_city_region').on(table.city, table.region),
+  index('idx_platform_data_market').on(table.market),
   // Composite index for common queries (platform + location)
-  idxPlatformCountry: sql`create index if not exists idx_platform_data_platform_country on ${table} (platform, country)`,
+  index('idx_platform_data_platform_country').on(table.platform, table.country),
   // Unique constraint: one entry per platform + country + region + city
-  uniquePlatformLocation: sql`create unique index if not exists idx_platform_data_unique_location on ${table} (platform, country, COALESCE(region, ''), city)`,
-}));
+  uniqueIndex('idx_platform_data_unique_location').on(table.platform, table.country, sql`COALESCE(region, '')`, table.city),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COUNTRIES REFERENCE TABLE (ISO 3166-1)
@@ -875,7 +806,7 @@ export const market_cities = pgTable("market_cities", {
 
   // FK to markets table — the source of truth for market definitions
   // 2026-02-17: Added during market consolidation (replaces brittle text matching)
-  market_slug: text("market_slug").notNull(), // e.g., 'dfw', 'los-angeles-ca'
+  market_slug: text("market_slug").notNull().references(() => markets.market_slug), // e.g., 'dfw', 'los-angeles-ca' (FK fk_market_cities_market_slug, live since 2026-02-17)
 
   // Location identity
   state: text("state").notNull(),           // Full state name: "Texas", "California"
@@ -902,78 +833,20 @@ export const market_cities = pgTable("market_cities", {
   // Metadata
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
+}, (table) => [
   // Fast city lookup: WHERE country_code = 'US' AND state = 'TX' AND city = 'Frisco'
-  idxCountryCityState: sql`create unique index if not exists idx_market_cities_country_city_state on ${table} (country_code, state, city)`,
+  uniqueIndex('idx_market_cities_country_city_state').on(table.country_code, table.state, table.city),
   // Market grouping: Find all cities in a market via FK
-  idxMarketSlug: sql`create index if not exists idx_umc_market_slug on ${table} (market_slug)`,
+  index('idx_umc_market_slug').on(table.market_slug),
   // Market name lookup (display purposes)
-  idxMarketName: sql`create index if not exists idx_market_cities_market_name on ${table} (market_name)`,
+  index('idx_market_cities_market_name').on(table.market_name),
   // Region filtering
-  idxRegionType: sql`create index if not exists idx_market_cities_region_type on ${table} (region_type)`,
-}));
+  index('idx_market_cities_region_type').on(table.region_type),
+]);
 
 // Backward compatibility alias (deprecated — use market_cities directly)
 // 2026-02-17: Alias for code that still imports us_market_cities during transition
 export const us_market_cities = market_cities;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MARKET INTEL (Market-Level Intelligence & Insights)
-// Stores rideshare intel at the market level for efficient access
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Market Intel: Intelligence data linked to markets (not individual cities)
-// When user is in Frisco → lookup Dallas market → show Dallas market intel
-export const market_intel = pgTable("market_intel", {
-  id: uuid("id").primaryKey().defaultRandom(),
-
-  // Market linkage
-  market_name: text("market_name").notNull(), // e.g., "Dallas", "Houston", "Austin"
-
-  // Intel categorization
-  intel_type: text("intel_type").notNull(), // 'surge_pattern', 'traffic_pattern', 'event_intel', 'airport_tips', 'driver_tip', 'market_trend'
-
-  // Intel content
-  title: text("title").notNull(),           // Brief headline: "DFW Late-Night Surge Pattern"
-  content: text("content").notNull(),       // Full intel text
-  insight_data: jsonb("insight_data"),      // Structured data (charts, zones, timing)
-
-  // Validity window
-  valid_from: timestamp("valid_from", { withTimezone: true }), // When this intel becomes valid
-  valid_until: timestamp("valid_until", { withTimezone: true }), // When this intel expires (null = evergreen)
-
-  // Applicability
-  day_of_week: text("day_of_week"),         // 'monday', 'saturday', 'weekend', 'weekday', null (all)
-  time_of_day: text("time_of_day"),         // 'morning', 'evening', 'late_night', null (all)
-
-  // Source tracking
-  source: text("source").notNull().default('ai_coach'), // 'ai_coach', 'driver_contribution', 'platform_data', 'analysis'
-  source_model: text("source_model"),       // AI model if applicable: 'gpt-5.2', 'claude-opus'
-  contributed_by: uuid("contributed_by"),   // user_id if driver-contributed
-
-  // Priority/Ranking
-  priority: integer("priority").notNull().default(5), // 1-10 (1 = highest priority)
-  confidence_score: doublePrecision("confidence_score"), // 0.0-1.0 AI confidence
-
-  // Status
-  is_active: boolean("is_active").notNull().default(true),
-  view_count: integer("view_count").notNull().default(0),
-
-  // Timestamps
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  // Fast market lookup
-  idxMarketName: sql`create index if not exists idx_market_intel_market_name on ${table} (market_name)`,
-  // Filter by intel type
-  idxIntelType: sql`create index if not exists idx_market_intel_intel_type on ${table} (intel_type)`,
-  // Active intel only
-  idxActive: sql`create index if not exists idx_market_intel_active on ${table} (is_active) where is_active = true`,
-  // Time-based queries (find currently valid intel)
-  idxValidWindow: sql`create index if not exists idx_market_intel_valid_window on ${table} (valid_from, valid_until)`,
-  // Day/time filtering
-  idxDayTime: sql`create index if not exists idx_market_intel_day_time on ${table} (day_of_week, time_of_day)`,
-}));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTHENTICATION & DRIVER PROFILES
@@ -987,6 +860,8 @@ export const market_intel = pgTable("market_intel", {
 export const driver_profiles = pgTable("driver_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'restrict' }),
+  settings_revision: integer('settings_revision').notNull().default(1), // One atomic profile + primary vehicle revision
+  selected_services: jsonb('selected_services'), // Explicit work selection; null means not yet chosen, never derived from eligibility
 
   // Personal information
   first_name: text("first_name").notNull(),
@@ -1090,15 +965,13 @@ export const driver_profiles = pgTable("driver_profiles", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxEmail: sql`create unique index if not exists idx_driver_profiles_email on ${table} (email)`,
-  idxPhone: sql`create index if not exists idx_driver_profiles_phone on ${table} (phone)`,
-  idxMarket: sql`create index if not exists idx_driver_profiles_market on ${table} (market)`,
-  idxUserId: sql`create unique index if not exists idx_driver_profiles_user_id on ${table} (user_id)`,
+}, (table) => [
+  index('idx_driver_profiles_phone').on(table.phone),
+  index('idx_driver_profiles_market').on(table.market),
   // Live since migrations/20260703 (declared here 2026-08-17, todo #49). Redundant with the
   // UNIQUE constraint's own index but present in the DB — keep Drizzle honest about it.
-  idxShortcutToken: sql`create index if not exists idx_dp_shortcut_token on ${table} (shortcut_token) where shortcut_token is not null`,
-}));
+  index('idx_dp_shortcut_token').on(table.shortcut_token).where(sql`shortcut_token is not null`),
+]);
 
 // Driver vehicles: Vehicle information for each driver
 export const driver_vehicles = pgTable("driver_vehicles", {
@@ -1122,9 +995,9 @@ export const driver_vehicles = pgTable("driver_vehicles", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxDriverProfileId: sql`create index if not exists idx_driver_vehicles_profile_id on ${table} (driver_profile_id)`,
-}));
+}, (table) => [
+  index('idx_driver_vehicles_profile_id').on(table.driver_profile_id),
+]);
 
 // Auth credentials: Password and security information for authenticated users
 // 2026-01-05: Changed onDelete from 'cascade' to 'restrict' to prevent credential loss
@@ -1151,10 +1024,9 @@ export const auth_credentials = pgTable("auth_credentials", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create unique index if not exists idx_auth_credentials_user_id on ${table} (user_id)`,
-  idxResetToken: sql`create index if not exists idx_auth_credentials_reset_token on ${table} (password_reset_token)`,
-}));
+}, (table) => [
+  index('idx_auth_credentials_reset_token').on(table.password_reset_token),
+]);
 
 // Verification codes: Email and SMS verification codes
 // 2026-01-05: Changed onDelete from 'cascade' to 'set null' - codes are temporary
@@ -1176,12 +1048,12 @@ export const verification_codes = pgTable("verification_codes", {
 
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxCode: sql`create index if not exists idx_verification_codes_code on ${table} (code)`,
-  idxDestination: sql`create index if not exists idx_verification_codes_destination on ${table} (destination)`,
-  idxExpires: sql`create index if not exists idx_verification_codes_expires on ${table} (expires_at)`,
-  idxUserId: sql`create index if not exists idx_verification_codes_user_id on ${table} (user_id)`,
-}));
+}, (table) => [
+  index('idx_verification_codes_code').on(table.code),
+  index('idx_verification_codes_destination').on(table.destination),
+  index('idx_verification_codes_expires').on(table.expires_at),
+  index('idx_verification_codes_user_id').on(table.user_id),
+]);
 
 // Vehicle makes cache: NHTSA API cache for vehicle makes
 export const vehicle_makes_cache = pgTable("vehicle_makes_cache", {
@@ -1190,11 +1062,10 @@ export const vehicle_makes_cache = pgTable("vehicle_makes_cache", {
   make_name: text("make_name").notNull(),
   is_common: boolean("is_common").default(false), // Flag top 40 for faster dropdown loads
   cached_at: timestamp("cached_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxMakeId: sql`create unique index if not exists idx_vehicle_makes_cache_make_id on ${table} (make_id)`,
-  idxMakeName: sql`create index if not exists idx_vehicle_makes_cache_make_name on ${table} (make_name)`,
-  idxCommon: sql`create index if not exists idx_vehicle_makes_cache_common on ${table} (is_common)`,
-}));
+}, (table) => [
+  index('idx_vehicle_makes_cache_make_name').on(table.make_name),
+  index('idx_vehicle_makes_cache_common').on(table.is_common),
+]);
 
 // Vehicle models cache: NHTSA API cache for vehicle models by make and year
 export const vehicle_models_cache = pgTable("vehicle_models_cache", {
@@ -1205,12 +1076,12 @@ export const vehicle_models_cache = pgTable("vehicle_models_cache", {
   model_name: text("model_name").notNull(),
   model_year: integer("model_year"),
   cached_at: timestamp("cached_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxMakeYear: sql`create index if not exists idx_vehicle_models_cache_make_year on ${table} (make_id, model_year)`,
-  idxModelName: sql`create index if not exists idx_vehicle_models_cache_model_name on ${table} (model_name)`,
+}, (table) => [
+  index('idx_vehicle_models_cache_make_year').on(table.make_id, table.model_year),
+  index('idx_vehicle_models_cache_model_name').on(table.model_name),
   // Unique constraint for make + model + year combination
-  uniqueMakeModelYear: sql`create unique index if not exists idx_vehicle_models_cache_unique on ${table} (make_id, model_id, COALESCE(model_year, 0))`,
-}));
+  uniqueIndex('idx_vehicle_models_cache_unique').on(table.make_id, table.model_id, sql`COALESCE(model_year, 0)`),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MARKET INTELLIGENCE
@@ -1295,20 +1166,20 @@ export const market_intelligence = pgTable("market_intelligence", {
   updated_by: text("updated_by"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxMarket: sql`create index if not exists idx_market_intelligence_market on ${table} (market)`,
-  idxMarketSlug: sql`create index if not exists idx_market_intelligence_market_slug on ${table} (market_slug)`,
-  idxPlatform: sql`create index if not exists idx_market_intelligence_platform on ${table} (platform)`,
-  idxIntelType: sql`create index if not exists idx_market_intelligence_intel_type on ${table} (intel_type)`,
-  idxIntelSubtype: sql`create index if not exists idx_market_intelligence_intel_subtype on ${table} (intel_subtype)`,
-  idxActive: sql`create index if not exists idx_market_intelligence_active on ${table} (is_active)`,
-  idxSource: sql`create index if not exists idx_market_intelligence_source on ${table} (source)`,
-  idxCoachCite: sql`create index if not exists idx_market_intelligence_coach_cite on ${table} (coach_can_cite, coach_priority)`,
+}, (table) => [
+  index('idx_market_intelligence_market').on(table.market),
+  index('idx_market_intelligence_market_slug').on(table.market_slug),
+  index('idx_market_intelligence_platform').on(table.platform),
+  index('idx_market_intelligence_intel_type').on(table.intel_type),
+  index('idx_market_intelligence_intel_subtype').on(table.intel_subtype),
+  index('idx_market_intelligence_active').on(table.is_active),
+  index('idx_market_intelligence_source').on(table.source),
+  index('idx_market_intelligence_coach_cite').on(table.coach_can_cite, table.coach_priority),
   // Composite for common queries
-  idxMarketTypeActive: sql`create index if not exists idx_market_intelligence_market_type_active on ${table} (market_slug, intel_type, is_active)`,
+  index('idx_market_intelligence_market_type_active').on(table.market_slug, table.intel_type, table.is_active),
   // GIN index for tags search
-  idxTags: sql`create index if not exists idx_market_intelligence_tags on ${table} using gin (tags)`,
-}));
+  index('idx_market_intelligence_tags').using('gin', table.tags),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // USER INTEL NOTES: Coach-generated notes from user interactions
@@ -1367,13 +1238,13 @@ export const user_intel_notes = pgTable("user_intel_notes", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create index if not exists idx_user_intel_notes_user_id on ${table} (user_id)`,
-  idxNoteType: sql`create index if not exists idx_user_intel_notes_note_type on ${table} (note_type)`,
-  idxMarketSlug: sql`create index if not exists idx_user_intel_notes_market_slug on ${table} (market_slug)`,
-  idxActive: sql`create index if not exists idx_user_intel_notes_active on ${table} (is_active)`,
-  idxUserActive: sql`create index if not exists idx_user_intel_notes_user_active on ${table} (user_id, is_active, importance)`,
-}));
+}, (table) => [
+  index('idx_user_intel_notes_user_id').on(table.user_id),
+  index('idx_user_intel_notes_note_type').on(table.note_type),
+  index('idx_user_intel_notes_market_slug').on(table.market_slug),
+  index('idx_user_intel_notes_active').on(table.is_active),
+  index('idx_user_intel_notes_user_active').on(table.user_id, table.is_active, table.importance),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AI COACH TABLES: Conversation history and system observations
@@ -1436,17 +1307,17 @@ export const coach_conversations = pgTable("coach_conversations", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create index if not exists idx_coach_conversations_user_id on ${table} (user_id)`,
-  idxConversationId: sql`create index if not exists idx_coach_conversations_conversation_id on ${table} (conversation_id)`,
-  idxSnapshotId: sql`create index if not exists idx_coach_conversations_snapshot_id on ${table} (snapshot_id)`,
-  idxCreatedAt: sql`create index if not exists idx_coach_conversations_created_at on ${table} (created_at desc)`,
-  idxUserConversation: sql`create index if not exists idx_coach_conversations_user_conv on ${table} (user_id, conversation_id, created_at)`,
+}, (table) => [
+  index('idx_coach_conversations_user_id').on(table.user_id),
+  index('idx_coach_conversations_conversation_id').on(table.conversation_id),
+  index('idx_coach_conversations_snapshot_id').on(table.snapshot_id),
+  index('idx_coach_conversations_created_at').on(table.created_at.desc()),
+  index('idx_coach_conversations_user_conv').on(table.user_id, table.conversation_id, table.created_at),
   // GIN index for topic_tags search
-  idxTopicTags: sql`create index if not exists idx_coach_conversations_topic_tags on ${table} using gin (topic_tags)`,
+  index('idx_coach_conversations_topic_tags').using('gin', table.topic_tags),
   // Market-based queries for cross-driver learning
-  idxMarketSlug: sql`create index if not exists idx_coach_conversations_market_slug on ${table} (market_slug)`,
-}));
+  index('idx_coach_conversations_market_slug').on(table.market_slug),
+]);
 
 /**
  * Coach System Notes Table
@@ -1495,13 +1366,13 @@ export const coach_system_notes = pgTable("coach_system_notes", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxNoteType: sql`create index if not exists idx_coach_system_notes_note_type on ${table} (note_type)`,
-  idxCategory: sql`create index if not exists idx_coach_system_notes_category on ${table} (category)`,
-  idxStatus: sql`create index if not exists idx_coach_system_notes_status on ${table} (status)`,
-  idxPriority: sql`create index if not exists idx_coach_system_notes_priority on ${table} (priority desc)`,
-  idxCreatedAt: sql`create index if not exists idx_coach_system_notes_created_at on ${table} (created_at desc)`,
-}));
+}, (table) => [
+  index('idx_coach_system_notes_note_type').on(table.note_type),
+  index('idx_coach_system_notes_category').on(table.category),
+  index('idx_coach_system_notes_status').on(table.status),
+  index('idx_coach_system_notes_priority').on(table.priority.desc()),
+  index('idx_coach_system_notes_created_at').on(table.created_at.desc()),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COACH MEMOS (2026-05-12)
@@ -1544,10 +1415,10 @@ export const coach_memos = pgTable("coach_memos", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxStatus: sql`create index if not exists idx_coach_memos_status on ${table} (status)`,
-  idxCreatedAt: sql`create index if not exists idx_coach_memos_created_at on ${table} (created_at desc)`,
-}));
+}, (table) => [
+  index('idx_coach_memos_status').on(table.status),
+  index('idx_coach_memos_created_at').on(table.created_at.desc()),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OMNI-PRESENCE / SIRI INTERCEPTOR (2026-01-08)
@@ -1621,13 +1492,13 @@ export const intercepted_signals = pgTable("intercepted_signals", {
 
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxDeviceId: sql`create index if not exists idx_intercepted_signals_device_id on ${table} (device_id)`,
-  idxUserId: sql`create index if not exists idx_intercepted_signals_user_id on ${table} (user_id) where user_id is not null`,
-  idxCreatedAt: sql`create index if not exists idx_intercepted_signals_created on ${table} (device_id, created_at desc)`,
+}, (table) => [
+  index('idx_intercepted_signals_device_id').on(table.device_id),
+  index('idx_intercepted_signals_user_id').on(table.user_id).where(sql`user_id is not null`),
+  index('idx_intercepted_signals_created').on(table.device_id, table.created_at.desc()),
   // 2026-02-15: Market index for algorithm learning queries (e.g., "avg price in dallas-tx at 9pm")
-  idxMarket: sql`create index if not exists idx_intercepted_signals_market on ${table} (market, created_at desc) where market is not null`,
-}));
+  index('idx_intercepted_signals_market').on(table.market, table.created_at.desc()).where(sql`market is not null`),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OFFER INTELLIGENCE (2026-02-17)
@@ -1796,47 +1667,40 @@ export const offer_intelligence = pgTable("offer_intelligence", {
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
+  // Reversible user-facing exclusion; raw capture and offer outcome remain intact.
+  removed_at: timestamp("removed_at", { withTimezone: true }),
+  removal_revision: integer("removal_revision").notNull().default(0),
+}, (table) => [
   // ═══════════════════════════════════════════════════════════════════
   // INDEXES — optimized for analyst query patterns
   // ═══════════════════════════════════════════════════════════════════
-
   // Device offer history
-  idxDeviceCreated: sql`create index if not exists idx_oi_device_created on ${table} (device_id, created_at desc)`,
-
+  index('idx_oi_device_created').on(table.device_id, table.created_at.desc()),
   // Avg $/mile by daypart + market + platform
-  idxMarketDaypart: sql`create index if not exists idx_oi_market_daypart on ${table} (market, day_part, platform) where market is not null`,
-
+  index('idx_oi_market_daypart').on(table.market, table.day_part, table.platform).where(sql`market is not null`),
   // Best offer areas (H3 geographic clustering)
-  idxH3Decision: sql`create index if not exists idx_oi_h3_decision on ${table} (h3_index, decision) where h3_index is not null`,
-
+  index('idx_oi_h3_decision').on(table.h3_index, table.decision).where(sql`h3_index is not null`),
   // Daily pricing floor by platform
-  idxDatePlatform: sql`create index if not exists idx_oi_date_platform on ${table} (local_date, platform, per_mile) where local_date is not null`,
-
+  index('idx_oi_date_platform').on(table.local_date, table.platform, table.per_mile).where(sql`local_date is not null`),
   // Weekend vs weekday pricing patterns
-  idxWeekendHour: sql`create index if not exists idx_oi_weekend_hour on ${table} (is_weekend, local_hour, platform) where is_weekend is not null`,
-
+  index('idx_oi_weekend_hour').on(table.is_weekend, table.local_hour, table.platform).where(sql`is_weekend is not null`),
   // Sequence analysis within sessions
-  idxSessionSeq: sql`create index if not exists idx_oi_session_seq on ${table} (offer_session_id, offer_sequence_num) where offer_session_id is not null`,
-
+  index('idx_oi_session_seq').on(table.offer_session_id, table.offer_sequence_num).where(sql`offer_session_id is not null`),
   // Spatial lookup by driver location
-  idxDriverLocation: sql`create index if not exists idx_oi_driver_location on ${table} (driver_lat, driver_lng) where driver_lat is not null`,
-
+  index('idx_oi_driver_location').on(table.driver_lat, table.driver_lng).where(sql`driver_lat is not null`),
   // Override rate (driver disagreement)
-  idxOverride: sql`create index if not exists idx_oi_override on ${table} (device_id, user_override) where user_override is not null`,
-
+  index('idx_oi_override').on(table.device_id, table.user_override).where(sql`user_override is not null`),
   // User linkage
-  idxUserId: sql`create index if not exists idx_oi_user_id on ${table} (user_id) where user_id is not null`,
-
+  index('idx_oi_user_id').on(table.user_id).where(sql`user_id is not null`),
+  // Authenticated offer history and local-day queues.
+  index('idx_oi_user_created').on(table.user_id, table.created_at.desc(), table.id.desc()).where(sql`user_id is not null`),
   // Best offers ranking
-  idxPerMile: sql`create index if not exists idx_oi_per_mile on ${table} (per_mile desc) where per_mile is not null`,
-
+  index('idx_oi_per_mile').on(table.per_mile.desc()).where(sql`per_mile is not null`),
   // General time-series queries
-  idxCreatedAt: sql`create index if not exists idx_oi_created_at on ${table} (created_at desc)`,
-
+  index('idx_oi_created_at').on(table.created_at.desc()),
   // Geocoding backfill job — find rows needing geocoding
-  idxNeedGeocode: sql`create index if not exists idx_oi_need_geocode on ${table} (id) where geocoded_at is null and pickup_address is not null`,
-}));
+  index('idx_oi_need_geocode').on(table.id).where(sql`geocoded_at is null and pickup_address is not null`),
+]);
 
 /**
  * coach_offer_decisions — Driver/Coach decision intelligence (2026-05-05)
@@ -1905,22 +1769,18 @@ export const coach_offer_decisions = pgTable("coach_offer_decisions", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
+}, (table) => [
   // Driver decision history (most-recent-first for prompt injection)
-  idxUserCreated: sql`create index if not exists idx_cod_user_created on ${table} (user_id, created_at desc)`,
-
+  index('idx_cod_user_created').on(table.user_id, table.created_at.desc()),
   // Cross-table backfill lookups
-  idxOfferIntel: sql`create index if not exists idx_cod_offer_intel on ${table} (offer_intelligence_id) where offer_intelligence_id is not null`,
-
+  index('idx_cod_offer_intel').on(table.offer_intelligence_id).where(sql`offer_intelligence_id is not null`),
   // "Where do AI and Driver disagree" learning queries
-  idxAgreement: sql`create index if not exists idx_cod_agreement on ${table} (ai_recommendation, user_decision) where user_decision is not null`,
-
+  index('idx_cod_agreement').on(table.ai_recommendation, table.user_decision).where(sql`user_decision is not null`),
   // Conversation thread joins (for context reconstruction)
-  idxConversation: sql`create index if not exists idx_cod_conversation on ${table} (conversation_id) where conversation_id is not null`,
-
+  index('idx_cod_conversation').on(table.conversation_id).where(sql`conversation_id is not null`),
   // Snapshot context joins (where was Melody when she decided)
-  idxSnapshot: sql`create index if not exists idx_cod_snapshot on ${table} (snapshot_id) where snapshot_id is not null`,
-}));
+  index('idx_cod_snapshot').on(table.snapshot_id).where(sql`snapshot_id is not null`),
+]);
 
 /**
  * offer_rulesets — Per-driver Offer Analyzer rules (2026-07-03, todo #10)
@@ -1964,8 +1824,9 @@ export const offer_outcomes = pgTable("offer_outcomes", {
   user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'restrict' }),
   offer_intelligence_id: uuid("offer_intelligence_id").references(() => offer_intelligence.id, { onDelete: 'set null' }),
 
-  driver_decision: text("driver_decision"),            // 'Accepted' | 'Rejected' | 'Cancelled' | 'Completed' (CHECK in migration)
+  driver_decision: text("driver_decision"),            // Accepted / Rejected / Cancelled / Completed / Other
   driver_reasoning: text("driver_reasoning"),          // the "AI was wrong here" signal
+  revision: integer("revision").notNull().default(1), // optimistic edit protection; never a timestamp comparison
 
   // Realized earnings (meaningful when Accepted/Completed); total is a Postgres
   // GENERATED STORED column — computed in the DB, cannot drift from the parts.
@@ -1981,181 +1842,22 @@ export const offer_outcomes = pgTable("offer_outcomes", {
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
+}, (table) => [
   // Live DB has this CHECK from migrations/20260703 — declared here too so Drizzle
   // matches reality (2026-08-17, todo #49). Name matches the auto-generated constraint.
-  driverDecisionCheck: check("offer_outcomes_driver_decision_check", sql`${table.driver_decision} IN ('Accepted', 'Rejected', 'Cancelled', 'Completed')`),
+  check("offer_outcomes_driver_decision_check", sql`${table.driver_decision} IN ('Accepted', 'Rejected', 'Cancelled', 'Completed', 'Other')`),
+  check("offer_outcomes_revision_check", sql`${table.revision} >= 1`),
   // One outcome per analyzed offer (upsert target)
-  uqOutcomeOffer: sql`create unique index if not exists uq_outcome_offer on ${table} (offer_intelligence_id) where offer_intelligence_id is not null`,
-  idxOutcomeUserCreated: sql`create index if not exists idx_outcome_user_created on ${table} (user_id, created_at desc)`,
-  idxOutcomeDecision: sql`create index if not exists idx_outcome_decision on ${table} (driver_decision) where driver_decision is not null`,
-}));
+  uniqueIndex('uq_outcome_offer').on(table.offer_intelligence_id).where(sql`offer_intelligence_id is not null`),
+  index('idx_outcome_user_created').on(table.user_id, table.created_at.desc()),
+  index('idx_outcome_decision').on(table.driver_decision).where(sql`driver_decision is not null`),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DISPATCH PRIMITIVES (2026-01-06)
 // Schema additions for "Where do I go to make $500 today and still get home?"
 // These tables enable goal-aware, safety-bounded dispatch recommendations.
 // ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Driver Goals Table (P2-A)
- *
- * Tracks earning goals, trip targets, and time constraints.
- * Enables queries like "I want to make $500 by 6pm".
- */
-export const driver_goals = pgTable("driver_goals", {
-  id: uuid("id").primaryKey().defaultRandom(),
-
-  // Owner
-  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
-
-  // Goal definition
-  goal_type: text("goal_type").notNull(), // 'earnings' | 'trips' | 'hours' | 'custom'
-  target_amount: doublePrecision("target_amount"), // e.g., 500 for $500, or 10 for 10 trips
-  target_unit: text("target_unit").default('dollars'), // 'dollars' | 'trips' | 'hours'
-
-  // Time constraints
-  deadline: timestamp("deadline", { withTimezone: true }), // When goal must be achieved by
-  min_hourly_rate: doublePrecision("min_hourly_rate"), // e.g., 35.00 for $35/hr minimum
-
-  // Priority
-  urgency: text("urgency").default('normal'), // 'low' | 'normal' | 'high' | 'critical'
-
-  // Status
-  is_active: boolean("is_active").default(true),
-  progress_amount: doublePrecision("progress_amount").default(0), // Current progress
-  completed_at: timestamp("completed_at", { withTimezone: true }),
-
-  // Timestamps
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create index if not exists idx_driver_goals_user_id on ${table} (user_id)`,
-  idxActive: sql`create index if not exists idx_driver_goals_active on ${table} (user_id, is_active) where is_active = true`,
-}));
-
-/**
- * Driver Tasks Table (P2-B)
- *
- * Hard stops and time constraints (car wash, pickup kids, appointments).
- * Enables "return-home plan" that respects non-driving obligations.
- */
-export const driver_tasks = pgTable("driver_tasks", {
-  id: uuid("id").primaryKey().defaultRandom(),
-
-  // Owner
-  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
-
-  // Task definition
-  title: text("title").notNull(), // e.g., "Car wash appointment"
-  description: text("description"),
-
-  // Time constraints
-  due_at: timestamp("due_at", { withTimezone: true }), // When task must be done by
-  duration_minutes: integer("duration_minutes"), // How long task takes
-
-  // Location (optional - some tasks are location-bound)
-  location: text("location"), // Address or place description
-  place_id: text("place_id"), // Google Place ID if available
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
-
-  // Priority
-  is_hard_stop: boolean("is_hard_stop").default(false), // Must stop driving for this
-  priority: integer("priority").default(50), // 1-100
-
-  // Status
-  is_complete: boolean("is_complete").default(false),
-  completed_at: timestamp("completed_at", { withTimezone: true }),
-
-  // Recurrence (optional)
-  recurrence: text("recurrence"), // 'daily' | 'weekly' | 'weekdays' | null
-
-  // Timestamps
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create index if not exists idx_driver_tasks_user_id on ${table} (user_id)`,
-  idxDueAt: sql`create index if not exists idx_driver_tasks_due_at on ${table} (user_id, due_at) where is_complete = false`,
-  idxHardStop: sql`create index if not exists idx_driver_tasks_hard_stop on ${table} (user_id, due_at) where is_hard_stop = true and is_complete = false`,
-}));
-
-/**
- * Safe Zones Table (P2-C)
- *
- * Geofence definitions for safety boundaries.
- * Enables "stay inside safe boundary unless goal demands otherwise".
- */
-export const safe_zones = pgTable("safe_zones", {
-  id: uuid("id").primaryKey().defaultRandom(),
-
-  // Owner
-  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
-
-  // Zone identity
-  zone_name: text("zone_name").notNull(), // e.g., "Home area", "Downtown avoid"
-  zone_type: text("zone_type").notNull(), // 'safe' | 'avoid' | 'prefer'
-
-  // Geometry (one of these should be set)
-  geometry: text("geometry"), // GeoJSON polygon
-  center_lat: doublePrecision("center_lat"),
-  center_lng: doublePrecision("center_lng"),
-  radius_miles: doublePrecision("radius_miles"), // Circular zone radius
-  neighborhoods: text("neighborhoods"), // Comma-separated neighborhood names (alternative to geometry)
-
-  // Risk assessment
-  risk_level: integer("risk_level"), // 1-5 (1=safest, 5=most risky)
-  risk_notes: text("risk_notes"), // Why this zone has certain risk level
-
-  // Usage flags
-  is_active: boolean("is_active").default(true),
-  applies_at_night: boolean("applies_at_night").default(true), // Apply after 9pm
-  applies_at_day: boolean("applies_at_day").default(true),
-
-  // Timestamps
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create index if not exists idx_safe_zones_user_id on ${table} (user_id)`,
-  idxActive: sql`create index if not exists idx_safe_zones_active on ${table} (user_id, is_active) where is_active = true`,
-  idxType: sql`create index if not exists idx_safe_zones_type on ${table} (user_id, zone_type)`,
-}));
-
-/**
- * Staging Saturation Tracker (P2-D)
- *
- * Tracks staging location suggestions to prevent overcrowding.
- * When many drivers ask for recommendations, we diversify suggestions
- * to avoid sending everyone to the same hotspot.
- *
- * Uses H3 cells (resolution 8 = ~0.5km) for location grouping.
- */
-export const staging_saturation = pgTable("staging_saturation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-
-  // Location identification
-  h3_cell: text("h3_cell").notNull(), // H3 index at resolution 8
-  venue_name: text("venue_name"), // Optional: specific venue name
-
-  // Time window (suggestions aggregated per hour)
-  window_start: timestamp("window_start", { withTimezone: true }).notNull(),
-  window_end: timestamp("window_end", { withTimezone: true }).notNull(),
-
-  // Saturation metrics
-  suggestion_count: integer("suggestion_count").notNull().default(0), // How many times suggested
-  active_drivers: integer("active_drivers").default(0), // Estimated drivers currently heading there
-
-  // Market context
-  market_slug: text("market_slug"),
-
-  // Timestamps
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxH3Window: sql`create unique index if not exists idx_staging_saturation_h3_window on ${table} (h3_cell, window_start)`,
-  idxMarketWindow: sql`create index if not exists idx_staging_saturation_market on ${table} (market_slug, window_start)`,
-  idxSuggestionCount: sql`create index if not exists idx_staging_saturation_count on ${table} (suggestion_count desc)`,
-}));
 
 /**
  * News Deactivations Table
@@ -2197,12 +1899,12 @@ export const news_deactivations = pgTable("news_deactivations", {
 
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create index if not exists idx_news_deactivations_user_id on ${table} (user_id)`,
-  idxNewsHash: sql`create index if not exists idx_news_deactivations_news_hash on ${table} (news_hash)`,
+}, (table) => [
+  index('idx_news_deactivations_user_id').on(table.user_id),
+  index('idx_news_deactivations_news_hash').on(table.news_hash),
   // Unique constraint: one deactivation per user per news item
-  uniqueUserNews: sql`create unique index if not exists idx_news_deactivations_unique on ${table} (user_id, news_hash)`,
-}));
+  uniqueIndex('idx_news_deactivations_unique').on(table.user_id, table.news_hash),
+]);
 
 /**
  * Zone Intelligence Table
@@ -2262,15 +1964,15 @@ export const zone_intelligence = pgTable("zone_intelligence", {
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxMarketSlug: sql`create index if not exists idx_zone_intelligence_market_slug on ${table} (market_slug)`,
-  idxZoneType: sql`create index if not exists idx_zone_intelligence_zone_type on ${table} (zone_type)`,
-  idxConfidence: sql`create index if not exists idx_zone_intelligence_confidence on ${table} (confidence_score desc)`,
-  idxActive: sql`create index if not exists idx_zone_intelligence_active on ${table} (is_active) where is_active = true`,
-  idxMarketType: sql`create index if not exists idx_zone_intelligence_market_type on ${table} (market_slug, zone_type)`,
+}, (table) => [
+  index('idx_zone_intelligence_market_slug').on(table.market_slug),
+  index('idx_zone_intelligence_zone_type').on(table.zone_type),
+  index('idx_zone_intelligence_confidence').on(table.confidence_score.desc()),
+  index('idx_zone_intelligence_active').on(table.is_active).where(sql`is_active = true`),
+  index('idx_zone_intelligence_market_type').on(table.market_slug, table.zone_type),
   // Spatial index would be ideal here but requires PostGIS - using lat/lng for now
-  idxLocation: sql`create index if not exists idx_zone_intelligence_location on ${table} (lat, lng) where lat is not null`,
-}));
+  index('idx_zone_intelligence_location').on(table.lat, table.lng).where(sql`lat is not null`),
+]);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DRIZZLE RELATIONS: Enable eager loading via `with: { coords: true }`
@@ -2287,9 +1989,9 @@ export const snapshotsRelations = relations(snapshots, ({ one }) => ({
   }),
 }));
 
-// coords_cache → users/snapshots reverse relations (for density analysis)
+// coords_cache → snapshots reverse relation (for density analysis)
+// 2026-09-13: `users: many(users)` removed — users has no coord_key and no inverse relation.
 export const coordsCacheRelations = relations(coords_cache, ({ many }) => ({
-  users: many(users),
   snapshots: many(snapshots),
 }));
 
@@ -2302,38 +2004,14 @@ export const coordsCacheRelations = relations(coords_cache, ({ many }) => ({
 export const oauth_states = pgTable("oauth_states", {
   id: uuid("id").primaryKey().defaultRandom(),
   state: text("state").notNull().unique(),
-  provider: text("provider").notNull(), // 'uber', 'lyft'
+  provider: text("provider").notNull(), // 'google' (Uber OAuth removed 2026-09-13)
   user_id: uuid("user_id").notNull(), // Intentionally no FK to users to allow soft failures
   redirect_uri: text("redirect_uri"),
   expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxState: sql`create index if not exists idx_oauth_states_state on ${table} (state)`,
-  idxExpires: sql`create index if not exists idx_oauth_states_expires on ${table} (expires_at)`,
-}));
-
-export const uber_connections = pgTable("uber_connections", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'cascade' }),
-  
-  // Tokens (Encrypted at rest)
-  access_token_encrypted: text("access_token_encrypted").notNull(),
-  refresh_token_encrypted: text("refresh_token_encrypted"),
-  token_expires_at: timestamp("token_expires_at", { withTimezone: true }),
-  
-  // Permissions
-  scopes: text("scopes").array(), // ['profile', 'history', 'places']
-  
-  // Status
-  is_active: boolean("is_active").default(true),
-  connected_at: timestamp("connected_at", { withTimezone: true }).defaultNow(),
-  last_sync_at: timestamp("last_sync_at", { withTimezone: true }),
-  
-  created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-}, (table) => ({
-  idxUserId: sql`create index if not exists idx_uber_connections_user_id on ${table} (user_id)`,
-}));
+}, (table) => [
+  index('idx_oauth_states_expires').on(table.expires_at),
+]);
 
 // ============================================================================
 // CONCIERGE FEEDBACK — Passenger ratings from QR code scans
@@ -2345,13 +2023,14 @@ export const concierge_feedback = pgTable("concierge_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
   driver_profile_id: uuid("driver_profile_id").notNull().references(() => driver_profiles.id, { onDelete: 'cascade' }),
   share_token: varchar("share_token", { length: 12 }).notNull(),
-  rating: integer("rating").notNull(), // 1-5 stars
+  rating: integer("rating").notNull(), // 1-5 stars (CHECK concierge_feedback_rating_check, live)
   comment: text("comment"), // Optional free text from passenger
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxDriverProfile: sql`create index if not exists idx_concierge_feedback_driver on ${table} (driver_profile_id)`,
-  idxCreatedAt: sql`create index if not exists idx_concierge_feedback_created on ${table} (created_at)`,
-}));
+}, (table) => [
+  check("concierge_feedback_rating_check", sql`${table.rating} >= 1 AND ${table.rating} <= 5`),
+  index('idx_concierge_feedback_driver').on(table.driver_profile_id),
+  index('idx_concierge_feedback_created').on(table.created_at),
+]);
 
 // ============================================================================
 // CLAUDE MEMORY TABLE — Persistent knowledge base for Claude Code interactions
@@ -2373,11 +2052,11 @@ export const claudeMemory = pgTable("claude_memory", {
   metadata: jsonb("metadata").default({}),             // Flexible extra data (model used, token count, etc.)
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxSessionId: sql`create index if not exists idx_claude_memory_session on ${table} (session_id)`,
-  idxCategory: sql`create index if not exists idx_claude_memory_category on ${table} (category)`,
-  idxStatus: sql`create index if not exists idx_claude_memory_status on ${table} (status)`,
-}));
+}, (table) => [
+  index('idx_claude_memory_session').on(table.session_id),
+  index('idx_claude_memory_category').on(table.category),
+  index('idx_claude_memory_status').on(table.status),
+]);
 
 // ============================================================================
 // REPO-CLARITY TABLES (2026-05-29) — todo, lessons_learned, definitions
@@ -2396,9 +2075,9 @@ export const todo = pgTable("todo", {
   source_memory_id: integer("source_memory_id"),        // logical ref to claude_memory.id — bare INTEGER, NO FK (mirrors claudeMemory.parent_id)
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  statusCheck: check("todo_status_check", sql`${table.status} IN ('open', 'in_progress', 'done', 'wontfix')`),
-}));
+}, (table) => [
+  check("todo_status_check", sql`${table.status} IN ('open', 'in_progress', 'done', 'wontfix')`),
+]);
 
 export const lessons_learned = pgTable("lessons_learned", {
   id: serial("id").primaryKey(),
@@ -2441,7 +2120,10 @@ export const airports = pgTable("airports", {
   terminals_provenance: text("terminals_provenance"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // Live since the airports seed (2026-08-06); declared 2026-09-13.
+  index('idx_airports_lat_lng').on(table.lat, table.lng),
+]);
 
 /**
  * app_rules — the canonical, queryable home for product invariants ("the rules").
@@ -2458,11 +2140,11 @@ export const app_rules = pgTable("app_rules", {
   rationale: text("rationale"),                         // the why (incident/origin)
   provenance: text("provenance").notNull().default("melody"),   // 'melody' | 'claude' | 'joint' (CHECK-enforced)
   status: text("status").notNull().default("active"),   // 'active' | 'superseded' (CHECK-enforced)
-  superseded_by: integer("superseded_by"),              // app_rules.id of the replacement rule
+  superseded_by: integer("superseded_by").references(() => app_rules.id), // app_rules.id of the replacement rule (self-FK, live since 20260706)
   enforced_by: text("enforced_by"),                     // module/mechanism that structurally enforces it
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  provenanceCheck: check("app_rules_provenance_check", sql`${table.provenance} IN ('melody', 'claude', 'joint')`),
-  statusCheck: check("app_rules_status_check", sql`${table.status} IN ('active', 'superseded')`),
-}));
+}, (table) => [
+  check("app_rules_provenance_check", sql`${table.provenance} IN ('melody', 'claude', 'joint')`),
+  check("app_rules_status_check", sql`${table.status} IN ('active', 'superseded')`),
+]);

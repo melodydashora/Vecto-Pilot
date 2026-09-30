@@ -3,8 +3,8 @@
 //
 // This is the WRITE-TIME gate (fail-loud): PUT /api/offer-analyzer/rules refuses
 // anything that doesn't parse, so a malformed config can never persist. The read
-// path (ruleset-store.js) still fail-opens to DEFAULT_RULESET with a loud log —
-// that branch should be unreachable precisely because this gate exists.
+// path also validates saved rules and refuses a supplied token when personal
+// rules cannot be verified. Only explicitly anonymous requests use defaults.
 // Doc: docs/architecture/OFFER_ANALYZER.md §6.6 (write-time validation) and §7 (read posture).
 
 import { z } from 'zod';

@@ -205,7 +205,7 @@
 3. **Line 183:** "Fail-closed on DB errors" — auth middleware returns 503, doesn't silently pass.
 4. **Lines 250-253:** Session limits: 60-min sliding window + 2-hour hard limit.
 
-**What the doc says is true today:** Email/password + Google OAuth working. Uber OAuth for platform data only (not login). Apple OAuth = stub (501). Account lockout: 5 failures = 15-min lock.
+**What the doc says is true today:** Email/password + Google OAuth working. Uber OAuth removed 2026-09-13 (no platform relationship; app is platform-neutral). Apple OAuth = stub (501). Account lockout: 5 failures = 15-min lock.
 
 **Open gaps (lines 383-392):** 10 TODO items. Critical: dedicated auth rate limiter (currently global only), token refresh (currently no refresh mechanism), standard JWT migration, Apple OAuth (required for iOS App Store).
 

@@ -1,5 +1,10 @@
 # Entrypoint and runtime modules
 entrypoint = "gateway-server.js"
+# Boot repair for the Claude Code CLI (2026-09-10): Replit rebuilds /home/runner
+# outside the workspace on every restart, which wiped ~/.local/bin/claude and
+# ~/.claude. This relinks the launcher and the persisted config dir once per
+# container boot; .config/bashrc sources the same script per Shell tab.
+onBoot = "bash /home/runner/workspace/scripts/ensure-claude.sh; python3 /home/runner/workspace/scripts/ensure-codex.py prepare"
 modules = ["python-3.11", "nodejs-20", "postgresql-16"]
 
 # Primary run command (Run button / default start)
@@ -59,11 +64,15 @@ args = "sh -c \"set -a && . ./.env.local && set +a && npm run lint\""
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "sh -c \"set -a && . ./.env.local && set +a && npx tsc --noEmit\""
+args = "sh -c \"set -a && . ./.env.local && set +a && npm run typecheck\""
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "sh -c \"set -a && . ./.env.local && set +a && npm run test:unit\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run test:client"
 
 # Test Boot: disposable gateway on port 5199 (already port-mapped above) for
 # live endpoint verification — never touches the Run-button server on 5000.
@@ -107,6 +116,13 @@ PROJECT_ID = "gen-lang-client-0361505751"
 # ==========================
 
 [userenv.development]
+# Claude Code CLI config home (2026-09-10/11). With this set, everything that
+# used to live in ~/.claude and ~/.claude.json (login, settings, plugins, session
+# transcripts, memory) lives here instead and survives a workspace restart.
+# Workspace-only on purpose ([userenv.shared] would also reach the published
+# app, where it is meaningless). Absolute path; .config/ is gitignored;
+# scripts/ensure-claude.sh uses the same default. Not a secret.
+CLAUDE_CONFIG_DIR = "/home/runner/workspace/.config/claude-code"
 
 [[ports]]
 localPort = 3001

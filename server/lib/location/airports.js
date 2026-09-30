@@ -14,6 +14,7 @@
 import { db } from '../../db/drizzle.js';
 import { airports } from '../../../shared/schema.js';
 import { haversineDistanceMiles } from './geo.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 
 export const AIRPORT_RADIUS_MILES = 50;
 
@@ -21,8 +22,8 @@ export const AIRPORT_RADIUS_MILES = 50;
  * Find major airports within radius of GPS coords, nearest first.
  * Deterministic: same coords → same airports, every time.
  *
- * @param {number} lat - 6-decimal GPS latitude (required, finite)
- * @param {number} lng - 6-decimal GPS longitude (required, finite)
+ * @param {number} lat - GPS latitude at supplied precision (required, finite)
+ * @param {number} lng - GPS longitude at supplied precision (required, finite)
  * @param {{ radiusMiles?: number, limit?: number }} [opts]
  * @returns {Promise<Array<{ iata: string, name: string, city: string|null,
  *   country: string, lat: number, lng: number, distance_miles: number,
@@ -31,13 +32,17 @@ export const AIRPORT_RADIUS_MILES = 50;
  *   selection without real GPS coords would be a guess)
  */
 export async function findNearbyAirports(lat, lng, { radiusMiles = AIRPORT_RADIUS_MILES, limit = 5 } = {}) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !normalizeCoordinates(lat, lng)) {
     throw new Error(`findNearbyAirports: finite GPS coords required (got ${lat}, ${lng}) — no fallbacks`);
   }
 
+  if (!Number.isFinite(radiusMiles) || radiusMiles < 0 || !Number.isInteger(limit) || limit < 1) {
+    throw new Error('findNearbyAirports: invalid radius or limit');
+  }
   const rows = await db.select().from(airports);
 
   return rows
+    .filter(a => Number.isFinite(a.lat) && Number.isFinite(a.lng) && normalizeCoordinates(a.lat, a.lng))
     .map((a) => ({
       iata: a.iata,
       name: a.name,
@@ -45,11 +50,12 @@ export async function findNearbyAirports(lat, lng, { radiusMiles = AIRPORT_RADIU
       country: a.country,
       lat: a.lat,
       lng: a.lng,
-      distance_miles: Number(haversineDistanceMiles(lat, lng, a.lat, a.lng).toFixed(1)),
+      distance_miles: haversineDistanceMiles(lat, lng, a.lat, a.lng),
       terminals: a.terminals ?? null,
       terminals_provenance: a.terminals_provenance ?? null,
     }))
     .filter((a) => a.distance_miles <= radiusMiles)
     .sort((a, b) => a.distance_miles - b.distance_miles)
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(a => ({ ...a, distance_miles: Number(a.distance_miles.toFixed(1)) }));
 }

@@ -12,7 +12,6 @@ Server configuration: environment loading, validation, and runtime settings.
 |------|---------|
 | `load-env.js` | Environment loading (mode-specific .env files) |
 | `validate-env.js` | Environment validation (required API keys) |
-| `validate-strategy-env.js` | Strategy model configuration validation |
 | `env-registry.js` | Environment variable registry with defaults and types |
 | `holiday-override.json` | Manual holiday override configuration |
 | `agent-policy.json` | Agent system policy |
@@ -40,9 +39,7 @@ validateEnv(); // Throws if required vars missing
 
 ### Strategy Validation
 ```javascript
-import { validateStrategyEnv } from './config/validate-strategy-env.js';
 
-validateStrategyEnv(); // Validates AI model configuration
 ```
 
 ## Required Environment Variables
@@ -101,7 +98,6 @@ node server/scripts/holiday-override.js test
 // From gateway-server.js (project root)
 import './server/config/load-env.js';  // MUST be first import
 import { validateEnv } from './server/config/validate-env.js';
-import { validateStrategyEnv } from './server/config/validate-strategy-env.js';
 
 // From server/lib/*/
 import holidayOverrides from '../../config/holiday-override.json' assert { type: 'json' };

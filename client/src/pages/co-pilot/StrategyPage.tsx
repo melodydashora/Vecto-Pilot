@@ -2,7 +2,6 @@
 // Strategy page with AI recommendations, smart blocks, and coach chat
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +23,10 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 // 2026-04-26 PHASE B: MapTab renamed to StrategyMap and moved into a strategy/
 // subdirectory. Strategy is the only consumer; the standalone /co-pilot/map
 // route and bottom-nav Map tab were deleted in this phase.
-import StrategyMap from '@/components/strategy/StrategyMap';
+import StrategyMap, { type MapEvent } from '@/components/strategy/StrategyMap';
+import { PreviousStrategyCard } from '@/components/strategy/PreviousStrategyCard';
+import { StrategyText } from '@/components/strategy/StrategyText';
+import { StrategySourceTime } from '@/components/strategy/StrategySourceTime';
 import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
 // 2026-04-26 PHASE F: traffic incidents layer source
 import { useTrafficIncidents } from '@/hooks/useTrafficIncidents';
@@ -35,29 +37,13 @@ import BarsDataGrid from '@/components/BarsDataGrid';
 import { GreetingBanner } from '@/components/co-pilot/GreetingBanner';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
-import { logAction as logActionHelper, filterHighValueSpacedBlocks } from '@/utils/co-pilot-helpers';
+import { logAction as logActionHelper, filterHighValueSpacedBlocks, type FilterableEvent } from '@/utils/co-pilot-helpers';
 import type { SmartBlock } from '@/types/co-pilot';
+import { useAuth } from '@/contexts/auth-context';
+import { useRunSetup } from '@/contexts/run-setup-context';
+import { useVenueFeedback } from '@/hooks/useVenueFeedback';
 
-// 2026-04-26: Type shapes mirrored from MapPage.tsx for the embedded MapTab.
-// Inline-duplicated rather than extracted into a shared module — the brief
-// flagged this as deliberate; can be DRY'd into a shared types file once a
-// third consumer appears.
-interface MapEvent {
-  title: string;
-  venue?: string;
-  address?: string;
-  event_start_date?: string;
-  event_end_date?: string;
-  event_start_time?: string;
-  event_end_time?: string;
-  latitude?: number;
-  longitude?: number;
-  impact?: 'high' | 'medium' | 'low';
-  subtype?: string;
-}
-
-interface BriefingEvent {
-  event_start_date?: string;
+interface BriefingEvent extends FilterableEvent {
   event_type?: string;
   subtype?: string;
   title?: string;
@@ -67,8 +53,6 @@ interface BriefingEvent {
   latitude?: number;
   longitude?: number;
   impact?: 'high' | 'medium' | 'low';
-  event_start_time?: string;
-  event_end_time?: string;
   [key: string]: unknown;
 }
 
@@ -76,8 +60,8 @@ interface MapBar {
   name: string;
   type: string;
   address: string;
-  expenseLevel: string;
-  expenseRank: number;
+  expenseLevel: string | null;
+  expenseRank: number | null;
   isOpen: boolean;
   closingSoon: boolean;
   minutesUntilClose: number | null;
@@ -92,7 +76,8 @@ interface MapBar {
 export default function StrategyPage() {
   const locationContext = useLocationContext();
   const { toast } = useToast();
-  const _queryClient = useQueryClient();
+  const { user, token } = useAuth();
+  const runSetup = useRunSetup();
 
   // Get shared state from context
   const {
@@ -100,6 +85,11 @@ export default function StrategyPage() {
     lastSnapshotId,
     strategyData,
     immediateStrategy,
+    previousStrategy,
+    previousBlocksData,
+    strategyError,
+    historicalMap,
+    rememberMap,
     isStrategyFetching,
     snapshotData: _snapshotData,
     blocks,
@@ -115,6 +105,24 @@ export default function StrategyPage() {
     timeRemainingText,
     timezone
   } = useCoPilot();
+  const readyContextId = locationContext.contextReady ? locationContext.lastSnapshotId : null;
+  const replacementFailed = !!strategyError || strategyData?.status === 'error' || strategyData?.status === 'failed';
+  const refreshStrategy = async () => {
+    if (!runSetup.preferencesConfirmed) { runSetup.reviewSetup(); return; }
+    if (!readyContextId) return;
+    let snapshotId = readyContextId;
+    if (!runSetup.canContinue) {
+      if (!runSetup.error || runSetup.loading || runSetup.saving || runSetup.saveUnconfirmed || runSetup.unsavedEditors.length) return;
+      const canonical = await runSetup.reload();
+      if (!canonical || canonical.currentContextPending || !canonical.currentSnapshot?.ready || !canonical.currentSnapshot.briefingReady) return;
+      snapshotId = canonical.currentSnapshot.snapshot_id;
+    }
+    await runSetup.continueWithSavedPreferences(snapshotId);
+  };
+  const venueFeedback = useVenueFeedback(lastSnapshotId, blocksData?.rankingId);
+  const confirmedBlocks = venueFeedback.state && venueFeedback.state.scope_revision > 0 ? venueFeedback.state.blocks : null;
+  const currentBlocks = confirmedBlocks ?? blocks;
+  const [undoError, setUndoError] = useState<string | null>(null);
 
   // 2026-04-26: Embedded-MapTab data prep. Memos lifted from MapPage.tsx
   // verbatim — same field names, same dedup logic, same type shapes.
@@ -137,7 +145,7 @@ export default function StrategyPage() {
     });
 
     const openPremiumBars = uniqueBars.filter(bar => {
-      if (bar.expenseRank < 2) return false;
+      if (bar.expenseRank == null || bar.expenseRank < 2) return false;
       return bar.isOpen === true || bar.closedGoAnyway === true;
     });
 
@@ -161,48 +169,69 @@ export default function StrategyPage() {
     return mappedBars;
   }, [barsData]);
 
-  const mapVenues = useMemo(() => blocks.map((block, idx) => ({
-    id: `${idx}`,
+  const mapVenues = useMemo(() => currentBlocks.map((block, idx) => ({
+    id: block.placeId || `${idx}`,
     name: block.name,
     lat: block.coordinates.lat,
     lng: block.coordinates.lng,
     distance_miles: block.estimatedDistanceMiles,
-    drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
+    drive_time_min: block.driveTimeMinutes,
     est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? undefined,
     rank: idx + 1,
     value_grade: block.valueGrade,
-  })), [blocks]);
+  })), [currentBlocks]);
 
   const mapEvents: MapEvent[] = useMemo(() => (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
     title: e.title as string,
     venue: e.venue as string | undefined,
     address: e.address as string | undefined,
     event_start_date: e.event_start_date as string | undefined,
-    event_end_date: (e as BriefingEvent & { event_end_date?: string }).event_end_date,
+    event_end_date: e.event_end_date,
     event_start_time: e.event_start_time as string | undefined,
     event_end_time: e.event_end_time as string | undefined,
+    // Absence means a legacy wall-clock record; an explicitly unresolved ISO
+    // value means unknown. Preserve that distinction for the shared projector.
+    ...(Object.prototype.hasOwnProperty.call(e, 'start_time_iso') ? { start_time_iso: e.start_time_iso } : {}),
+    end_time_iso: e.end_time_iso,
+    timezone: e.timezone,
+    event_end_conflict: e.event_end_conflict,
+    event_variants: e.event_variants,
     latitude: e.latitude as number | undefined,
     longitude: e.longitude as number | undefined,
     impact: e.impact as 'high' | 'medium' | 'low' | undefined,
     subtype: e.subtype as string | undefined,
   })), [activeEventsData?.events]);
 
-  // Filter blocks to show only top 3 Grade A venues that are >= 1 mile apart
-  // This is the "NOW strategy" - focused, actionable recommendations
-  const filteredBlocks = useMemo(() => {
-    if (!blocks || blocks.length === 0) return [];
+  // Retain the last completed run's map as dated history during setup. This
+  // local display record never enables queries, venue actions or generation.
+  React.useEffect(() => {
+    const locationMatches = !locationContext.lastSnapshotId || locationContext.lastSnapshotId === lastSnapshotId ||
+      locationContext.lastSnapshotId === runSetup.run?.sourceSnapshotId;
+    if (coords && lastSnapshotId && strategyData?.status === 'ok' && locationMatches) {
+      rememberMap({ sourceSnapshotId: lastSnapshotId, props: { driverLat: coords.latitude, driverLng: coords.longitude,
+        venues: mapVenues, bars: filteredBars, events: mapEvents, incidents: trafficIncidents,
+        snapshotId: lastSnapshotId, timezone: timezone ?? undefined, isLoading: false } });
+    }
+  }, [coords, lastSnapshotId, strategyData?.status, rememberMap, mapVenues, filteredBars, mapEvents, trafficIncidents, timezone,
+    locationContext.lastSnapshotId, runSetup.run?.sourceSnapshotId]);
+  const contextChanged = !!locationContext.lastSnapshotId && locationContext.lastSnapshotId !== lastSnapshotId &&
+    locationContext.lastSnapshotId !== runSetup.run?.sourceSnapshotId;
+  const previousMap = (!immediateStrategy || strategyData?.status === 'pending_blocks' || contextChanged) &&
+    previousStrategy?.sourceSnapshotId === historicalMap?.sourceSnapshotId ? historicalMap : null;
 
-    const filtered = filterHighValueSpacedBlocks(blocks as any[], 1.0, 3); // 1 mile minimum, max 3 venues
-    console.log(`[StrategyPage] NOW Strategy: ${filtered.length} Grade A venues (>= 1mi apart, max 3)`);
-    return filtered;
-  }, [blocks]);
+  // Confirmed replacement order comes from the saved ranking. Initial display
+  // uses the existing A/B policy with preferred one-mile spacing.
+  const filteredBlocks = useMemo(() => {
+    if (confirmedBlocks) return confirmedBlocks;
+    if (!blocks || blocks.length === 0) return [];
+    return filterHighValueSpacedBlocks(blocks.map(block => ({ ...block })), 1.0, 3);
+  }, [blocks, confirmedBlocks]);
 
   // Track how many blocks were filtered out
-  const filteredOutCount = blocks.length - filteredBlocks.length;
+  const filteredOutCount = Math.max(0, currentBlocks.length - filteredBlocks.length);
 
   // Local state for this page only
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
 
   // Feedback modal state
   const [feedbackModal, setFeedbackModal] = useState<{
@@ -220,9 +249,14 @@ export default function StrategyPage() {
   // Strategy feedback modal state
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
 
+  useEffect(() => {
+    setFeedbackModal({ isOpen: false, sentiment: null, block: null, blockIndex: null });
+    setUndoError(null);
+  }, [user?.userId, token, lastSnapshotId, blocksData?.rankingId]);
+
   // Get GPS refresh from location context (with fallback for legacy pattern)
   // CRITICAL: Match GlobalHeader pattern for consistent GPS access
-  const refreshGPS: undefined | (() => Promise<void>) =
+  const refreshGPS: undefined | (() => Promise<unknown>) =
     locationContext?.refreshGPS ?? (locationContext as any)?.location?.refreshGPS;
   const isUpdating = locationContext?.isLoading || locationContext?.isUpdating || false;
 
@@ -281,33 +315,32 @@ export default function StrategyPage() {
 
   // Track dwell time for each block using IntersectionObserver
   useEffect(() => {
-    if (!blocks.length) return;
-
-    const observers = new Map<number, IntersectionObserver>();
-
-    blocks.forEach((block, index) => {
-      const blockElement = document.querySelector(`[data-block-index="${index}"]`);
+    const rankingId = blocksData?.rankingId;
+    if (!filteredBlocks.length || !rankingId) return;
+    const observers: IntersectionObserver[] = [];
+    const starts = new Map<string, number>();
+    let active = true;
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-place-id]'));
+    filteredBlocks.forEach((block, index) => {
+      const placeId = block.placeId;
+      if (!placeId) return;
+      const blockElement = elements.find(element => element.dataset.placeId === placeId);
       if (!blockElement) return;
 
       const observer = new IntersectionObserver(
         (entries) => {
+          if (!active) return;
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              const startTime = Date.now();
-              setDwellTimers(prev => new Map(prev).set(index, startTime));
+              if (!starts.has(placeId)) starts.set(placeId, Date.now());
             } else {
-              const startTime = dwellTimers.get(index);
-              if (startTime) {
+              const startTime = starts.get(placeId);
+              if (startTime !== undefined) {
                 const dwellMs = Date.now() - startTime;
                 if (dwellMs > 500) {
-                  const blockId = `${block.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${block.coordinates.lat}_${block.coordinates.lng}`;
-                  logAction('block_dwell', blockId, dwellMs, index + 1);
+                  logActionHelper(rankingId, 'block_dwell', placeId, dwellMs, index + 1);
                 }
-                setDwellTimers(prev => {
-                  const next = new Map(prev);
-                  next.delete(index);
-                  return next;
-                });
+                starts.delete(placeId);
               }
             }
           });
@@ -316,19 +349,21 @@ export default function StrategyPage() {
       );
 
       observer.observe(blockElement);
-      observers.set(index, observer);
+      observers.push(observer);
     });
 
     return () => {
+      active = false;
       observers.forEach(observer => observer.disconnect());
+      starts.clear();
     };
-  }, [blocks, blocksData?.rankingId]);
+  }, [filteredBlocks, blocksData?.rankingId, lastSnapshotId, user?.userId, token]);
 
   const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
     if (!block) return;
 
-    const blockId = `${block.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${block.coordinates.lat}_${block.coordinates.lng}`;
+    const blockId = block.placeId;
     const isSelecting = !selectedBlocks.has(blockIndex);
 
     setSelectedBlocks(prev => {
@@ -434,6 +469,16 @@ export default function StrategyPage() {
           </Button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={() => void refreshStrategy()} disabled={runSetup.starting || !readyContextId}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${runSetup.starting ? 'animate-spin' : ''}`} />
+            {runSetup.starting ? 'Starting Strategy…' : replacementFailed ? 'Retry Strategy' : previousStrategy || immediateStrategy ? 'Refresh Strategy' : 'Continue Strategy'}
+          </Button>
+          {!readyContextId && <p className="text-sm text-muted-foreground">{locationContext.isLoading ? 'Preparing location and Briefing…' : 'Refresh location to prepare your Strategy.'}</p>}
+          {readyContextId && !runSetup.preferencesConfirmed && <p className="text-sm text-muted-foreground">Choose your preferences to continue Strategy.</p>}
+        </div>
+        {runSetup.error && <p role="alert" className="text-sm text-destructive">{runSetup.error}</p>}
+
         {/* Strategy Cards */}
         {!coords ? (
           <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
@@ -456,19 +501,16 @@ export default function StrategyPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Where to Go NOW</p>
-                  <p
+                  <StrategySourceTime updatedAt={strategyData?.strategyUpdatedAt} snapshotCreatedAt={strategyData?.snapshotCreatedAt} timezone={_snapshotData?.timezone ?? locationContext.timeZone} />
+                  <StrategyText
+                    text={immediateStrategy}
                     className="text-sm text-gray-800 leading-relaxed"
-                    dangerouslySetInnerHTML={{
-                      __html: immediateStrategy
-                        .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-orange-800 font-semibold">$1</strong>')
-                        .replace(/\n/g, '<br />')
-                    }}
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
-        ) : strategyData?.status === 'failed' ? (
+        ) : replacementFailed ? (
           <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-red-50 border-red-300 shadow-md" data-testid="strategy-failed-card">
             <CardContent className="p-5">
               <div className="flex items-start gap-3">
@@ -477,10 +519,14 @@ export default function StrategyPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-red-900 mb-1">❌ Strategy Generation Failed</p>
-                  <p className="text-xs text-red-700">We couldn't generate a strategy this time. Please try again.</p>
+                  <p className="text-xs text-red-700">{strategyError || "We couldn't generate a strategy this time. Please try again."}</p>
                 </div>
               </div>
             </CardContent>
+          </Card>
+        ) : !runSetup.run ? (
+          <Card data-testid="strategy-ready-card">
+            <CardContent className="p-5 text-sm text-muted-foreground">Continue Strategy when your preferences and location are ready.</CardContent>
           </Card>
         ) : (
           <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-300 shadow-md" data-testid="strategy-pending-card">
@@ -532,9 +578,49 @@ export default function StrategyPage() {
             </CardContent>
           </Card>
         )}
+        {!immediateStrategy && previousStrategy && (
+          <PreviousStrategyCard strategy={previousStrategy} waiting={!!runSetup.run && !replacementFailed} />
+        )}
       </div>
 
+      {previousBlocksData && previousBlocksData.blocks.length > 0 && (
+        <Card className="mb-6" data-testid="previous-strategy-venues">
+          <CardContent className="space-y-3 p-5">
+            <h2 className="font-semibold">Previous Strategy venues</h2>
+            <p className="text-sm text-muted-foreground">These venues stay visible until your new Strategy is ready.</p>
+            <ul className="space-y-3">
+              {previousBlocksData.blocks.map((venue, index) => <li key={`${venue.placeId ?? venue.name}:${index}`}>
+                <p className="font-medium">{venue.name}</p>
+                {venue.address && <p className="text-sm text-muted-foreground">{venue.address}</p>}
+              </li>)}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Smart Blocks Section */}
+      {(venueFeedback.error || undoError || !!venueFeedback.state?.dismissals.length) && (
+        <div className="mb-4 rounded-lg border border-gray-200 p-3 space-y-2" aria-label="Saved venue choices">
+          {(venueFeedback.error || undoError) && <p role="alert" className="text-sm text-red-700">{undoError || venueFeedback.error}</p>}
+          {(venueFeedback.error || undoError) && <Button variant="outline" size="sm" onClick={() => { setUndoError(null); void venueFeedback.reload(); }}>Reload saved choices</Button>}
+          {venueFeedback.state?.dismissals.map(dismissal => (
+            <div key={dismissal.action_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 break-words">{dismissal.venue_name} removed from this strategy.</span>
+              <Button variant="outline" size="sm" disabled={venueFeedback.pending} aria-label={`Undo removal of ${dismissal.venue_name}`} onClick={async () => {
+                setUndoError(null);
+                try {
+                  const receipt = await venueFeedback.submit({ action: 'restore', place_id: dismissal.place_id,
+                    undo_action_id: dismissal.action_id, visible_place_ids: filteredBlocks.flatMap(block => block.placeId ? [block.placeId] : []) });
+                  if (receipt) toast(receipt.blocks.some(block => block.placeId === dismissal.place_id)
+                    ? { title: 'Venue restored', description: `${dismissal.venue_name} is back in this strategy.` }
+                    : { title: 'Removal cleared', description: 'Your saved choices have changed. This venue is eligible again but is outside the current shortlist.' });
+                } catch (error) { setUndoError(error instanceof Error ? error.message : 'Undo was not confirmed. Please retry.'); }
+              }}>Undo</Button>
+            </div>
+          ))}
+          {confirmedBlocks?.length === 0 && <p className="text-sm text-gray-600">No alternative is available in this strategy. Undo a removal to bring a venue back.</p>}
+        </div>
+      )}
       {filteredBlocks.length > 0 && (
         <div className="mb-6" id="blocks-section">
           <div className="flex items-center justify-between mb-4">
@@ -552,7 +638,7 @@ export default function StrategyPage() {
                   data-testid="filter-badge"
                 >
                   <Zap className="w-3 h-3" />
-                  Grade A only
+                  Grades A &amp; B
                 </Badge>
               )}
               {metadata?.validation?.status && (
@@ -568,7 +654,7 @@ export default function StrategyPage() {
                   {metadata.validation.status === 'ok' ? '✓ Validated' : '⚠ Validation Issues'}
                 </Badge>
               )}
-              {metadata?.processingTimeMs && (
+              {typeof metadata?.processingTimeMs === 'number' && metadata.processingTimeMs > 0 && (
                 <span className="text-xs text-gray-400">
                   {(metadata.processingTimeMs / 1000).toFixed(1)}s
                 </span>
@@ -582,10 +668,10 @@ export default function StrategyPage() {
               <div className="flex items-center gap-2 text-sm text-emerald-700">
                 <Zap className="w-4 h-4 text-emerald-500" />
                 <span>
-                  <strong className="text-emerald-800">NOW Strategy:</strong> Top {filteredBlocks.length} Grade A venue{filteredBlocks.length !== 1 ? 's' : ''}
-                  {' '}(≥1 mile apart).
+                  <strong className="text-emerald-800">NOW Strategy:</strong> Top {filteredBlocks.length} Grade A/B venue{filteredBlocks.length !== 1 ? 's' : ''}
+                  {' '}(one-mile spacing preferred).
                   <span className="text-emerald-500 ml-1">
-                    {filteredOutCount} lower-value venue{filteredOutCount !== 1 ? 's' : ''} hidden.
+                    {filteredOutCount} other venue{filteredOutCount !== 1 ? 's' : ''} outside this shortlist.
                   </span>
                 </span>
               </div>
@@ -603,23 +689,19 @@ export default function StrategyPage() {
                 cardGradient = 'bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 border-orange-300';
               } else if (index <= 3) {
                 cardGradient = 'bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 border-yellow-300';
-              } else if (Number(block.estimatedDistanceMiles ?? 0) <= 5) {
+              } else if (typeof block.estimatedDistanceMiles === 'number' && Number.isFinite(block.estimatedDistanceMiles) && block.estimatedDistanceMiles >= 0 && block.estimatedDistanceMiles <= 5) {
                 cardGradient = 'bg-gradient-to-br from-blue-50 via-cyan-50 to-sky-50 border-blue-300';
               } else {
                 cardGradient = 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300';
               }
-              // 2026-04-16: Beyond-deadhead amber tint — lowest priority override
-              // Priority: rank gradient (index-based) stays; amber only on lower-ranked cards
-              if (block.beyondDeadhead && index > 3) {
-                cardGradient = 'bg-amber-50/30 border-amber-200';
-              }
 
               return (
                 <Card
-                  key={index}
+                  key={block.placeId || `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`}
                   className={`border-2 shadow-md hover:shadow-xl transition-all ${cardGradient}`}
                   data-testid={`block-${index}`}
                   data-block-index={index}
+                  data-place-id={block.placeId}
                 >
                   <CardContent className="p-4">
                     {/* Block Header */}
@@ -640,13 +722,6 @@ export default function StrategyPage() {
                                 <span className="text-xs">🎫 Event: {block.eventBadge}</span>
                               </Badge>
                             )}
-                            {block.beyondDeadhead && (
-                              <Badge className="bg-amber-100 text-amber-700 border-0 text-xs">
-                                {block.distanceFromHomeMi != null && Number.isFinite(block.distanceFromHomeMi)
-                                  ? `${block.distanceFromHomeMi}mi from home`
-                                  : 'Beyond range'}
-                              </Badge>
-                            )}
                           </div>
                           {block.address && (
                             <p className="text-sm text-gray-500 mt-0.5">{block.address}</p>
@@ -659,17 +734,17 @@ export default function StrategyPage() {
                     </div>
 
                     {/* Metrics Row */}
-                    <div className="grid grid-cols-3 gap-4 mb-3">
-                      <div className="text-center">
+                    <div className="grid grid-cols-[1.2fr_1fr_1fr] sm:grid-cols-3 gap-2 sm:gap-4 mb-3 [&>div]:min-w-0">
+                      <div className="text-center break-words [&_div]:max-w-full">
                         {(() => {
-                          const distance = Number(block.estimatedDistanceMiles ?? 0);
-                          const isNearby = distance <= 5;
+                          const distance = block.estimatedDistanceMiles;
+                          const isNearby = typeof distance === 'number' && Number.isFinite(distance) && distance >= 0 && distance <= 5;
 
                           if (index <= 1) {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">🔥</div>
-                                <div className="text-sm font-bold text-orange-600">HIGH VALUE</div>
+                                <div className="text-xs sm:text-sm font-bold text-orange-600">HIGH VALUE</div>
                                 <div className="text-xs text-gray-500">Top ranked</div>
                               </div>
                             );
@@ -677,7 +752,7 @@ export default function StrategyPage() {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">⭐</div>
-                                <div className="text-sm font-bold text-yellow-600">GOOD OPPORTUNITY</div>
+                                <div className="text-xs sm:text-sm font-bold text-yellow-600">GOOD OPPORTUNITY</div>
                                 <div className="text-xs text-gray-500">Recommended</div>
                               </div>
                             );
@@ -685,7 +760,7 @@ export default function StrategyPage() {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">📍</div>
-                                <div className="text-sm font-bold text-blue-600">NEARBY OPTION</div>
+                                <div className="text-xs sm:text-sm font-bold text-blue-600">NEARBY OPTION</div>
                                 <div className="text-xs text-gray-500">Close proximity</div>
                               </div>
                             );
@@ -693,7 +768,7 @@ export default function StrategyPage() {
                             return (
                               <div className="flex flex-col items-center">
                                 <div className="text-2xl mb-1">💡</div>
-                                <div className="text-sm font-bold text-purple-600">STRATEGIC</div>
+                                <div className="text-xs sm:text-sm font-bold text-purple-600">STRATEGIC</div>
                                 <div className="text-xs text-gray-500">Consider timing</div>
                               </div>
                             );
@@ -702,18 +777,20 @@ export default function StrategyPage() {
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-700">
-                          {Number(block.estimatedDistanceMiles ?? 0).toFixed(1)} mi
+                          {typeof block.estimatedDistanceMiles === 'number' && Number.isFinite(block.estimatedDistanceMiles) && block.estimatedDistanceMiles >= 0
+                            ? `${block.estimatedDistanceMiles.toFixed(1)} mi` : 'Distance unavailable'}
                           {block.distanceSource === "haversine_fallback" && (
                             <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">est.</span>
                           )}
                         </div>
                         <div className="text-xs text-gray-500">
-                          est drive time {Math.round(Number(block.driveTimeMinutes ?? block.estimatedWaitTime ?? 0))} min
+                          {typeof block.driveTimeMinutes === 'number' && Number.isFinite(block.driveTimeMinutes) && block.driveTimeMinutes >= 0
+                            ? `est drive time ${Math.round(block.driveTimeMinutes)} min` : 'Drive time unavailable'}
                         </div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-purple-600">
-                          {block.surge ?? (block.demandLevel === 'high' ? '1.5' : block.demandLevel === 'medium' ? '1.3' : '1.0')}x
+                          {typeof block.surge === 'number' && Number.isFinite(block.surge) && block.surge > 0 ? `${block.surge}x` : 'Surge unavailable'}
                         </div>
                         <div className="text-xs text-gray-500">Surge</div>
                       </div>
@@ -783,7 +860,9 @@ export default function StrategyPage() {
                               variant="outline"
                               className="border-blue-400 text-blue-600 hover:bg-blue-50"
                               onClick={() => {
-                                const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${block.stagingArea.lat},${block.stagingArea.lng}`;
+                                const stagingArea = block.stagingArea;
+                                if (!stagingArea) return;
+                                const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${stagingArea.lat},${stagingArea.lng}`;
                                 window.open(mapsUrl, '_blank');
                               }}
                               data-testid="button-navigate-staging"
@@ -852,7 +931,7 @@ export default function StrategyPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
                       <div className="flex items-center gap-3">
                         {/* 2026-04-14: Issue Y — Removed count display (block.up_count/down_count).
                             toApiBlock() does not emit count fields and the pipeline has no aggregation.
@@ -862,6 +941,8 @@ export default function StrategyPage() {
                           size="sm"
                           className="text-green-600 hover:text-green-700 hover:bg-green-50"
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'up', block, blockIndex: index })}
+                          aria-label={`Recommend ${block.name}`}
+                          disabled={!block.placeId || venueFeedback.pending}
                           data-testid={`button-thumbs-up-${index}`}
                         >
                           <ThumbsUp className="w-4 h-4" />
@@ -871,6 +952,8 @@ export default function StrategyPage() {
                           size="sm"
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'down', block, blockIndex: index })}
+                          aria-label={`Remove ${block.name} from this strategy`}
+                          disabled={!block.placeId || venueFeedback.pending}
                           data-testid={`button-thumbs-down-${index}`}
                         >
                           <ThumbsDown className="w-4 h-4" />
@@ -881,7 +964,7 @@ export default function StrategyPage() {
                           size="sm"
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                           onClick={() => {
-                            const blockId = `${block.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${block.coordinates.lat}_${block.coordinates.lng}`;
+                            const blockId = block.placeId;
                             logAction('navigate_google_maps', blockId, undefined, index + 1);
                             window.open(`https://www.google.com/maps/dir/?api=1&destination=${block.coordinates.lat},${block.coordinates.lng}`, '_blank');
                           }}
@@ -895,7 +978,7 @@ export default function StrategyPage() {
                           variant="outline"
                           className="border-gray-300"
                           onClick={() => {
-                            const blockId = `${block.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${block.coordinates.lat}_${block.coordinates.lng}`;
+                            const blockId = block.placeId;
                             logAction('navigate_apple_maps', blockId, undefined, index + 1);
                             window.open(`https://maps.apple.com/?daddr=${block.coordinates.lat},${block.coordinates.lng}`, '_blank');
                           }}
@@ -1000,17 +1083,18 @@ export default function StrategyPage() {
           "watch data land" UX Melody specifically wants. snapshotId is
           coerced from `string | null` to `string | undefined` to satisfy
           StrategyMap's optional-prop type without holding the whole render. */}
-      {coords && (
+      {(coords || previousMap) && (
         <div data-testid="strategy-embedded-map" className="my-4">
+          {previousMap && <p className="mb-2 text-sm text-muted-foreground">Previous Strategy map — shown until the new Strategy is ready.</p>}
           <StrategyMap
-            driverLat={coords.latitude}
-            driverLng={coords.longitude}
-            venues={mapVenues}
-            bars={filteredBars}
-            events={mapEvents}
-            incidents={trafficIncidents}
-            snapshotId={lastSnapshotId ?? undefined}
-            timezone={timezone ?? undefined}
+            driverLat={previousMap?.props.driverLat ?? _snapshotData?.lat ?? coords!.latitude}
+            driverLng={previousMap?.props.driverLng ?? _snapshotData?.lng ?? coords!.longitude}
+            venues={previousMap?.props.venues ?? mapVenues}
+            bars={previousMap?.props.bars ?? filteredBars}
+            events={previousMap?.props.events ?? mapEvents}
+            incidents={previousMap?.props.incidents ?? trafficIncidents}
+            snapshotId={previousMap?.sourceSnapshotId ?? lastSnapshotId ?? undefined}
+            timezone={previousMap?.props.timezone ?? _snapshotData?.timezone ?? timezone ?? undefined}
             isLoading={isBlocksLoading}
           />
         </div>
@@ -1044,10 +1128,13 @@ export default function StrategyPage() {
         placeId={feedbackModal.block?.placeId}
         snapshotId={lastSnapshotId || undefined}
         rankingId={blocksData?.rankingId}
-        userId={localStorage.getItem('vecto_user_id') || 'default'}
-        onSuccess={(sentiment) => {
-          console.log(`Feedback submitted: ${sentiment}`);
-        }}
+        // 2026-09-11: userId prop dropped — it read the never-written legacy localStorage key
+        // ('default' for everyone) and the feedback routes use req.auth.userId only.
+        onVenueSubmit={(sentiment, comment) => venueFeedback.submit({
+          action: sentiment === 'down' ? 'dismiss' : 'upvote', place_id: feedbackModal.block?.placeId || '', comment,
+          visible_place_ids: filteredBlocks.flatMap(block => block.placeId ? [block.placeId] : []),
+        })}
+        onVenueReload={venueFeedback.reload}
       />
 
       <FeedbackModal

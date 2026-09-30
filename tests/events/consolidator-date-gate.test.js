@@ -1,3 +1,4 @@
+import process from 'node:process';
 // tests/events/consolidator-date-gate.test.js
 //
 // todo #29 — event-date-gate must be end-date aware (multi-day-inclusive).
@@ -12,8 +13,12 @@
 // clock time. Time-window cases only assert outcomes that are identical on
 // both sides of a midnight boundary (see inline notes).
 
-import { describe, test, expect } from '@jest/globals';
-import { filterEventsToTimeWindow } from '../../server/lib/ai/providers/consolidator.js';
+import { describe, test, expect, jest, afterEach } from '@jest/globals';
+// No database or provider initialization is needed to test the real pure export.
+jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: {} }));
+jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: jest.fn() }));
+const { filterEventsToTimeWindow } = await import('../../server/lib/ai/providers/consolidator.js');
+afterEach(() => jest.useRealTimers());
 
 process.env.NODE_ENV = 'test';
 process.env.TZ = 'UTC';
@@ -96,8 +101,8 @@ describe('filterEventsToTimeWindow — end-date-aware date gate (todo #29)', () 
       event_end_date: today,
       event_start_time: `${hh}:${mm}`,
     }];
-    // timezone omitted → todayLocal falls back to UTC, matching the UTC-built fields
-    expect(titles(filterEventsToTimeWindow(events, undefined))).toEqual(['Tonight Show']);
+    // Explicit UTC matches these UTC-built fixtures; production always supplies the snapshot timezone.
+    expect(titles(filterEventsToTimeWindow(events, 'Etc/UTC'))).toEqual(['Tonight Show']);
   });
 
   test('event ~8h out is dropped (by time window; by date gate if past midnight)', () => {
@@ -114,7 +119,7 @@ describe('filterEventsToTimeWindow — end-date-aware date gate (todo #29)', () 
       event_end_date: date,
       event_start_time: `${hh}:${mm}`,
     }];
-    expect(filterEventsToTimeWindow(events, undefined)).toEqual([]);
+    expect(filterEventsToTimeWindow(events, 'Etc/UTC')).toEqual([]);
   });
 
   test('event with no date fields at all falls through to inclusion (no info ≠ drop)', () => {
@@ -126,4 +131,51 @@ describe('filterEventsToTimeWindow — end-date-aware date gate (todo #29)', () 
     expect(filterEventsToTimeWindow(null, TZ)).toEqual([]);
     expect(filterEventsToTimeWindow(undefined, TZ)).toEqual([]);
   });
+});
+
+
+describe('driver-local event clock regressions', () => {
+  test.each([
+    ['America/Los_Angeles', '2026-09-14T02:00:00Z', '2026-09-13', '19:00'],
+    ['Asia/Tokyo', '2026-09-13T12:00:00Z', '2026-09-13', '21:00'],
+    ['America/Los_Angeles', '2026-03-08T10:30:00Z', '2026-03-08', '03:30'],
+    ['America/Los_Angeles', '2026-11-01T09:30:00Z', '2026-11-01', '01:30'],
+    ['Asia/Kolkata', '2026-09-13T14:00:00Z', '2026-09-13', '7:30 PM'],
+  ])('keeps an event starting at the current local time in %s', (timezone, instant, date, time) => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date(instant));
+    const event = { title: 'Current event', event_start_date: date, event_end_date: date, event_start_time: time };
+    expect(filterEventsToTimeWindow([event], timezone)).toEqual([event]);
+  });
+  test('excludes a local event eight hours away that a UTC parse would incorrectly keep', () => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-13T14:00:00Z'));
+    const event = { title: 'Later event', event_start_date: '2026-09-13', event_start_time: '15:00' };
+    expect(filterEventsToTimeWindow([event], 'America/Los_Angeles')).toEqual([]);
+  });
+  test('honors an explicit event offset without double conversion', () => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
+    const event = { title: 'Offset event', event_start_date: '2026-09-13', event_start: '2026-09-13T19:00:00-07:00' };
+    expect(filterEventsToTimeWindow([event], 'America/Los_Angeles')).toEqual([event]);
+  });
+  test('missing or invalid timezone cannot silently become server time', () => {
+    expect(() => filterEventsToTimeWindow([{ title: 'Event' }], undefined)).toThrow(/timeZone is required/);
+    expect(() => filterEventsToTimeWindow([{ title: 'Event' }], 'Invalid/Timezone')).toThrow();
+  });
+});
+
+test('saved venue timezone controls event date gates across driver midnight', () => {
+  jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
+  const event = { title: 'Venue local event', timezone: 'America/Los_Angeles', event_start_date: '2026-09-13', event_end_date: '2026-09-13', event_start_time: '19:00', start_time_iso: '2026-09-14T02:00:00.000Z' };
+  expect(filterEventsToTimeWindow([event], 'Asia/Tokyo')).toEqual([event]);
+});
+
+test('absolute saved event instant outranks an ambiguous display clock', () => {
+  jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
+  const event = { title: 'Absolute event', event_start_date: '2026-09-14', event_start_time: '19:00', start_time_iso: '2026-09-14T02:00:00.000Z' };
+  expect(filterEventsToTimeWindow([event], 'Etc/UTC')).toEqual([event]);
+});
+
+test('explicitly unknown venue timezone does not inherit driver timezone for a local clock', () => {
+  jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
+  const event = { title: 'Unknown event zone', timezone: null, event_start_date: '2026-09-13', event_end_date: '2026-09-13', event_start_time: '19:00', start_time_iso: '' };
+  expect(filterEventsToTimeWindow([event], 'America/Los_Angeles')).toEqual([]);
 });

@@ -7,7 +7,7 @@
  * Example: node scripts/test-news-fetch.js "Dallas" "TX" "America/Chicago"
  */
 
-import { fetchRideshareNews } from '../server/lib/briefing/briefing-service.js';
+import { fetchRideshareNews } from '../server/lib/briefing/pipelines/news.js';
 
 async function main() {
   // 2026-02-13: Removed hardcoded Frisco/TX/America_Chicago defaults (NO FALLBACKS rule)

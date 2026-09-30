@@ -79,7 +79,10 @@ function reconstructGcpCredentials() {
   console.log('[CONFIG] [ENV] Reconstructing GCP service account credentials from individual env vars...');
 
   // Handle private_key: Replit Secrets may store \n as literal two-char sequence
-  let privateKey = process.env.GOOGLE_PRIVATE_KEY_ID || '';
+  // 2026-09-10 (Astra product finding #12, verified): the gate above requires `private_key`
+  // but this read `GOOGLE_PRIVATE_KEY_ID` (the key *id*), so a reconstructed credential never
+  // carried the key. todo #66 still asks whether this whole function should be deleted.
+  let privateKey = process.env.private_key || '';
   if (privateKey && !privateKey.includes('\n')) {
     privateKey = privateKey.replace(/\\n/g, '\n');
   }

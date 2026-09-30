@@ -13,6 +13,8 @@ Core utility functions and shared libraries for the frontend.
 | `daypart.ts` | Time-of-day classification (morning, afternoon, evening, night) |
 | `queryClient.ts` | React Query client configuration + `apiRequest` helper |
 | `utils.ts` | Utility functions including `cn()` for className merging |
+| `offer-capture.ts` | Verify personal rules, decision timestamp, and spoken verdict before mobile playback |
+| `android-launcher.ts` | Generate the account-free HTTP Shortcuts browser-launcher import for the current deployment |
 
 ## Usage
 
@@ -27,7 +29,8 @@ const part = getDayPart(); // "morning" | "afternoon" | "evening" | "night"
 ```typescript
 import { apiRequest } from '@/lib/queryClient';
 
-const data = await apiRequest('/api/strategy/123');
+const response = await apiRequest('POST', '/api/feedback/app', { sentiment: 'up' });
+const data = await response.json();
 ```
 
 ### Class Name Merging

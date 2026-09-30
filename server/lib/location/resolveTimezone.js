@@ -30,95 +30,60 @@
 // ============================================================================
 
 import { db } from '../../db/drizzle.js';
-import { markets } from '../../../shared/schema.js';
+import { markets, market_cities } from '../../../shared/schema.js';
 import { sql } from 'drizzle-orm';
 import { locationLog, OP } from '../../logger/workflow.js';
 import { getTimezoneForCoords } from './geocode.js';
 
 /**
- * Resolve timezone for a city/state by looking up the markets table.
- * Uses 4 progressive strategies:
- *   1. primary_city + state exact match
- *   2. city_aliases JSONB + state
- *   3. primary_city only (international city-states)
- *   4. city_aliases only (international suburbs)
- *
- * Returns market metadata alongside timezone so callers can also set
- * market_slug and market_name without a second query.
- *
- * @param {string} city
- * @param {string} [state]
- * @param {string} [country]
- * @returns {Promise<{timezone: string, market_slug: string, market_name: string} | null>}
+ * Resolve market identity from provider-resolved address parts. The historical
+ * export name and return shape remain compatible; its timezone is metadata only.
+ * Explicit market_cities mappings allow a metro to span states without dropping
+ * the driver's actual state/country. Missing or ambiguous identities stay null.
  */
 export async function resolveTimezoneFromMarket(city, state, country) {
-  if (!city) return null;
+  const text = value => typeof value === 'string' && value.trim() ? value.trim() : null;
+  const cityName = text(city);
+  const stateName = text(state);
+  const countryCode = text(country)?.toUpperCase();
+  if (!cityName || (state != null && !stateName) || (country != null && !/^[A-Z]{2}$/.test(countryCode || ''))) return null;
+  const identity = { timezone: markets.timezone, market_slug: markets.market_slug, market_name: markets.market_name };
+  const countryFilter = countryCode ? sql`AND upper(${markets.country_code}) = ${countryCode}` : sql``;
+  const stateFilter = table => stateName
+    ? sql`AND (lower(${table.state}) = lower(${stateName}) OR lower(${table.state_abbr}) = lower(${stateName}))`
+    : sql``;
 
   try {
-    // Strategy 1: Exact match on primary_city + state (best for US markets)
-    // 2026-02-17: FIX - Also match state_abbr since snapshots use 'TX' not 'Texas'
-    if (state) {
-      const isAbbr = state.length <= 3; // 'TX', 'AL', 'PR'
-      const stateQuery = isAbbr
-        ? sql`(${markets.state} = ${state} OR ${markets.state_abbr} = ${state.toUpperCase()}) AND ${markets.is_active} = true`
-        : sql`${markets.state} = ${state} AND ${markets.is_active} = true`;
-
-      const [market] = await db
-        .select({ timezone: markets.timezone, market_slug: markets.market_slug, market_name: markets.market_name })
-        .from(markets)
-        .where(sql`${markets.primary_city} = ${city} AND ${stateQuery}`)
-        .limit(1);
-
-      if (market) {
-        locationLog.done(2, `Market identity hit: ${market.market_name} (market tz ${market.timezone} — identity only, snapshot tz is GPS→Google)`, OP.DB);
-        return market;
+    const mapped = await db.selectDistinct(identity).from(market_cities)
+      .innerJoin(markets, sql`${market_cities.market_slug} = ${markets.market_slug}`)
+      .where(sql`lower(${market_cities.city}) = lower(${cityName})
+        AND upper(${market_cities.country_code}) = upper(${markets.country_code})
+        AND ${markets.is_active} = true ${countryFilter} ${stateFilter(market_cities)}`)
+      .limit(2);
+    if (mapped.length) {
+      if (mapped.length > 1) {
+        locationLog.warn(2, 'Market identity mapping is ambiguous; current market remains unresolved', OP.DB);
+        return null;
       }
-
-      // Strategy 2: City aliases + state
-      const aliasResult = await db
-        .select({ timezone: markets.timezone, market_slug: markets.market_slug, market_name: markets.market_name })
-        .from(markets)
-        .where(sql`${markets.city_aliases} @> ${JSON.stringify([city])}::jsonb AND ${stateQuery}`)
-        .limit(1);
-
-      if (aliasResult.length > 0) {
-        locationLog.done(2, `Market identity hit (alias): ${aliasResult[0].market_name} (market tz ${aliasResult[0].timezone} — identity only, snapshot tz is GPS→Google)`, OP.DB);
-        return aliasResult[0];
-      }
+      locationLog.done(2, 'Market identity resolved through a scoped city mapping', OP.DB);
+      return mapped[0];
     }
 
-    // Strategy 3: Match by primary_city + country (prevents cross-country collisions)
-    // 2026-02-17: FIX - Added country_code filter. Without it, "Birmingham" (AL) could
-    // match "Birmingham" (UK) — the "Birmingham Paradox". Uses country if provided,
-    // otherwise defaults to 'US' since this app primarily serves US markets.
-    const countryFilter = country
-      ? sql`AND ${markets.country_code} = ${country}`
-      : sql`AND ${markets.country_code} = 'US'`;
-
-    const [cityOnlyMarket] = await db
-      .select({ timezone: markets.timezone, market_slug: markets.market_slug, market_name: markets.market_name })
-      .from(markets)
-      .where(sql`${markets.primary_city} = ${city} AND ${markets.is_active} = true ${countryFilter}`)
-      .limit(1);
-
-    if (cityOnlyMarket) {
-      locationLog.done(2, `Market identity hit (city+country): ${cityOnlyMarket.market_name} (market tz ${cityOnlyMarket.timezone} — identity only, snapshot tz is GPS→Google)`, OP.DB);
-      return cityOnlyMarket;
+    // Legacy markets without city mappings can still match their own scoped
+    // primary city/aliases. Never discard a supplied state or invent a country.
+    const matches = await db.selectDistinct(identity).from(markets)
+      .where(sql`${markets.is_active} = true ${countryFilter} ${stateFilter(markets)}
+        AND (lower(${markets.primary_city}) = lower(${cityName}) OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(
+            CASE WHEN jsonb_typeof(${markets.city_aliases}) = 'array' THEN ${markets.city_aliases} ELSE '[]'::jsonb END
+          ) AS alias(city) WHERE lower(alias.city) = lower(${cityName})
+        ))`).limit(2);
+    if (matches.length !== 1) {
+      if (matches.length > 1) locationLog.warn(2, 'Market identity is ambiguous; current market remains unresolved', OP.DB);
+      return null;
     }
-
-    // Strategy 4: City aliases + country (for international suburbs)
-    const aliasOnlyResult = await db
-      .select({ timezone: markets.timezone, market_slug: markets.market_slug, market_name: markets.market_name })
-      .from(markets)
-      .where(sql`${markets.city_aliases} @> ${JSON.stringify([city])}::jsonb AND ${markets.is_active} = true ${countryFilter}`)
-      .limit(1);
-
-    if (aliasOnlyResult.length > 0) {
-      locationLog.done(2, `Market identity hit (alias+country): ${aliasOnlyResult[0].market_name} (market tz ${aliasOnlyResult[0].timezone} — identity only, snapshot tz is GPS→Google)`, OP.DB);
-      return aliasOnlyResult[0];
-    }
-
-    return null;
+    locationLog.done(2, 'Market identity resolved from a scoped primary city or alias', OP.DB);
+    return matches[0];
   } catch (err) {
     console.warn('[resolveTimezone] Market lookup failed:', err.message);
     return null;

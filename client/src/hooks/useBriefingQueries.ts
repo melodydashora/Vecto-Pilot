@@ -26,8 +26,8 @@
 // then events as each provider resolves.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useEffect } from 'react';
-import { getAuthHeader, subscribeBriefingReady } from '@/utils/co-pilot-helpers';
+import { useRef, useEffect, useCallback } from 'react';
+import { subscribeBriefingReady } from '@/utils/co-pilot-helpers';
 import type { PipelinePhase } from '@/types/co-pilot';
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
@@ -88,7 +88,7 @@ function dispatchSnapshotOwnershipError(failedSnapshotId?: string) {
     coolingOffSnapshotId = null;
     coolingOffTimeoutId = null;
   }, OWNERSHIP_ERROR_COOLDOWN_MS);
-  window.dispatchEvent(new CustomEvent('snapshot-ownership-error'));
+  window.dispatchEvent(new CustomEvent('snapshot-ownership-error', { detail: { snapshotId: failedSnapshotId } }));
 }
 
 function exitCoolingOffForNewSnapshot(newSnapshotId: string): void {
@@ -127,6 +127,8 @@ interface BriefingAggregate {
       items: any[];
       marketEvents: any[];
       market_name: string | null;
+      market_status?: 'complete' | 'partial' | 'unavailable';
+      unresolved_market_events?: number;
       reason: string | null;
       _pending?: boolean;
       _generationFailed?: boolean;
@@ -147,36 +149,18 @@ interface BriefingAggregate {
 
 // Detect whether an aggregate response is "still missing its payload" and should
 // trigger a retry. True if: no briefing row yet, or the response is explicitly
-// flagged not-generated. False once ANY section has real data or a failure sentinel.
+// flagged not-generated. Stop only when all seven sections have settled.
 function isAggregateLoading(data: BriefingAggregate | undefined): boolean {
   if (!data) return true;
   if (data._authError || data._ownershipError || data._exhausted) return false;
   if (data._notGenerated) return true;
   const b = data.briefing;
   if (!b) return true;
-  // If every section is simultaneously empty AND none has a _generationFailed
-  // flag AND none has a reason string, the row is still a placeholder.
-  const anySectionReady =
-    !!(b.weather?.current) ||
-    !!(b.traffic && typeof b.traffic === 'object' && Object.keys(b.traffic).some(k => k !== '_generationFailed')) ||
-    (Array.isArray(b.news?.items) && b.news.items.length > 0) ||
-    (Array.isArray(b.events?.items) && b.events.items.length > 0) ||
-    (Array.isArray(b.events?.marketEvents) && b.events.marketEvents.length > 0) ||
-    (Array.isArray(b.school_closures?.items) && b.school_closures.items.length > 0) ||
-    !!(b.airport_conditions && typeof b.airport_conditions === 'object' && (b.airport_conditions.airports?.length > 0 || b.airport_conditions.recommendations)) ||
-    !!b.weather?._generationFailed ||
-    !!b.traffic?._generationFailed ||
-    !!b.news?._generationFailed ||
-    !!b.events?._generationFailed ||
-    !!b.school_closures?._generationFailed ||
-    !!b.airport_conditions?._generationFailed ||
-    !!b.news?.reason ||
-    !!b.events?.reason ||
-    // 2026-04-19: H2 fix — school_closures.reason was missing from the readiness
-    // check, so a "no school closures for this region" reason from the server
-    // could leave the section flagged as still-loading.
-    !!b.school_closures?.reason;
-  return !anySectionReady;
+  if (data._error && data._error >= 400 && data._error < 500) return false;
+  // September 13, 2026: metadata is not readiness. Keep recovering until every
+  // required section has settled, including verified-empty and failed sections.
+  return [b.weather, b.traffic, b.news, b.events, b.school_closures, b.airport_conditions, b.holiday]
+    .some(section => !section || (!section._generationFailed && section._pending === true));
 }
 
 export function useBriefingQueries({
@@ -204,7 +188,7 @@ export function useBriefingQueries({
 
   // SSE subscription: when briefing_ready fires, refetch the single aggregate query.
   useEffect(() => {
-    if (!snapshotId) return;
+    if (!snapshotId || isAuthenticated === false) return;
     const refetchAggregate = () => {
       console.log('[BriefingQuery] 📢 briefing_ready received, refetching aggregate for', snapshotId.slice(0, 8));
       queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId) });
@@ -213,7 +197,7 @@ export function useBriefingQueries({
       if (readySnapshotId === snapshotId) refetchAggregate();
     });
     return () => unsubscribe();
-  }, [snapshotId, queryClient]);
+  }, [snapshotId, queryClient, isAuthenticated]);
 
   // Retry counter — single counter for the aggregate, replacing six per-section
   // counters. Reset on snapshotId change.
@@ -249,29 +233,54 @@ export function useBriefingQueries({
   // SINGLE aggregate query replaces the six per-section queries.
   const aggregateQuery = useQuery<BriefingAggregate>({
     queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId!),
-    queryFn: async (): Promise<BriefingAggregate> => {
-      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) {
+    queryFn: async ({ signal }): Promise<BriefingAggregate> => {
+      const requestToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const isCurrent = () => !signal.aborted && localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === requestToken;
+      const staleResponse = (): BriefingAggregate => ({ snapshot_id: snapshotId!, briefing: {} as any,
+        created_at: '', updated_at: '', generated_at: '', _authError: true });
+      const attemptState = retryCountRef.current;
+      const finishAttempt = (data: BriefingAggregate): BriefingAggregate => {
+        if (isAggregateLoading(data) || (data._error != null && data._error >= 500)) {
+          attemptState.count++;
+          if (attemptState.count >= MAX_RETRY_ATTEMPTS) return { ...data, _exhausted: true };
+        } else if (!data._authError && !data._ownershipError) {
+          attemptState.count = 0;
+        }
+        return data;
+      };
+      if (!requestToken) {
         return { snapshot_id: snapshotId!, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _authError: true };
       }
       console.log('[BriefingQuery] 📦 Fetching aggregate briefing for', snapshotId?.slice(0, 8));
       if (!snapshotId) {
         return { snapshot_id: '', briefing: {} as any, created_at: '', updated_at: '', generated_at: '' };
       }
-      const response = await fetch(API_ROUTES.BRIEFING.AGGREGATE(snapshotId), {
-        headers: getAuthHeader(),
-      });
+      let response: Response;
+      try {
+        response = await fetch(API_ROUTES.BRIEFING.AGGREGATE(snapshotId), {
+          headers: { Authorization: `Bearer ${requestToken}` }, signal,
+        });
+      } catch (error) {
+        if (signal.aborted) throw error;
+        return finishAttempt({ snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _error: 503 });
+      }
+      if (signal.aborted || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== requestToken) {
+        return { snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _authError: true };
+      }
 
       if (!response.ok) {
         if (response.status === 401) {
           try {
             const errorBody = await response.json();
+            if (!isCurrent()) return staleResponse();
             dispatchAuthError(errorBody?.error || 'unauthorized');
-          } catch { dispatchAuthError('unauthorized'); }
+          } catch { if (isCurrent()) dispatchAuthError('unauthorized'); }
           return { snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _authError: true };
         }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
+            if (!isCurrent()) return staleResponse();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] Aggregate 404 - snapshot ownership error');
               dispatchSnapshotOwnershipError(snapshotId ?? undefined);
@@ -279,19 +288,24 @@ export function useBriefingQueries({
             }
             // "Briefing not yet generated" — retry expected
             console.log('[BriefingQuery] ⏳ Briefing not yet generated for', snapshotId.slice(0, 8));
-            retryCountRef.current.count++;
-            if (retryCountRef.current.count >= MAX_RETRY_ATTEMPTS) {
-              return { snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _exhausted: true };
-            }
-            return { snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _notGenerated: true };
+            return finishAttempt({ snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _notGenerated: true });
           } catch {
             console.warn('[BriefingQuery] Aggregate 404 - could not parse error body');
           }
         }
         console.error('[BriefingQuery] Aggregate fetch failed:', response.status);
-        return { snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _error: response.status };
+        return finishAttempt({ snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _error: response.status });
       }
-      const data = await response.json();
+      let data: BriefingAggregate;
+      try { data = await response.json(); }
+      catch (error) {
+        if (signal.aborted) throw error;
+        return finishAttempt({ snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _error: 502 });
+      }
+      if (!isCurrent()) return staleResponse();
+      if (data?.snapshot_id !== snapshotId || !data?.briefing || typeof data.briefing !== 'object') {
+        return finishAttempt({ snapshot_id: snapshotId, briefing: {} as any, created_at: '', updated_at: '', generated_at: '', _error: 502 });
+      }
       console.log('[BriefingQuery] ✅ Aggregate received for', snapshotId.slice(0, 8),
         '| weather=', !!data?.briefing?.weather?.current,
         'traffic=', !!data?.briefing?.traffic && Object.keys(data.briefing.traffic).length > 1,
@@ -299,13 +313,13 @@ export function useBriefingQueries({
         'news=', data?.briefing?.news?.items?.length ?? 0,
         'airport=', data?.briefing?.airport_conditions?.airports?.length ?? 0,
       );
-      return data as BriefingAggregate;
+      return finishAttempt(data);
     },
     enabled: isEnabled,
     staleTime: 30000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    refetchOnReconnect: true,
     refetchInterval: (query) => {
       const data = query.state.data as BriefingAggregate | undefined;
       if (data?._ownershipError) return false;
@@ -329,8 +343,12 @@ export function useBriefingQueries({
   // Derive per-section data and loading/unavailable flags from the aggregate.
   // Keep the same external shape as the prior six-query API.
   const b = aggregateQuery.data?.briefing;
-  const stillLoading = isAggregateLoading(aggregateQuery.data);
   const exhausted = !!aggregateQuery.data?._exhausted;
+  const refetchAggregate = aggregateQuery.refetch;
+  const retryBriefing = useCallback(() => {
+    retryCountRef.current.count = 0;
+    return refetchAggregate();
+  }, [refetchAggregate]);
 
   // Derived section data — wrapped to match what callers of the old hook expected.
   // 2026-04-19: H3 fix — carry _generationFailed at the outer level so WeatherCard
@@ -358,6 +376,8 @@ export function useBriefingQueries({
         events: b.events.items,
         marketEvents: b.events.marketEvents,
         market_name: b.events.market_name,
+        market_status: b.events.market_status,
+        unresolved_market_events: b.events.unresolved_market_events,
         reason: b.events.reason,
         _pending: !!b.events._pending,
         _generationFailed: !!b.events._generationFailed,
@@ -374,14 +394,18 @@ export function useBriefingQueries({
   // Per-section loading flags — explicit _pending from the endpoint replaces
   // the old content-shape guessing (which counted fabricated "No X for this
   // area" reasons as data, so pending sections instantly read as loaded-empty).
-  const sectionLoading = (pending: boolean | undefined, failed: boolean | undefined) => {
-    if (failed) return false;
-    if (exhausted) return false;
-    if (aggregateQuery.isLoading || stillLoading) return true;
-    return !!pending; // section column still NULL — briefing generation in flight
+  const sectionLoading = (section: { _pending?: boolean; _generationFailed?: boolean } | undefined) => {
+    if (section?._generationFailed || exhausted) return false;
+    // Whole-Briefing polling continues until every section finishes. A remaining
+    // section must not hide another section's already saved progressive result.
+    if (aggregateQuery.isLoading || !section) return true;
+    return !!section._pending;
   };
 
   return {
+    isRetryExhausted: exhausted,
+    isFetching: aggregateQuery.isFetching,
+    retryBriefing,
     weatherData,
     trafficData,
     newsData,
@@ -389,12 +413,12 @@ export function useBriefingQueries({
     schoolClosuresData,
     airportData,
     isLoading: {
-      weather: sectionLoading(b?.weather?._pending, b?.weather?._generationFailed),
-      traffic: sectionLoading(b?.traffic?._pending, b?.traffic?._generationFailed),
-      events: sectionLoading(b?.events?._pending, b?.events?._generationFailed),
-      news: sectionLoading(b?.news?._pending, b?.news?._generationFailed),
-      airport: sectionLoading(b?.airport_conditions?._pending, b?.airport_conditions?._generationFailed),
-      schoolClosures: sectionLoading(b?.school_closures?._pending, b?.school_closures?._generationFailed),
+      weather: sectionLoading(b?.weather),
+      traffic: sectionLoading(b?.traffic),
+      events: sectionLoading(b?.events),
+      news: sectionLoading(b?.news),
+      airport: sectionLoading(b?.airport_conditions),
+      schoolClosures: sectionLoading(b?.school_closures),
     },
     isUnavailable: {
       traffic: !!(exhausted || b?.traffic?._generationFailed),
@@ -407,30 +431,35 @@ export function useBriefingQueries({
 
 /**
  * Standalone hook for fetching ONLY currently active events (happening now).
- * Used by MapPage for real-time event markers. Unchanged from prior version —
- * this is a specialized real-time view, not part of the briefing tab aggregate.
+ * Used by StrategyPage for its active event count, separate from the aggregate.
  */
 export function useActiveEventsQuery(snapshotId: string | null) {
   return useQuery({
     queryKey: QUERY_KEYS.BRIEFING_EVENTS_ACTIVE(snapshotId!),
-    queryFn: async () => {
-      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { events: [] };
+    queryFn: async ({ signal }) => {
+      const requestToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const isCurrent = () => !signal.aborted && localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === requestToken;
+      const staleResponse = () => ({ events: [], _authError: true });
+      if (!requestToken) return { events: [] };
       if (!snapshotId) return { events: [] };
       console.log('[BriefingQuery] 🎯 Fetching active events for', snapshotId.slice(0, 8));
       const response = await fetch(API_ROUTES.BRIEFING.EVENTS_ACTIVE(snapshotId), {
-        headers: getAuthHeader(),
+        headers: { Authorization: `Bearer ${requestToken}` }, signal,
       });
+      if (!isCurrent()) return staleResponse();
       if (!response.ok) {
         if (response.status === 401) {
           try {
             const errorBody = await response.json();
+            if (!isCurrent()) return staleResponse();
             dispatchAuthError(errorBody?.error || 'unauthorized');
-          } catch { dispatchAuthError('unauthorized'); }
+          } catch { if (isCurrent()) dispatchAuthError('unauthorized'); }
           return { events: [], _authError: true };
         }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
+            if (!isCurrent()) return staleResponse();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] Active events 404 - snapshot ownership error');
               dispatchSnapshotOwnershipError(snapshotId ?? undefined);
@@ -442,6 +471,7 @@ export function useActiveEventsQuery(snapshotId: string | null) {
         return { events: [] };
       }
       const data = await response.json();
+      if (!isCurrent()) return staleResponse();
       if (data?.success === false) return { events: [] };
       console.log('[BriefingQuery] ✅ Active events received:', data.events?.length || 0);
       return data;

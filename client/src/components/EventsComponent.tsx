@@ -3,21 +3,27 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp, Navigation, Calendar } from "lucide-react";
-import { filterValidEvents, formatEventRunDisplay, formatEventTimeRange } from "@/utils/co-pilot-helpers";
+import { eventDisplayFields, filterValidEvents, formatEventRunDisplay, formatEventTime, formatEventTimeRange } from "@/utils/co-pilot-helpers";
 
 // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-interface Event {
+interface EventVariant {
+  id?: string;
   title: string;
   venue?: string;
-  address?: string;
   event_start_date?: string;
   event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
   event_start_time?: string;
   event_end_time?: string;
+}
+
+interface Event extends EventVariant {
+  address?: string;
+  event_variants?: EventVariant[];
+  event_end_conflict?: boolean;
   type?: string;
   subtype?: string;
   estimated_distance_miles?: number;
-  impact?: "high" | "medium" | "low";
+  impact?: "high" | "medium" | "low" | null;
   recommended_driver_action?: string;
   confidence?: string;
   latitude?: number;
@@ -32,7 +38,23 @@ interface EventsComponentProps {
   timezone?: string;
 }
 
-export default function EventsComponent({ events, isLoading: _isLoading, timezone }: EventsComponentProps) {
+function endUncertaintyMessage(reports: EventVariant[] = []): string {
+  const knownEnds = reports.map(report => report.event_end_time?.trim()).filter((end): end is string => !!end);
+  if (knownEnds.length === reports.length) return 'Reported end times disagree. End time is unconfirmed.';
+  // Compare displayed clock values so equivalent 24h/12h reports are not described
+  // as disagreement merely because another source omitted its end.
+  const distinctEnds = new Set(knownEnds.map(end =>
+    formatEventTime(end).replace(/\s/g, '').toUpperCase().replace(/^0(?=\d)/, '')));
+  return distinctEnds.size > 1
+    ? 'Reported end times disagree, and some reports omit an end time. End time is unconfirmed.'
+    : 'Some reports omit an end time. End time is unconfirmed.';
+}
+
+export default function EventsComponent({ events: savedEvents, isLoading: _isLoading, timezone }: EventsComponentProps) {
+  const events = (Array.isArray(savedEvents) ? savedEvents : []).map(event => ({
+    ...event, ...eventDisplayFields(event, timezone),
+    event_variants: event.event_variants?.map(variant => ({ ...variant, ...eventDisplayFields(variant, timezone) })),
+  }));
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     today: true,
     upcoming: true,
@@ -43,8 +65,17 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
     other: true,
   });
 
-  // 2026-03-28: Pass timezone for accurate date comparison (fixes UTC mismatch near day boundaries)
-  const { todayEvents, upcomingEvents, invalidEvents } = filterValidEvents(events, timezone);
+  // 2026-09-11: The server reconciles identity. Classify each supplied group using its
+  // original reports, retaining one card if any report passes the existing date/time filter.
+  // A disputed end time stays unresolved on the displayed group.
+  const { todayEvents, upcomingEvents, invalidEvents } = (Array.isArray(events) ? events : []).reduce((result, event) => {
+    const reports = event.event_variants?.length ? event.event_variants : [event];
+    const filtered = filterValidEvents(reports, timezone);
+    if (filtered.todayEvents.length) result.todayEvents.push(event);
+    else if (filtered.upcomingEvents.length) result.upcomingEvents.push(event);
+    else result.invalidEvents.push(event);
+    return result;
+  }, { todayEvents: [] as Event[], upcomingEvents: [] as Event[], invalidEvents: [] as Event[] });
   const validEvents = [...todayEvents, ...upcomingEvents];
 
   // Log filtering results for debugging
@@ -55,7 +86,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
   // Open navigation to event location
   const openNavigation = (event: Event) => {
     // Try coordinates first, fall back to address
-    if (event.latitude && event.longitude) {
+    if (Number.isFinite(event.latitude) && Number.isFinite(event.longitude)) {
       // Use Google Maps with coordinates
       const url = `https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}`;
       window.open(url, '_blank');
@@ -73,7 +104,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
   };
 
   const hasNavigationInfo = (event: Event) => {
-    return !!(event.latitude && event.longitude) || !!event.address || !!event.venue;
+    return (Number.isFinite(event.latitude) && Number.isFinite(event.longitude)) || !!event.address || !!event.venue;
   };
 
   const getImpactColor = (impact?: string) => {
@@ -169,7 +200,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
       {Object.entries(groupedEvents)
         .sort(([a], [b]) => {
           const order = { concerts: 0, sports: 1, festivals: 2, conventions: 3, other: 4 };
-          return (order[a as keyof typeof order] || 999) - (order[b as keyof typeof order] || 999);
+          return (order[a as keyof typeof order] ?? 999) - (order[b as keyof typeof order] ?? 999);
         })
         .map(([category, categoryEvents]) => (
           <Card
@@ -243,10 +274,41 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
                           {event.event_start_time && (
                             <div className="flex items-center gap-1">
                               <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                              <span>{formatEventTimeRange(event.event_start_time, event.event_end_time)}</span>
+                              <span>
+                                {event.event_end_conflict
+                                  ? `Starts ${formatEventTime(event.event_start_time)}`
+                                  : formatEventTimeRange(event.event_start_time, event.event_end_time)}
+                              </span>
                             </div>
                           )}
                         </div>
+
+                        {event.event_end_conflict && (
+                          <p className="flex items-start gap-1 font-medium text-amber-800">
+                            <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                            {endUncertaintyMessage(event.event_variants)}
+                          </p>
+                        )}
+
+                        {event.event_variants && event.event_variants.length > 1 && (
+                          <details className="rounded border border-gray-200 p-2">
+                            <summary className="cursor-pointer font-medium text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                              Source reports ({event.event_variants.length})
+                            </summary>
+                            <ul className="mt-2 space-y-2">
+                              {event.event_variants.map((report, reportIndex) => (
+                                <li key={`${report.id || 'report'}-${reportIndex}`} className="break-words">
+                                  <p className="font-medium text-gray-900">{report.title}</p>
+                                  <p>
+                                    Reported end: {report.event_end_time
+                                      ? `${report.event_end_date ? `${report.event_end_date} at ` : ''}${formatEventTime(report.event_end_time)}`
+                                      : 'Not reported'}
+                                  </p>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
 
                         {event.address && (
                           <div className="flex items-start gap-2">

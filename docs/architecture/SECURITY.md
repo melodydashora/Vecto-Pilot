@@ -89,7 +89,7 @@ Google OAuth uses state parameter: 64-char hex, stored in `oauth_states` table w
 | Global API | 100/min per IP | All `/api/*` routes |
 | Expensive endpoints | 5/min | blocks-fast, briefing generate/refresh |
 | Chat/streaming | 3/min | POST /api/chat |
-| Translation | 30/min | POST /api/translate (composite: IP + deviceId) |
+| Translation | 30/min | POST /api/hooks/translate (composite: IP + deviceId) |
 | Health monitoring | 200/min | /health, /api/health, /diagnostics |
 | Concierge: profile | 20/min | GET /api/concierge/p/:token |
 | Concierge: weather | 10/min | GET /api/concierge/p/:token/weather |
@@ -192,7 +192,6 @@ All standard security headers enabled via Helmet middleware.
 | `SENDGRID_API_KEY` | SendGrid | Password reset emails |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | Twilio | Password reset SMS |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google | OAuth |
-| `UBER_CLIENT_ID`, `UBER_CLIENT_SECRET` | Uber | Platform data OAuth |
 | `JWT_SECRET` | Internal | Token signing |
 | `VECTO_AGENT_SECRET` | Internal | Service account auth |
 

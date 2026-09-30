@@ -1,15 +1,17 @@
 import express from 'express';
+import { getRoleConfig } from '../../lib/ai/model-registry.js';
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
 import { sql, eq } from 'drizzle-orm';
 import { strategies, snapshots, briefings } from '../../../shared/schema.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { requireOperator } from '../../middleware/require-operator.js';
 
 const router = express.Router();
 
 // SECURITY: All diagnostics require authentication
 // GET /api/diagnostics - System health check
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireOperator, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
@@ -160,7 +162,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // GET /api/diagnostics/db-data - Show actual database records
-router.get('/db-data', requireAuth, async (req, res) => {
+router.get('/db-data', requireAuth, requireOperator, async (req, res) => {
   try {
     const snapshots = await db.execute(sql`
       SELECT snapshot_id, city, state, created_at,
@@ -205,7 +207,7 @@ router.get('/db-data', requireAuth, async (req, res) => {
 
 // SECURITY: Require authentication for migrations
 // POST /api/diagnostics/migrate - Run database migrations
-router.post('/migrate', requireAuth, async (req, res) => {
+router.post('/migrate', requireAuth, requireOperator, async (req, res) => {
   try {
     const results = [];
 
@@ -275,7 +277,7 @@ router.post('/migrate', requireAuth, async (req, res) => {
 
 // GET /api/diagnostics/worker-status - Check worker configuration
 // SECURITY: Requires auth (exposes environment configuration)
-router.get('/worker-status', requireAuth, async (req, res) => {
+router.get('/worker-status', requireAuth, requireOperator, async (req, res) => {
   try {
     const status = {
       env: {
@@ -328,7 +330,7 @@ router.get('/worker-status', requireAuth, async (req, res) => {
 
 // GET /diagnostics/workflow-prereqs - Check workflow prerequisites
 // SECURITY: Requires auth (exposes database job status)
-router.get('/workflow-prereqs', requireAuth, async (req, res) => {
+router.get('/workflow-prereqs', requireAuth, requireOperator, async (req, res) => {
   try {
     const result = { checks: {} };
 
@@ -419,7 +421,7 @@ router.get('/workflow-prereqs', requireAuth, async (req, res) => {
 
 // GET /diagnostics/model-ping - Test model reachability with minimal prompts
 // SECURITY: Requires auth (triggers AI API calls which cost money)
-router.get('/model-ping', requireAuth, async (req, res) => {
+router.get('/model-ping', requireAuth, requireOperator, async (req, res) => {
   const results = {};
   const timeout = 8000; // 8s timeout per model
 
@@ -436,7 +438,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-8';
+        const modelId = getRoleConfig('STRATEGY_CORE').model;
         const response = await anthropic.messages.create({
           model: modelId,
           max_tokens: 10,
@@ -477,7 +479,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const ai = new GoogleGenAI({ apiKey });
-        const modelId = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+        const modelId = getRoleConfig('BRIEFING_FALLBACK').model;
         const result = await ai.models.generateContent({
           model: modelId,
           contents: 'ping'
@@ -516,7 +518,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const modelId = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
+        const modelId = getRoleConfig('VENUE_SCORER').model;
         // 2026-01-07: GPT-5 family requires max_completion_tokens (not max_tokens)
         // See LESSONS_LEARNED.md: "max_tokens is DEPRECATED - use max_completion_tokens"
         const response = await openai.chat.completions.create({
@@ -558,7 +560,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
 // GET /diagnostics/workflow-dry-run - Minimal workflow dry-run without DB writes
 // SECURITY: Requires auth (triggers AI API calls)
-router.get('/workflow-dry-run', requireAuth, async (req, res) => {
+router.get('/workflow-dry-run', requireAuth, requireOperator, async (req, res) => {
   const report = { steps: {} };
 
   try {
@@ -604,7 +606,7 @@ router.get('/workflow-dry-run', requireAuth, async (req, res) => {
     try {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-8';
+      const modelId = getRoleConfig('STRATEGY_CORE').model;
       
       await anthropic.messages.create({
         model: modelId,
@@ -669,7 +671,7 @@ router.get('/workflow-dry-run', requireAuth, async (req, res) => {
 
 // GET /api/diagnostics/test-traffic
 // Compare traffic data from all providers
-router.get('/test-traffic', requireAuth, async (req, res) => {
+router.get('/test-traffic', requireAuth, requireOperator, async (req, res) => {
   const { city = 'Frisco', state = 'TX' } = req.query;
   const results = {};
   const formattedAddress = `${city}, ${state}`;

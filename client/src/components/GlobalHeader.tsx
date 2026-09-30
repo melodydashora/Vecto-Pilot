@@ -14,11 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
 import { LocationContext } from "@/contexts/location-context-clean";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
-import { getAuthHeader, subscribeBriefingReady } from '@/utils/co-pilot-helpers';
+import { useQuery } from "@tanstack/react-query";
+import { QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
-import { useCoPilot } from '@/contexts/co-pilot-context';
+import { useRunSetup } from '@/contexts/run-setup-context';
 // 2026-04-05: Hamburger menu for secondary pages (Sign Out, Settings, About, etc.)
 import HamburgerMenu from '@/components/HamburgerMenu';
 
@@ -35,12 +34,14 @@ type ExtendedLocationContext = {
   timeZone?: string | null;
   isUpdating?: boolean;
   lastUpdated?: string | null;
-  refreshGPS?: () => Promise<void>;
+  refreshGPS?: () => Promise<string | null>;
   overrideCoords?: { latitude: number; longitude: number; city?: string } | null;
   weather?: { temp: number; conditions: string; description?: string } | null;
   airQuality?: { aqi: number; category: string } | null;
   isLocationResolved?: boolean;
   lastSnapshotId?: string | null;
+  runId?: string | null;
+  collectionId?: string | null;
   isLoading?: boolean;
   setOverrideCoords?: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
   // Legacy nested location shape
@@ -53,7 +54,7 @@ type ExtendedLocationContext = {
     timeZone?: string | null;
     isUpdating?: boolean;
     lastUpdated?: string | null;
-    refreshGPS?: () => Promise<void>;
+    refreshGPS?: () => Promise<string | null>;
   };
   // Direct coordinate properties (another legacy shape)
   latitude?: number;
@@ -64,23 +65,20 @@ type ExtendedLocationContext = {
 
 /**
  * GlobalHeader - Real-time driver location and context display
- * - Polls fresh location from users table every 2 seconds
- * - Displays resolved address, time, weather, air quality
- * - Handles snapshot creation with validation gates
+ * - Reads saved location, time, weather and air quality from LocationContext
+ * - Explicit refresh prepares new context and then Strategy when preferences are ready
+ * - Collection failures stay local so other pages remain available
  * Memoized to prevent unnecessary re-renders from parent context updates
  */
-// 2026-01-15: FAIL HARD - Location resolution timeout (30 seconds)
-// If location doesn't resolve within this time, trigger critical error
-const LOCATION_RESOLUTION_TIMEOUT_MS = 30000;
 
 const GlobalHeaderComponent: React.FC = () => {
   // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
   const loc = useContext(LocationContext) as ExtendedLocationContext | null;
   const { toast } = useToast();
 
-  // 2026-01-15: FAIL HARD - Get setCriticalError from CoPilotContext
-  // GlobalHeader is always used inside CoPilotProvider (via CoPilotLayout)
-  const { setCriticalError } = useCoPilot();
+  const setup = useRunSetup();
+  const setupRef = useRef(setup);
+  setupRef.current = setup;
 
   // state for display
   const [now, setNow] = useState<Date>(new Date());
@@ -100,30 +98,13 @@ const GlobalHeaderComponent: React.FC = () => {
   // React Query dedupes with the briefing tab; we select only the holiday
   // section. Refetches on briefing_ready SSE as sections land.
   const snapshotId = loc?.lastSnapshotId ?? null;
-  const queryClient = useQueryClient();
+  // The CoPilotProvider owns this query's fetching, retries, and SSE subscription.
+  // A second queryFn here used to replace its error/retry policy in the shared cache.
   const { data: holidaySection } = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId!),
-    queryFn: async () => {
-      const response = await fetch(API_ROUTES.BRIEFING.AGGREGATE(snapshotId!), {
-        headers: getAuthHeader(),
-      });
-      if (!response.ok) return null; // 404 = briefing not generated yet; retried on SSE
-      return response.json();
-    },
-    enabled: !!snapshotId,
-    staleTime: 60_000,
+    enabled: false,
     select: (data: any) => data?.briefing?.holiday ?? null,
   });
-
-  useEffect(() => {
-    if (!snapshotId) return;
-    const unsubscribe = subscribeBriefingReady(snapshotId, (readyId: string) => {
-      if (readyId === snapshotId) {
-        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId) });
-      }
-    });
-    return () => unsubscribe();
-  }, [snapshotId, queryClient]);
 
   // 'none' = VERIFIED not a holiday; errorMarker/_generationFailed = detection
   // failed (reason recorded in the briefing row) — either way, no amber banner.
@@ -166,84 +147,15 @@ const GlobalHeaderComponent: React.FC = () => {
     loc?.location?.currentLocationString ??
     "";
 
-  // Debug: Log location resolution only when it changes to a resolved value
-  // 2026-01-06: Reduced excessive logging by tracking previous resolved location
-  const prevResolvedLocationRef = useRef<string | null>(null);
-  useEffect(() => {
-    // Only log when location resolves (not during "Getting location..." state)
-    const isResolved = currentLocationString &&
-      currentLocationString !== "Getting location..." &&
-      currentLocationString !== "Detecting...";
-
-    if (isResolved && currentLocationString !== prevResolvedLocationRef.current) {
-      prevResolvedLocationRef.current = currentLocationString;
-      console.log("[GlobalHeader] Location resolved:", currentLocationString);
-    }
-  }, [currentLocationString]);
-
-  // Header is "resolved" as soon as we have coords + city (don't wait for weather/AQ/events)
-  const isLocationResolved = Boolean(
-    coords?.latitude &&
-      coords?.longitude &&
-      currentLocationString &&
-      currentLocationString !== "Getting location..." &&
-      currentLocationString !== "Detecting...",
+  const isLocationResolved = loc?.isLocationResolved ?? Boolean(
+    Number.isFinite(coords?.latitude) && Number.isFinite(coords?.longitude) &&
+    currentLocationString && currentLocationString !== "Getting location..." &&
+    currentLocationString !== "Detecting...",
   );
-
-  // 2026-01-15: FAIL HARD - Timeout if location doesn't resolve
-  // Start timer when component mounts, cancel if location resolves
-  const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const hasTriggeredErrorRef = useRef(false);
-
-  // 2026-02-01: FAIL HARD IMMEDIATE - Check for location error from context
-  // This fires immediately when geocode fails, don't wait for 30s timeout
   const locationError = loc?.locationError ?? null;
 
-  useEffect(() => {
-    if (locationError && !hasTriggeredErrorRef.current) {
-      hasTriggeredErrorRef.current = true;
-      console.error('[GlobalHeader] ❌ CRITICAL: Location error from context:', locationError);
-      setCriticalError({
-        type: 'location_failed',
-        message: locationError.message || 'Unable to determine your location.',
-        details: `Error code: ${locationError.code}`
-      });
-    }
-  }, [locationError, setCriticalError]);
-
-  useEffect(() => {
-    // Don't start timeout if already resolved or already errored
-    if (isLocationResolved || hasTriggeredErrorRef.current) {
-      if (locationTimeoutRef.current) {
-        clearTimeout(locationTimeoutRef.current);
-        locationTimeoutRef.current = null;
-      }
-      return;
-    }
-
-    // Start timeout for location resolution
-    locationTimeoutRef.current = setTimeout(() => {
-      if (!isLocationResolved && !hasTriggeredErrorRef.current) {
-        hasTriggeredErrorRef.current = true;
-        console.error('[GlobalHeader] ❌ CRITICAL: Location resolution timeout after 30s');
-        setCriticalError({
-          type: 'location_failed',
-          message: 'Unable to determine your location within 30 seconds.',
-          details: `Coords: ${coords ? 'available' : 'missing'} | City: ${currentLocationString || 'unknown'}`
-        });
-      }
-    }, LOCATION_RESOLUTION_TIMEOUT_MS);
-
-    return () => {
-      if (locationTimeoutRef.current) {
-        clearTimeout(locationTimeoutRef.current);
-        locationTimeoutRef.current = null;
-      }
-    };
-  }, [isLocationResolved, coords, currentLocationString, setCriticalError]);
-
   // CRITICAL FIX Issue #3: Get refreshGPS from the correctly imported context
-  const refreshGPS: undefined | (() => Promise<void>) =
+  const refreshGPS: undefined | (() => Promise<string | null>) =
     loc?.refreshGPS ?? loc?.location?.refreshGPS;
 
   const isUpdating: boolean = Boolean(
@@ -255,8 +167,7 @@ const GlobalHeaderComponent: React.FC = () => {
     ? new Date(lastUpdatedRaw)
     : null;
 
-  // We tick the on-screen clock every second for UX,
-  // but we only WRITE a snapshot to the DB on app open and manual refresh.
+  // This display clock does not collect location or write snapshots.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
@@ -381,23 +292,25 @@ const GlobalHeaderComponent: React.FC = () => {
     setIsRefreshing(true);
     setLastRefreshTime(now);
 
-    // Emit manual refresh event (location context will clear strategy when coords arrive)
-    window.dispatchEvent(new CustomEvent("vecto-manual-refresh"));
-
     try {
-      await refreshGPS();
-
-      // Location context will automatically create snapshot when GPS updates
-      window.dispatchEvent(new CustomEvent("vecto-location-refreshed"));
-
-      toast({
-        title: "Location updated",
-        description: "Your current location has been refreshed.",
-      });
+      const snapshotId = await refreshGPS();
+      if (!snapshotId) {
+        toast({ title: "Refresh unfinished", description: "Your current results are still available. Try again when ready.", variant: "destructive" });
+        return;
+      }
+      const currentSetup = setupRef.current;
+      if (currentSetup.preferencesConfirmed) {
+        const started = await currentSetup.continueWithSavedPreferences(snapshotId);
+        toast({ title: started ? "Refreshing Strategy" : "Strategy is waiting",
+          description: started ? "Your current results stay available while Strategy and venues update."
+            : "Review preferences, then start Strategy when ready." });
+      } else {
+        toast({ title: "Location and Briefing refreshed", description: "Start Strategy in its component when you’re ready." });
+      }
     } catch (_err) {
       toast({
-        title: "Location update failed",
-        description: "Unable to update your location. Please try again.",
+        title: "Refresh unfinished",
+        description: "Your current results are still available. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -417,7 +330,7 @@ const GlobalHeaderComponent: React.FC = () => {
       description: "All data cleared. Reloading...",
     });
 
-    // Reload page to trigger fresh location request
+    // Reload returns to sign-in/setup; it does not admit a fresh main run.
     setTimeout(() => {
       window.location.reload();
     }, 500);
@@ -511,6 +424,8 @@ const GlobalHeaderComponent: React.FC = () => {
         </div>
       </div>
 
+      {locationError && <p role="alert" className="px-4 pb-2 text-sm text-white/90">{locationError.message}</p>}
+
       {/* Location Strip */}
       <div className="bg-black/10 backdrop-blur-sm border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-2">
@@ -518,16 +433,14 @@ const GlobalHeaderComponent: React.FC = () => {
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="h-4 w-4" />
               <span className="font-medium">{formatLocation()}</span>
-              <span className="text-white/70 ml-1">
-                ({lastUpdated ? timeAgo(lastUpdated) : "just now"})
-              </span>
+              {lastUpdated && <span className="text-white/70 ml-1">({timeAgo(lastUpdated)})</span>}
             </div>
             <div className="flex items-center gap-3">
               {/* Location Resolution Indicator - shows when coords + city are available */}
               {!isLocationResolved ? (
                 <div className="flex items-center gap-1.5 text-xs text-white/70">
-                  <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
-                  <span>getting location...</span>
+                  <div className={`w-2 h-2 bg-orange-400 rounded-full${isUpdating ? ' animate-pulse' : ''}`} />
+                  <span>{isUpdating ? 'getting location...' : 'location unavailable'}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
@@ -542,13 +455,13 @@ const GlobalHeaderComponent: React.FC = () => {
                 onClick={handleRefreshLocation}
                 disabled={isRefreshing || !refreshGPS || isUpdating}
                 className="text-white hover:bg-white/20 p-1"
-                aria-label="Refresh current GPS location"
+                aria-label="Refresh"
                 title={
                   !refreshGPS
                     ? "Location service unavailable"
                     : isUpdating
                       ? "Updating..."
-                      : "Refresh location"
+                      : "Refresh location, Briefing, Strategy and venues"
                 }
                 data-testid="button-refresh-location"
               >

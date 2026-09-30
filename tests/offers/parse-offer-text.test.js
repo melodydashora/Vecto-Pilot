@@ -1,5 +1,19 @@
 // tests/offers/parse-offer-text.test.js — regex pre-parser pins (2026-08-17).
 import { extractPrice, parseOfferText } from '../../server/lib/offers/parse-offer-text.js';
+import { classifyTier, evaluateDeterministic, migrateRuleset } from '../../server/lib/offers/rules-engine.js';
+
+describe('shared-ride product gate', () => {
+  test.each(['UberX Share', 'UberX\nShare', 'uber x share', 'UberXShare', 'Lyft Shared', 'Share'])('recognizes %s before the standard tier', label => {
+    const parsed = parseOfferText(`${label}\n$15.00\n5.00 Verified\n1 min (0.2 mi) away\n10 min (3.0 mi) trip`);
+    expect(parsed.product_type).toBe(label === 'Lyft Shared' ? 'Lyft Shared' : 'Share');
+    const rules = migrateRuleset(null);
+    expect(evaluateDeterministic(classifyTier(parsed.product_type, rules), parsed, rules).decision).toBe('REJECT');
+  });
+  test('a Share street name does not change an explicit ordinary UberX product', () => {
+    const parsed = parseOfferText('UberX\n$15.00\n5.00 Verified\n1 min (0.2 mi) away\n100 Share Lane\n10 min (3.0 mi) trip');
+    expect(parsed.product_type).toBe('UberX');
+  });
+});
 
 describe('extractPrice', () => {
   test('ignores our own previous verdict banner in the OCR (live prod case, 2026-08-14)', () => {
@@ -28,5 +42,17 @@ describe('extractPrice', () => {
   test('prefers a 2-decimal price over a 1-decimal OCR fragment, but falls back', () => {
     expect(extractPrice('$0.5\n$6.07')).toBe(6.07);
     expect(extractPrice('$7')).toBe(7); // fallback when nothing has cents
+  });
+});
+
+describe('service identity preserves complete product labels', () => {
+  test.each([
+    ['UberXXL Exclusive', 'UberXXL Exclusive'],
+    ['Uber Black SUV', 'Black SUV'],
+    ['Lyft Black SUV', 'Lyft Black SUV'],
+    ['Lyft Lux Black XL', 'Lyft Black SUV'],
+    ['Uber\nComfort', 'Comfort'],
+  ])('%s remains %s rather than its shorter base label', (label, expected) => {
+    expect(parseOfferText(`${label}\n$20.00\n5 min (2.0 mi) away\n10 min (4.0 mi) trip`).product_type).toBe(expected);
   });
 });

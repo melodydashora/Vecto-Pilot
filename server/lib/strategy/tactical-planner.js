@@ -26,7 +26,7 @@
 // populates coordinates via Google Places API — the single source of truth.
 // See ARCHITECTURE_REQUIREMENTS.md §3.
 //
-// ROLE: VENUE_SCORER via VENUE_SCORER_MODEL env var
+// ROLE: VENUE_SCORER via the model registry
 // TIMEOUT: PLANNER_DEADLINE_MS (default 180s)
 //
 // CALLED BY: enhanced-smart-blocks.js
@@ -34,7 +34,9 @@
 // ============================================================================
 
 import { callModel } from "../ai/adapters/index.js";
+import { getRoleConfig } from "../ai/model-registry.js";
 import { z } from "zod";
+import { normalizeCoordinates } from "../../../shared/coordinates.js";
 import { safeJsonParse } from "../../api/utils/http-helpers.js";
 import { formatBriefingForPrompt } from "../briefing/filter-for-planner.js";
 // 2026-04-16 (P0-6): Import resolver + catalog for post-LLM coordinate resolution
@@ -47,8 +49,10 @@ import { normalizeDistrictSlug } from "../venue/district-detection.js";
 import { db } from "../../db/drizzle.js";
 import { venue_catalog, claudeMemory } from "../../../shared/schema.js";
 import { and, eq, ilike } from "drizzle-orm";
-// 2026-04-16: Import driver preferences for prompt injection + deadhead flagging
+// Driver preferences supply prompt context; pickup limits are not home radii.
 import { loadDriverPreferences, buildDriverPreferencesSection } from "../ai/providers/consolidator.js";
+import { assertMainRunForSnapshot, MainRunAdmissionError } from '../main-run-admission.js';
+import { mainDriverContext } from '../driver-preferences.js';
 // 2026-04-27 (Commit 6 of CLEAR_CONSOLE_WORKFLOW): emoji-prefixed raw console.log
 // migrated to venuesLog (renders as [VENUE] per UPPERCASE COMPONENT_LABELS).
 import { venuesLog, matrixLog } from "../../logger/workflow.js";
@@ -102,12 +106,13 @@ const TARGET_VENUE_COUNT = 6;
 //   { place_id, google_name, business_status, formatted_address, isOpen,
 //     businessHours, allHours, similarity, matchMethod, google_lat, google_lng }
 export async function resolveVenueWithCache(venue, ctx) {
-  const { city, state, tz, cacheMetrics } = ctx;
+  const { city, state, country, origin, tz, cacheMetrics, signal } = ctx;
+  signal?.throwIfAborted();
 
   let cached = null;
 
   if (venue.name && city && state) {
-    cached = await lookupVenue({ venueName: venue.name, city, state });
+    cached = await lookupVenue({ venueName: venue.name, city, state, country });
 
     // District tie-break: lookupVenue returns a single row by (normalized_name,
     // city, state). When the catalog holds multiple rows for the same name in
@@ -116,7 +121,7 @@ export async function resolveVenueWithCache(venue, ctx) {
     // only on detected mismatch — common path stays at one DB roundtrip.
     if (cached && venue.district) {
       const targetSlug = normalizeDistrictSlug(venue.district);
-      if (targetSlug && cached.district_slug && cached.district_slug !== targetSlug) {
+      if (targetSlug && cached.district_slug !== targetSlug) {
         const normalized = normalizeVenueName(venue.name);
         if (normalized) {
           const candidates = await db.select().from(venue_catalog)
@@ -127,40 +132,26 @@ export async function resolveVenueWithCache(venue, ctx) {
             ))
             .limit(5);
           const better = candidates.find(c => c.district_slug === targetSlug);
-          if (better) cached = better;
+          cached = better || null;
         }
       }
     }
   }
 
-  if (cached && cached.lat != null && cached.lng != null) {
-    const closed = cached.last_known_status === 'permanently_closed'
-                || cached.last_known_status === 'temporarily_closed';
-    if (!closed) {
-      cacheMetrics.hits++;
-      matrixLog.info({
-        category: 'VENUE',
-        connection: 'DB',
-        action: 'CACHE_HIT',
-        tableName: 'VENUE_CATALOG',
-        location: 'tactical-planner.js:resolveVenueWithCache',
-      }, `Cache hit for "${venue.name}" (place_id: ${cached.place_id || 'none'})`);
-
-      return {
-        place_id: cached.place_id || null,
-        google_name: cached.venue_name,
-        business_status: 'OPERATIONAL',
-        formatted_address: cached.formatted_address || cached.address || null,
-        isOpen: null,
-        businessHours: cached.business_hours || null,
-        allHours: null,
-        similarity: 1.0,
-        matchMethod: 'cache_hit',
-        google_lat: parseFloat(cached.lat),
-        google_lng: parseFloat(cached.lng),
-      };
-    }
-    // Closed venue → fall through to Places API to re-verify or replace
+  signal?.throwIfAborted();
+  const cachedCoordinates = normalizeCoordinates(cached?.lat, cached?.lng);
+  const closed = ['closed', 'permanently_closed', 'temporarily_closed', 'CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY'].includes(cached?.last_known_status);
+  if (cached?.place_id && cachedCoordinates && !closed &&
+      (!country || !cached.country || country === cached.country) &&
+      (!origin || haversineDistanceMiles(origin.lat, origin.lng, cachedCoordinates.lat, cachedCoordinates.lng) <= 15)) {
+    cacheMetrics.hits++;
+    matrixLog.info({ category: 'VENUE', connection: 'DB', action: 'CACHE_HIT', tableName: 'VENUE_CATALOG',
+      location: 'tactical-planner.js:resolveVenueWithCache' }, `Cache identity hit for "${venue.name}"`);
+    return { place_id: cached.place_id, google_name: cached.venue_name,
+      business_status: 'UNKNOWN', formatted_address: cached.formatted_address || cached.address || null,
+      city: cached.city || null, state: cached.state || null, country: cached.country || null,
+      isOpen: null, businessHours: cached.business_hours || null, allHours: null,
+      similarity: 1, matchMethod: 'cache_hit', google_lat: cachedCoordinates.lat, google_lng: cachedCoordinates.lng };
   }
 
   cacheMetrics.misses++;
@@ -173,11 +164,12 @@ export async function resolveVenueWithCache(venue, ctx) {
     location: 'tactical-planner.js:resolveVenueWithCache',
   }, `Cache miss for "${venue.name}" — calling Places API`);
 
-  let placeResult = await searchPlaceByText(venue.name, venue.district || null, city, state, tz);
+  let placeResult = await searchPlaceByText(venue.name, venue.district || null, city, state, tz, { country, origin, signal });
   if (!placeResult && venue.district) {
     venuesLog.debug(`Retry without district: "${venue.name}" (was: ${venue.district})`);
-    placeResult = await searchPlaceByText(venue.name, null, city, state, tz);
+    placeResult = await searchPlaceByText(venue.name, null, city, state, tz, { country, origin, signal });
   }
+  signal?.throwIfAborted();
   return placeResult;
 }
 
@@ -203,6 +195,8 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     throw new Error("Snapshot required for tactical planning");
   }
 
+  const origin = normalizeCoordinates(snapshot.lat, snapshot.lng);
+  if (!origin) throw new Error("Planner requires valid driver coordinates");
   const startTime = Date.now();
   const driverAddress = snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown';
 
@@ -212,7 +206,9 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
   // 2026-04-16: Load driver preferences (single indexed DB row lookup, sub-ms).
   // If profile doesn't exist or user_id is null, returns defaults with profile_loaded=false.
-  const prefs = await loadDriverPreferences(snapshot?.user_id);
+  const admission = await assertMainRunForSnapshot(snapshot.snapshot_id);
+  if (admission.status === 'complete') throw new MainRunAdmissionError(409, 'main_run_restart_required', 'Continue with saved preferences before generating another venue plan.');
+  const prefs = await loadDriverPreferences(snapshot.user_id, admission.configuration);
   const hasPrefs = prefs.profile_loaded;
 
   venuesLog.info(`Planner input: ${strategy.length} chars strategy${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
@@ -279,7 +275,8 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       "DRIVER PREFERENCES (tiebreaker — do NOT override demand-based ranking):",
       buildDriverPreferencesSection(prefs),
       "- Use these preferences to break ties between venues with similar demand levels",
-      "- If the driver has a home base, prefer venues that minimize empty deadhead miles",
+      "- Minimize empty travel from the driver's CURRENT location; max_deadhead_mi limits empty travel to a ride pickup",
+      "- A saved home base is optional context, not a work radius or a reason to penalize venues near the current location",
       "- Vehicle class may affect which venue types generate the best match quality",
       "- These are soft signals for ordering, not hard constraints — never drop a high-demand venue for a preference",
       "",
@@ -425,7 +422,10 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     "- Drivers need the CLOSEST high-impact venues first. A nearby venue that benefits",
     "  from distant-event outflow beats a distant venue every time.",
     "",
-    "Return JSON with venue coords, staging coords, category, pro tips, and tactical summary."
+    `CONFIRMED RUN CONFIGURATION: ${JSON.stringify(mainDriverContext(admission.configuration))}`,
+    'Use only explicitly selected services; capability does not activate an unselected service.',
+    'If selected_services is null, keep recommendations service-neutral; do not infer a service from vehicle eligibility.',
+    "Return JSON with venue names, staging names, category, pro tips, and tactical summary. Do not generate coordinates."
   ].filter(Boolean).join("\n");
 
   venuesLog.info(`Calling Venue Planner for recommendations...`);
@@ -496,11 +496,14 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       location: 'tactical-planner.js:generateTacticalPlan',
     }, 'Calling Planner for venue recommendations');
 
+    await assertMainRunForSnapshot(snapshot.snapshot_id);
     const rawResponse = await callModel('VENUE_SCORER', {
       system: developer,
-      user
+      user,
+      signal: abortCtrl.signal
     });
 
+    abortCtrl.signal.throwIfAborted();
     const duration = Date.now() - startTime;
 
     // 2026-08-06: check ok BEFORE parsing — callModel's failure shape has no
@@ -566,7 +569,14 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     venuesLog.info(`Venue Planner returned ${llmVenues.length} venue names in ${duration}ms - resolving via Places API...`);
 
     const resolvedVenues = [];
-    const resolvedNames = new Set(); // track resolved names to avoid duplicates in replacement
+    const resolvedNames = new Set();
+    const resolvedIds = new Set();
+    const resolutionContext = { city, state, country: snapshot.country, origin, tz, cacheMetrics, signal: abortCtrl.signal };
+    const acceptable = place => place?.place_id && normalizeCoordinates(place.google_lat, place.google_lng) &&
+      !resolvedIds.has(place.place_id) &&
+      !['CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY'].includes(place.business_status) &&
+      (!snapshot.country || !place.country || snapshot.country === place.country) &&
+      haversineDistanceMiles(origin.lat, origin.lng, Number(place.google_lat), Number(place.google_lng)) <= 15;
     const failedVenues = [];
 
     for (const venue of llmVenues) {
@@ -577,17 +587,20 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       // falls through to Places API on cache miss. Replaces the prior Pass 1 text
       // search → Pass 2 catalog-by-category fallback ordering. Per-venue retry
       // (drop district) is encapsulated inside the wrapper.
-      let placeResult = await resolveVenueWithCache(venue, { city, state, tz, cacheMetrics });
+      const placeResult = await resolveVenueWithCache(venue, resolutionContext);
+      abortCtrl.signal.throwIfAborted();
 
-      if (placeResult && placeResult.google_lat != null && placeResult.google_lng != null) {
+      if (acceptable(placeResult)) {
         resolvedVenues.push({
           ...venue,
           lat: placeResult.google_lat,
           lng: placeResult.google_lng,
           place_id: placeResult.place_id,
           google_name: placeResult.google_name,
+          resolved_place: placeResult,
         });
         resolvedNames.add(venue.name);
+        resolvedIds.add(placeResult.place_id);
         matrixLog.info({
           category: 'VENUE',
           connection: 'API',
@@ -603,23 +616,23 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
         const catalogVenues = await getVenuesByType({
           venueTypes: [venue.category],
           district: venue.district || null,
+          city,
           state,
           orderByExpense: true,
           limit: 3
         });
-        // Pick first catalog venue not already resolved
-        const fallback = catalogVenues.find(cv => !resolvedNames.has(cv.name));
-        if (fallback && fallback.lat && fallback.lng) {
-          resolvedVenues.push({
-            ...venue,
-            name: fallback.name, // use catalog name — it's verified
-            lat: parseFloat(fallback.lat),
-            lng: parseFloat(fallback.lng),
-            place_id: fallback.place_id || null,
-            google_name: fallback.name,
-            catalog_fallback: true,
-          });
-          resolvedNames.add(fallback.name);
+        abortCtrl.signal.throwIfAborted();
+        const fallback = catalogVenues.find(cv => cv.venue_name && cv.place_id &&
+          !resolvedIds.has(cv.place_id) && normalizeCoordinates(cv.lat, cv.lng) &&
+          !['closed', 'permanently_closed', 'temporarily_closed', 'CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY'].includes(cv.last_known_status) &&
+          (!snapshot.country || !cv.country || snapshot.country === cv.country) &&
+          haversineDistanceMiles(origin.lat, origin.lng, Number(cv.lat), Number(cv.lng)) <= 15);
+        if (fallback) {
+          resolvedVenues.push({ ...venue, name: fallback.venue_name,
+            lat: Number(fallback.lat), lng: Number(fallback.lng), place_id: fallback.place_id,
+            google_name: fallback.venue_name, catalog_fallback: true });
+          resolvedNames.add(fallback.venue_name);
+          resolvedIds.add(fallback.place_id);
           matrixLog.info({
             category: 'VENUE',
             connection: 'DB',
@@ -627,7 +640,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
             secondaryCat: 'PLACES',
             tableName: 'VENUE_CATALOG',
             location: 'tactical-planner.js:generateTacticalPlan',
-          }, `Catalog fallback for "${venue.name}" → "${fallback.name}"`);
+          }, `Catalog fallback for "${venue.name}" → "${fallback.venue_name}"`);
           continue;
         }
       }
@@ -661,11 +674,14 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
         // 2026-08-06: was `developer:` — a param no adapter reads ({system, user,
         // messages} only), so the model received NO system prompt and NO JSON
         // schema, and every parse failure was silently swallowed below.
+        await assertMainRunForSnapshot(snapshot.snapshot_id);
         const replacementResult = await callModel('VENUE_SCORER', {
           system: `You are a rideshare venue expert for ${location}. Give me ${needed} replacement venue(s). Return JSON: {"replacements": [{"name": "...", "district": "...", "category": "...", "staging_name": "...", "pro_tips": ["..."], "strategic_timing": "..."}]}`,
-          user: `I need ${needed} replacement venue(s) near ${location}. Type: similar to ${failedSummary}. Do NOT suggest: ${alreadyResolved}. Real Google Maps business names only.`
+          user: `I need ${needed} replacement venue(s) near ${location}. Type: similar to ${failedSummary}. Do NOT suggest: ${alreadyResolved}. Real Google Maps business names only.`,
+          signal: abortCtrl.signal
         });
 
+        abortCtrl.signal.throwIfAborted();
         if (!replacementResult.ok) {
           matrixLog.error({
             category: 'VENUE',
@@ -677,14 +693,16 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
         }
 
         const replacementParsed = safeJsonParse(replacementResult.output);
-        if (replacementParsed?.replacements) {
-          for (const rv of replacementParsed.replacements.slice(0, needed)) {
+        const replacements = z.object({ replacements: z.array(VenueRecommendationSchema).max(8) }).safeParse(replacementParsed);
+        if (replacements.success) {
+          for (const rv of replacements.data.replacements.slice(0, needed)) {
             if (resolvedVenues.length >= TARGET_VENUE_COUNT) break;
 
             // 2026-05-03 Workstream 6 Step 3: catalog-first lookup for replacement venues.
-            let rvResult = await resolveVenueWithCache(rv, { city, state, tz, cacheMetrics });
+            const rvResult = await resolveVenueWithCache(rv, resolutionContext);
+            abortCtrl.signal.throwIfAborted();
 
-            if (rvResult && rvResult.google_lat != null && rvResult.google_lng != null) {
+            if (acceptable(rvResult)) {
               resolvedVenues.push({
                 ...rv,
                 pro_tips: rv.pro_tips || ['Replacement venue — check conditions on arrival'],
@@ -692,9 +710,11 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
                 lng: rvResult.google_lng,
                 place_id: rvResult.place_id,
                 google_name: rvResult.google_name,
+                resolved_place: rvResult,
                 llm_replacement: true,
               });
               resolvedNames.add(rv.name);
+              resolvedIds.add(rvResult.place_id);
               matrixLog.info({
                 category: 'VENUE',
                 connection: 'API',
@@ -706,6 +726,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
           }
         }
       } catch (replacementError) {
+        abortCtrl.signal.throwIfAborted();
         matrixLog.error({
           category: 'VENUE',
           connection: 'AI',
@@ -743,10 +764,10 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       // on the returned Promise swallows async errors. Schema defaults (source,
       // priority, status, empty tags, timestamps) apply automatically.
       try {
-        const session_id = `degradation-${snapshot?.id || 'unknown'}`;
+        const session_id = `degradation-${snapshot?.snapshot_id || 'unknown'}`;
         const category = 'degradation';
         const title = `Venue resolution degraded: ${resolvedVenues.length}/${TARGET_VENUE_COUNT} at ${city}, ${state}`;
-        const content = `Failed venues: ${failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''}, ${city}, ${state})`).join('; ')}. Resolved: ${resolvedNames.size}. Snapshot: ${snapshot?.id || 'unknown'}.`;
+        const content = `Failed venues: ${failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''}, ${city}, ${state})`).join('; ')}. Resolved: ${resolvedNames.size}. Snapshot: ${snapshot?.snapshot_id || 'unknown'}.`;
         const tags = ['degradation', 'venue-resolution', city, state].filter(Boolean);
         if (session_id && category && title && content) {
           db.insert(claudeMemory).values({ session_id, category, title, content, tags }).catch(() => {});
@@ -754,25 +775,20 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       } catch { /* non-blocking */ }
     }
 
-    // 2026-04-16: Flag venues beyond driver's max deadhead distance from home.
-    // Does NOT drop venues (preserves always-6). Annotates for client transparency.
-    // Skipped entirely if home coords are missing (new driver, incomplete profile).
-    if (prefs.home_lat != null && prefs.home_lng != null && prefs.max_deadhead_mi != null) {
+    // Preserve optional home-distance context without treating a pickup-distance
+    // preference as a home radius. No venue is flagged beyond_deadhead here.
+    if (prefs.home_lat != null && prefs.home_lng != null) {
       for (const venue of resolvedVenues) {
         const distFromHome = haversineDistanceMiles(prefs.home_lat, prefs.home_lng, venue.lat, venue.lng);
         venue.distance_from_home_mi = Math.round(distFromHome * 10) / 10;
-        if (distFromHome > prefs.max_deadhead_mi) {
-          venue.beyond_deadhead = true;
-        }
       }
     }
 
     venuesLog.info(`${resolvedVenues.length} venues resolved${degraded ? ' (DEGRADED)' : ''}:`);
     resolvedVenues.forEach((v, i) => {
       const tag = v.catalog_fallback ? ' [catalog]' : v.llm_replacement ? ' [replacement]' : '';
-      const deadheadTag = v.beyond_deadhead ? ' BEYOND DEADHEAD' : '';
       const districtInfo = v.district ? ` @ ${v.district}` : '';
-      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category})${tag}${deadheadTag}`);
+      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category})${tag}`);
     });
 
     // 2026-05-03 Workstream 6 Step 3: compute final cache-hit rate. NULL when no
@@ -802,7 +818,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       degradedReason,
       cache_metrics,
       metadata: {
-        model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.5-2026-04-23",
+        model: getRoleConfig('VENUE_SCORER').model,
         duration_ms: Date.now() - startTime, // includes resolution time
         venues_from_llm: llmVenues.length,
         venues_resolved: resolvedVenues.length,
@@ -812,6 +828,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       }
     };
 
+    abortCtrl.signal.throwIfAborted();
     return normalized;
 
   } catch (error) {
@@ -830,7 +847,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
 /**
  * Haversine distance in miles between two lat/lng points.
- * Used for beyond_deadhead flagging — straight-line, not driving distance.
+ * Optional home-distance context only; straight-line, not a pickup constraint.
  */
 function haversineDistanceMiles(lat1, lng1, lat2, lng2) {
   const R = 3959; // Earth radius in miles
@@ -841,4 +858,3 @@ function haversineDistanceMiles(lat1, lng1, lat2, lng2) {
     * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-

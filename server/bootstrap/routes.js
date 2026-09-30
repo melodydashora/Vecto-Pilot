@@ -59,6 +59,7 @@ export async function mountRoutes(app, server) {
     // Chat & Voice (server/api/chat/)
     { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Coach' },
     { path: '/api/tts', module: './server/api/chat/tts.js', desc: 'TTS endpoint' },
+    { path: '/api/coach-live', module: './server/api/chat/coach-live.js', desc: 'GPT-Live Coach voice' },
     { path: '/api/realtime', module: './server/api/chat/realtime.js', desc: 'OpenAI Realtime voice' },
     // 2026-08-11 (todo #33): Gemini arm of the Coach voice switcher.
     { path: '/api/gemini-live', module: './server/api/chat/gemini-live.js', desc: 'Gemini Live voice' },
@@ -77,9 +78,6 @@ export async function mountRoutes(app, server) {
     { path: '/api/traffic', module: './server/api/traffic/index.js', desc: 'Traffic Incidents Cache' },
 
     // Auth (server/api/auth/)
-    // 2026-02-03: Uber OAuth. Mounted BEFORE /api/auth (specific-before-general):
-    // a later route added to auth.js can never shadow the /uber sub-mount.
-    { path: '/api/auth/uber', module: './server/api/auth/uber.js', desc: 'Uber OAuth' },
     { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
 
     // Location (server/api/location/)
@@ -88,6 +86,7 @@ export async function mountRoutes(app, server) {
 
     // Strategy (server/api/strategy/)
     { path: '/api/blocks-fast', module: './server/api/strategy/blocks-fast.js', desc: 'Blocks Fast' },
+    { path: '/api/main-runs', module: './server/api/strategy/main-runs.js', desc: 'Explicit saved-setup admission' },
     { path: '/api/blocks', module: './server/api/strategy/content-blocks.js', desc: 'Content Blocks' },
     // Tactical Plan BEFORE /api/strategy (specific-before-general): strategy.js
     // has a GET /:snapshotId param catch-all that would swallow any future GET
@@ -121,8 +120,8 @@ export async function mountRoutes(app, server) {
     // per-IP rate limiting (20 req / 10 min) at the route level.
     { path: '/api/welcome-ai', module: './server/api/welcome-ai/welcome-ai.js', desc: 'Welcome AI Co-Pilot' },
 
-    // Translation (server/api/translate/) - 2026-03-16: Real-time rider translation
-    { path: '/api/translate', module: './server/api/translate/index.js', desc: 'Translation API' },
+    // 2026-09-13: /api/translate (browser Translator) retired. The Siri hook below and
+    // server/api/translate/translation-prompt.js remain.
 
     // Claude Memory (server/api/memory/) — 2026-04-14: Persistent knowledge base for Claude Code
     { path: '/api/memory', module: './server/api/memory/index.js', desc: 'Claude Memory API' },

@@ -94,7 +94,8 @@ export class HedgedRouter {
 
     try {
       // 2026-08-11: sequential failover (was: race all providers)
-      const signal = timeoutController ? timeoutController.signal : null;
+      const signals = [timeoutController?.signal, options.signal].filter(Boolean);
+      const signal = signals.length ? AbortSignal.any(signals) : null;
       const result = await this._tryProvidersSequentially(request, providers, controllers, signal);
 
       // Abort any remaining controllers (no-op for providers never dispatched)

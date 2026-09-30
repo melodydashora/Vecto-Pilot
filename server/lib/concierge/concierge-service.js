@@ -1,21 +1,24 @@
+import { withEventVenueLock, mergeIntoOverlappingActiveSpan, resolveEventWriteHash } from '../briefing/cleanup-events.js';
 // server/lib/concierge/concierge-service.js
 // 2026-02-13: Public concierge service — token management, profile lookup, event search
 // 2026-02-13: DB-FIRST ARCHITECTURE — query discovered_events + venue_catalog first,
 //             Gemini fallback only for uncatalogued locations, persist new discoveries
 //
 // This service powers the Concierge QR code feature:
-// - Drivers generate a share token displayed as a QR code
-// - Passengers scan it and see events/venues near their location
-// - No authentication required for the public page
+// - Anonymous guests receive a signed bookmark and use their own location.
+// - Driver-sharing helper exports remain for historical compatibility only; the
+//   public API does not call them and retired driver endpoints return 410.
 
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
 import { driver_profiles, driver_vehicles, discovered_events, venue_catalog, concierge_feedback } from '../../../shared/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
-import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
+import { VALIDATION_SCHEMA_VERSION, validateEvent } from '../events/pipeline/validateEvent.js';
 import { haversineDistanceMiles } from '../location/geo.js';
 import { findOrCreateVenue } from '../venue/venue-cache.js';
+import { searchPlaceWithTextSearch } from '../venue/venue-address-resolver.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../events/pipeline/hashEvent.js';
 
@@ -25,6 +28,23 @@ import { generateEventHash } from '../events/pipeline/hashEvent.js';
 
 const RADIUS_MILES = 10; // Default search radius for concierge
 const MIN_DB_RESULTS = 3; // If fewer than this, trigger Gemini fallback
+
+// Both catalog queries use the same coarse bounds. Longitude wraps at the
+// dateline; a circle reaching a pole spans every longitude. Haversine below
+// still enforces the exact ten-mile radius.
+function nearbyCoordinateConditions(lat, lng) {
+  const latDelta = RADIUS_MILES / 69;
+  const conditions = [sql`${venue_catalog.lat} BETWEEN ${Math.max(-90, lat - latDelta)} AND ${Math.min(90, lat + latDelta)}`];
+  if (lat - latDelta <= -90 || lat + latDelta >= 90) return conditions;
+  // Spherical longitude extrema; the center-latitude linear approximation
+  // under-bounds nearby circles at high latitudes before they reach a pole.
+  const lngDelta = Math.asin(Math.sin(latDelta * Math.PI / 180) / Math.cos(lat * Math.PI / 180)) * 180 / Math.PI;
+  const west = lng - lngDelta, east = lng + lngDelta;
+  if (west < -180) conditions.push(sql`(${venue_catalog.lng} >= ${west + 360} OR ${venue_catalog.lng} <= ${east})`);
+  else if (east > 180) conditions.push(sql`(${venue_catalog.lng} >= ${west} OR ${venue_catalog.lng} <= ${east - 360})`);
+  else conditions.push(sql`${venue_catalog.lng} BETWEEN ${west} AND ${east}`);
+  return conditions;
+}
 
 // ============================================================================
 // CONCIERGE FILTER DEFINITIONS
@@ -258,15 +278,8 @@ async function queryNearbyVenues({ lat, lng, filter }) {
   const filterConfig = CONCIERGE_FILTERS[filter] || CONCIERGE_FILTERS.all;
 
   try {
-    // 2026-02-13: Broad query — pull venues that aren't suppressed, then Haversine filter
-    // We can't do a tight city/state filter because passenger may be at a boundary
-    // Instead, use a bounding box approximation (~10 miles ≈ 0.145 degrees lat)
-    const latDelta = RADIUS_MILES / 69.0; // 1 degree lat ≈ 69 miles
-    const lngDelta = RADIUS_MILES / (69.0 * Math.cos(lat * Math.PI / 180));
-
     let conditions = [
-      sql`${venue_catalog.lat} BETWEEN ${lat - latDelta} AND ${lat + latDelta}`,
-      sql`${venue_catalog.lng} BETWEEN ${lng - lngDelta} AND ${lng + lngDelta}`,
+      ...nearbyCoordinateConditions(lat, lng),
       sql`${venue_catalog.auto_suppressed} IS NOT TRUE`,
     ];
 
@@ -298,7 +311,7 @@ async function queryNearbyVenues({ lat, lng, filter }) {
 
     // Haversine filter to exact radius + compute distance
     const nearby = rows
-      .filter(v => v.lat && v.lng)
+      .filter(v => normalizeCoordinates(v.lat, v.lng) && Number.isFinite(v.lat) && Number.isFinite(v.lng))
       .map(v => ({
         ...v,
         distance_miles: haversineDistanceMiles(lat, lng, v.lat, v.lng),
@@ -324,6 +337,7 @@ async function queryNearbyVenues({ lat, lng, filter }) {
       })
       .slice(0, 15)
       .map(v => ({
+        venue_id: v.venue_id,
         title: v.venue_name,
         address: v.address || v.address_fallback || '',
         // 2026-02-26: FIX - Use actual venue category instead of blindly labeling as 'bar'.
@@ -341,29 +355,35 @@ async function queryNearbyVenues({ lat, lng, filter }) {
       }));
   } catch (err) {
     console.error('[CONCIERGE] Venue DB query error:', err.message);
-    return [];
+    throw new Error(`Concierge venues DB query failed: ${err.message}`);
   }
 }
 
 /**
  * Query discovered_events for today's active events near coordinates.
  *
- * @param {{ lat: number, lng: number, filter: string, todayDate: string }} params
+ * @param {{ lat: number, lng: number, filter: string }} params
  * @returns {Promise<Array>} Formatted event objects
  */
-async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
+async function queryNearbyEvents({ lat, lng, filter }) {
   const filterConfig = CONCIERGE_FILTERS[filter] || CONCIERGE_FILTERS.all;
 
   try {
-    // Bounding box for ~10 miles
-    const latDelta = RADIUS_MILES / 69.0;
-    const lngDelta = RADIUS_MILES / (69.0 * Math.cos(lat * Math.PI / 180));
+    // Nearby venues may be across a timezone/date boundary. Unknown stored
+    // zones produce NULL, not a guessed viewer date or a query-wide PG error.
+    const venueToday = sql`CASE WHEN ${venue_catalog.timezone} IN (SELECT name FROM pg_timezone_names)
+      THEN (${new Date().toISOString()}::timestamptz AT TIME ZONE ${venue_catalog.timezone})::date::text END`;
 
+    // 2026-09-13: coordinates come from venue_catalog (single source of truth) via
+    // discovered_events.venue_id. The previous `discovered_events.lat` reference was
+    // undefined in Drizzle, rendered as ` BETWEEN $1 AND $2`, and made this query
+    // fail (and return []) on every call — DB_SCHEMA_EVALUATION_2026-09-13 §2.1.
+    // Independently found 2026-09-10 as Astra product finding #4 (same root cause).
     let conditions = [
       eq(discovered_events.is_active, true),
-      sql`${discovered_events.event_start_date} = ${todayDate}`,
-      sql`${discovered_events.lat} BETWEEN ${lat - latDelta} AND ${lat + latDelta}`,
-      sql`${discovered_events.lng} BETWEEN ${lng - lngDelta} AND ${lng + lngDelta}`,
+      sql`${discovered_events.event_start_date} <= (${venueToday})`,
+      sql`COALESCE(${discovered_events.event_end_date}, ${discovered_events.event_start_date}) >= (${venueToday})`,
+      ...nearbyCoordinateConditions(lat, lng),
     ];
 
     // If filter specifies event categories, restrict
@@ -375,26 +395,38 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
 
     const rows = await db.select({
       id: discovered_events.id,
+      event_hash: discovered_events.event_hash,
+      venue_id: discovered_events.venue_id,
+      venue_timezone: venue_catalog.timezone,
       title: discovered_events.title,
       venue_name: discovered_events.venue_name,
       address: discovered_events.address,
       city: discovered_events.city,
       state: discovered_events.state,
-      lat: discovered_events.lat,
-      lng: discovered_events.lng,
+      lat: venue_catalog.lat,
+      lng: venue_catalog.lng,
       event_start_date: discovered_events.event_start_date,
+      event_end_date: discovered_events.event_end_date,
       event_start_time: discovered_events.event_start_time,
       event_end_time: discovered_events.event_end_time,
       category: discovered_events.category,
       expected_attendance: discovered_events.expected_attendance,
     })
       .from(discovered_events)
+      .innerJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
       .where(and(...conditions))
       .limit(200);
 
     // Haversine filter + distance
+    // 2026-09-11 (todo #62): coordinates are the joined venue_catalog doubles; a joined row
+    // without finite coords is unmappable and is dropped here (never coerced or defaulted).
     const nearby = rows
-      .filter(e => e.lat && e.lng)
+      .filter(e => {
+        if (!e.venue_timezone) return false;
+        try { new Intl.DateTimeFormat('en', { timeZone: e.venue_timezone }); } catch { return false; }
+        return validateEvent({ ...e }, { timezone: e.venue_timezone }).valid;
+      })
+      .filter(e => Number.isFinite(e.lat) && Number.isFinite(e.lng))
       .map(e => ({
         ...e,
         distance_miles: haversineDistanceMiles(lat, lng, e.lat, e.lng),
@@ -403,6 +435,8 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       .sort((a, b) => a.distance_miles - b.distance_miles);
 
     return nearby.slice(0, 15).map(e => ({
+      event_hash: e.event_hash,
+      venue_id: e.venue_id,
       title: e.title,
       venue: e.venue_name || null,
       address: e.address || '',
@@ -418,8 +452,14 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       source: 'db',
     }));
   } catch (err) {
-    console.error('[CONCIERGE] Events DB query error:', err.message);
-    return [];
+    // 2026-09-11 (todo #62, CLAUDE.md "fail loud; never fake"): this catch used to return []
+    // — which is exactly how the dropped-column predicate (FIX H-7) hid for months: the
+    // concierge showed "no events" as if the city were empty, and searchNearby counted the
+    // failure as zero results and paid for a Gemini fallback. A failed query is an error,
+    // not missing optional data: propagate it with its cause so the route returns 500 and
+    // the log names the real problem.
+    console.error('[CONCIERGE] Events DB query FAILED:', err.message);
+    throw new Error(`Concierge events DB query failed: ${err.message}`);
   }
 }
 
@@ -440,7 +480,7 @@ function formatEventTime(startTime, endTime) {
  * Safe JSON parse for LLM output (handles markdown code blocks, trailing commas)
  */
 function safeJsonParse(jsonString) {
-  if (!jsonString || typeof jsonString !== 'string') return [];
+  if (!jsonString || typeof jsonString !== 'string') return null;
 
   let cleaned = jsonString.trim();
   // Remove markdown code blocks
@@ -486,7 +526,7 @@ function safeJsonParse(jsonString) {
     }
     if (objs.length > 0) return objs;
 
-    return [];
+    return null;
   }
 }
 
@@ -497,10 +537,10 @@ function safeJsonParse(jsonString) {
  * @param {{ lat: number, lng: number, filter: string, timezone: string, todayDate: string, dayOfWeek: string }} params
  * @returns {Promise<{ venues: Array, events: Array }>}
  */
-async function geminiDiscoverAndPersist({ lat, lng, filter, timezone, todayDate, dayOfWeek }) {
+async function geminiDiscoverAndPersist({ lat, lng, filter, timezone, todayDate, dayOfWeek, signal }) {
   const filterConfig = CONCIERGE_FILTERS[filter] || CONCIERGE_FILTERS.all;
 
-  const prompt = `Find ${filterConfig.label.toLowerCase()} near latitude ${lat.toFixed(6)}, longitude ${lng.toFixed(6)} TODAY (${dayOfWeek}, ${todayDate}).
+  const prompt = `Find ${filterConfig.label.toLowerCase()} near latitude ${lat}, longitude ${lng} TODAY (${dayOfWeek}, ${todayDate}).
 
 SEARCH FOCUS: "${filterConfig.searchTerms(todayDate)}"
 
@@ -512,7 +552,7 @@ Return a JSON object with TWO arrays — "venues" for permanent establishments, 
     "name": "Venue Name",
     "address": "Full Street Address, City, State ZIP",
     "city": "City",
-    "state": "TX",
+    "state": "Provider region code",
     "type": "bar",
     "hours": "5:00 PM - 2:00 AM",
     "description": "Brief description"
@@ -522,16 +562,20 @@ Return a JSON object with TWO arrays — "venues" for permanent establishments, 
     "venue": "Venue Name",
     "address": "Full Street Address, City, State ZIP",
     "city": "City",
-    "state": "TX",
+    "state": "Provider region code",
     "category": "concert",
-    "start_time": "7:00 PM",
-    "end_time": "10:00 PM",
+    "start_date": "YYYY-MM-DD",
+    "end_date": "YYYY-MM-DD",
+    "start_time": "HH:MM",
+    "end_time": "HH:MM",
     "description": "Brief description"
   }]
 }
 
 RULES:
 - Return REAL places and events — do NOT make up venues
+- Give the actual event dates and start/end times; omit events with unconfirmed timing
+- Do not supply coordinates; venue identity and coordinates are resolved separately through Google Places
 - Include full street address for navigation
 - "venues" = bars, restaurants, lounges (permanent places)
 - "events" = concerts, comedy shows, sports games (time-limited)
@@ -543,20 +587,22 @@ You are a local concierge assistant helping someone discover great places nearby
 Return ONLY a valid JSON object with "venues" and "events" arrays. No explanation text.`;
 
   try {
-    console.log(`[CONCIERGE] Gemini fallback: "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log('[CONCIERGE] Searching current local information for uncatalogued results');
     const startTime = Date.now();
 
-    const result = await callModel('CONCIERGE_SEARCH', { system, user: prompt });
+    signal?.throwIfAborted();
+    const result = await callModel('CONCIERGE_SEARCH', { system, user: prompt, signal });
+    signal?.throwIfAborted();
 
     const elapsed = Date.now() - startTime;
     console.log(`[CONCIERGE] Gemini complete in ${elapsed}ms`);
 
     if (!result.ok) {
-      console.error(`[CONCIERGE] Gemini search failed:`, result.error);
-      return { venues: [], events: [] };
+      throw new Error('Concierge discovery provider failed');
     }
 
     const parsed = safeJsonParse(result.output);
+    if (!parsed || (!Array.isArray(parsed) && (!Array.isArray(parsed.venues) || !Array.isArray(parsed.events)))) throw new Error('Concierge discovery returned an invalid result');
 
     // Handle both object {venues, events} and legacy array format
     let geminiVenues = [];
@@ -571,131 +617,104 @@ Return ONLY a valid JSON object with "venues" and "events" arrays. No explanatio
       geminiEvents = Array.isArray(parsed.events) ? parsed.events : [];
     }
 
-    // 2026-02-13: Persist new discoveries to DB (non-blocking, don't fail the response)
-    persistGeminiResults({ venues: geminiVenues, events: geminiEvents, todayDate }).catch(err => {
-      console.error('[CONCIERGE] Persist error (non-blocking):', err.message);
-    });
-
-    // Format for response
-    // 2026-02-13: Gemini results may lack coords — map markers only appear for items with lat/lng.
-    // We don't trust AI-generated coordinates (CLAUDE.md rule), but if Gemini provides them
-    // they'll show on the map. DB-sourced results are always authoritative.
-    const formattedVenues = geminiVenues.filter(v => v.name).map(v => ({
-      title: v.name,
-      address: v.address || '',
-      type: v.type || 'venue',
-      description: v.description || null,
-      time: v.hours || null,
-      lat: v.lat ?? null,
-      lng: v.lng ?? null,
-      city: v.city,
-      state: v.state,
-      source: 'gemini',
-    }));
-
-    const formattedEvents = geminiEvents.filter(e => e.title).map(e => ({
-      title: e.title,
-      venue: e.venue || null,
-      address: e.address || '',
-      type: e.category || 'event',
-      time: formatEventTime(e.start_time, e.end_time),
-      description: e.description || null,
-      lat: e.lat || null,
-      lng: e.lng || null,
-      city: e.city,
-      state: e.state,
-      source: 'gemini',
-    }));
-
-    console.log(`[CONCIERGE] Gemini found ${formattedVenues.length} venues, ${formattedEvents.length} events`);
-    return { venues: formattedVenues, events: formattedEvents };
+    return await persistGeminiResults({ venues: geminiVenues, events: geminiEvents, lat, lng, timezone, signal });
   } catch (err) {
-    console.error(`[CONCIERGE] Gemini fallback error:`, err.message);
-    return { venues: [], events: [] };
+    console.error('[CONCIERGE] Discovery failed:', err.message);
+    throw err;
   }
 }
 
-/**
- * Persist Gemini-discovered venues and events to the database.
- * Uses findOrCreateVenue for venues and direct INSERT for events.
- * This is fire-and-forget — errors are logged but don't block the response.
- *
- * @param {{ venues: Array, events: Array, todayDate: string }} data
- */
-async function persistGeminiResults({ venues, events, todayDate }) {
-  let venuesSaved = 0;
-  let eventsSaved = 0;
+// Public discoveries can feed the shared event catalog only after the same
+// canonical normalization/validation as MAIN and a Google-resolved venue link.
+// Work is awaited: failed/unverified candidates cannot look like saved success.
+async function persistGeminiResults({ venues, events, lat, lng, timezone, signal }) {
+  const resolved = new Map();
+  const text = value => typeof value === 'string' && value.trim() ? value.trim() : null;
+  const resolveVenue = async candidate => {
+    const name = text(candidate.name) || text(candidate.venue);
+    if (!name) throw new Error('missing_venue_identity');
+    const query = [name, text(candidate.address)].filter(Boolean).join(', ');
+    if (!resolved.has(query)) resolved.set(query, (async () => {
+      signal?.throwIfAborted();
+      const deadline = AbortSignal.timeout(8000);
+      const place = await searchPlaceWithTextSearch(lat, lng, query, { radius: RADIUS_MILES * 1609.344, signal: signal ? AbortSignal.any([signal, deadline]) : deadline });
+      signal?.throwIfAborted();
+      const coords = normalizeCoordinates(place?.lat, place?.lng);
+      if (!coords || !text(place?.placeId) || !text(place?.displayName) || !text(place?.formattedAddress) ||
+          !text(place?.parsed?.city) || !text(place?.parsed?.state) || !/^[A-Z]{2}$/.test(place?.parsed?.country || '') ||
+          haversineDistanceMiles(lat, lng, coords.lat, coords.lng) > RADIUS_MILES) throw new Error('venue_not_verified_nearby');
+      const saved = await findOrCreateVenue({ venue: place.displayName, address: place.formattedAddress,
+        formattedAddress: place.formattedAddress, latitude: coords.lat, longitude: coords.lng,
+        city: place.parsed.city, state: place.parsed.state, country: place.parsed.country, placeId: place.placeId }, 'concierge_discovery');
+      if (!saved?.venue_id || saved.place_id !== place.placeId || !normalizeCoordinates(saved.lat, saved.lng) ||
+          haversineDistanceMiles(lat, lng, saved.lat, saved.lng) > RADIUS_MILES) throw new Error('venue_link_not_verified');
+      return { ...saved, venue_name: place.displayName, formatted_address: place.formattedAddress,
+        city: place.parsed.city, state: place.parsed.state, country: place.parsed.country, lat: coords.lat, lng: coords.lng };
+    })());
+    return resolved.get(query);
+  };
+  const verifiedVenues = new Map(), verifiedEvents = new Map(), eventWrites = new Map();
+  const rejected = [];
+  const candidates = [...venues.map(value => ({ type: 'venue', value })), ...events.map(value => ({ type: 'event', value }))];
+  // A bounded worker batch avoids a Places burst while retaining every result.
+  for (let start = 0; start < candidates.length; start += 3) {
+    signal?.throwIfAborted();
+    await Promise.all(candidates.slice(start, start + 3).map(async ({ type, value }) => {
+      try {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_candidate');
+        let normalized;
+        if (type === 'event') {
+          normalized = normalizeEvent({ ...value, event_start_date: value.start_date, event_end_date: value.end_date,
+            event_start_time: value.start_time, event_end_time: value.end_time });
+          const check = validateEvent(normalized, { timezone });
+          // Content errors can be rejected before Google. Date-boundary
+          // decisions require the resolved venue timezone below.
+          if (!check.valid && !['starts_in_future', 'ended_before_today'].includes(check.reason)) throw new Error(check.reason);
+        }
+        const venue = await resolveVenue(value);
+        signal?.throwIfAborted();
+        const base = { venue_id: venue.venue_id, address: venue.formatted_address, lat: venue.lat, lng: venue.lng,
+          city: venue.city, state: venue.state, distance_hint: `${haversineDistanceMiles(lat, lng, venue.lat, venue.lng).toFixed(1)} mi` };
+        if (type === 'venue') {
+          verifiedVenues.set(venue.venue_id, { ...base, title: venue.venue_name, type: text(value.type) || 'venue',
+            description: text(value.description), time: null, source: 'google_places' });
+          return;
+        }
+        normalized = { ...normalized, venue_name: venue.venue_name, address: venue.formatted_address, city: venue.city, state: venue.state };
+        if (!venue.timezone) throw new Error('venue_timezone_unverified');
+        const check = validateEvent(normalized, { timezone: venue.timezone });
+        if (!check.valid) throw new Error(check.reason);
+        const hash = generateEventHash(normalized);
+        const { place_id: _placeId, ...stored } = normalized;
+        // Drizzle queries are lazy thenables; share a real Promise so multiple
+        // awaiters cannot execute the same INSERT builder more than once.
+        const writeKey = JSON.stringify([hash, venue.venue_id, normalized.event_start_time, normalized.event_end_time]);
+        if (!eventWrites.has(writeKey)) eventWrites.set(writeKey, withEventVenueLock(venue.venue_id, async tx => {
+          signal?.throwIfAborted();
+          const merged = await mergeIntoOverlappingActiveSpan({ venueId: venue.venue_id, title: normalized.title,
+            startDate: normalized.event_start_date, endDate: normalized.event_end_date,
+            startTime: normalized.event_start_time, endTime: normalized.event_end_time }, tx, { returnRecord: true });
+          if (merged) return merged.event_hash;
+          const storedHash = await resolveEventWriteHash(tx, { ...normalized, venue_id: venue.venue_id }, hash);
+          await tx.insert(discovered_events).values({ ...stored, venue_id: venue.venue_id,
+            expected_attendance: ['low', 'medium', 'high'].includes(value.expected_attendance) ? value.expected_attendance : null,
+            event_hash: storedHash, is_active: true, schema_version: VALIDATION_SCHEMA_VERSION,
+          }).onConflictDoNothing({ target: discovered_events.event_hash });
+          return storedHash;
+        }, { refreshTag: true }));
+        const savedHash = await eventWrites.get(writeKey);
 
-  // Persist venues via findOrCreateVenue (handles dedup by coord_key/place_id/name)
-  for (const v of venues) {
-    if (!v.name || !v.city || !v.state) continue;
-    try {
-      await findOrCreateVenue({
-        venue: v.name,
-        address: v.address,
-        city: v.city,
-        state: v.state,
-        // No coordinates from Gemini — we don't trust AI-generated coords (CLAUDE.md rule)
-        // findOrCreateVenue will handle geocoding if needed
-      }, 'concierge_gemini');
-      venuesSaved++;
-    } catch (err) {
-      // Dedup conflicts are fine — venue already exists
-      if (err.code !== '23505') {
-        console.error(`[CONCIERGE] Persist venue "${v.name}" error:`, err.message);
+        verifiedEvents.set(savedHash, { ...base, title: normalized.title, venue: venue.venue_name, type: normalized.category,
+          time: formatEventTime(normalized.event_start_time, normalized.event_end_time),
+          description: text(value.description), source: 'gemini_google_places', event_hash: savedHash });
+      } catch (error) {
+        signal?.throwIfAborted();
+        rejected.push({ type, reason: error.message });
       }
-    }
+    }));
   }
-
-  // Persist events to discovered_events (with hash dedup)
-  for (const e of events) {
-    if (!e.title || !e.city || !e.state) continue;
-    try {
-      // Normalize event fields to canonical format
-      const normalized = normalizeEvent({
-        title: e.title,
-        venue_name: e.venue || null,
-        address: e.address || null,
-        city: e.city,
-        state: e.state,
-        event_start_date: todayDate,
-        event_start_time: e.start_time || null,
-        event_end_time: e.end_time || '11:59 PM',
-        category: e.category || 'other',
-        expected_attendance: 'medium',
-      });
-
-      const eventHash = generateEventHash(normalized);
-
-      await db.insert(discovered_events).values({
-        title: normalized.title,
-        venue_name: normalized.venue_name,
-        address: normalized.address,
-        city: normalized.city,
-        state: normalized.state,
-        event_start_date: normalized.event_start_date,
-        event_start_time: normalized.event_start_time,
-        event_end_date: normalized.event_end_date || todayDate,
-        event_end_time: normalized.event_end_time,
-        category: normalized.category || 'other',
-        expected_attendance: normalized.expected_attendance || 'medium',
-        event_hash: eventHash,
-        is_active: true,
-        schema_version: VALIDATION_SCHEMA_VERSION,
-      }).onConflictDoNothing({ target: discovered_events.event_hash });
-
-      eventsSaved++;
-    } catch (err) {
-      // Hash conflicts expected — event already exists
-      if (err.code !== '23505') {
-        console.error(`[CONCIERGE] Persist event "${e.title}" error:`, err.message);
-      }
-    }
-  }
-
-  if (venuesSaved > 0 || eventsSaved > 0) {
-    console.log(`[CONCIERGE] Persisted ${venuesSaved} venues, ${eventsSaved} events from Gemini`);
-  }
+  return { venues: [...verifiedVenues.values()], events: [...verifiedEvents.values()],
+    discovery: { complete: rejected.length === 0, rejected_candidates: rejected } };
 }
 
 // ============================================================================
@@ -709,23 +728,26 @@ async function persistGeminiResults({ venues, events, todayDate }) {
  * @param {{ lat: number, lng: number, filter: string, timezone: string }} params
  * @returns {Promise<{ venues: Array, events: Array, filter: string, source: string }>}
  */
-export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
-  if (!isFinite(lat) || !isFinite(lng)) {
+export async function searchNearby({ lat, lng, filter = 'all', timezone, signal }) {
+  signal?.throwIfAborted();
+  if (!normalizeCoordinates(lat, lng) || typeof lat !== 'number' || typeof lng !== 'number') {
     throw new Error('Valid lat/lng coordinates are required');
   }
 
+  if (!timezone) throw new Error('GPS-resolved timezone is required for local discovery');
   // Get local date in viewer's timezone
-  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone || 'UTC' });
-  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone || 'UTC' });
+  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
 
-  console.log(`[CONCIERGE] Search "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)} (${todayDate})`);
+  console.log(`[CONCIERGE] Local search requested (${todayDate})`);
   const startTime = Date.now();
 
   // ─── STEP 1: Query DB for existing data ───────────────────────────────
   const [dbVenues, dbEvents] = await Promise.all([
     queryNearbyVenues({ lat, lng, filter }),
-    queryNearbyEvents({ lat, lng, filter, todayDate }),
+    queryNearbyEvents({ lat, lng, filter }),
   ]);
+  signal?.throwIfAborted();
 
   const dbTotal = dbVenues.length + dbEvents.length;
   console.log(`[CONCIERGE] DB: ${dbVenues.length} venues, ${dbEvents.length} events (${Date.now() - startTime}ms)`);
@@ -745,12 +767,22 @@ export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
   console.log(`[CONCIERGE] DB sparse (${dbTotal} results), calling Gemini fallback`);
 
   const geminiResults = await geminiDiscoverAndPersist({
-    lat, lng, filter, timezone, todayDate, dayOfWeek,
+    lat, lng, filter, timezone, todayDate, dayOfWeek, signal,
   });
+  signal?.throwIfAborted();
 
   // Merge DB + Gemini results (DB results first, they're verified data)
-  const mergedVenues = [...dbVenues, ...geminiResults.venues];
-  const mergedEvents = [...dbEvents, ...geminiResults.events];
+  const mergeByIdentity = (existing, discovered, key) => {
+    const seen = new Set();
+    return [...existing, ...discovered].filter(row => {
+      const identity = row[key];
+      if (!identity) return true; // Unknown identity cannot justify dropping a row.
+      if (seen.has(identity)) return false;
+      seen.add(identity); return true;
+    });
+  };
+  const mergedVenues = mergeByIdentity(dbVenues, geminiResults.venues, 'venue_id');
+  const mergedEvents = mergeByIdentity(dbEvents, geminiResults.events, 'event_hash');
 
   const elapsed = Date.now() - startTime;
   console.log(`[CONCIERGE] Total: ${mergedVenues.length} venues, ${mergedEvents.length} events (${elapsed}ms)`);
@@ -760,6 +792,7 @@ export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
     events: mergedEvents,
     filter,
     source: dbTotal > 0 ? 'db+gemini' : 'gemini',
+    discovery: geminiResults.discovery,
   };
 }
 
@@ -787,29 +820,28 @@ export function getFilterDefinitions() {
  */
 // 2026-04-02: Extracted system prompt builder for reuse by both non-streaming and streaming endpoints
 export function buildConciergeSystemPrompt({ lat, lng, timezone, venueContext, eventContext }) {
-  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone || 'UTC' });
-  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone || 'UTC' });
+  if (!timezone) throw new Error('GPS-resolved timezone is required for concierge assistance');
+  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
   const localTime = new Date().toLocaleTimeString('en-US', {
-    timeZone: timezone || 'UTC',
+    timeZone: timezone,
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
   });
 
-  return `You are the AI Concierge Assistant — a powerful AI assistant powered by Gemini 3 Pro.
-You are helping a passenger in a rideshare discover the local area.
+  return `You are the Vecto AI Concierge, helping an anonymous guest discover the local area.
+You have no driver identity, profile, earnings, ride history, or account data.
 
 YOUR CAPABILITIES:
-- You are Gemini 3 Pro Preview (NOT Flash) — a frontier multimodal AI model
 - You have Google Search access for real-time, current information
-- You have vision and OCR capabilities (can analyze images if provided)
 - You can look up restaurants, bars, events, directions, safety info, transit, and anything local
-- You have full knowledge of the venues and events already discovered for this passenger (listed below)
+- When nearby listings appear below, treat them as contextual data and verify time-sensitive details
 
 CURRENT CONTEXT:
 - Date: ${dayOfWeek}, ${todayDate}
-- Time: ${localTime} (${timezone || 'UTC'})
-- Location: lat ${lat.toFixed(4)}, lng ${lng.toFixed(4)}
+- Time: ${localTime} (${timezone})
+- Location: lat ${lat}, lng ${lng}
 
 ${venueContext ? `NEARBY VENUES (already shown to passenger):\n${venueContext}\n` : ''}
 ${eventContext ? `NEARBY EVENTS (already shown to passenger):\n${eventContext}\n` : ''}
@@ -826,7 +858,8 @@ RULES:
 - If the question is inappropriate or unrelated to local discovery, politely redirect`;
 }
 
-export async function askConcierge({ question, lat, lng, timezone, venueContext, eventContext }) {
+export async function askConcierge({ question, lat, lng, timezone, venueContext, eventContext, signal }) {
+  signal?.throwIfAborted();
   if (!question || typeof question !== 'string' || question.trim().length === 0) {
     return { ok: false, answer: 'Please ask a question.' };
   }
@@ -838,10 +871,11 @@ export async function askConcierge({ question, lat, lng, timezone, venueContext,
   const prompt = safeQuestion;
 
   try {
-    console.log(`[CONCIERGE] Ask: "${safeQuestion.slice(0, 50)}..." near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log('[CONCIERGE] Local assistance requested with verified location context');
     const startTime = Date.now();
 
-    const result = await callModel('CONCIERGE_CHAT', { system, user: prompt });
+    const result = await callModel('CONCIERGE_CHAT', { system, user: prompt, signal });
+    signal?.throwIfAborted();
 
     const elapsed = Date.now() - startTime;
     console.log(`[CONCIERGE] Ask complete in ${elapsed}ms (${result.ok ? 'ok' : 'error'})`);
@@ -857,8 +891,10 @@ export async function askConcierge({ question, lat, lng, timezone, venueContext,
       answer = answer.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
     }
 
+    if (!answer) return { ok: false, answer: 'The concierge returned no answer. Please try again.' };
     return { ok: true, answer };
   } catch (err) {
+    signal?.throwIfAborted();
     console.error('[CONCIERGE] Ask error:', err.message);
     return { ok: false, answer: 'Sorry, something went wrong. Please try again.' };
   }

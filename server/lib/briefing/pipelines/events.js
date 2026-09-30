@@ -6,7 +6,11 @@
 //   fetchEventsForBriefing → fetchEventsWithGemini3ProPreview → fetchEventCategory (parallel x N)
 //                          → validateEventsHard → deduplicateEvents (HASH, Rule 16)
 //                          → deduplicateEventsSemantic → venue resolution → discovered_events INSERT
-//                          → DB read → filterInvalidEvents → return
+//                          → canonical country/metro read + venue-local instants → return
+//
+// 2026-09-29: a candidate that cannot be verified is rejected ALONE (see
+// "Candidate rejection" below). The section fails only when discovery itself,
+// a write, or the saved read failed.
 //
 // 2026-05-02: 4 dead code paths deleted in this commit (Option A precedent — see
 // claude_memory #294 + #295 + #296):
@@ -32,53 +36,166 @@ import { callModel } from '../../ai/adapters/index.js';
 import { safeJsonParse } from '../shared/safe-json-parse.js';
 import { getMarketForLocation } from '../shared/get-market-for-location.js';
 import { writeSectionAndNotify, CHANNELS, errorMarker } from '../briefing-notify.js';
-import { db } from '../../../db/drizzle.js';
-import { discovered_events, venue_catalog } from '../../../../shared/schema.js';
-import { eq, and, sql, gte, lte, isNotNull } from 'drizzle-orm';
+import { discovered_events } from '../../../../shared/schema.js';
+import { sql } from 'drizzle-orm';
 import { validateEventsHard, VALIDATION_SCHEMA_VERSION } from '../../events/pipeline/validateEvent.js';
-import { normalizeEvent } from '../../events/pipeline/normalizeEvent.js';
+import { normalizeEvent, normalizeTime } from '../../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../../events/pipeline/hashEvent.js';
 import { deduplicateEventsSemantic } from '../../events/pipeline/deduplicateEventsSemantic.js';
 import { findOrCreateVenue, lookupVenue } from '../../venue/venue-cache.js';
 import { geocodeEventAddress } from '../../events/pipeline/geocodeEvent.js';
 import { searchPlaceWithTextSearch } from '../../venue/venue-address-resolver.js';
-import { validateVenueAddress } from '../../venue/venue-address-validator.js';
-import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVenueTags, mergeIntoOverlappingActiveSpan } from '../cleanup-events.js';
+import { parseAddressComponents } from '../../venue/venue-utils.js';
+import { normalizeCoordinates } from '../../../../shared/coordinates.js';
+import { readMarketEvents, toBriefingEvent, eventOverlapsDisplayDays } from '../../events/market-event-reader.js';
+import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVenueTags, mergeIntoOverlappingActiveSpan, withEventVenueLock, resolveEventWriteHash, discoveryReactivationFields } from '../cleanup-events.js';
 
 // Per-category Gemini search timeout. Each category runs in parallel; total fan-out
 // time is bounded by max(category_timeouts), not sum, since they're Promise.all'd.
 const EVENT_SEARCH_TIMEOUT_MS = 90000; // 90 seconds per category search (Gemini + thinking needs time)
+const EVENT_VENUE_TIMEOUT_MS = 15000; // One budget for cache/Places/geocode resolution
 
 /**
- * 2026-04-04: FIX H-5 — Enhanced withTimeout to:
- * 1. Clear timer when promise resolves (was leaking timers)
- * 2. Signal AbortController on timeout so callers can cancel in-flight work
- * Note: H-2 (120s global router timeout) limits max wasted time even without abort support.
- *
- * @param {Promise} promise - The promise to wrap
- * @param {number} timeoutMs - Timeout in milliseconds
- * @param {string} operationName - Name for logging purposes
- * @returns {Promise} - Resolves with either the original result or a timeout error
+ * Start work only after its cancellation scope exists. The deadline reaches the
+ * transport, while the race also bounds adapters that do not honor cancellation.
+ * Awaited response boundaries below reject late results before fallback/writes.
  */
-function withTimeout(promise, timeoutMs, operationName = 'Operation') {
+async function withTimeout(operation, timeoutMs, operationName = 'Operation', signal) {
   const controller = new AbortController();
-  let timer;
-
-  const timeoutPromise = new Promise((resolve) => {
-    timer = setTimeout(() => {
-      briefingLog.warn(2, `${operationName} timed out after ${timeoutMs}ms - returning empty`, OP.AI);
-      controller.abort();
-      resolve({ timedOut: true, error: `Timeout after ${timeoutMs}ms` });
-    }, timeoutMs);
+  const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+  requestSignal.throwIfAborted();
+  let onAbort;
+  const cancelled = new Promise((_, reject) => {
+    onAbort = () => reject(requestSignal.reason || new Error(`${operationName} cancelled`));
+    requestSignal.addEventListener('abort', onAbort, { once: true });
   });
+  const timer = setTimeout(() => {
+    const error = new Error(`${operationName} timed out after ${timeoutMs}ms`);
+    error.name = 'TimeoutError';
+    briefingLog.warn(2, error.message, OP.AI);
+    controller.abort(error);
+  }, timeoutMs);
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => { requestSignal.throwIfAborted(); return operation(requestSignal); }),
+      cancelled,
+    ]);
+  } finally {
+    clearTimeout(timer);
+    requestSignal.removeEventListener('abort', onAbort);
+  }
+}
 
-  // Wrap the original promise to clear timer on completion
-  const wrappedPromise = promise.then(
-    (result) => { clearTimeout(timer); return result; },
-    (error) => { clearTimeout(timer); throw error; }
-  );
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-29: Candidate rejection.
+// Melody's rule: "Missing required data -> throw with a descriptive reason.
+// Missing optional data -> omit the feature/field, never substitute a guess."
+// Each discovered candidate is optional evidence. One that cannot be verified is
+// rejected ALONE, logged with its stage and cause, and counted in the section's
+// candidate summary. Nothing about it is repaired, inferred or defaulted.
+//
+//   stage             reason
+//   discovery         missing_required_fields (the source omitted a required fact)
+//   validation        the validator's own reason code (invalid_end_time, tbd_in_title, ...)
+//   schedule          schedule_inconsistent
+//   venue_resolution  venue_unverified | venue_lookup_timeout | venue_lookup_failed
+//
+// Section failures remain: discovery (a category failed, timed out or returned a
+// malformed response), persistence (a write failed) and saved_read (the read failed).
+// ─────────────────────────────────────────────────────────────────────────────
+class EventCandidateRejection extends Error {
+  constructor(stage, reason, detail) {
+    super(`${reason}: ${detail}`);
+    this.name = 'EventCandidateRejection';
+    this.stage = stage;
+    this.reason = reason;
+    this.detail = detail;
+  }
+}
 
-  return Promise.race([wrappedPromise, timeoutPromise]);
+// Server-log text only. Driver-facing text is produced by briefingFailureReason.
+function describeCause(error) {
+  const chain = [];
+  for (let current = error; current != null && chain.length < 4; current = current.cause) {
+    const code = current.code ? ` [${current.code}]` : '';
+    chain.push(`${current.name || 'Error'}${code}: ${String(current.message ?? current).slice(0, 300)}`);
+  }
+  return chain.join(' <- ');
+}
+
+// A failure is logged once, at the stage that knows the most about it.
+const reportedFailures = new WeakSet();
+function reportStageFailure(stage, error, subject = '') {
+  briefingLog.error(2, `[EVENTS] [stage=${stage}] ${subject}failed: ${describeCause(error)}`, error, OP.DB);
+  if (error !== null && typeof error === 'object') reportedFailures.add(error);
+  return error;
+}
+
+const label = value => (typeof value === 'string' && value.trim() ? value.trim().slice(0, 80) : null);
+
+function createCandidateLedger() {
+  const counts = { discovered: 0, duplicates: 0, accepted: 0, outside_window: 0, saved_excluded: 0, saved_invalid: 0 };
+  const rejected = [];
+  return {
+    counts,
+    // `detail` is stored with the section, so it is always text written here.
+    // A provider or database message is passed as `cause` and reaches the log only.
+    reject(candidate, { stage, reason, detail, cause = null }) {
+      const entry = { title: label(candidate?.title), venue: label(candidate?.venue_name ?? candidate?.venue), stage, reason, detail };
+      rejected.push(entry);
+      briefingLog.warn(2, `[EVENTS] [stage=${stage}] Candidate rejected alone (${reason}): "${entry.title}" at "${entry.venue}" - ${detail}` +
+        (cause ? ` | cause: ${describeCause(cause)}` : ''), OP.AI);
+    },
+    summary() {
+      const byReason = new Map();
+      for (const { reason } of rejected) byReason.set(reason, (byReason.get(reason) || 0) + 1);
+      return {
+        ...counts,
+        rejected: rejected.length,
+        rejections: [...byReason].map(([reason, count]) => ({ reason, count }))
+          .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)),
+        rejected_candidates: rejected,
+      };
+    },
+  };
+}
+
+function candidateNote({ discovered, rejected, rejections, saved_excluded }) {
+  const notes = [];
+  if (rejected) {
+    notes.push(`${rejected} of ${discovered} discovered event candidates ${rejected === 1 ? 'was' : 'were'} rejected (` +
+      rejections.map(entry => `${entry.reason}: ${entry.count}`).join(', ') + ')');
+  }
+  if (saved_excluded) {
+    notes.push(saved_excluded === 1
+      ? '1 saved event was excluded because its venue-local schedule could not be resolved'
+      : `${saved_excluded} saved events were excluded because their venue-local schedules could not be resolved`);
+  }
+  return notes.join('. ');
+}
+
+// The source facts Briefing requires before normalization may run.
+function missingSourceFields(candidate) {
+  const missing = [];
+  if (!candidate.title) missing.push('title');
+  if (!(candidate.venue || candidate.venue_name)) missing.push('venue');
+  if (!(candidate.event_start_date || candidate.event_date || candidate.date)) missing.push('event_start_date');
+  if (!candidate.event_end_date) missing.push('event_end_date');
+  if (!(candidate.event_start_time || candidate.event_time || candidate.time)) missing.push('event_start_time');
+  if (!(candidate.event_end_time || candidate.end_time)) missing.push('event_end_time');
+  return missing;
+}
+
+// An interval whose end precedes its start cannot be placed on a calendar. The
+// usual source is an overnight event that repeats its start date as its end date
+// (21:00 to 01:00, same date). The end date is never moved here: the candidate is
+// rejected, and the discovery request states what a consistent schedule looks like.
+function scheduleInconsistency(event) {
+  const start = normalizeTime(event.event_start_time);
+  const end = normalizeTime(event.event_end_time);
+  if (!start || !end || !event.event_start_date || event.event_end_date !== event.event_start_date || end >= start) return null;
+  return `ends ${end} before it starts ${start} on the same date ${event.event_start_date}; ` +
+    'an event that ends after midnight must carry the next calendar day as its end date';
 }
 
 /**
@@ -147,13 +264,14 @@ export function deduplicateEvents(events) {
   function normalizeEventName(name) {
     if (!name) return '';
     return name
+      .normalize('NFC')
       .toLowerCase()
       .replace(/["'"]/g, '')                          // Remove quotes
       // 2026-01-31: Strip common event prefixes that create duplicates
       .replace(/^(live music|live band|concert|show|event|performance|dj set|acoustic):\s*/i, '')
       .replace(/\s*\([^)]*\)\s*/g, ' ')              // Remove (parenthetical content)
       .replace(/\s+(at|in|from|@)\s+.+$/i, '')       // Remove "at Cosm", "in Shared Reality" suffixes
-      .replace(/[^a-z0-9\s]/g, ' ')                  // Remove special chars
+      .replace(/[^\p{L}\p{N}\p{M}\s]/gu, ' ')                  // Remove special chars (Unicode-safe, 2026-09-13)
       .replace(/\s+/g, ' ')                          // Collapse spaces
       .trim();
   }
@@ -196,7 +314,7 @@ export function deduplicateEvents(events) {
     const addr = normalizeAddress(event.address);
     // 2026-01-10: Support both old (event_time) and new (event_start_time) field names during migration
     const time = normalizeTime(event.event_start_time || event.event_time);
-    return `${name}|${addr}|${time}`;
+    return JSON.stringify([name, event.venue_name || event.venue, addr, event.city, event.state, event.event_start_date, event.event_end_date, time, normalizeTime(event.event_end_time)]);
   }
 
   // Group events by dedupe key
@@ -262,13 +380,13 @@ export function deduplicateEvents(events) {
  *
  * Active callers (verified via call-graph recon 2026-05-02):
  *   1. server/api/briefing/briefing.js (POST /filter-invalid-events) — imported at line 4
- *   2. server/lib/briefing/pipelines/events.js (this file, internal use in fetchEventsForBriefing)
- *   3. server/lib/briefing/dump-last-briefing.js — imported at line 8
+ *   2026-09-29: MAIN and diagnostic reads now use canonical country/metro projections;
+ *   those historical internal callers no longer use this calendar-only shim.
  *
  * @param {Array} events - Array of events to filter
  * @param {Object} [options={}] - Options
  * @param {string} [options.timezone] - IANA timezone for Rule 13. When omitted,
- *   falls back to UTC (backwards-compat). Pass `snapshot.timezone` from callers.
+ *   missing timezone throws at Rule 13. Pass the authoritative context timezone.
  * @returns {Array} Clean events with no TBD/Unknown values
  */
 export function filterInvalidEvents(events, { timezone } = {}) {
@@ -293,46 +411,47 @@ export function filterInvalidEvents(events, { timezone } = {}) {
  *
  * Private helper — single caller is fetchEventsWithGemini3ProPreview.
  */
-async function fetchEventCategory({ category, city, state, market, lat, lng, date, timezone }) {
+async function fetchEventCategory({ category, city, state, market, country, lat, lng, date, timezone, signal }) {
   const maxEvents = category.maxEvents || 8;
   // 2026-04-16: market is authoritative; placeholder surfaces unresolved markets in prompts
   const searchArea = market || '[unknown-market]';
 
   // 2026-02-26: Simplified prompt — today only, strict required fields, place_id for venue linking.
-  // Gemini has native Google Places knowledge via google_search grounding.
+  // Search discovers published schedules; Google resolution verifies venue identity separately.
   // 2026-04-14: Inject driver GPS for proximity-biased discovery (Memory #107). Previously
   // the search was metro-wide with no proximity bias, so drivers in suburbs got events
   // 30-60mi away in the far corners of the metro. lat/lng were already parameters but
   // never reached the prompt.
-  const prompt = `Find ${category.description || category.name.replace('_', ' ')} happening TODAY (${date}) in the ${searchArea} metro area.
+  const prompt = `Find ${category.description || category.name.replace('_', ' ')} happening TODAY (${date}) in the ${searchArea} metro area in country ${country}. The driver day is defined by ${timezone}.
 
-The driver is currently near coordinates (${lat.toFixed(6)}, ${lng.toFixed(6)}). Prioritize discovering events at venues within 15 miles of these coordinates first. Then include the most impactful events from the broader ${searchArea} area.
+The driver is currently near coordinates (${lat}, ${lng}). Prioritize discovering events at venues within 15 miles of these coordinates first. Then include the most impactful events from the broader ${searchArea} area.
 
-SEARCH: "${category.searchTerms(searchArea, state, date)}"
+SEARCH: "${category.searchTerms(searchArea, state, date)} ${country}"
 EVENT TYPES: ${category.eventTypes.join(', ')}
 
-Return JSON array (max ${maxEvents} events). EVERY field below is REQUIRED — events missing any field will be rejected:
+Return JSON array (max ${maxEvents} events). The title, venue, full address and all four published date/time fields are required. Unknown optional identity or impact stays null:
 [{
   "title": "Event Name",
   "venue": "Venue Name",
-  "place_id": "ChIJ...",
+  "place_id": null,
   "address": "Full Street Address, City, State",
   "category": "${category.eventTypes[0]}",
   "event_start_date": "YYYY-MM-DD (true start, may be earlier than ${date} for multi-day events)",
   "event_start_time": "7:00 PM",
   "event_end_time": "10:00 PM",
-  "event_end_date": "YYYY-MM-DD (true end, may be later than ${date} for multi-day events; same as start for single-day; start+1 for overnight events)",
-  "impact": "high|medium|low"
+  "event_end_date": "YYYY-MM-DD (true end, may be later than ${date} for multi-day events; same as start for single-day; the next calendar day when the event ends after midnight)",
+  "impact": "high|medium|low|null"
 }]
 
 RULES:
-- ACTIVE TODAY: include any event where event_start_date <= ${date} AND event_end_date >= ${date}.
+- ACTIVE TODAY: the actual event interval must overlap calendar day ${date} in ${timezone}. Report dates and clocks in the venue's own timezone. A neighboring timezone can have a different local date; do not discard that event solely because its printed date differs.
 - 2026-05-05 (P0-1 fix): preserve TRUE multi-day spans. A 7-day festival running ${date} should report its real start (e.g. 4 days ago) and real end (e.g. 3 days from now) — DO NOT collapse the dates to ${date}. Multi-day events re-discovered tomorrow should report the same start/end so they hash identically.
-- 2026-05-05 (P0-2 fix): for OVERNIGHT events (e.g. 9 PM today → 1 AM tomorrow), event_start_date=${date} and event_end_date is the next calendar day. Do not set both end_date and start_date to ${date} when the times cross midnight.
-- For SINGLE-day events: event_start_date and event_end_date are both ${date}.
-- place_id: Google Places ID for the venue (starts with "ChIJ"). Use your knowledge of Google Places to provide this. If truly unknown, use "unknown".
+- OVERNIGHT events: an event that ends after midnight MUST carry the next calendar day as its event_end_date. Example: an event that starts at 9:00 PM and ends at 1:00 AM has an event_end_date one day after its event_start_date. Never repeat the start date as the end date when the end time is earlier than the start time: that schedule is inconsistent and the event is rejected. Preserve the published venue-local start date and do not collapse dates across midnight.
+- For SINGLE-day events: use the same actual venue-local date for start and end, which may differ from the driver date near a timezone boundary.
+- place_id: optional opaque Google Places identifier only when a source supplies it; otherwise null. Never invent it or assume a prefix. Venue identity is verified separately.
+- impact: high, medium or low only with supporting evidence; otherwise null.
 - category: MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community
-- ALL 4 date/time fields REQUIRED — estimate times if unknown (Sports=3h, Concert=3h, Festival=4h, Nightlife=4h)
+- ALL 4 date/time fields REQUIRED — use the published schedule. Never estimate missing start/end times or durations. Omit an event if its schedule cannot be verified.
 - Search the ENTIRE ${searchArea.toUpperCase()} metro, not just ${city}
 - Prioritize high-attendance events that generate rideshare demand
 - Return [] if no events active today.`;
@@ -369,7 +488,9 @@ DO NOT use any other category values.`;
       location: 'pipelines/events.js:fetchEventCategory',
     }, 'Calling Briefer for detailed events');
     // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
-    const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user: prompt });
+    signal?.throwIfAborted();
+    const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user: prompt, signal });
+    signal?.throwIfAborted();
 
     if (!result.ok) {
       matrixLog.error({
@@ -380,7 +501,7 @@ DO NOT use any other category values.`;
         secondaryCat: 'EVENTS',
         location: 'pipelines/events.js:fetchEventCategory',
       }, 'Briefer call failed', result.error);
-      return { category: category.name, items: [], error: result.error };
+      return { category: category.name, items: [], error: result.error || 'Event data provider failed without an explanation' };
     }
 
     const parsed = safeJsonParse(result.output);
@@ -396,7 +517,24 @@ DO NOT use any other category values.`;
       const shape = parsed && typeof parsed === 'object' ? `object with keys [${Object.keys(parsed).slice(0, 5).join(', ')}]` : typeof parsed;
       return { category: category.name, items: [], error: `parsed non-array response without events/items key (${shape})` };
     }
-    return { category: category.name, items: items.filter(e => e.title && e.venue) };
+    // An entry that is not an object is a malformed response, not a candidate.
+    if (items.some(e => e === null || typeof e !== 'object' || Array.isArray(e))) {
+      throw new Error('Event data provider returned invalid events: every entry must be an event object');
+    }
+    // normalizeEvent can infer times for other callers. Briefing requires the
+    // source facts and must reject omissions before those defaults can run.
+    // 2026-09-29: the omission rejects that candidate alone. It used to fail the
+    // category, and with it the section, the Briefing and Strategy.
+    const complete = [], rejected = [];
+    for (const e of items) {
+      const missing = missingSourceFields(e);
+      if (missing.length) {
+        rejected.push({ event: e, stage: 'discovery', reason: 'missing_required_fields', detail: `source omitted ${missing.join(', ')}` });
+      } else {
+        complete.push(e);
+      }
+    }
+    return { category: category.name, items: complete, rejected, reason: parsed?.reason || null };
   } catch (err) {
     return { category: category.name, items: [], error: err.message };
   }
@@ -410,39 +548,37 @@ DO NOT use any other category values.`;
  * (EVENT_CATEGORIES) replaced an earlier 5-category approach and a single-search
  * fallback (now-deleted _fetchEventsWithGemini3ProPreviewLegacy).
  */
-async function fetchEventsWithGemini3ProPreview({ snapshot }) {
+async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date }) {
+  signal?.throwIfAborted();
   // 2026-01-09: Require ALL location data - no fallbacks for global app
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
     briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch events', OP.AI);
-    return { items: [], reason: 'Location data not available (missing timezone)' };
+    throw new Error('Event discovery requires city, state and timezone');
   }
   const city = snapshot.city;
   const state = snapshot.state;
   // 2026-05-05: P1-2 fix per events_e2e_audit.md — coerce + validate lat/lng before
-  // they reach `lat.toFixed(6)` in fetchEventCategory's prompt. Without this, an
+  // they reach fetchEventCategory's prompt. Without this, an
   // older snapshot or test object passing string/missing coords throws inside the
   // catch path, returning an empty category result, which silently degrades the
   // entire event discovery to "no events found."
   const lat = Number(snapshot.lat);
   const lng = Number(snapshot.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (snapshot.lat == null || snapshot.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
     briefingLog.warn(2, `Invalid or missing snapshot coords (lat=${snapshot.lat}, lng=${snapshot.lng}) — skipping event discovery`, OP.AI);
-    return { items: [], reason: 'Location coordinates unavailable for event discovery' };
+    throw new Error('Location coordinates unavailable for event discovery');
   }
-  const hour = snapshot?.hour ?? new Date().getHours();
+  // 2026-09-10: removed `const hour = snapshot?.hour ?? new Date().getHours()` — the value
+  // was never read, and the fallback substituted the SERVER's clock for the driver's hour
+  // (no-server-timezone rule). If an hour is ever needed here, take snapshot.hour and fail loud.
   const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
 
-  // Use local_iso if available, otherwise compute local date from timezone
-  let date;
-  if (snapshot?.local_iso) {
-    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
-  } else {
-    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
-  }
+  // The caller captures one driver-local display day for search and saved reads.
 
   // 2026-04-16: Resolve market — snapshot.market is authoritative, DB lookup is fallback
   // for older snapshots. Null means genuinely unknown; callers handle the placeholder.
-  const market = snapshot.market || await getMarketForLocation(city, state);
+  const market = snapshot.market || await getMarketForLocation(city, state, snapshot.country);
+  signal?.throwIfAborted();
   if (!market) {
     briefingLog.warn(2, `No market resolved for ${city}, ${state} — event search will use [unknown-market] placeholder`, OP.AI);
   }
@@ -451,10 +587,10 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   // returned data in incompatible formats causing more parsing failures than it solved.
   if (!process.env.GEMINI_API_KEY) {
     briefingLog.error(2, `GEMINI_API_KEY not set - cannot fetch events`, null, OP.AI);
-    return { items: [], reason: 'GEMINI_API_KEY required for event discovery' };
+    throw new Error('GEMINI_API_KEY required for event discovery');
   }
 
-  briefingLog.ai(2, 'Gemini', `events for ${market || '[unknown-market]'} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
+  briefingLog.ai(2, 'Briefer', `events for ${market || '[unknown-market]'} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
 
   // PARALLEL CATEGORY SEARCHES - 2 focused searches (high_impact + local_entertainment)
   // Each category runs independently, results are merged and deduplicated
@@ -463,46 +599,46 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
 
   const categoryPromises = EVENT_CATEGORIES.map(category =>
     withTimeout(
-      fetchEventCategory({ category, city, state, market, lat, lng, date, timezone }),
+      requestSignal => fetchEventCategory({ category, city, state, market, country: snapshot.country.toUpperCase(), lat, lng, date, timezone, signal: requestSignal }),
       EVENT_SEARCH_TIMEOUT_MS,
-      `Event search: ${category.name}`
-    )
+      `Event search: ${category.name}`,
+      signal
+    ).catch(error => ({ category: category.name, items: [], timedOut: error.name === 'TimeoutError', error: error.message }))
   );
 
   const categoryResults = await Promise.all(categoryPromises);
+  signal?.throwIfAborted();
+  // Cached rows or another successful category cannot prove the failed search
+  // completed. Reject before cache reads or publishing any section as ready.
+  const failures = categoryResults.filter(result => result.timedOut || result.error);
+  if (failures.length) {
+    throw new Error('Event discovery incomplete: ' + failures.map(result =>
+      result.timedOut ? 'The data provider timed out' : result.error
+    ).join('; '));
+  }
 
   // Merge results from all categories
   // 2026-04-11: Two-phase merge — exact title dedup first, then semantic title-similarity dedup
   const rawEvents = [];
   const seenTitles = new Set();
+  const sourceRejections = [];
   let totalFound = 0;
-  let timedOutCount = 0;
-  let erroredCount = 0;
+  let completeFound = 0;
 
   for (const result of categoryResults) {
-    // 2026-01-15: Handle timeout results - treat as empty with warning
-    if (result.timedOut) {
-      timedOutCount++;
-      continue;
-    }
-    totalFound += result.items?.length || 0;
+    totalFound += (result.items?.length || 0) + (result.rejected?.length || 0);
+    completeFound += result.items?.length || 0;
+    sourceRejections.push(...(result.rejected || []));
     for (const event of result.items || []) {
       // Phase 1: Exact title dedup (cheap, catches identical titles from different categories)
-      const titleKey = event.title?.toLowerCase().trim();
+      const titleKey = event.title ? JSON.stringify([event.title.toLowerCase().trim(), event.venue_name || event.venue, event.address, event.event_start_date, event.event_end_date, event.event_start_time, event.event_end_time]) : null;
       if (titleKey && !seenTitles.has(titleKey)) {
         seenTitles.add(titleKey);
         rawEvents.push(event);
       }
     }
-    if (result.error) {
-      erroredCount++;
-      briefingLog.warn(2, `Category ${result.category} failed: ${result.error}`, OP.AI);
-    }
   }
 
-  if (timedOutCount > 0) {
-    briefingLog.warn(2, `${timedOutCount}/${EVENT_CATEGORIES.length} category searches timed out`, OP.AI);
-  }
 
   // 2026-04-11: Phase 2 — Title-similarity dedup. Catches:
   // - "Jon Wolfe Concert" / "Jon Wolfe Live" / "Jon Wolfe" (title variants)
@@ -524,17 +660,97 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   }
 
   const elapsedMs = Date.now() - startTime;
-  briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 2 searches) in ${elapsedMs}ms`, OP.AI);
+  briefingLog.done(2, `Briefer: ${allEvents.length} unique events (${totalFound} total from 2 searches, ${sourceRejections.length} incomplete) in ${elapsedMs}ms`, OP.AI);
 
-  // 2026-02-26: No cross-provider fallback. If Gemini returns 0, return empty.
-  // The Strategist AI can flag gaps; a second LLM returning different JSON made things worse.
-  // 2026-08-06: timedOutCount/erroredCount ride along so the caller can distinguish
-  // "searched and found nothing" from "searches never completed" (todo #24 honesty).
-  if (allEvents.length === 0) {
-    return { items: [], reason: 'No events found across all categories', provider: 'gemini', timedOutCount, erroredCount };
+  // Every category completed. Preserve provided no-data explanations; bare-array
+  // providers retain the existing successful-empty contract.
+  // 2026-09-29: "no events found" is only true when the searches returned none.
+  const emptyReasons = categoryResults.map(result => result.reason).filter(reason => typeof reason === 'string' && reason.trim());
+  return { items: allEvents, rejected: sourceRejections, found: totalFound, duplicates: completeFound - allEvents.length,
+    reason: totalFound ? null : emptyReasons.join('; ') || 'No events found across all categories', provider: 'gemini' };
+}
+
+// Content validation precedes paid venue resolution. Calendar exclusions alone
+// must wait: a neighboring venue can already be on tomorrow's local date.
+const DATE_WINDOW_REASONS = new Set(['starts_in_future', 'ended_before_today']);
+
+// Every reason a catalog row cannot host a verified event. Empty means verified.
+function eventVenueIssues(venue, country) {
+  if (!venue) return ['no catalog venue was returned'];
+  const issues = [];
+  for (const field of ['venue_id', 'place_id', 'formatted_address', 'city', 'state']) {
+    if (!venue[field]) issues.push(`${field} missing`);
   }
+  if (typeof venue.country !== 'string' || venue.country.toUpperCase() !== country) {
+    issues.push(`country ${JSON.stringify(venue.country ?? null)} is not the ISO-2 code ${country}`);
+  }
+  if (!normalizeCoordinates(venue.lat, venue.lng)) issues.push('coordinates missing or invalid');
+  if (!venue.timezone) {
+    issues.push('timezone missing');
+  } else {
+    try { new Intl.DateTimeFormat('en-US', { timeZone: venue.timezone }); } catch { issues.push(`timezone ${JSON.stringify(venue.timezone)} is not a valid zone`); }
+  }
+  return issues;
+}
 
-  return { items: allEvents, reason: null, provider: 'gemini', timedOutCount, erroredCount };
+function hasVerifiedEventVenue(venue, country) {
+  return eventVenueIssues(venue, country).length === 0;
+}
+
+function venueRejection(error) {
+  if (error instanceof EventCandidateRejection) return { stage: error.stage, reason: error.reason, detail: error.detail };
+  if (error?.name === 'TimeoutError') {
+    return { stage: 'venue_resolution', reason: 'venue_lookup_timeout', detail: `venue lookup exceeded ${EVENT_VENUE_TIMEOUT_MS}ms`, cause: error };
+  }
+  return { stage: 'venue_resolution', reason: 'venue_lookup_failed', detail: 'venue lookup raised an error', cause: error };
+}
+
+async function resolveEventVenue(event, snapshot, signal) {
+  signal?.throwIfAborted();
+  const country = snapshot.country.toUpperCase();
+  // Model-supplied place IDs are hints, not verified identity. Reuse an
+  // unambiguous saved name/locality/country match; otherwise ask Places.
+  const cached = await lookupVenue({ venueName: event.venue_name, city: event.city || snapshot.city,
+    state: event.state || snapshot.state, country });
+  signal?.throwIfAborted();
+  if (hasVerifiedEventVenue(cached, country)) return cached;
+
+  const query = [event.venue_name, event.address, event.city, event.state, country].filter(Boolean).join(', ');
+  let place = await searchPlaceWithTextSearch(snapshot.lat, snapshot.lng, query, { radius: 50000, signal });
+  signal?.throwIfAborted();
+  if (!place) {
+    const geocoded = await geocodeEventAddress(event.address || event.venue_name, event.city || snapshot.city, event.state || snapshot.state, { signal });
+    signal?.throwIfAborted();
+    if (geocoded && !geocoded.partial_match) {
+      place = { placeId: geocoded.place_id, formattedAddress: geocoded.formatted_address,
+        lat: geocoded.lat, lng: geocoded.lng, parsed: parseAddressComponents(geocoded.address_components) };
+    }
+  }
+  const coords = normalizeCoordinates(place?.lat, place?.lng);
+  const placeIssues = !place ? ['the venue identity provider returned no place'] : [
+    !place.placeId && 'place_id missing',
+    !place.formattedAddress && 'formatted address missing',
+    !coords && 'coordinates missing or invalid',
+    !place.parsed?.city && 'city missing',
+    !place.parsed?.state && 'state missing',
+    place.parsed?.country?.toUpperCase() !== country && `country ${JSON.stringify(place.parsed?.country ?? null)} is not the ISO-2 code ${country}`,
+  ].filter(Boolean);
+  if (placeIssues.length) {
+    throw new EventCandidateRejection('venue_resolution', 'venue_unverified', `provider place cannot be verified: ${placeIssues.join('; ')}`);
+  }
+  const venue = await findOrCreateVenue({ venue: place.displayName || event.venue_name,
+    address: place.formattedAddress, formattedAddress: place.formattedAddress,
+    latitude: coords.lat, longitude: coords.lng, city: place.parsed.city, state: place.parsed.state,
+    country: place.parsed.country, placeId: place.placeId }, 'briefing_discovery');
+  signal?.throwIfAborted();
+  // A catalog row that is still unverifiable after findOrCreateVenue (a legacy
+  // row with country "United States" or no timezone) rejects this candidate.
+  const catalogIssues = eventVenueIssues(venue, country);
+  if (venue?.place_id && venue.place_id !== place.placeId) catalogIssues.push('catalog place_id differs from the provider place');
+  if (catalogIssues.length) {
+    throw new EventCandidateRejection('venue_resolution', 'venue_unverified', `catalog venue cannot be verified: ${catalogIssues.join('; ')}`);
+  }
+  return venue;
 }
 
 /**
@@ -545,22 +761,31 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
  *  2. fetchEventsWithGemini3ProPreview — parallel category discovery via Gemini
  *  3. validateEventsHard — strict field validation
  *  4. deduplicateEvents (HASH) → deduplicateEventsSemantic (semantic) — sequential dedup
- *  5. Per-event venue resolution: place_id cache → Places (NEW) API → geocode fallback
+ *  5. Verified name/locality cache → Places (NEW) API → provider geocode fallback
  *  6. INSERT into discovered_events with ON CONFLICT DO UPDATE (full content refresh)
- *  7. Read events for state + multi-day window from discovered_events JOIN venue_catalog
- *  8. filterInvalidEvents (timezone-aware Rule 13 today-check) — read-path defense
+ *  7. Read active country/metro events overlapping the driver day using venue-local instants
+ *  8. Validate saved required content without reinterpreting venue clocks in the driver zone
  *  9. Return { items, reason, provider }
+ *
+ * 2026-09-29: steps 3 to 6 reject an unverifiable candidate alone and continue.
+ * Step 7 excludes and counts a saved row whose schedule cannot be resolved. The
+ * result also carries `candidates`: { discovered, duplicates, accepted,
+ * outside_window, rejected, rejections[], rejected_candidates[], saved_excluded,
+ * saved_invalid }, where discovered = duplicates + accepted + outside_window + rejected.
  *
  * @param {object} args
  * @param {object} args.snapshot - snapshot row (city/state/timezone/lat/lng required)
+ * @param {{stage: string, candidate: string|null}} [args.progress] - updated as the
+ *   pipeline advances so the caller can log the stage that failed
  * @returns {Promise<{items: Array, reason: string|null, provider: string}>}
  */
-export async function fetchEventsForBriefing({ snapshot } = {}) {
+export async function fetchEventsForBriefing({ snapshot, signal, progress = { stage: 'preflight', candidate: null } } = {}) {
+  signal?.throwIfAborted();
   if (!snapshot) {
     throw new Error('Snapshot is required for events fetch');
   }
 
-  const { city, state, lat, lng, timezone } = snapshot;
+  const { city, state, timezone } = snapshot;
 
   // 2026-06-11: Fail loud on missing timezone. Both the DB date-window (todayStr/endDateStr
   // below) and Rule 13 inside validateEventsHard are timezone-dependent; a missing tz used to
@@ -572,15 +797,21 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     throw new Error('fetchEventsForBriefing requires snapshot.timezone — NO FALLBACKS (date window + Rule 13 are tz-dependent)');
   }
 
+  if (!/^[A-Za-z]{2}$/.test(snapshot.country || '') || !city || !state) {
+    throw new Error('fetchEventsForBriefing requires snapshot country/city/state');
+  }
+
   // 2026-02-17: FIX Issue 3 — Deactivate past events before discovery
   // Soft-deactivates events that have ended (is_active = false, deactivated_at = NOW())
-  // Uses snapshot timezone for accurate "now" calculation — NO FALLBACKS
+  // 2026-09-13: Each event resolves through its own venue_catalog.timezone; one driver's
+  // timezone can no longer expire (or preserve) events in other markets.
   // Non-fatal: cleanup failure doesn't block event discovery
   // 2026-03-28: ARCHITECTURE NOTE — Cleanup is intentionally opportunistic (per-briefing-fetch).
   // No cron dependency. If scheduled cleanup is needed later for dashboard accuracy when
-  // no users are active, add a cron job calling deactivatePastEvents() per market timezone.
-  // 2026-06-11: timezone is guaranteed non-null by the guard above (was `if (timezone)`).
-  const deactivated = await deactivatePastEvents(timezone);
+  // no users are active, call the same per-venue-timezone cleanup from that scheduler.
+  progress.stage = 'cleanup';
+  const deactivated = await deactivatePastEvents();
+  signal?.throwIfAborted();
   if (deactivated > 0) {
     briefingLog.phase(2, `Cleaned up ${deactivated} past events`, OP.DB);
   }
@@ -591,7 +822,9 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   // on venues left with no active event. All soft (deactivate / flag-off) — never delete a
   // venue. Each is non-fatal and returns 0 on error so cleanup can't block discovery.
   await collapseDuplicateEventSpans();
+  signal?.throwIfAborted();
   await clearOrphanedEventVenueTags();
+  signal?.throwIfAborted();
 
   // 2026-04-04: FIX C-5 — Use user's timezone for date range, not UTC
   // Previously used toISOString() which is UTC-based. A driver in UTC-8 at 11PM local
@@ -600,26 +833,21 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   // 2026-06-11: timezone guaranteed by the guard above — UTC ternary fallback removed.
   const today = new Date();
   const todayStr = today.toLocaleDateString('en-CA', { timeZone: timezone });
-  const weekFromNow = new Date();
-  weekFromNow.setDate(weekFromNow.getDate() + 7);
-  const endDateStr = weekFromNow.toLocaleDateString('en-CA', { timeZone: timezone });
 
   // 2026-01-10: Consolidated event discovery using Briefer model with Google Search tools
   // Simpler pipeline, lower cost, cleaner data - model-agnostic (configured via BRIEFING_EVENTS_MODEL)
   briefingLog.phase(2, `Event discovery for ${city}, ${state} (${todayStr})`, OP.AI);
 
-  // 2026-08-06: discovery health survives the swallow-and-continue catch below, so
-  // the final empty-DB-read branch can distinguish "searched, found nothing" from
-  // "searches never completed" (todo #24: verified-empty vs failed are different states).
-  let discoveryHealth = { timedOutCount: 0, erroredCount: 0 };
-
+  let discoveryReason = null;
+  const candidates = createCandidateLedger();
+  progress.stage = 'discovery';
   try {
     // Run parallel category search using configured Briefer model
-    const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot });
-    discoveryHealth = {
-      timedOutCount: discoveryResult.timedOutCount || 0,
-      erroredCount: discoveryResult.erroredCount || 0,
-    };
+    const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot, signal, date: todayStr });
+    discoveryReason = discoveryResult.reason;
+    candidates.counts.discovered = discoveryResult.found;
+    candidates.counts.duplicates = discoveryResult.duplicates;
+    for (const rejection of discoveryResult.rejected) candidates.reject(rejection.event, rejection);
 
     if (discoveryResult.items && discoveryResult.items.length > 0) {
       briefingLog.done(2, `Events: ${discoveryResult.items.length} discovered`, OP.AI);
@@ -629,13 +857,27 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // 2026-04-04: FIX C-4 — Pass city/state context so normalizeEvent has fallback location
       // Without context, events from AI responses missing city/state fields get empty strings,
       // breaking downstream filtering and event hash consistency
-      const normalized = discoveryResult.items.map(e => normalizeEvent(e, { city, state }));
+      progress.stage = 'validation';
+      const normalized = discoveryResult.items.map(e => ({
+        ...normalizeEvent(e, { city, state }),
+        // The legacy normalizer defaults missing/unknown attendance to medium.
+        // A demand estimate requires actual provider evidence at this boundary.
+        expected_attendance: ['high', 'medium', 'low'].includes(e.expected_attendance || e.impact)
+          ? (e.expected_attendance || e.impact) : null,
+      }));
       // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
       // 2026-04-28: thread snapshot.timezone so Rule 13 today-check uses driver's local tz
       // (spec §9.2 — global-app correctness for far-east / Hawaii callers near midnight UTC)
-      const { valid: validatedEvents } = validateEventsHard(normalized, {
+      const { valid, invalid: invalidEvents } = validateEventsHard(normalized, {
         context: { timezone: timezone }
       });
+      // Date-window exclusions are legitimate search results. Missing or invalid
+      // required content rejects that candidate alone, under the validator's own
+      // reason code. 2026-09-29: it used to fail the whole section.
+      for (const result of (invalidEvents || []).filter(result => !DATE_WINDOW_REASONS.has(result.reason))) {
+        candidates.reject(result.event, { stage: 'validation', reason: result.reason, detail: `required field ${result.field} failed validation` });
+      }
+      const validatedEvents = [...valid, ...(invalidEvents || []).filter(result => DATE_WINDOW_REASONS.has(result.reason)).map(result => result.event)];
 
       // 2026-06-11: Two-stage dedup here is intentionally retained (NOT redundant with the
       // raw-stage deduplicateEventsSemantic in fetchEventsWithGemini3ProPreview). The earlier
@@ -651,117 +893,60 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         `semantic: ${hashDeduped.length} → ${semanticDeduped.length} ` +
         `(pre-insert dedup before per-event upsert)`
       );
+      candidates.counts.duplicates += validatedEvents.length - semanticDeduped.length;
 
       for (const event of semanticDeduped) {
+        progress.candidate = label(event.title);
+
+        // Stage: schedule. Checked before the paid venue lookup.
+        progress.stage = 'schedule';
+        const inconsistency = scheduleInconsistency(event);
+        if (inconsistency) {
+          candidates.reject(event, { stage: 'schedule', reason: 'schedule_inconsistent', detail: inconsistency });
+          continue;
+        }
+
+        // Stage: venue resolution. A lookup that times out, errors or cannot
+        // verify the venue rejects this candidate and the batch continues.
+        progress.stage = 'venue_resolution';
+        let resolvedVenue;
         try {
-          const hash = generateEventHash(event);
+          resolvedVenue = await withTimeout(requestSignal => resolveEventVenue(event, snapshot, requestSignal),
+            EVENT_VENUE_TIMEOUT_MS, `Event venue: ${event.venue_name}`, signal);
+        } catch (venueErr) {
+          // Caller cancellation ends the run. It says nothing about this venue.
+          signal?.throwIfAborted();
+          candidates.reject(event, venueRejection(venueErr));
+          continue;
+        }
+        signal?.throwIfAborted();
+        const venueId = resolvedVenue.venue_id;
+        const resolvedAddress = resolvedVenue.formatted_address;
+        const resolvedCity = resolvedVenue.city;
+        const resolvedState = resolvedVenue.state;
 
-          // 2026-04-10: Venue Resolution via Google Places (NEW) API (New).
-          // Google Places is the ONLY source of truth for venue addresses, coordinates, and cities.
-          // Priority chain: (a) place_id cache hit → (b) Places (NEW) API search → (c) geocode fallback
-          let venueId = null;
-          let resolvedVenue = null;  // Will hold venue_catalog record with authoritative data
+        // Stage: schedule, now in the venue's own timezone.
+        progress.stage = 'schedule';
+        const projected = toBriefingEvent({ event, venue: resolvedVenue });
+        const overlaps = eventOverlapsDisplayDays(projected, todayStr, todayStr, timezone);
+        if (overlaps === null) {
+          candidates.reject(event, { stage: 'schedule', reason: 'schedule_inconsistent',
+            detail: `${event.event_start_date} ${event.event_start_time} to ${event.event_end_date} ${event.event_end_time} cannot be resolved to an interval in ${resolvedVenue.timezone}` });
+          continue;
+        }
+        if (!overlaps) {
+          candidates.counts.outside_window++;
+          discoveryReason = 'No events remained within the current date window';
+          continue;
+        }
 
-          if (event.venue_name) {
-            try {
-              let placeId = event.place_id || null;
-
-              // Step (a): If Gemini returned a place_id, check venue_catalog cache
-              if (placeId && placeId.startsWith('ChIJ')) {
-                const cached = await lookupVenue({ placeId });
-                if (cached && cached.formatted_address && cached.lat && cached.lng) {
-                  // Venue exists with complete Places (NEW) API data — use it directly
-                  resolvedVenue = cached;
-                  venueId = cached.venue_id;
-                  briefingLog.info(`Cache hit (place_id) for "${event.venue_name}": ${cached.venue_name}`);
-                }
-                // If cached but MISSING formatted_address/lat/lng, fall through to step (b)
-              }
-
-              // Step (b): No cached venue — resolve via Google Places (NEW) API (New)
-              // Uses snapshot lat/lng as location bias with 50km radius for metro-wide discovery
-              if (!resolvedVenue) {
-                const placeResult = await searchPlaceWithTextSearch(lat, lng, event.venue_name, { radius: 50000 });
-
-                if (placeResult) {
-                  // Places (NEW) API returned authoritative venue data
-                  const venue = await findOrCreateVenue({
-                    venue: event.venue_name,
-                    address: placeResult.formattedAddress,
-                    latitude: placeResult.lat,
-                    longitude: placeResult.lng,
-                    city: placeResult.parsed?.city || city,       // FROM PLACES API
-                    state: placeResult.parsed?.state || state,     // FROM PLACES API
-                    placeId: placeResult.placeId,
-                    formattedAddress: placeResult.formattedAddress
-                  }, 'briefing_discovery');
-
-                  if (venue) {
-                    resolvedVenue = venue;
-                    venueId = venue.venue_id;
-                    briefingLog.info(`Places (NEW) API resolved "${event.venue_name}" → "${venue.venue_name}" in ${placeResult.parsed?.city || '?'} (${venue.venue_id?.slice(0, 8)})`);
-                  }
-                } else {
-                  // Step (c): Places (NEW) API returned nothing — fall back to geocode with snapshot context
-                  const geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
-                  if (geocodeResult) {
-                    const venue = await findOrCreateVenue({
-                      venue: event.venue_name,
-                      address: geocodeResult.formatted_address || event.address,
-                      latitude: geocodeResult.lat,
-                      longitude: geocodeResult.lng,
-                      city: city,
-                      state: state,
-                      placeId: geocodeResult.place_id || placeId,
-                      formattedAddress: geocodeResult.formatted_address
-                    }, 'briefing_discovery');
-
-                    if (venue) {
-                      resolvedVenue = venue;
-                      venueId = venue.venue_id;
-                      briefingLog.info(`Geocode fallback for "${event.venue_name}" → ${venue.venue_id?.slice(0, 8)}`);
-                    }
-                  }
-                }
-              }
-
-              // Flag venue as event venue if not already
-              // 2026-04-18: Replaced silent catch with logged warning. Per CLAUDE.md
-              // NO SILENT FAILURES rule: errors must reach logs even if non-fatal.
-              if (resolvedVenue && resolvedVenue.is_event_venue !== true) {
-                try {
-                  await db.update(venue_catalog).set({ is_event_venue: true, updated_at: new Date() })
-                    .where(eq(venue_catalog.venue_id, resolvedVenue.venue_id));
-                } catch (flagErr) {
-                  briefingLog.warn(2, `Failed to flag venue ${resolvedVenue.venue_id?.slice(0,8)} as event venue (non-fatal): ${flagErr.message}`, OP.DB);
-                }
-              }
-            } catch (venueErr) {
-              // Non-fatal - continue without link
-              briefingLog.warn(2, `Venue link failed for "${event.venue_name}": ${venueErr.message}`, OP.DB);
-            }
-          }
-
-          // 2026-04-11: Validate resolved venue address quality before storing.
-          // If the venue's address is garbage (e.g., "Theatre, Frisco, TX 75034"),
-          // log a warning. The venue-cache layer already re-resolves bad addresses,
-          // so here we just validate the final result for monitoring.
-          const resolvedAddress = resolvedVenue?.formatted_address || event.address;
-          const resolvedCity = resolvedVenue?.city || city;
-          const resolvedState = resolvedVenue?.state || state;
-
-          if (resolvedVenue) {
-            const { valid: addrValid, issues: addrIssues } = validateVenueAddress({
-              formattedAddress: resolvedAddress,
-              venueName: event.venue_name,
-              lat: resolvedVenue.lat,
-              lng: resolvedVenue.lng,
-              city: resolvedCity
-            });
-            if (!addrValid) {
-              briefingLog.warn(2, `[VENUE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
-            }
-          }
+        // Stage: persistence. A failure here is a real storage failure.
+        progress.stage = 'persistence';
+        try {
+          // Hash the resolved identity, never the model's guessed locality.
+          const canonicalEvent = { ...event, venue_name: resolvedVenue.venue_name,
+            address: resolvedAddress, city: resolvedCity, state: resolvedState, venue_id: venueId };
+          const hash = generateEventHash(canonicalEvent);
 
           // 2026-06-11: Write-time root-cause guard for duplicate multi-day spans. If an
           // active overlapping same-venue + title-match span already exists (e.g. this run
@@ -769,21 +954,27 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
           // insert instead of creating another hash row. collapseDuplicateEventSpans()
           // stays as the after-the-fact safety net for anything this misses (e.g. a venue
           // that resolved to a different venue_id across discoveries).
+          await withEventVenueLock(venueId, async tx => {
+          signal?.throwIfAborted();
           const mergedSpanId = await mergeIntoOverlappingActiveSpan({
             venueId,
             title: event.title,
             startDate: event.event_start_date,
             endDate: event.event_end_date,
-          });
+            startTime: event.event_start_time, endTime: event.event_end_time,
+          }, tx);
+          signal?.throwIfAborted();
           if (mergedSpanId) {
             briefingLog.info(`Merged "${event.title?.slice(0, 40)}" into active span ${mergedSpanId.slice(0, 8)} (skipped duplicate multi-day insert)`);
-            continue;
+            return;
           }
 
+          const storedHash = await resolveEventWriteHash(tx, canonicalEvent, hash);
+          signal?.throwIfAborted();
           // Store event with venue_catalog truth (city/address from Places (NEW) API, not Gemini guess)
-          await db.insert(discovered_events).values({
+          await tx.insert(discovered_events).values({
             title: event.title,
-            venue_name: event.venue_name,  // Keep Gemini's name for display
+            venue_name: resolvedVenue.venue_name,
             address: resolvedAddress,
             city: resolvedCity,
             state: resolvedState,
@@ -795,7 +986,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             category: event.category,  // Already normalized
             expected_attendance: event.expected_attendance,  // Already normalized
             // 2026-01-14: Removed source_model - column removed from schema (all events from Gemini)
-            event_hash: hash,
+            event_hash: storedHash,
             // 2026-04-14: Stamp current validation version — enables skipping read-time revalidation
             schema_version: VALIDATION_SCHEMA_VERSION,
           }).onConflictDoUpdate({
@@ -807,7 +998,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             // Previously used raw event.address on conflict, bypassing Places (NEW) API resolution.
             set: {
               title: event.title,
-              venue_name: event.venue_name,
+              venue_name: resolvedVenue.venue_name,
               address: resolvedAddress,
               city: resolvedCity,
               state: resolvedState,
@@ -818,138 +1009,72 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
               category: event.category,
               expected_attendance: event.expected_attendance,
               venue_id: venueId || discovered_events.venue_id,
-              is_active: true,
+              ...discoveryReactivationFields(),
               schema_version: VALIDATION_SCHEMA_VERSION,
               updated_at: sql`NOW()`
             }
           });
+          signal?.throwIfAborted();
+          }, { refreshTag: true });
         } catch (insertErr) {
-          // Ignore individual insert errors (duplicates, etc.)
-          if (!insertErr.message?.includes('duplicate')) {
-            briefingLog.warn(2, `Event insert failed: ${insertErr.message}`, OP.DB);
-          }
+          // A cancelled write was rolled back on request; it is not a storage failure.
+          signal?.throwIfAborted();
+          throw reportStageFailure('persistence', new Error('Events database persistence failed', { cause: insertErr }),
+            `Saving "${progress.candidate}" at "${label(resolvedVenue.venue_name)}" `);
         }
+        candidates.counts.accepted++;
       }
+      progress.candidate = null;
     }
-  } catch (discoveryErr) {
-    briefingLog.warn(2, `Event discovery failed: ${discoveryErr.message}`, OP.AI);
-    // Continue - we can still read cached events from DB
-    // 2026-08-06: record the failure so an empty cache read reports failed, not verified-empty
-    discoveryHealth.erroredCount = EVENT_CATEGORIES.length;
+  } catch (pipelineErr) {
+    // 2026-09-29: this catch also covers the write loop, so the log names the
+    // stage that failed instead of calling every failure a discovery failure.
+    if (pipelineErr === null || typeof pipelineErr !== 'object' || !reportedFailures.has(pipelineErr)) {
+      reportStageFailure(progress.stage, pipelineErr, progress.candidate ? `"${progress.candidate}" ` : '');
+    }
+    throw pipelineErr;
   }
 
-  // Read events from discovered_events table for this city/state and date range
-  // 2026-01-14: JOIN with venue_catalog to get coordinates for map display
+  // One shared saved-event reader scopes by country + canonical metro before
+  // limiting, resolves venue-local instants, and preserves cross-state markets.
+  progress.stage = 'saved_read';
+  progress.candidate = null;
+  let rows, unresolvedCount;
   try {
-    // 2026-01-10: Use symmetric field names (event_start_date)
-    // 2026-01-10: Added NOT NULL filters to exclude broken events from UI
-    // 2026-01-14: LEFT JOIN with venue_catalog to get venue coordinates
-    const events = await db.select({
-      // Event fields
-      id: discovered_events.id,
-      title: discovered_events.title,
-      venue_name: discovered_events.venue_name,
-      address: discovered_events.address,
-      city: discovered_events.city,
-      state: discovered_events.state,
-      venue_id: discovered_events.venue_id,
-      event_start_date: discovered_events.event_start_date,
-      event_start_time: discovered_events.event_start_time,
-      event_end_time: discovered_events.event_end_time,
-      // 2026-02-01: FIX - Add event_end_date (defaults to event_start_date for single-day events)
-      event_end_date: discovered_events.event_end_date,
-      category: discovered_events.category,
-      expected_attendance: discovered_events.expected_attendance,
-      // 2026-01-14: Removed source_model - column removed from schema
-      // Venue coordinates from join (may be null if not linked)
-      venue_lat: venue_catalog.lat,
-      venue_lng: venue_catalog.lng,
-      venue_address: venue_catalog.address
-    })
-      .from(discovered_events)
-      .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
-      // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
-      // actual venue city (e.g., "Fort Worth", "Arlington") so filtering by snapshot city
-      // ("Dallas") would miss all metro events outside the driver's exact city.
-      // 2026-04-28: FIX — multi-day-inclusive predicate. Was forward-only on event_start_date
-      // (`gte(start_date, today) AND lte(start_date, horizon)`), which silently excluded
-      // multi-day events that started before today (e.g. a 4-day festival running through
-      // today was missed on day 2). Now: any event whose [start, end] window overlaps the
-      // [today, horizon] window. Active-only filter still gates already-ended events
-      // because deactivatePastEvents() runs first.
-      .where(and(
-        eq(discovered_events.state, state),
-        lte(discovered_events.event_start_date, endDateStr),
-        gte(discovered_events.event_end_date, todayStr),
-        eq(discovered_events.is_active, true),
-        // STRICT FILTER: Hide events with NULL times from UI
-        isNotNull(discovered_events.event_start_time),
-        isNotNull(discovered_events.event_end_time)
-      ))
-      .orderBy(discovered_events.event_start_date)
-      .limit(50);
-
-    console.log(
-      `[BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [READ] [ACTIVE-TODAY] [NEW EVENTS PIPELINE] ` +
-      `state=${state}, today=${todayStr}, horizon=${endDateStr}, count=${events.length} — ` +
-      `multi-day inclusive (start<=horizon AND end>=today)`
-    );
-
-    if (events.length > 0) {
-      // Map discovered_events format to the briefing events format
-      // 2026-01-10: DB columns are now event_start_date, event_start_time
-      // 2026-01-14: Coordinates now come from linked venue_catalog (not deprecated event.lat/lng)
-      // 2026-01-14: Removed source_model field entirely - all events come from Gemini Briefer
-      // 2026-02-01: Added event_end_date (defaults to event_start_date for single-day events)
-      const normalizedEvents = events.map(e => ({
-        title: e.title,
-        summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
-        impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
-        event_type: e.category,
-        subtype: e.category, // For EventsComponent category grouping
-        event_start_date: e.event_start_date,
-        event_start_time: e.event_start_time,
-        event_end_time: e.event_end_time,
-        // 2026-02-01: FIX - Include event_end_date (defaults to event_start_date for single-day events)
-        event_end_date: e.event_end_date || e.event_start_date,
-        // 2026-01-14: Prefer venue address from catalog (more accurate)
-        address: e.venue_address || e.address,
-        venue: e.venue_name,
-        location: e.venue_name ? `${e.venue_name}, ${e.venue_address || e.address || ''}`.trim() : e.address,
-        // 2026-01-14: FIX - Get coordinates from linked venue (enables map pins!)
-        latitude: e.venue_lat,
-        longitude: e.venue_lng,
-        // Include venue_id for debugging/linking verification
-        venue_id: e.venue_id
-      }));
-
-      // 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
-      // 2026-04-28: Thread timezone so the read-path Rule 13 today-check honors the
-      // driver's local tz. Without this, AHEAD-timezone drivers (HST/JST/AEST/Kiritimati)
-      // saw their own stored events stripped on every read during the 9-14h UTC window.
-      const cleanEvents = filterInvalidEvents(normalizedEvents, { timezone });
-
-      briefingLog.done(2, `Events: ${cleanEvents.length} from discovered_events table`, OP.DB);
-      return { items: cleanEvents, reason: null, provider: 'discovered_events' };
-    }
-
-    briefingLog.info(`No events found for ${city}, ${state}`);
-    // 2026-08-06: empty cache AFTER incomplete discovery is a FAILURE, not a
-    // verified-empty — the section never actually searched successfully.
-    const failedSearches = discoveryHealth.timedOutCount + discoveryHealth.erroredCount;
-    if (failedSearches > 0) {
-      return {
-        items: [],
-        reason: `Event discovery incomplete (${discoveryHealth.timedOutCount} timed out, ${discoveryHealth.erroredCount} failed of ${EVENT_CATEGORIES.length} searches) — no cached events available`,
-        discoveryFailed: true,
-        provider: 'discovered_events'
-      };
-    }
-    return { items: [], reason: 'No events found for this location', provider: 'discovered_events' };
+    signal?.throwIfAborted();
+    ({ rows, unresolvedCount } = await readMarketEvents(snapshot, { today: todayStr }));
   } catch (dbErr) {
-    briefingLog.error(2, `Events DB read failed: ${dbErr.message}`, dbErr, OP.DB);
-    return { items: [], reason: `Database error: ${dbErr.message}`, provider: 'discovered_events' };
+    // Caller cancellation is not a database failure.
+    signal?.throwIfAborted();
+    throw reportStageFailure('saved_read', new Error('Events database read failed', { cause: dbErr }), 'Reading saved market events ');
   }
+  signal?.throwIfAborted();
+  if (unresolvedCount) {
+    // 2026-09-29: exclude and count. One saved row whose venue has no usable
+    // timezone, or whose end precedes its start, used to fail the read for the
+    // whole market. The row stays saved, is not shown, and is reported.
+    candidates.counts.saved_excluded = unresolvedCount;
+    briefingLog.warn(2, `[EVENTS] [stage=saved_read] ${candidateNote({ saved_excluded: unresolvedCount })} ` +
+      '(venue timezone missing or invalid, or the end precedes the start). The shared reader reports a count only.', OP.DB);
+  }
+  const cleanEvents = rows.map(toBriefingEvent).filter(event => {
+    const result = validateEventsHard([event], { context: { timezone: event.timezone } });
+    // Calendar overlap was already established using absolute venue instants.
+    const usable = result.valid.length > 0 || (result.invalid.length === 1 && DATE_WINDOW_REASONS.has(result.invalid[0].reason));
+    if (!usable) candidates.counts.saved_invalid++;
+    return usable;
+  });
+  briefingLog.done(2, `Events: ${cleanEvents.length} from current country/metro`, OP.DB);
+
+  const summary = candidates.summary();
+  const note = candidateNote(summary);
+  const empty = cleanEvents.length ? null : rows.length
+    ? 'No events remained after required-field validation'
+    : discoveryReason || (note ? 'No verified events for this location' : 'No events found for this location');
+  const reason = note
+    ? [empty, note].filter(Boolean).map(text => text.replace(/[.\s]+$/, '')).join('. ') + '.'
+    : empty;
+  return { items: cleanEvents, reason, provider: 'discovered_events', candidates: summary };
 }
 
 /**
@@ -972,7 +1097,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
  * @param {string} args.snapshotId - snapshot UUID
  * @returns {Promise<{ events: object|Array, reason: string|null }>}
  */
-export async function discoverEvents({ snapshot, snapshotId }) {
+export async function discoverEvents({ snapshot, snapshotId, signal }) {
   let events;
   let reason = null;
 
@@ -982,27 +1107,40 @@ export async function discoverEvents({ snapshot, snapshotId }) {
     throw err;
   }
 
+  const progress = { stage: 'preflight', candidate: null };
   try {
-    const r = await fetchEventsForBriefing({ snapshot });
-    const items = Array.isArray(r?.items) ? r.items : [];
+    const r = await fetchEventsForBriefing({ snapshot, signal, progress });
+    signal?.throwIfAborted();
+    progress.stage = 'section_contract';
+    if (!Array.isArray(r?.items)) throw new Error('Event discovery returned an invalid response');
+    const items = r.items;
 
-    // 2026-08-06 (todo #24): incomplete discovery + empty cache = FAILED section.
-    // Throwing routes through the errorMarker write below, so the UI renders the
-    // amber failed state instead of asserting "no events" it never verified.
-    if (items.length === 0 && r?.discoveryFailed) {
-      throw new Error(r.reason || 'Event discovery failed with no cached events');
+    // Reject explicit failure metadata even if results also exist.
+    if (r?.discoveryFailed || r?.timedOutCount > 0 || r?.erroredCount > 0) {
+      throw new Error(r.reason || 'Event discovery failed');
     }
 
+    // 2026-09-29: the candidate summary travels with the section. With no items
+    // it is saved beside the reason. With items the saved column stays a bare
+    // array, which is the shape Strategy and the Briefing readers accept.
+    const candidates = r?.candidates ? { candidates: r.candidates } : {};
     events = {
       items,
-      reason: r?.reason || (items.length === 0 ? 'No events found for this area' : null)
+      reason: r?.reason || (items.length === 0 ? 'No events found for this area' : null),
+      ...candidates
     };
-    reason = items.length > 0 ? null : (r?.reason || 'No events found for this area');
+    reason = events.reason;
 
     // Match orchestrator's prior SSE-write shape: array if items, {items, reason} object if empty
-    const sseWriteValue = items.length > 0 ? items : { items: [], reason: events.reason };
+    const sseWriteValue = items.length > 0 ? items : { items: [], reason: events.reason, ...candidates };
+    progress.stage = 'section_write';
     await writeSectionAndNotify(snapshotId, { events: sseWriteValue }, CHANNELS.EVENTS);
   } catch (err) {
+    // 2026-09-29: the saved marker holds a driver-safe sentence only, and the real
+    // cause lived in err.cause, which nothing logged. Log the stage and the cause.
+    if (err === null || typeof err !== 'object' || !reportedFailures.has(err)) {
+      reportStageFailure(progress.stage, err, progress.candidate ? `"${progress.candidate}" ` : '');
+    }
     events = errorMarker(err);
     reason = err.message;
     await writeSectionAndNotify(snapshotId, { events }, CHANNELS.EVENTS);

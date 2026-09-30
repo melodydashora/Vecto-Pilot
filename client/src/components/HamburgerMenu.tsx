@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Settings, Calendar, Gauge, Info, Heart, HelpCircle, LogOut, TrendingUp, X } from 'lucide-react';
+import { Menu, Settings, Calendar, Gauge, Info, HelpCircle, LogOut, TrendingUp, X } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +27,6 @@ const MENU_ITEMS = [
   { label: 'Preferences', icon: Settings, path: '/co-pilot/settings' },
   { label: 'Schedule', icon: Calendar, path: '/co-pilot/schedule' },
   { label: 'About', icon: Info, path: '/co-pilot/about' },
-  { label: 'Donate', icon: Heart, path: '/co-pilot/donate' },
   { label: 'Help', icon: HelpCircle, path: '/co-pilot/help' },
 ] as const;
 

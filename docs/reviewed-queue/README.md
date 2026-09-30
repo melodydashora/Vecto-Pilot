@@ -1,62 +1,22 @@
-> **Last Verified:** 2026-01-06
+# Historical review records
 
-# Reviewed Queue (`docs/reviewed-queue/`)
+This directory preserves dated reviews, earlier fix plans, change logs and extracted
+lessons. They describe the code and observations of their time. An archived finding
+or a file named `IN_PROGRESS_WORKSTREAM.md` does not establish today's task status.
 
-## Purpose
+| Record | Purpose |
+|---|---|
+| `YYYY-MM-DD.md` and dated summaries | Historical review observations |
+| `CHANGES.md` | Earlier implementation history |
+| `RULES_FROM_COMPLETED_WORK.md` | Earlier extracted patterns; reconcile with current product rules |
+| `DOC_DISCREPANCIES_ARCHIVE.md` | Historical documentation findings |
+| `FIX_PLAN_2026-02-01.md` | Preserved February fix plan, not today's checklist |
+| `IN_PROGRESS_WORKSTREAM.md` | January news-refactor completion record despite its old filename |
 
-Archive of completed review items and consolidated learnings from the review process.
+Current work and lessons use the existing [continuity tools](../architecture/mcp-server.md).
+[Work-item plans](../review-queue/README.md) remain separately available. The retired
+`pending.md` workflow is not an instruction to recreate that file.
 
-**Key Principle:** Completed work should be converted into actionable rules, not just archived.
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `RULES_FROM_COMPLETED_WORK.md` | **Primary Output** - Actionable patterns extracted from completed implementations |
-| `CHANGES.md` | Tracked changes log |
-| `YYYY-MM-DD.md` | Daily review logs (historical record) |
-| `YYYY-MM-DD-summary.md` | Daily summaries of completed work (for historical reference) |
-
-## Workflow
-
-### When Work is Completed
-
-1. **Extract Rules** - Add actionable patterns to `RULES_FROM_COMPLETED_WORK.md`
-2. **Create Summary** - Optionally create a dated summary file
-3. **Clean pending.md** - Remove completed items from `docs/review-queue/pending.md`
-
-### What Makes a Good Rule
-
-Rules should be:
-- **Actionable** - Developer can follow it immediately
-- **Specific** - Includes code examples
-- **Contextualized** - Explains when to apply
-
-```markdown
-### Rule: Use Dedicated Lookup Tables for O(1) Access
-
-**Source:** US Market Cities Implementation (2026-01-05)
-**Problem:** JSONB arrays require full scans
-**Solution:** Create dedicated mapping tables
-
-[Code example]
-
-**When to Apply:** Any time you need value→data lookup
-```
-
-## Connection to review-queue/
-
-```
-docs/review-queue/pending.md
-    │
-    │ (completed items)
-    ↓
-docs/reviewed-queue/RULES_FROM_COMPLETED_WORK.md  ← Extract patterns
-docs/reviewed-queue/YYYY-MM-DD-summary.md         ← Archive details
-```
-
-## Related
-
-- `docs/review-queue/` - Source of items to review
-- `LESSONS_LEARNED.md` - Bug fixes and gotchas (different from rules)
-- `CLAUDE.md` - Project rules (may incorporate reviewed-queue rules)
+September 29 removed redundant copies from `review-queue` while retaining these
+records. See [the cleanup record](../architecture/removals/2026-09-29-documentation-cleanup.md)
+for exact paths, the one historical naming difference, and recovery instructions.

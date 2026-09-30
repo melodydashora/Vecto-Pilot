@@ -149,7 +149,7 @@ if (strategyAge > 30*60*1000 && (isStuckPendingBlocks || isStuckInProgress)) {
 
 **Audit Date:** 2026-02-01
 **Conducted By:** Claude Code (5 parallel exploration agents)
-**Fix Plan:** `docs/review-queue/FIX_PLAN_2026-02-01.md`
+**Fix Plan:** [Preserved reviewed copy](FIX_PLAN_2026-02-01.md) (the duplicate review-queue copy was removed on 2026-09-29).
 **Total Discrepancies:** 48
 
 ### CRITICAL (P0 - Must Fix Immediately)
@@ -229,7 +229,7 @@ if (strategyAge > 30*60*1000 && (isStuckPendingBlocks || isStuckInProgress)) {
 - Component renames make docs point to non-existent files
 
 **Resolution:**
-See `docs/review-queue/FIX_PLAN_2026-02-01.md` for detailed fix plan with exact edits.
+See [the preserved fix plan](FIX_PLAN_2026-02-01.md) for detailed historical edits.
 
 ---
 

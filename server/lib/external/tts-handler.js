@@ -29,7 +29,7 @@ function selectVoice(language) {
  * @param {string} [language] - Optional ISO 639-1 language code — used for voice selection
  * @returns {Promise<Buffer>} - MP3 audio buffer
  */
-export async function synthesizeSpeech(text, language) {
+export async function synthesizeSpeech(text, language, { signal } = {}) {
   if (!text || typeof text !== 'string') {
     throw new Error('Invalid text for TTS');
   }
@@ -39,20 +39,23 @@ export async function synthesizeSpeech(text, language) {
   try {
     console.log(`[TTS] Generating speech for ${text.length} characters${language ? ` (lang: ${language})` : ''}...`);
 
+    signal?.throwIfAborted();
     const response = await client.audio.speech.create({
       model: "tts-1-hd",
       voice,
       input: text,
       response_format: "mp3",
       speed: 1.0
-    });
+    }, { signal, timeout: 30_000 });
 
     // Convert response to buffer
     const buffer = Buffer.from(await response.arrayBuffer());
+    signal?.throwIfAborted();
     console.log(`[TTS] Generated ${buffer.length} bytes of audio`);
     
     return buffer;
   } catch (err) {
+    if (signal?.aborted) throw signal.reason;
     console.error('[TTS] Speech synthesis failed:', err.message);
     throw new Error(`TTS failed: ${err.message}`);
   }

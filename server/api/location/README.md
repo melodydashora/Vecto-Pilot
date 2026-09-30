@@ -35,7 +35,7 @@ GET  /api/location/ip             - IP-based location (debug/fallback only)
 
 ### Weather & Air Quality
 ```
-GET  /api/location/weather        - Current weather + 6hr forecast
+GET  /api/location/weather        - Verified current weather (forecast belongs to Briefing)
 GET  /api/location/airquality     - AQI data
 GET  /api/location/pollen         - Pollen count and allergen data
 ```
@@ -52,7 +52,7 @@ POST  /api/location/snapshot              - Save new snapshot
 GET   /api/location/snapshots/:snapshotId - Get snapshot by ID
 GET   /api/snapshot/:id                   - Get snapshot by ID (alias)
 GET   /api/snapshot/latest                - Get latest snapshot for user
-PATCH /api/location/snapshot/:snapshotId/enrich - Enrich existing snapshot with additional data
+PATCH /api/location/snapshot/:snapshotId/enrich - Fetch verified environment for saved coordinates; body values ignored
 ```
 
 ### Briefing Generation
@@ -71,12 +71,12 @@ GPS coords → /api/location/resolve
         │    └─ MISSING → INSERT row keyed  │
         │       on the authenticated user_id │
         │                                   │
-        │ 2. Check coords_cache (~11m)      │
+        │ 2. Check exact six-decimal key   │
         │    ├─ HIT → use cached address    │
         │    └─ MISS → call Google APIs     │
         │                                   │
         │ 3. Reuse current_snapshot_id      │
-        │    if fresh + same city, else     │
+        │    if fresh + same exact coords,  │
         │    create new snapshot            │
         └───────────────────────────────────┘
                     ↓
@@ -84,17 +84,24 @@ GPS coords → /api/location/resolve
 ```
 
 **Snapshot Creation:**
-1. Client calls `/api/location/snapshot` with resolved data
-2. Server can also pull from users table if client data missing (fallback)
-3. Enriches with airport proximity, holiday detection
-4. **2026-02-01:** Copies `market` from `driver_profiles.market` (for market-wide event discovery)
-5. Stores complete context in snapshots table
+1. The normal client flow calls `/api/location/resolve`; the server saves a pending snapshot.
+2. Full V1 requests must have an exact server-resolved `coords_cache` row. Minimal requests resolve through Google. Browser labels and creation times do not establish location identity or freshness.
+3. `/snapshot/:snapshotId/enrich` uses the owned snapshot's coordinates to fetch and atomically save weather/air, source receipts and readiness. Completed snapshots stay immutable. Missing required data blocks readiness.
+4. Market identity is looked up from the current resolved location; home-profile market is not substituted.
+5. Holiday and airport briefing sections are produced by the Briefing pipeline. Strategy waits for complete Snapshot and Briefing source records.
 
-**Market Field (2026-02-01):**
-- Snapshots now include a `market` column (e.g., "Dallas-Fort Worth")
-- Copied from `driver_profiles.market` at snapshot creation time
-- Used by briefing service for market-wide event/news discovery
-- Avoids repeated `us_market_cities` lookups during briefing generation
+The current environment contract, cache limits, observation ages and legacy-row behavior are documented in [the September 12 decision](../../../docs/architecture/2026-09-12-SNAPSHOT-ENVIRONMENT.md).
+
+September 10, 2026: airport context uses the pure `buildAirportContext` mapper
+in `server/lib/location/airport-context.js`. FAA minutes and delay flags remain
+nullable; unavailable/unsupported status does not mean zero delay or a closure.
+Ground stops remain separate from whole-airport closure, and restrictions retain
+their scope/reason. Feed and retrieval timestamps are copied only when supplied.
+
+**Market Field (September 12, 2026):**
+- The existing `market` column describes the current coordinate-resolved location.
+- A missing market stays pending; the driver's home market does not fill it.
+- Briefing uses the saved value for market-wide discovery.
 
 ## Caching (Four-Tier)
 

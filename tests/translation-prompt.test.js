@@ -1,5 +1,5 @@
 // tests/translation-prompt.test.js
-// 2026-04-10: Tests for the 3-attempt translation response parser
+// 2026-04-10: Tests for the validated translation response parser
 import { parseTranslationResponse } from '../server/api/translate/translation-prompt.js';
 
 describe('parseTranslationResponse', () => {
@@ -27,7 +27,7 @@ describe('parseTranslationResponse', () => {
     expect(() => parseTranslationResponse(input)).toThrow('Failed to parse translation response');
   });
 
-  it('handles JSON with markdown link artifacts (attempt 3 aggressive cleanup)', () => {
+  it('ignores unrelated JSON fields without rewriting translated text', () => {
     const input = '{"translatedText":"hello","detectedLang":"es","targetLang":"en","confidence":85,"note":"see (example.com)"}';
     const result = parseTranslationResponse(input);
     expect(result.translatedText).toBe('hello');

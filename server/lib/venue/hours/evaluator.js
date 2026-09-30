@@ -371,7 +371,7 @@ function findNextOpenTime(schedule, startDayIndex, currentMinutes) {
 
     if (daySchedule.is_24h) {
       // Opens at midnight of this day
-      const minutes = offset === 0 ? 0 : (offset * 24 * 60);
+      const minutes = offset === 0 ? 0 : (offset * 24 * 60) - currentMinutes;
       return { time: '00:00', minutes };
     }
 

@@ -47,6 +47,7 @@ export const STORAGE_KEYS = {
   // 2026-08-14 (Melody: "keep it as just one or maybe have an AI voice selector
   // in preferences"): Gemini Live prebuilt voice name (e.g. 'Aoede'). Unset =
   // API default. Set from Settings → Coach Voice; applied at session connect.
+  COACH_LIVE_VOICE_NAME: 'vectopilot_coach_openai_live_voice',
   COACH_VOICE_NAME: 'vectopilot_coach_voice_name',
 } as const;
 

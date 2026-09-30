@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Sparkles, Send, MessageSquare } from 'lucide-react';
+import { Loader2, Send, MessageSquare } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { getLocalHour } from '@/lib/daypart';
 
@@ -67,6 +67,8 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { requestRef.current?.abort(); requestRef.current = null; }, [token, lat, lng, timezone]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -75,12 +77,16 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
 
   // 2026-04-02: Streaming implementation — tokens appear in real time via SSE
   const sendQuestion = async (question: string) => {
-    if (!question.trim() || isLoading) return;
+    if (!question.trim() || requestRef.current || !timezone) return;
     if (questionCount >= MAX_QUESTIONS_PER_SESSION) {
       setError('Question limit reached. Refresh the page to ask more.');
       return;
     }
 
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const current = () => requestRef.current === controller && !controller.signal.aborted;
+    const deadline = window.setTimeout(() => controller.abort(), 90000);
     const userMessage: ChatMessage = { role: 'user', content: question.trim() };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -95,6 +101,8 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
     try {
       const response = await fetch(API_ROUTES.CONCIERGE.PUBLIC_ASK_STREAM(token), {
         method: 'POST',
+        credentials: 'omit',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: question.trim(),
@@ -107,6 +115,7 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         }),
       });
 
+      if (!current()) return;
       if (!response.ok || !response.body) {
         setMessages(prev => {
           const updated = [...prev];
@@ -120,50 +129,39 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
-
-          try {
-            const data = JSON.parse(jsonStr);
-
-            if (data.done) break;
-
-            if (data.error) {
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[assistantIdx] = { role: 'assistant', content: data.error };
-                return updated;
-              });
-              break;
-            }
-
-            if (data.delta) {
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[assistantIdx] = {
-                  role: 'assistant',
-                  content: (updated[assistantIdx]?.content || '') + data.delta,
-                };
-                return updated;
-              });
-            }
-          } catch {
-            // Skip unparseable chunks
+      let finished = false;
+      const consume = (line: string) => {
+        if (finished || !line.startsWith('data:')) return;
+        const json = line.slice(5).trim();
+        if (!json) return;
+        const data = JSON.parse(json);
+        if (data.error) throw new Error(String(data.error));
+        if (data.done) { finished = true; return; }
+        if (typeof data.delta === 'string' && data.delta) setMessages(prev => {
+          const updated = [...prev];
+          updated[assistantIdx] = { role: 'assistant', content: (updated[assistantIdx]?.content || '') + data.delta };
+          return updated;
+        });
+      };
+      try {
+        while (!finished) {
+          const { done, value } = await reader.read();
+          if (!current()) return;
+          if (done) {
+            buffer += decoder.decode();
+            if (buffer.trim()) consume(buffer);
+            if (!finished) throw new Error('The answer ended before it was complete.');
+            break;
           }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n'); buffer = lines.pop() || '';
+          for (const line of lines) consume(line);
         }
-      }
-    } catch {
+      } finally { await reader.cancel(); }
+
+    } catch (caught) {
+      if (requestRef.current !== controller) return;
+      setError(controller.signal.aborted ? 'The answer timed out. Please try again.' : caught instanceof Error ? caught.message : 'The answer could not be completed.');
       setMessages(prev => {
         const updated = [...prev];
         if (updated[assistantIdx]) {
@@ -175,8 +173,12 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         return updated;
       });
     } finally {
-      setIsLoading(false);
-      inputRef.current?.focus();
+      window.clearTimeout(deadline);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setIsLoading(false);
+        inputRef.current?.focus();
+      }
     }
   };
 
@@ -188,135 +190,26 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
   const remainingQuestions = MAX_QUESTIONS_PER_SESSION - questionCount;
 
   return (
-    <div className="flex flex-col flex-1">
-      {/* ═══ CHAT AREA ═══ */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {/* Empty state — welcome + suggested questions */}
+    <div className="flex flex-col flex-1 min-h-0">
+      <div role="log" aria-live="polite" className="flex-1 overflow-auto p-4 space-y-2.5 bg-gray-50 dark:bg-slate-800">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center min-h-[300px] py-8">
-            {/* Welcome icon — large circle matching Coach style */}
-            <div className="inline-flex items-center justify-center h-16 w-16 bg-purple-500/15 rounded-full mb-5">
-              <MessageSquare className="h-8 w-8 text-purple-400" />
-            </div>
-
-            <h2 className="text-xl font-bold text-white mb-2">
-              How can I help?
-            </h2>
-            <p className="text-sm text-slate-400 mb-8 text-center max-w-xs leading-relaxed">
-              Ask me about restaurants, events, safety, directions — anything about the area.
-            </p>
-
-            {/* Suggested questions — daypart-aware (2026-04-18) */}
-            <div className="flex flex-wrap justify-center gap-2 max-w-sm">
-              {getSuggestedQuestions(timezone).map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendQuestion(q)}
-                  disabled={isLoading}
-                  className="text-xs px-4 py-2.5 bg-slate-800/60 text-slate-300 rounded-full border border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all disabled:opacity-50"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+          <div className="text-center py-8 space-y-4">
+            <div className="inline-flex items-center justify-center h-14 w-14 bg-blue-100 dark:bg-blue-900 rounded-full"><MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" /></div>
+            <h2 className="font-semibold text-gray-900 dark:text-white text-base">Hello! I'm Your Concierge</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Ask about nearby places, directions, or local events. I can search the web too.</p>
+            <div className="flex flex-wrap gap-2 justify-center pt-3">{getSuggestedQuestions(timezone).map(q => <Button key={q} variant="outline" size="sm" className="text-xs bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600" onClick={() => sendQuestion(q)} disabled={isLoading || !timezone}>{q}</Button>)}</div>
           </div>
         )}
-
-        {/* Chat messages */}
-        {messages.length > 0 && (
-          <div className="space-y-4">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="h-6 w-6 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
-                    <Sparkles className="h-3 w-3 text-indigo-400" />
-                  </div>
-                )}
-                {/* 2026-04-09: Added break-words to prevent long URLs/paths from overflowing chat bubbles */}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed break-words ${
-                    msg.role === 'user'
-                      ? 'bg-indigo-600 text-white rounded-br-md'
-                      : 'bg-slate-800 text-slate-200 rounded-bl-md border border-slate-700'
-                  }`}
-                >
-                  {/* 2026-04-02: Render newlines in assistant responses as line breaks */}
-                  {msg.role === 'assistant' ? (
-                    msg.content.split('\n').map((line, i) => (
-                      <span key={i}>
-                        {line}
-                        {i < msg.content.split('\n').length - 1 && <br />}
-                      </span>
-                    ))
-                  ) : (
-                    msg.content
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {/* Loading indicator — only shows before first streaming token arrives */}
-            {isLoading && (!messages.length || !messages[messages.length - 1]?.content) && (
-              <div className="flex justify-start">
-                <div className="h-6 w-6 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
-                  <Sparkles className="h-3 w-3 text-indigo-400" />
-                </div>
-                <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-bl-md px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-1.5 w-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <div className="h-1.5 w-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <div className="h-1.5 w-1.5 bg-indigo-400 rounded-full animate-bounce" />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+        {messages.map((message, index) => <p key={index} className="break-words whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200"><span className="font-semibold">{message.role === 'user' ? 'You' : 'Concierge'}: </span>{message.content || (isLoading ? 'Thinking...' : '')}</p>)}
+        <div ref={messagesEndRef} />
       </div>
-
-      {/* ═══ INPUT BAR (pinned to bottom, matches Coach styling) ═══ */}
-      <div className="p-3 border-t border-slate-800 bg-slate-900">
-        {/* Error message */}
-        {error && (
-          <p className="text-xs text-red-400 text-center mb-2">{error}</p>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto w-full">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={remainingQuestions > 0 ? 'Ask anything about the area...' : 'Question limit reached'}
-            disabled={isLoading || remainingQuestions <= 0}
-            className="flex-1 min-w-0 text-sm px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-full text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-            maxLength={500}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={!input.trim() || isLoading || remainingQuestions <= 0}
-            className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
+      <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900">
+        {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300 mb-2">{error}</p>}
+        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+          <input ref={inputRef} aria-label="Ask the concierge" type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Ask about the area..." disabled={isLoading || !timezone || remainingQuestions <= 0} className="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-600 p-3 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white" maxLength={500} />
+          <Button type="submit" size="icon" aria-label="Send question" disabled={!input.trim() || isLoading || !timezone || remainingQuestions <= 0}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button>
         </form>
-
-        {/* Remaining questions counter */}
-        {questionCount > 0 && remainingQuestions > 0 && (
-          <p className="text-center text-[10px] text-slate-600 mt-1.5">
-            {remainingQuestions} question{remainingQuestions !== 1 ? 's' : ''} remaining
-          </p>
-        )}
+        {questionCount > 0 && <p className="mt-2 text-xs text-gray-500">{remainingQuestions} questions remaining this visit.</p>}
       </div>
     </div>
   );

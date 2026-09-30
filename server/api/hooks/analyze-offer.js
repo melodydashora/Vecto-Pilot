@@ -2,7 +2,7 @@
 // Real-time ride offer analysis endpoint for Siri Shortcuts / Mobile Automation
 //
 // 2026-02-28: TWO-PHASE ARCHITECTURE
-//   Phase 1 (Sync):  Gemini Flash with ultra-lean prompt → instant Siri response (<2s target)
+//   Phase 1 (Sync): offer extraction + configured gates → text for the phone to speak
 //   Phase 2 (Async):  Gemini 3.1 Pro deep analysis → rich reasoning saved to DB (fire-and-forget)
 //
 // Previous history:
@@ -23,6 +23,7 @@ import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-of
 import { normalizeOfferBody, normalizeShortcutSystem } from '../../lib/offers/normalize-offer-body.js';
 import { downscaleOfferImage } from '../../lib/offers/downscale-offer-image.js';
 import { parseModelJson } from '../../lib/offers/parse-model-json.js';
+import { adjudicatePhase1, mergePhase1Extraction, normalizePhase1Model, offerNumber } from '../../lib/offers/phase1-decision.js';
 // 2026-06-20: Unified rules engine — single source for the prompts AND the
 // deterministic fallback (replaces the inline PHASE1_PROMPTS + JS ladder below).
 // 2026-07-03 (todo #10): v3 — per-driver rules. classifyTier now comes from the
@@ -34,7 +35,6 @@ import {
   buildPhase1Prompt,
   buildPhase1VisionPrompt,
   buildPhase2Prompt,
-  evaluateDeterministic,
   evaluateGeoRules,
   classifyTier,
   checkSanity,
@@ -52,6 +52,7 @@ import { haversineDistanceMiles } from '../../lib/location/geo.js';
 // 2026-02-17: Shared utilities for structured analytics columns
 import { getDayPartKey, getLocalHour, getLocalDow, getLocalDateString } from '../../lib/location/daypart.js';
 import { coordsKey } from '../../lib/location/coords-key.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { latLngToCell } from 'h3-js';
 // 2026-04-16: FIX — resolve driver timezone from coords so temporal columns are local, not UTC
 // 2026-08-17: also from the geocoded pickup address (first address on the card) — see Phase 2
@@ -135,58 +136,18 @@ async function requireShortcutUser(req, res, next) {
 // check and the model's ACCEPT stood with the garbage rendered straight into the
 // notification. Strip the currency dressing so the number reaches the gates; anything
 // still unparseable stays null (a missing number, honestly missing).
-const toNum = (v) => {
-  if (v == null || v === '') return null;
-  const n = typeof v === 'string' ? parseFloat(v.replace(/[$\s,]/g, '')) : v;
-  return Number.isFinite(n) ? n : null;
-};
+const toNum = offerNumber;
 
-// ═══ IMPLAUSIBLE-PARSE TRIPWIRE (2026-08-26; live incident 2026-08-24) ═════════
-// The phone's OCR dropped the decimal in "$7.50" → "$750"; the parser accepted it, the
-// text-lane model echoed the pre-parse, and the driver heard "Accept. 163 dollars four per
-// mile… about 2368 dollars an hour". No money field had a plausibility bound anywhere
-// between the OCR and the spoken verdict. rules-engine checkSanity() is the one
-// arithmetic authority; it is applied at THREE seats in this file — (1) inside
-// evaluateDeterministic, (2) on the text lane BEFORE any model call (no model spend on
-// garbage; the answer is deterministic so it is cached for replay), (3) as a FINAL gate
-// after vision arbitration so nothing downstream can promote an implausible number to
-// ACCEPT. Fail loud, never fake: the only honest verdict is NO DATA — decide manually.
-// Keys the SERVER decides. A model reply carrying them is data smuggling, not extraction.
-const SERVER_OWNED_KEYS = ['implausible', 'implausible_problems', 'reason_kind', 'tip_thin', 'offer_kind'];
-function stripServerOwnedKeys(value) {
-  if (!value || typeof value !== 'object') return value;
-  for (const k of SERVER_OWNED_KEYS) delete value[k];
-  return value;
-}
-
-// The one honest answer when a verdict cannot be rendered: say so, cache nothing that
-// claims more than we know, and skip Phase 2 (there is nothing to enrich).
-function respondNoData(res, startTime, dedupClaim, priorReason) {
+// Unrenderable data is never an implicit rejection or acceptance.
+function respondNoData(res, startTime, dedupClaim, priorReason, ruleReceipt) {
   const payload = {
-    success: true,
-    voice: 'No data. Decide manually.',
-    notification: 'NO DATA: no data',
-    decision: 'NO DATA',
-    response_time_ms: Date.now() - startTime,
-    reason: 'no data',
-    notices: [],
+    success: true, voice: 'No data. Decide manually.', notification: 'NO DATA: no data',
+    decision: 'NO DATA', ...ruleReceipt, analyzed_at: new Date().toISOString(),
+    response_time_ms: Date.now() - startTime, reason: 'no data', notices: [],
   };
   dedupClaim?.fail(new Error(`unrenderable verdict (${priorReason || 'no reason'}) — not cached for replay`));
   res.json(payload);
   return payload;
-}
-
-function implausibleResult(sane, src = {}) {
-  const perMileText = sane.perMile != null ? `$${sane.perMile.toFixed(2)}/mi` : (sane.price != null ? `$${sane.price}` : 'numbers');
-  return {
-    ...src,
-    decision: 'NO DATA',
-    reason: `${perMileText} implausible — decide manually`,
-    reason_kind: 'implausible_parse',
-    implausible: true,
-    implausible_problems: sane.problems,
-    confidence: 0,
-  };
 }
 
 // 2026-04-16: Build TTS-friendly voice line for Siri Shortcuts "Speak Text" action.
@@ -213,7 +174,7 @@ function buildVoiceLine(decision, perMile, totalMiles, reason, { delivery = fals
 
   // 2026-04-16: FIX — produce an actionable message when offer data couldn't be parsed,
   // instead of bare "Unknown." which gives Siri nothing useful to speak.
-  if (perMile == null || totalMiles == null || isNaN(perMile) || isNaN(totalMiles)) {
+  if (decision === 'NO DATA' || perMile == null || totalMiles == null || isNaN(perMile) || isNaN(totalMiles)) {
     return 'No data. Decide manually.';
   }
 
@@ -286,10 +247,8 @@ const upload = multer({
 });
 
 // 2026-06-20: Phase-1 prompts now come from server/lib/offers/rules-engine.js
-// (buildPhase1Prompt) — ONE source renders the prompt AND drives the deterministic
-// fallback. buildPhase1Prompt(tier, DEFAULT_RULESET) is byte-identical to the old
-// inline PHASE1_PROMPTS (proven in tests/offers/rules-engine-parity.test.js), so the
-// live Siri path is unchanged until a per-user ruleset is loaded.
+// (buildPhase1Prompt). Numeric rules are shared with the evaluator. Every model
+// verdict is now adjudicated through phase1-decision.js before it can be spoken.
 
 // 2026-07-03 (todo #10): the Phase-2 deep prompt now comes from the rules engine
 // (buildPhase2Prompt) — it renders the driver's ACTUAL ruleset, replacing the
@@ -354,8 +313,8 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
           : 'image/jpeg');
       text = null;
       device_id = req.query.device_id;
-      latitude = req.query.latitude ? parseFloat(req.query.latitude) : undefined;
-      longitude = req.query.longitude ? parseFloat(req.query.longitude) : undefined;
+      latitude = req.query.latitude;
+      longitude = req.query.longitude;
       source = req.query.source || 'android_vision';
       console.log(`[HOOKS] Raw image upload: ${Math.round(b.length / 1024)}KB ${image_type} (file-body mode)`);
     } else if (req.file) {
@@ -366,8 +325,8 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       // Form fields come through req.body even with multer
       text = offerBody.text || null;
       device_id = offerBody.device_id;
-      latitude = offerBody.latitude ? parseFloat(offerBody.latitude) : undefined;
-      longitude = offerBody.longitude ? parseFloat(offerBody.longitude) : undefined;
+      latitude = offerBody.latitude;
+      longitude = offerBody.longitude;
       source = offerBody.source || 'siri_vision';
       const sizeKB = Math.round(req.file.size / 1024);
       console.log(`[HOOKS] Multipart upload: ${sizeKB}KB ${image_type} (server-encoded base64 in <1ms)`);
@@ -379,7 +338,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-07-03 (todo #10): identity bridge — an unguessable per-user token
     // resolves user_id + per-driver ruleset. Header preferred; form field
     // accepted (Shortcuts dictionaries are easier to edit than headers).
-    // No/invalid token → DEFAULT_RULESET + null user_id (legacy behavior).
+    // No token retains anonymous defaults; a provided invalid token blocks analysis.
     const shortcutToken = req.get('x-shortcut-token') || offerBody.shortcut_token || req.query?.shortcut_token || null;
     // 2026-08-26 (Melody 2026-08-24): self-reported client signature — provenance for
     // forensics ("which OCR client sent this?"), never identity. Header, field or query.
@@ -390,16 +349,41 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     if (!text && !image) {
       return res.status(400).json({ error: 'Missing text or image payload' });
     }
+    const suppliedCoordinates = latitude !== undefined || longitude !== undefined;
+    const offerCoordinates = normalizeCoordinates(latitude, longitude);
+    if (suppliedCoordinates && !offerCoordinates) {
+      return res.status(400).json({
+        success: false, decision: 'NO DATA', reason: 'Invalid coordinates',
+        reason_kind: 'invalid_coordinates', personal_rules_verified: false,
+        ruleset_version: null, analyzed_at: new Date().toISOString(),
+        voice: 'No data. Location could not be verified. Retry when safe.',
+        notification: 'NO DATA: invalid location. Retry when safe.',
+      });
+    }
 
     // 2026-07-03 (todo #10): the per-user ruleset bridge. Token → user + rules;
-    // no token → DEFAULT_RULESET (zero change for un-migrated devices). The
-    // store fail-opens loudly and caches 15s, so this read is hot-path safe
-    // (measured Phase-1 p50 is 5.3s; this is ~10ms once per burst).
+    // no token → anonymous DEFAULT_RULESET. A provided token must resolve its
+    // actual personal rules; a failure returns a spoken NO DATA before analysis.
     // 2026-08-17: resolved BEFORE the idempotency gate — the ruleset hash is part of
     // the fingerprint, so "same card, rules just changed" is a NEW analysis, not a replay
     // (review: the documented test-before-you-drive loop re-sends the same card after a
     // rules edit).
-    const { ruleset, userId, version: rulesetVersion, hash: rulesetHash } = await resolveRuleset(shortcutToken);
+    const { ruleset, userId, version: rulesetVersion, hash: rulesetHash, status: rulesStatus, selectedServices = null } = await resolveRuleset(shortcutToken);
+    if (shortcutToken && (!ruleset || !userId)) {
+      return res.json({
+        success: false, decision: 'NO DATA', reason: 'Personal rules unavailable',
+        personal_rules_verified: false, ruleset_version: null, analyzed_at: new Date().toISOString(),
+        reason_kind: rulesStatus || 'rules_unavailable',
+        voice: 'No data. Your personal rules could not be verified. Decide manually and retry when safe.',
+        notification: 'NO DATA: personal rules unavailable. Retry when safe.',
+        response_time_ms: Date.now() - startTime, notices: [],
+      });
+    }
+    const ruleReceipt = {
+      personal_rules_verified: Boolean(shortcutToken && userId && ruleset),
+      ruleset_version: rulesetVersion ?? null,
+      selection_verified: selectedServices !== null,
+    };
     if (userId) console.log(`[HOOKS] Ruleset resolved: user=${userId} v${rulesetVersion ?? 'default'}`);
 
     // ═══ IDEMPOTENCY GATE ═════════════════════════════════════════════════════
@@ -412,7 +396,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // falls through to a normal analysis; payloads where neither text nor image is
     // a string are not fingerprinted at all (nothing to compare).
     const requestHash = (typeof text === 'string' || typeof image === 'string')
-      ? requestFingerprint({ identity: `${shortcutToken || device_id || req.ip || 'unknown'}|${rulesetHash || 'default'}`, text, image })
+      ? requestFingerprint({ identity: `${shortcutToken || device_id || req.ip || 'unknown'}|${rulesetHash || 'default'}|${JSON.stringify(selectedServices)}`, text, image })
       : null;
     try {
       let claim = requestHash ? requestDedup.claim(requestHash) : null;
@@ -442,13 +426,12 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
 
     console.log(`[HOOKS] 📱 Incoming from ${device_id || 'anonymous'} (${source}${shortcutSystem ? ` via ${shortcutSystem}` : ''})`);
 
-    // 2026-02-16: Use 6-decimal precision (~11cm) per codebase standard (coords-key.js)
-    // Previous 3-decimal (~110m) was too imprecise for algorithm learning
-    const lat = latitude ? Math.round(latitude * 1000000) / 1000000 : null;
-    const lng = longitude ? Math.round(longitude * 1000000) / 1000000 : null;
+    // Six-decimal representation does not claim sensor accuracy. Zero is valid.
+    const lat = offerCoordinates?.lat ?? null;
+    const lng = offerCoordinates?.lng ?? null;
 
     // Market slug uses coarse 1-decimal buckets for geographic clustering
-    const market = (lat && lng) ? `${lat.toFixed(1)}_${lng.toFixed(1)}` : null;
+    const market = offerCoordinates ? `${lat.toFixed(1)}_${lng.toFixed(1)}` : null;
 
     // 1. PRE-PARSE OCR text server-side — regex extraction of price, miles, times
     // 2026-02-16: Deterministic, <1ms, more reliable than LLM math.
@@ -517,17 +500,20 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // Vision-only requests can't classify tier before the model looks at the
     // screenshot, so they get the multi-tier vision prompt (the model identifies
     // the product and applies that tier's rules). Text requests keep the exact
-    // per-tier prompt (byte-pinned at defaults).
+    // per-tier prompt with the same extraction contract.
     const phase1SystemPrompt = text
       ? buildPhase1Prompt(tier, ruleset)
       : buildPhase1VisionPrompt(ruleset);
 
-    // Share = instant reject, skip AI call entirely
-    if (tier === 'share') {
+    // Anonymous Share decisions need no enrichment. Verified drivers continue
+    // through the normal second sweep so their Coach can see the rejected offer.
+    if (tier === 'share' && !userId) {
       const responseTimeMs = Date.now() - startTime;
       console.log(`[HOOKS] Share tier auto-reject (${responseTimeMs}ms)`);
       const sharePayload = {
         success: true,
+        ...ruleReceipt,
+        analyzed_at: new Date().toISOString(),
         // 2026-04-16: TTS line for Siri "Speak Text" — no per-mile data on share path.
         voice: 'Reject. Share tier.',
         notification: 'REJECT: share',
@@ -542,257 +528,64 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       return res.json(sharePayload);
     }
 
-    // Tier 3 of the extraction ladder AND the answer of last resort: the
-    // deterministic rule engine over the regex pre-parse. Decision-parity with
-    // the legacy ladder is proven in tests/offers/rules-engine-parity.test.js.
-    // 2026-08-14: takes an optional precomputed verdict + log label so the
-    // fast lane below can reuse it without double-evaluating.
-    const deterministicPhase1 = (fb = evaluateDeterministic(tier, preParsed || {}, ruleset), label = 'Deterministic fallback') => {
-      if (fb.decision === 'NO DATA') {
-        // No usable per_mile — "no data", not "REJECT" (reserved for rule-evaluated offers).
-        return { decision: 'NO DATA', reason: 'no data', confidence: 0 };
-      }
-      const totalMi = preParsed.total_miles?.toFixed(1) ?? '?';
-      const result = {
-        decision: fb.decision,
-        reason: terseReason(fb.reasonKind, fb.perMile ?? preParsed.per_mile, totalMi, tier),
-        reason_kind: fb.reasonKind,
-        confidence: 80,
-        ...(fb.fallback ? { fallback: true } : {}),
-        ...(fb.delivery ? { per_hour: fb.perHour ?? null, tip_thin: fb.tipThin === true } : {}),
-        ...preParsed,
-      };
-      console.log(`[HOOKS] 🔧 ${label}: ${fb.decision} — ${result.reason}`);
-      return result;
-    };
-
-    // ═══ FAST LANE — deterministic REJECT (2026-08-14, todo #43 <3s target) ═══
-    // A confident text pre-parse that the rules engine REJECTS answers Siri in
-    // ~1ms with NO model in the sync path. REJECT-only is parity-safe under ANY
-    // ruleset: every prompt-side judgment rule (avoid zones, safety_road_types,
-    // round-trip/multi-stop, require_verified, rating) is REJECT-ONLY in a
-    // first-match ladder, so nothing the model sees can rescue an engine REJECT.
-    // Engine ACCEPTs and NO DATA still go to the model, which owns the judgment
-    // rules. parse_confidence 'full' required: as the PRIMARY decider the
-    // pre-parse must have price + both leg pairs (stricter than the fallback role).
+    // The same arithmetic/selection boundary handles OCR, vision and mixed cards.
+    // A deterministic ride rejection is final; a potential acceptance still needs
+    // the model's judgment checks. Delivery has no ride judgment gates.
+    const adjudicate = model => adjudicatePhase1({ preParsed, model, ruleset, selectedServices });
+    const earlyResult = adjudicate(null);
+    const earlyFinal = earlyResult.reason_kind === 'share'
+      || earlyResult.reason_kind === 'service_disabled'
+      || earlyResult.implausible === true
+      || earlyResult.reason_kind === 'delivery_off'
+      // A delivery label alone cannot supply missing fare/duration/distance.
+      // Incomplete OCR continues to the model, which also receives any screenshot.
+      || (text && tier === 'delivery' && preParsed?.parse_confidence === 'full')
+      || (text && preParsed?.parse_confidence === 'full' && earlyResult.decision === 'REJECT');
+    let phase1Result = earlyFinal ? earlyResult : null;
     let phase1Response = null;
-    let phase1Result = null;
-    // false when the model was asked and did not deliver a usable verdict (timeout / failure /
-    // unparseable / no decision) and the engine answered instead — the answer is still spoken
-    // (always-answer contract) but NOT cached for replay (idempotency gate).
     let phase1Authoritative = true;
-
-    // ═══ SANITY TRIPWIRE — text lane, seat (2): before any model spend ═════════
-    // A pre-parse that fails checkSanity is answered NO DATA right here. The model would
-    // only echo the poisoned PRE-PARSED line (that is exactly what happened on
-    // 2026-08-24), and a deterministic answer is safe to cache for replay.
-    if (text && preParsed?.price != null) {
-      const sane = checkSanity(preParsed, ruleset);
-      if (!sane.ok) {
-        phase1Result = implausibleResult(sane, preParsed);
-        console.warn(`[HOOKS] 🚧 Implausible parse (text lane, model skipped): ${sane.problems.join('; ')} — NO DATA`);
-      }
+    if (phase1Result && text && phase1Result.decision === 'REJECT') {
+      const enabledNotices = ruleset.global?.notices || {};
+      phase1Result.notices = [
+        ['on_the_way_filter', /\bon the way\b/i],
+        ['verified_rider', /\bverified\b/i],
+      ].filter(([key, re]) => enabledNotices[key] && re.test(text))
+        .map(([key]) => NOTICE_LABELS[key]);
     }
 
-    // ═══ DELIVERY LANE — text (2026-08-26, v3.2) ═══════════════════════════════
-    // No judgment rule applies to a delivery (no rating, no Verified, no pickup split),
-    // so the engine's two-floor block IS the whole decision — no model call. Vision-lane
-    // deliveries go through the model (it must read the card) and are arbitrated below.
-    if (!phase1Result && text && tier === 'delivery') {
-      const v = evaluateDeterministic('delivery', preParsed, ruleset);
-      phase1Result = deterministicPhase1(v, 'Delivery lane (deterministic)');
-      if (v.decision === 'NO DATA' && v.reasonKind === 'delivery_off') {
-        phase1Result = { decision: 'NO DATA', reason: 'delivery off', reason_kind: 'delivery_off', confidence: 0, ...preParsed };
-      }
-    }
-
-    if (!phase1Result && text && preParsed?.parse_confidence === 'full' && preParsed.per_mile != null) {
-      const fastVerdict = evaluateDeterministic(tier, preParsed, ruleset);
-      if (fastVerdict.decision === 'REJECT') {
-        phase1Result = deterministicPhase1(fastVerdict, 'Fast lane (model skipped)');
-        // Driver-enabled notices, detected from the SAME text the model would
-        // read — regex beats model observation for fixed card strings.
-        // deadhead_reduction is a map visual ("…"), undetectable on the text
-        // lane for the model too, so its absence here is parity, not regression.
-        const enabledNotices = ruleset.global?.notices || {};
-        const fastNotices = [
-          ['on_the_way_filter', /\bon the way\b/i],
-          ['verified_rider', /\bverified\b/i],
-        ].filter(([key, re]) => enabledNotices[key] && re.test(text))
-          .map(([key]) => NOTICE_LABELS[key]);
-        if (fastNotices.length) phase1Result.notices = fastNotices;
-      }
-    }
-
-    // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed. Skipped entirely when
-    // the fast lane above already answered.
-    // 2026-07-03: wrapped in a 20s race (the Shortcut gives up at ~30s; the SDK
-    // has no built-in timeout) and made failure-proof — a model failure or
-    // timeout now falls through to the deterministic engine instead of a 500.
-    // The rules always answer; NO DATA is the honest floor when nothing parsed.
     if (!phase1Result) {
-      console.log(`[HOOKS] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [${tier}]${images.length ? ' [vision]' : ''}...`);
+      console.log(`[HOOKS] Phase 1: calling OFFER_ANALYZER [${tier}]${images.length ? ' [vision]' : ''}`);
       const PHASE1_TIMEOUT_MS = 20000;
+      const phase1Controller = new AbortController();
+      let phase1Timer;
       try {
         phase1Response = await Promise.race([
           callModel('OFFER_ANALYZER', {
-            system: phase1SystemPrompt,
-            user: phase1UserMessage,
-            images,
+            system: phase1SystemPrompt, user: phase1UserMessage, images, signal: phase1Controller.signal,
           }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Phase 1 timed out after ${PHASE1_TIMEOUT_MS / 1000}s`)), PHASE1_TIMEOUT_MS)
-          ),
+          new Promise((_, reject) => {
+            phase1Timer = setTimeout(() => {
+              phase1Controller.abort();
+              reject(new Error(`Phase 1 timed out after ${PHASE1_TIMEOUT_MS / 1000}s`));
+            }, PHASE1_TIMEOUT_MS);
+          }),
         ]);
       } catch (aiErr) {
-        console.warn(`[HOOKS] Phase 1 model call failed (${aiErr.message}) — deterministic fallback`);
+        console.warn(`[HOOKS] Phase 1 model unavailable (${aiErr.message})`);
+      } finally {
+        clearTimeout(phase1Timer);
       }
-      if (phase1Response && !phase1Response.success) {
-        console.warn(`[HOOKS] Phase 1 AI analysis failed (${phase1Response.error}) — deterministic fallback`);
-      }
-
-      // Tolerant JSON extraction (parse-model-json.js): clean → brace-slice → repair a
-      // missing closing brace (live-observed 2026-08-17). Anything worse → rules engine.
-      if (!phase1Response?.success) {
-        phase1Result = deterministicPhase1();
-        phase1Authoritative = false;
-      } else {
-        const parsed = parseModelJson(phase1Response.text);
-        if (parsed.ok) {
-          // 2026-08-26 (review): the reply is model-authored text that becomes phase1Result.
-          // Server-owned verdict flags must never arrive from it — a card whose OCR text
-          // says "implausible: true" would otherwise skip our own final sanity gate.
-          phase1Result = stripServerOwnedKeys(parsed.value);
-          if (parsed.tier > 1) console.log(`[HOOKS] Phase 1 JSON recovered (tier ${parsed.tier})`);
-        } else {
-          console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
-          phase1Result = deterministicPhase1();
-          phase1Authoritative = false;
-        }
-      }
-
-      // Honest floor (2026-08-17): a reply that parsed but carries no decision, or that
-      // describes no ride at all (every metric zero — every vision model answers a
-      // non-offer screenshot this way), is NOT a verdict. Hand it to the rules engine,
-      // which answers from the pre-parse when there is one and NO DATA otherwise —
-      // never a fabricated REJECT ("Reject. zero per mile, 0 miles.").
-      if (phase1Result && phase1Response?.success) {
-        const z = (v) => v == null || Number(v) === 0;
-        const noRide = z(phase1Result.per_mile) && z(phase1Result.total_miles) && z(phase1Result.price);
-        if (!phase1Result.decision || noRide) {
-          console.warn(`[HOOKS] Phase 1 reply ${!phase1Result.decision ? 'has no decision' : 'describes no ride'} — deterministic engine answers`);
-          phase1Result = deterministicPhase1();
-          // "describes no ride" is the model's real answer to a non-offer screenshot (authoritative:
-          // the same image will say the same thing); "no decision" is a broken reply → retry-worthy.
-          if (!noRide) phase1Authoritative = false;
-        }
-      }
+      const parsed = phase1Response?.success ? parseModelJson(phase1Response.text) : null;
+      const model = parsed?.ok ? normalizePhase1Model(parsed.value) : null;
+      phase1Authoritative = model !== null;
+      phase1Result = adjudicate(model);
+      if (phase1Result.reason_kind === 'judgment_unavailable') phase1Authoritative = false;
+      if (!model) console.warn('[HOOKS] Phase 1 did not deliver a valid verdict; no ride acceptance without judgment checks');
     }
-
-    // Vision path: the model identified the product (multi-tier prompt) — refine
-    // the tier for the terse tags, Phase-2 context, and stored product_type.
-    if (!phase1Result.product_type && typeof phase1Result.product === 'string' && phase1Result.product) {
-      phase1Result.product_type = phase1Result.product;
-    }
-    const effectiveTier = (!text && phase1Result.product_type)
-      ? classifyTier(phase1Result.product_type, ruleset)
-      : tier;
-
-    // ═══ VISION ARBITRATION (2026-08-17, Melody: "get vision working") ═══════
-    // Code owns the arithmetic. The vision model both extracts and decides in one
-    // call, and live cards showed its own $/mi wobbling across the driver's floor
-    // (1.9 + 4.2 mi summed as ~6.3 → $1.34 vs the true $1.40 against a $1.35 floor
-    // → wrong REJECT). So on the image-only path we recompute per_mile from the
-    // extracted price/miles and re-run the deterministic engine on the extracted
-    // numbers. Engine REJECT (floor / pickup / time / max-miles / ARP miss) can never
-    // be rescued by anything the model saw — it wins. Engine ACCEPT beats a model
-    // REJECT ONLY when the model did not name a judgment rule (judgment_reject in
-    // the vision template: avoid area, road safety, Verified missing, stops, round
-    // trip, share) — those are the model's to make. NO DATA from the engine (no
-    // usable numbers) leaves the model's answer alone.
-    if (!text && phase1Response?.success && phase1Result) {
-      const n = toNum; // same currency-tolerant coercion as everywhere else (review 2026-08-26)
-      const mPrice = n(phase1Result.price);
-      const mMiles = n(phase1Result.total_miles);
-      const mMinutes = n(phase1Result.total_minutes);
-      if (mPrice > 0 && mMiles > 0) phase1Result.per_mile = Math.round((mPrice / mMiles) * 100) / 100;
-      const extracted = {
-        price: mPrice,
-        total_miles: mMiles,
-        total_minutes: mMinutes,
-        per_mile: n(phase1Result.per_mile),
-        per_minute: (mPrice > 0 && mMinutes > 0) ? Math.round((mPrice / mMinutes) * 100) / 100 : null,
-        pickup_miles: n(phase1Result.pickup_miles),
-        pickup_minutes: n(phase1Result.pickup_minutes),
-        rating: (() => { const r = n(phase1Result.rating ?? phase1Result.rider_rating); return r > 0 ? r : null; })(), // 0 = not shown
-      };
-      const judgment = typeof phase1Result.judgment_reject === 'string' ? phase1Result.judgment_reject.trim() : '';
-      // Only arbitrate when the model actually extracted price + miles (else NO DATA territory).
-      extracted.tip_included = phase1Result.tip_included === true; // delivery call-out input
-      const engine = (mPrice > 0 && mMiles > 0)
-        ? evaluateDeterministic(effectiveTier, extracted, ruleset)
-        : { decision: 'NO DATA', reasonKind: 'no_data' };
-      const modelDecision = phase1Result.decision;
-      if (engine.decision === 'NO DATA' && engine.reasonKind === 'implausible_parse') {
-        // Seat (3a): the numbers the model READ are impossible — nobody gets to ACCEPT on them.
-        console.warn(`[HOOKS] 🚧 Vision arbitration: engine implausible_parse (${(engine.problems || []).join('; ')}) overrides model ${modelDecision} — NO DATA`);
-        phase1Result = implausibleResult(checkSanity(extracted, ruleset), { ...phase1Result, ...extracted });
-      } else if (effectiveTier === 'delivery') {
-        // v3.2: the engine OWNS delivery (no judgment rule exists for it); the model only reads the card.
-        if (engine.decision !== 'NO DATA') {
-          if (engine.decision !== modelDecision) console.warn(`[HOOKS] Vision arbitration (delivery): engine ${engine.decision} (${engine.reasonKind}) overrides model ${modelDecision}`);
-          phase1Result.decision = engine.decision;
-          phase1Result.reason = terseReason(engine.reasonKind, engine.perMile, mMiles.toFixed(1), 'delivery');
-          phase1Result.reason_kind = engine.reasonKind;
-          phase1Result.per_hour = engine.perHour ?? null;
-          phase1Result.tip_thin = engine.tipThin === true;
-          delete phase1Result.fallback;
-        } else {
-          // Engine NO DATA on a delivery = the numbers needed for ITS floors are missing
-          // (no usable miles, or no minutes while an hourly floor is set). The model does
-          // not get to decide instead — that is how an unreadable delivery became a spoken
-          // ACCEPT with no hourly check (review 2026-08-26).
-          const offReason = engine.reasonKind === 'delivery_off';
-          console.warn(`[HOOKS] Vision arbitration (delivery): engine NO DATA (${engine.reasonKind}) — the model's ${modelDecision} does not stand`);
-          phase1Result = {
-            ...phase1Result,
-            decision: 'NO DATA',
-            reason: offReason ? 'delivery off' : 'no data',
-            reason_kind: engine.reasonKind,
-          };
-        }
-      } else if (engine.decision === 'REJECT' && modelDecision === 'ACCEPT') {
-        console.warn(`[HOOKS] Vision arbitration: engine REJECT (${engine.reasonKind}) overrides model ACCEPT`);
-        phase1Result.decision = 'REJECT';
-        phase1Result.reason = terseReason(engine.reasonKind, extracted.per_mile, mMiles.toFixed(1), effectiveTier);
-        delete phase1Result.fallback;
-      } else if (engine.decision === 'ACCEPT' && modelDecision === 'REJECT' && !judgment) {
-        console.warn(`[HOOKS] Vision arbitration: engine ACCEPT (${engine.reasonKind}) overrides model REJECT with no judgment reason (model reason: ${phase1Result.reason || '-'})`);
-        phase1Result.decision = 'ACCEPT';
-        phase1Result.reason = terseReason(engine.reasonKind, extracted.per_mile, mMiles.toFixed(1), effectiveTier);
-        if (engine.fallback) phase1Result.fallback = true; else delete phase1Result.fallback;
-      } else if (engine.decision === 'ACCEPT' && modelDecision === 'ACCEPT' && engine.fallback && !phase1Result.fallback) {
-        phase1Result.fallback = true; // ARP accept — label it honestly
-      }
-    }
-
-    // ═══ SANITY TRIPWIRE — seat (3b): final gate on the numbers we are about to speak ══
-    // Covers the text-lane MODEL answer (pre-parse had no price → the model extracted one)
-    // and any path that reached here with numbers nobody checked. Runs on exactly the
-    // values the notification below would render.
-    if (!phase1Result?.implausible && phase1Result?.decision !== 'NO DATA') {
-      const finalNums = {
-        price: toNum(preParsed?.price ?? phase1Result.price),
-        total_miles: toNum(preParsed?.total_miles ?? phase1Result.total_miles),
-        total_minutes: toNum(preParsed?.total_minutes ?? phase1Result.total_minutes),
-        per_mile: toNum(preParsed?.per_mile ?? phase1Result.per_mile),
-        price_format: preParsed?.price_format ?? null,
-      };
-      const sane = checkSanity(finalNums, ruleset);
-      if (!sane.ok) {
-        console.warn(`[HOOKS] 🚧 Implausible numbers at the final gate (${sane.problems.join('; ')}) — overriding ${phase1Result.decision} with NO DATA`);
-        phase1Result = implausibleResult(sane, { ...phase1Result, ...finalNums });
-      }
+    const effectiveTier = phase1Result.tier;
+    if (!phase1Result.reason && phase1Result.decision !== 'NO DATA') {
+      phase1Result.reason = terseReason(phase1Result.reason_kind, phase1Result.decision_per_mile,
+        phase1Result.decision_miles.toFixed(1), effectiveTier);
     }
 
     // Extract decision fields from normalized result
@@ -803,15 +596,15 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
 
     const responseTimeMs = Date.now() - startTime;
 
-    // 2026-03-29: Terse notification for 3s trip radar / 9s regular offers.
+    // Terse notification for the driver's short offer-response window.
     // Format: "ACCEPT: $1.14 8.2mi core" or "REJECT: $0.78 14.0mi too far"
     // Server builds from pre-parsed data when AI reason is missing/verbose.
     // (toNum is module-level since 2026-08-26 — the final sanity gate above needs it too.)
-    const perMileValue = toNum(preParsed?.per_mile ?? phase1Result.per_mile);
-    const totalMi = toNum(preParsed?.total_miles ?? phase1Result.total_miles);
+    const perMileValue = toNum(phase1Result.decision_per_mile ?? phase1Result.per_mile);
+    const totalMi = toNum(phase1Result.decision_miles ?? phase1Result.total_miles);
     // Keep the model-authored terse reason ("$1.34 6.1mi …") consistent with the recomputed
     // figure so voice and notification never disagree on the $/mi.
-    if (!preParsed?.per_mile && perMileValue != null && typeof reason === 'string') {
+    if (perMileValue != null && typeof reason === 'string') {
       reason = reason.replace(/^\$\d+(?:\.\d{1,2})?(?=\s|\/|$)/, `$${perMileValue.toFixed(2)}`);
     }
     // 2026-07-03: renamed from `terseReason` — that const shadowed the module-level
@@ -830,14 +623,17 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     const noticesArr = Array.isArray(phase1Result.notices)
       ? phase1Result.notices.filter((n) => typeof n === 'string' && n.length <= 40).slice(0, 4)
       : [];
+    // Certain product identities can reject before numeric validation. Their
+    // categorical verdict survives bad OCR, but their money must not be spoken.
+    const numericNoticesAllowed = checkSanity(phase1Result, ruleset).ok;
     // v3.1 (2026-08-17, Melody D4): optional $/hr readout — pay ÷ total minutes × 60,
     // computed here from the numbers we already trust (never asked of the model, never a
     // decider — hourly is telemetry per the 2026-08-11/14 doctrine). Rendered on the
     // notification and spoken as a short tail when the driver enabled it.
     let hourlyPhrase = null;
-    if (ruleset.global?.notices?.hourly_rate) {
-      const hrPrice = toNum(preParsed?.price ?? phase1Result.price);
-      const hrMinutes = toNum(preParsed?.total_minutes ?? phase1Result.total_minutes);
+    if (numericNoticesAllowed && ruleset.global?.notices?.hourly_rate) {
+      const hrPrice = toNum(phase1Result.price);
+      const hrMinutes = toNum(phase1Result.total_minutes);
       if (hrPrice > 0 && hrMinutes > 0 && decision !== 'NO DATA') {
         const perHour = Math.round((hrPrice / hrMinutes) * 60);
         noticesArr.push(`$${perHour}/hr`);
@@ -849,9 +645,9 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // line is always disclosed — the driver must know the fare counts an EXPECTED tip.
     const isDelivery = effectiveTier === 'delivery' || phase1Result.offer_kind === 'delivery';
     let deliveryHourlyPhrase = null;
-    if (isDelivery && decision !== 'NO DATA') {
-      const dPrice = toNum(preParsed?.price ?? phase1Result.price);
-      const dMinutes = toNum(preParsed?.total_minutes ?? phase1Result.total_minutes);
+    if (numericNoticesAllowed && isDelivery && decision !== 'NO DATA') {
+      const dPrice = toNum(phase1Result.price);
+      const dMinutes = toNum(phase1Result.total_minutes);
       const dPerHour = toNum(phase1Result.per_hour) ?? ((dPrice > 0 && dMinutes > 0) ? Math.round((dPrice / dMinutes) * 60) : null);
       if (dPerHour != null && !noticesArr.some((n) => /\/hr$/.test(n))) {
         noticesArr.push(`$${dPerHour}/hr`);
@@ -872,7 +668,14 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-04-16: TTS line for Siri "Speak Text" — composes decision + spoken $/mi
     // + miles + optional reason qualifier. Uses formatPerMileForVoice() for the dollar
     // amount and falls back to a bare decision word when pre-parse data is unavailable.
-    let voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText, { delivery: isDelivery });
+    let voice = decision === 'REJECT' && phase1Result.reason_kind === 'share'
+      ? 'Reject. Share tier.'
+      : decision === 'REJECT' && phase1Result.reason_kind === 'service_disabled'
+        ? 'Reject. Service not selected.'
+        : buildVoiceLine(decision, perMileValue, totalMi, terseReasonText, { delivery: isDelivery });
+    if (decision !== 'NO DATA' && phase1Result.decision_basis === 'active_time' && perMileValue != null && totalMi != null) {
+      voice = voice.replace(/\.$/, ', trip miles only.');
+    }
     // 2026-08-17 (Melody: "as long as ARP is in the voice, it tells me to take it and I do"):
     // the notification label keys on the `fallback` FLAG, but the spoken tail was sniffed
     // from the reason TEXT — the engine's reason says "fallback", a model-marked fallback
@@ -902,14 +705,17 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // honest resolution is the one the driver already heard.
     if (decision !== 'NO DATA' && /^No data\./.test(voice)) {
       console.warn(`[HOOKS] Decision ${decision} has no renderable numbers (per_mile=${perMileValue}, miles=${totalMi}) — the spoken line is "no data", so the verdict is NO DATA (reason was: ${terseReasonText || '-'})`);
-      return respondNoData(res, startTime, dedupClaim, terseReasonText);
+      return respondNoData(res, startTime, dedupClaim, terseReasonText, ruleReceipt);
     }
 
     const phase1Payload = {
       success: true,
+      ...ruleReceipt,
+      analyzed_at: new Date().toISOString(),
       voice,
       notification,
       decision,
+      decision_basis: phase1Result.decision_basis ?? null,
       response_time_ms: responseTimeMs,
       // 2026-04-15: Phase-1 reason exposed independently from notification.
       // Same value embedded after the colon in `notification`, but available
@@ -932,7 +738,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // A NO DATA verdict used to run the whole Phase 2 anyway: the deep model, the
     // geocode / Places / Timezone calls, and a stored NO DATA row that only cluttered the
     // Offers card and the stats. The driver already heard "No data. Decide manually."
-    // ONE exception: on the VISION lane when the fast model did not deliver
+    // On the VISION lane when the fast model did not deliver
     // (phase1Authoritative=false — timeout / unparseable), the screenshot may still be a
     // real offer the deep model can read, so Phase 2 runs and that row is real data.
     // When the fast model looked and said "no ride" (home screen, map, chat), stop here.
@@ -942,8 +748,11 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // NO DATA stays the record). Only for a TOKENED driver: nobody can see an anonymous
     // row, so spending the deep model + Google calls on it would be pure cost (review
     // 2026-08-26). A plain NO DATA (home screen, unreadable) still skips everything.
-    const storeImplausible = phase1Result.implausible === true && Boolean(userId);
-    if (decision === 'NO DATA' && !storeImplausible && !(images.length && !phase1Authoritative)) {
+    // Conflicting concrete OCR/model extractions also retain forensic evidence;
+    // neither source becomes trusted money merely because the other disagreed.
+    const extractionConflicts = phase1Result.extraction_conflicts || [];
+    const storeUncertainExtraction = (phase1Result.implausible === true || extractionConflicts.length > 0) && Boolean(userId);
+    if (decision === 'NO DATA' && !storeUncertainExtraction && !(images.length && !phase1Authoritative)) {
       console.log(`[HOOKS] NO DATA${phase1Authoritative ? '' : ' (model did not deliver, text lane)'} — Phase 2 skipped: no deep model, no Google calls, no row`);
       return;
     }
@@ -951,7 +760,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2 — ASYNC: Deep Pro 3.1 analysis for DB enrichment
     // 2026-02-28: Fire-and-forget after res.json(). Images stay in closure scope.
-    // If Pro fails, Phase 1 Flash result is saved to DB instead — data never lost.
+    // Process-local work, not a durable queue: failure/restart can prevent storage.
     // ═══════════════════════════════════════════════════════════════════════
     const platform = preParsed?.platform_hint || phase1Result.platform || 'unknown';
     const deviceId = device_id || 'anonymous_device';
@@ -959,7 +768,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     (async () => {
       try {
         // Build rich context for Phase 2 deep analysis
-        const locationContext = (lat && lng)
+        const locationContext = offerCoordinates
           ? `\nDriver GPS: ${lat}, ${lng} (market: ${market}).`
           : '';
 
@@ -985,8 +794,8 @@ PRE-PARSED DATA (server-verified):
           : 'Analyze this ride offer screenshot in detail.';
 
         // Phase 2 AI call — OFFER_ANALYZER_DEEP (Pro 3.1) for rich reasoning
-        // 2026-02-28: 45s timeout — callGemini SDK has no built-in timeout, so we wrap with Promise.race
-        // to prevent the async IIFE from hanging forever if Pro 3.1 is slow or unresponsive.
+        // The 45s deadline aborts local transport and bounds this background phase.
+        // Client cancellation does not guarantee upstream computation/billing stops.
         const PHASE2_TIMEOUT_MS = 45000;
         console.log(`[HOOKS] 🔬 PHASE 2: Calling OFFER_ANALYZER_DEEP (Pro 3.1, ${PHASE2_TIMEOUT_MS / 1000}s timeout)...`);
         const phase2Start = Date.now();
@@ -1000,29 +809,39 @@ PRE-PARSED DATA (server-verified):
           || (phase1Response?.success ? 'gemini-3.5-flash' : 'rules-engine-deterministic');
         let phase2RawText = null;
 
+        let phase2Timer;
+        const phase2Controller = new AbortController();
         try {
           const phase2Promise = callModel('OFFER_ANALYZER_DEEP', {
             system: phase2System,
             user: phase2UserMessage,
-            images,
+            images, signal: phase2Controller.signal,
           });
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Phase 2 timed out after ${PHASE2_TIMEOUT_MS / 1000}s`)), PHASE2_TIMEOUT_MS)
-          );
+          const timeoutPromise = new Promise((_, reject) => {
+            phase2Timer = setTimeout(() => {
+              phase2Controller.abort();
+              reject(new Error(`Phase 2 timed out after ${PHASE2_TIMEOUT_MS / 1000}s`));
+            }, PHASE2_TIMEOUT_MS);
+          });
           const phase2Response = await Promise.race([phase2Promise, timeoutPromise]);
 
-          if (phase2Response.success) {
+          if (phase2Response?.success) {
             phase2RawText = phase2Response.text;
             const parsedDeep = parseModelJson(phase2Response.text, { unwrap: false }); // keep the envelope
-            if (!parsedDeep.ok) throw new Error(`Phase 2 reply was not JSON (raw: ${JSON.stringify(String(phase2Response.text ?? '').slice(0, 240))})`); // 2026-08-17: snippet — Phase 1 already logs its raw text on parse-fail
+            if (!parsedDeep.ok || !parsedDeep.value || typeof parsedDeep.value !== 'object' || Array.isArray(parsedDeep.value)
+              || (parsedDeep.value.parsed_data != null && (typeof parsedDeep.value.parsed_data !== 'object' || Array.isArray(parsedDeep.value.parsed_data)))) {
+              throw new Error('Phase 2 reply did not contain a valid extraction object');
+            }
             deepResult = parsedDeep.value;
             aiModelUsed = phase2Response.model || 'gemini-3.1-pro-preview'; // 2026-06-11: the model Phase 2 ACTUALLY ran (a 503 fallback correctly reports flash here)
             console.log(`[HOOKS] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
           } else {
-            console.warn(`[HOOKS] Phase 2 AI call failed: ${phase2Response.error} — falling back to Phase 1 result`);
+            console.warn(`[HOOKS] Phase 2 AI call failed: ${phase2Response?.error || 'no response'} — falling back to Phase 1 result`);
           }
         } catch (phase2Err) {
           console.warn(`[HOOKS] Phase 2 error: ${phase2Err.message} — falling back to Phase 1 result`);
+        } finally {
+          clearTimeout(phase2Timer);
         }
 
         // Use deep result for EXTRACTION, but the stored decision is what Siri
@@ -1032,6 +851,16 @@ PRE-PARSED DATA (server-verified):
         // outcomes card show a recommendation that never happened. Deep dissent
         // is preserved as data (deep_decision + prefixed reasoning), not history.
         const dbParsedData = deepResult?.parsed_data || phase1Result;
+        const phase1NumbersComplete = phase1Result.price > 0 && phase1Result.total_miles > 0 && phase1Result.total_minutes > 0;
+        // Choose one extraction bundle. Never combine a Phase-1 total with different
+        // deep-model legs, or fill only the stored duration from another source.
+        const storageSource = phase1NumbersComplete ? phase1Result : {
+          ...dbParsedData, total_miles: dbParsedData.total_miles ?? dbParsedData.miles,
+        };
+        const storageNumbers = mergePhase1Extraction(null, storageSource);
+        const storageSanity = checkSanity(storageNumbers, ruleset);
+        const storageImplausible = phase1Result.implausible === true || !storageSanity.ok;
+        const storageQuarantined = storageImplausible || extractionConflicts.length > 0;
         const dbDecision = decision;
         const deepDisagrees = deepResult?.decision != null && deepResult.decision !== decision;
         const dbReasoning = deepResult?.reasoning
@@ -1044,24 +873,37 @@ PRE-PARSED DATA (server-verified):
         const mergedParsedData = {
           ...(preParsed || {}),
           ...dbParsedData,
-          per_mile: preParsed?.per_mile ?? dbParsedData?.per_mile,
-          per_minute: preParsed?.per_minute ?? dbParsedData?.per_minute,
+          ...storageNumbers,
+          // Versioned adjudication provenance applies only to newly analyzed rows.
+          // Keep the original fast extraction when a deep bundle fills its blanks.
+          phase1_contract_version: 1,
+          phase1_result: phase1Result,
+          storage_metrics_source: phase1NumbersComplete ? 'phase1' : (deepResult?.parsed_data ? 'phase2' : 'phase1'),
+          storage_quarantined: storageQuarantined,
+          extraction_conflicts: extractionConflicts,
+          decision_basis: phase1Result.decision_basis ?? null,
+          decision_per_mile: phase1Result.decision_per_mile ?? null,
+          decision_miles: phase1Result.decision_miles ?? null,
+          decision_minutes: phase1Result.decision_minutes ?? null,
+          selected_services: selectedServices,
+          selection_verified: selectedServices !== null,
           location_analysis: locationAnalysis,
           // Phase-2's independent verdict — training signal, never the record.
           deep_decision: deepResult?.decision ?? null,
           deep_disagrees: deepDisagrees,
           // v3.2 (2026-08-26): provenance + lane facts the Offers card renders.
           reason_kind: phase1Result.reason_kind ?? null,          // 'implausible_parse' | 'delivery_*' | engine kinds | null (model-authored)
-          implausible: phase1Result.implausible === true,
-          implausible_problems: phase1Result.implausible_problems ?? null,
-          offer_kind: preParsed?.offer_kind ?? (effectiveTier === 'delivery' ? 'delivery' : (deepResult?.parsed_data?.offer_kind ?? 'ride')),
-          tip_included: preParsed?.tip_included ?? (phase1Result.tip_included === true),
+          implausible: storageImplausible,
+          implausible_problems: storageImplausible
+            ? [...new Set([...(phase1Result.implausible_problems || []), ...storageSanity.problems])] : null,
+          offer_kind: effectiveTier === 'delivery' ? 'delivery' : 'ride',
+          tip_included: storageNumbers.tip_included,
           shortcut_system: shortcutSystem,                          // self-reported client (never identity)
         };
 
         // 2026-02-17: Compute geographic columns
-        const coordKeyValue = (lat && lng) ? coordsKey(lat, lng) : null;
-        const h3Index = (lat && lng) ? latLngToCell(lat, lng, 8) : null;
+        const coordKeyValue = offerCoordinates ? coordsKey(lat, lng) : null;
+        const h3Index = offerCoordinates ? latLngToCell(lat, lng, 8) : null;
 
         // ═══ TIMEZONE + CARD-ADDRESS GEOCODE ═════════════════════════════════════
         // 2026-04-16: FIX — temporal columns must reflect driver's local time, not UTC.
@@ -1096,7 +938,7 @@ PRE-PARSED DATA (server-verified):
             const snapRes = await db.execute(sql`
               SELECT s.timezone, s.lat, s.lng, s.created_at
               FROM users u
-              JOIN snapshots s ON s.snapshot_id = u.current_snapshot_id
+              JOIN snapshots s ON s.snapshot_id = u.current_snapshot_id AND s.user_id = u.user_id
               WHERE u.user_id = ${userId}
               LIMIT 1`);
             const row = snapRes.rows?.[0];
@@ -1132,7 +974,7 @@ PRE-PARSED DATA (server-verified):
         }
         // ANCHOR = the driver's last known position + how old that knowledge is: GPS (age 0)
         // else a fresh snapshot. It biases the geocoder and bounds what is physically plausible.
-        const geoBias = (lat && lng) ? { lat, lng, ageHours: 0 }
+        const geoBias = offerCoordinates ? { lat, lng, ageHours: 0 }
           : (snapshot?.fresh && Number.isFinite(snapshot.lat) && Number.isFinite(snapshot.lng)) ? { lat: snapshot.lat, lng: snapshot.lng, ageHours: snapshot.ageHours }
           : null;
         // Every Google call on this path is bounded (review 2026-08-17): a hung request must
@@ -1198,7 +1040,7 @@ PRE-PARSED DATA (server-verified):
 
         let driverTimezone = null;
         let timezoneSource = null;
-        if (lat && lng) {
+        if (offerCoordinates) {
           try {
             driverTimezone = await timezoneMemoized(lat, lng);
             if (driverTimezone) timezoneSource = 'gps';
@@ -1212,7 +1054,7 @@ PRE-PARSED DATA (server-verified):
             if (puTz) {
               driverTimezone = puTz;
               timezoneSource = 'pickup_address';
-              console.log(`[HOOKS] Timezone ${puTz} from pickup address ("${pickupAddr}" → ${pickupPoint.formatted_address}; via ${pickupPoint.via}, trust=${pickupPoint.trust}, corroborated by ${pickupPoint.corroboration}${pickupPoint.distance_mi != null ? ` at ${pickupPoint.distance_mi} mi` : ''})`);
+              console.log(`[HOOKS] Timezone ${puTz} from pickup address (via ${pickupPoint.via}, trust=${pickupPoint.trust}, corroborated by ${pickupPoint.corroboration}${pickupPoint.distance_mi != null ? ` at ${pickupPoint.distance_mi} mi` : ''}; address redacted from logs 2026-09-10)`);
               // Audit line, NOT a switch: the snapshot is GPS-truth for where the app was
               // LAST OPENED; the pickup is where THIS offer is. A trusted pickup in another
               // zone means the driver moved since (road trip) — visible here, not silent.
@@ -1231,7 +1073,7 @@ PRE-PARSED DATA (server-verified):
         }
         if (!driverTimezone) {
           console.error(
-            `[HOOKS] ❌ No timezone derivable (coords: ${lat && lng ? 'present but API failed' : 'absent'}, ` +
+            `[HOOKS] ❌ No timezone derivable (coords: ${offerCoordinates ? 'present but API failed' : 'absent'}, ` +
             `pickup address: ${pickupAddr ? (pickupPoint ? 'resolved but Timezone API failed' : 'unresolvable (no trusted geocode/place)') : 'absent'}, ` +
             `user: ${userId ? 'tokened but no session snapshot' : 'un-tokened device'}) — offer NOT stored. ` +
             'No fallbacks: a row without real local-time context is bad waterfall data.'
@@ -1284,7 +1126,7 @@ PRE-PARSED DATA (server-verified):
         const pickupPt = pickupPoint?.precise ? { lat: round6(pickupPoint.lat), lng: round6(pickupPoint.lng) } : null;
         const dropPt = dropoffPoint?.precise ? { lat: round6(dropoffPoint.lat), lng: round6(dropoffPoint.lng) } : null;
         if ((pickupPoint && !pickupPt) || (dropoffPoint && !dropPt)) {
-          console.log(`[HOOKS] Area-level point(s) kept out of coords/audit: ${[pickupPoint && !pickupPt ? `pickup → ${pickupPoint.formatted_address}` : null, dropoffPoint && !dropPt ? `dropoff → ${dropoffPoint.formatted_address}` : null].filter(Boolean).join('; ')}`);
+          console.log(`[HOOKS] Area-level point(s) kept out of coords/audit: ${[pickupPoint && !pickupPt ? `pickup (${pickupPoint.trust})` : null, dropoffPoint && !dropPt ? `dropoff (${dropoffPoint.trust})` : null].filter(Boolean).join('; ')}`);
         }
         if (pickupPt || dropPt) {
           const geoAudit = (ruleset.avoid || []).length
@@ -1313,7 +1155,7 @@ PRE-PARSED DATA (server-verified):
           dropoff_geo_corroboration: dropoffPoint?.corroboration ?? null,
           dropoff_geo_precise: dropoffPoint ? dropoffPoint.precise : null,
           dropoff_anchor_distance_mi: dropoffPoint?.distance_mi ?? null,
-          anchor_source: geoBias ? ((lat && lng) ? 'gps' : 'snapshot') : null,
+          anchor_source: geoBias ? (offerCoordinates ? 'gps' : 'snapshot') : null,
           anchor_age_hours: geoBias ? Math.round((geoBias.ageHours ?? 0) * 10) / 10 : null,
           pickup_partial_match: puGeo ? puGeo.partial_match : null,   // raw Geocoding flags
           dropoff_partial_match: drGeo ? drGeo.partial_match : null,
@@ -1369,38 +1211,32 @@ PRE-PARSED DATA (server-verified):
             ruleset_version: rulesetVersion,
             ruleset_hash: rulesetHash,
 
-            // 2026-08-26 (review): an implausible parse stores NO money columns. The
-            // numbers are known-wrong, and every consumer that aggregates them (the hook's
+            // Implausible or conflicting extraction stores NO money columns. These
+            // numbers are unverified, and every consumer that aggregates them (the hook's
             // avg_per_mile, the Coach's offer patterns) would inherit the poison. The full
             // extraction survives in parsed_data_json + raw_text for forensics; the columns
             // stay NULL so nothing can average a $163/mi that never existed.
-            ...(phase1Result.implausible === true ? {
+            ...(storageQuarantined ? {
               price: null, per_mile: null, per_minute: null, hourly_rate: null, surge: null,
               advantage_pct: null, pickup_minutes: null, pickup_miles: null,
               ride_minutes: null, ride_miles: null, total_miles: null, total_minutes: null,
             } : {
-            // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math).
-            // 2026-07-03: vision-only requests have NO pre-parse, so every metric now
-            // falls back to the vision extraction (Phase-2 deep, then Phase-1) —
-            // previously total_minutes/pickup_miles/ride_miles stored NULL for the
-            // exact modality that is becoming primary.
-            price: toNum(preParsed?.price ?? dbParsedData?.price),
-            per_mile: perMileValue,
-            per_minute: toNum(preParsed?.per_minute ?? dbParsedData?.per_minute ?? phase1Result?.per_minute),
+            // Full-ride metrics from one normalized extraction bundle. Active-time
+            // decision rates remain separate in parsed_data_json.
+            price: storageNumbers.price,
+            per_mile: storageNumbers.per_mile,
+            per_minute: storageNumbers.per_minute,
             hourly_rate: toNum(preParsed?.hourly_rate),
             surge: toNum(preParsed?.surge ?? dbParsedData?.surge),
             advantage_pct: toNum(preParsed?.advantage_pct),
-            pickup_minutes: toNum(preParsed?.pickup_minutes ?? dbParsedData?.pickup_minutes ?? phase1Result?.pickup_minutes),
-            pickup_miles: toNum(preParsed?.pickup_miles ?? dbParsedData?.pickup_miles ?? phase1Result?.pickup_miles),
-            ride_minutes: toNum(preParsed?.ride_minutes ?? dbParsedData?.ride_minutes),
-            ride_miles: toNum(preParsed?.ride_miles ?? dbParsedData?.ride_miles),
-            total_miles: toNum(preParsed?.total_miles ?? dbParsedData?.miles ?? phase1Result?.total_miles),
-            total_minutes: toNum(preParsed?.total_minutes ?? phase1Result?.total_minutes)
-              ?? ((toNum(dbParsedData?.pickup_minutes) != null && toNum(dbParsedData?.ride_minutes) != null)
-                ? toNum(dbParsedData.pickup_minutes) + toNum(dbParsedData.ride_minutes)
-                : null),
+            pickup_minutes: storageNumbers.pickup_minutes,
+            pickup_miles: storageNumbers.pickup_miles,
+            ride_minutes: storageNumbers.ride_minutes,
+            ride_miles: storageNumbers.ride_miles,
+            total_miles: storageNumbers.total_miles,
+            total_minutes: storageNumbers.total_minutes,
             }),
-            product_type: preParsed?.product_type ?? dbParsedData?.product_type ?? null,
+            product_type: phase1Result.product_type ?? dbParsedData?.product_type ?? null,
             platform,
 
             // Addresses (from AI parsing — regex doesn't extract these)
@@ -1465,8 +1301,8 @@ PRE-PARSED DATA (server-verified):
             offer_id: insertedId,
             decision: dbDecision,
             reasoning: typeof dbReasoning === 'string' && dbReasoning.length > 1000 ? `${dbReasoning.slice(0, 1000)}…` : dbReasoning,
-            price: dbParsedData?.price,
-            per_mile: perMileValue,
+            price: storageQuarantined ? null : storageNumbers.price,
+            per_mile: storageQuarantined ? null : storageNumbers.per_mile,
             platform,
             response_time_ms: responseTimeMs,
             ai_model: aiModelUsed,
@@ -1502,6 +1338,8 @@ PRE-PARSED DATA (server-verified):
     dedupClaim?.fail(error); // never replay a failure — the next identical request analyzes fresh
     res.status(500).json({
       success: false,
+      personal_rules_verified: false, ruleset_version: null,
+      analyzed_at: new Date().toISOString(),
       // 2026-04-16: TTS line for Siri — em-dash in notification doesn't speak well, so use period.
       voice: 'Analysis failed. Decide manually.',
       notification: 'Analysis failed — decide manually',
@@ -1553,7 +1391,7 @@ router.get('/offer-history', offerHookLimiter, requireShortcutUser, async (req, 
         created_at: offer_intelligence.created_at,
       })
       .from(offer_intelligence)
-      .where(sql`user_id = ${req.shortcutUserId}`)
+      .where(sql`user_id = ${req.shortcutUserId} AND removed_at IS NULL`)
       .orderBy(sql`created_at DESC`)
       .limit(maxLimit);
 

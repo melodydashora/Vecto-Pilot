@@ -24,7 +24,10 @@ const EXEC_TIMEOUT_MS = 20_000;
 const EXEC_MAX_BUFFER = 8 * 1024 * 1024;
 
 // Directories that are never listed, read, or searched.
-export const DENIED_DIRS = ['node_modules', '.git', '.cache', '.local', '.worktrees', 'logs', 'data', 'dist', 'coverage', '.npm'];
+// 2026-09-15: '.config' added — it holds the persisted Claude/Codex config homes (OAuth
+// tokens, MCP tokens, full session transcripts) and AI-session coordination bundles
+// (3.3 GB). Never readable through MCP, and walking it pushed repo_search past 10 s.
+export const DENIED_DIRS = ['node_modules', '.git', '.cache', '.config', '.local', '.worktrees', 'logs', 'data', 'dist', 'coverage', '.npm'];
 // File name patterns that are never read (secrets), regardless of gitignore.
 const DENIED_FILE_PATTERNS = [
   /(^|\/)\.env(\.|$)/,                 // .env, .env.local, .env.production … (but NOT .env.local.example? — it matches; handled below)
@@ -70,6 +73,29 @@ async function isGitIgnored(baseDir, rel) {
     if (typeof err.code === 'number' && err.code === 1) return false;   // exit 1 → not ignored
     return false;              // git unavailable / not a repo → do not block on it
   }
+}
+
+/**
+ * 2026-09-10 (security finding [6], verified): read_file consulted the deny list + gitignore,
+ * but search results and directory listings did not, so grep could return lines from .env /
+ * key files and list_dir could name them. One batched `git check-ignore --stdin` per call.
+ */
+async function gitIgnoredSet(baseDir, rels) {
+  const list = rels.filter(r => r && r !== '.');
+  if (!list.length) return new Set();
+  return new Promise((resolve) => {
+    const child = execFile('git', ['-C', baseDir, 'check-ignore', '--stdin'], { timeout: 5000, maxBuffer: EXEC_MAX_BUFFER }, (err, stdout) => {
+      // exit 0 → some ignored (listed on stdout); exit 1 → none; anything else → don't block on git
+      if (err && !(typeof err.code === 'number' && (err.code === 0 || err.code === 1))) return resolve(new Set());
+      resolve(new Set(String(stdout || '').split('\n').filter(Boolean)));
+    });
+    child.stdin.on('error', () => {});
+    child.stdin.end(list.join('\n') + '\n');
+  });
+}
+
+function isDeniedRel(rel) {
+  try { assertAllowedPath(rel); return false; } catch { return true; }
 }
 
 async function guardedPath(baseDir, p) {
@@ -136,8 +162,12 @@ export function registerRepoTools(server, { baseDir, audit = (_n, fn) => fn }) {
     const { abs, rel } = await guardedPath(baseDir, p || '.');
     const entries = await fs.readdir(abs, { withFileTypes: true });
     const rows = [];
+    const candidateRels = entries.filter(e => !DENIED_DIRS.includes(e.name)).map(e => (rel ? `${rel}/${e.name}` : e.name));
+    const ignored = await gitIgnoredSet(baseDir, candidateRels);
     for (const e of entries) {
       if (DENIED_DIRS.includes(e.name)) continue;
+      const entryRel = rel ? `${rel}/${e.name}` : e.name;
+      if (isDeniedRel(entryRel) || ignored.has(entryRel)) continue;   // secrets-shaped or gitignored: not listed
       let size = null;
       if (e.isFile()) {
         try { size = (await fs.stat(path.join(abs, e.name))).size; } catch { size = null; }
@@ -172,12 +202,18 @@ export function registerRepoTools(server, { baseDir, audit = (_n, fn) => fn }) {
       else throw new Error(`grep failed: ${err.stderr || err.message}`);
     }
     const base = path.resolve(baseDir);
-    const all = stdout.split('\n').filter(Boolean);
-    const rows = all.slice(0, max).map(line => {
+    const parsed = stdout.split('\n').filter(Boolean).map(line => {
       const m = /^(.*?):(\d+):(.*)$/.exec(line);
-      if (!m) return { file: line, line: null, text: '' };
+      if (!m) return { file: path.relative(base, line).split(path.sep).join('/'), line: null, text: '' };
       return { file: path.relative(base, m[1]).split(path.sep).join('/'), line: Number(m[2]), text: m[3].slice(0, 400) };
     });
+    // Apply the read-side policy to every hit BEFORE counting/truncating, so a deny-listed or
+    // gitignored file contributes neither content nor a tell-tale count.
+    const files = [...new Set(parsed.map(r => r.file))];
+    const ignored = await gitIgnoredSet(baseDir, files);
+    const allowed = new Set(files.filter(f => !isDeniedRel(f) && !ignored.has(f)));
+    const all = parsed.filter(r => allowed.has(r.file));
+    const rows = all.slice(0, max);
     return toolResult({ pattern, path: rel || '.', total_matches: all.length, truncated: all.length > max, rows });
   }));
 

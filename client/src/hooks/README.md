@@ -26,6 +26,15 @@ Custom React hooks for data fetching and UI state.
 
 ## Active Hooks
 
+### useVenueFeedback
+
+Reads saved driver choices through the pure `/api/blocks-fast/saved` endpoint.
+Authenticated dismiss/upvote/restore requests use an idempotent UUID and apply
+only validated receipts for the current user, snapshot and ranking. An older
+read cannot replace a newer receipt. The hook updates the existing blocks cache
+after confirmation and retains dismissal action IDs for reloadable Undo; it
+does not request strategy generation or change global venue scores.
+
 ### useBriefingQueries
 ```typescript
 const { weatherData, trafficData, newsData, eventsData, isLoading } = useBriefingQueries({ snapshotId });

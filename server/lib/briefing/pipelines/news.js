@@ -24,58 +24,8 @@ import { callModel } from '../../ai/adapters/index.js';
 import { safeJsonParse } from '../shared/safe-json-parse.js';
 import { getMarketForLocation } from '../shared/get-market-for-location.js';
 import { writeSectionAndNotify, CHANNELS, errorMarker } from '../briefing-notify.js';
-
-/**
- * Filter news items to only include articles from the last 2 days.
- * 2026-01-31: Tightened from 7 days to 2 days - since we fetch fresh on every
- * login/refresh, we only want TODAY's news (with 1 day buffer for timezone edge cases).
- *
- * Safety net in case AI returns outdated articles despite prompt instructions.
- *
- * @param {Array} newsItems - Array of news items with optional published_date field
- * @param {string} todayDate - Today's date in YYYY-MM-DD format
- * @returns {Array} Filtered news items
- */
-function filterRecentNews(newsItems, todayDate) {
-  if (!Array.isArray(newsItems) || newsItems.length === 0) {
-    return newsItems;
-  }
-
-  const today = new Date(todayDate);
-  // 2026-01-31: Tightened from 7 days to 2 days (today + yesterday buffer)
-  const twoDaysAgo = new Date(today);
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-
-  const filtered = newsItems.filter(item => {
-    // If no published_date, include with warning (can't verify freshness)
-    if (!item.published_date) {
-      briefingLog.warn(2, `News item missing date: "${item.title?.slice(0, 40)}..."`, OP.AI);
-      return true; // Include but log warning
-    }
-
-    try {
-      const pubDate = new Date(item.published_date);
-      if (isNaN(pubDate.getTime())) {
-        briefingLog.warn(2, `Invalid date format: ${item.published_date}`, OP.AI);
-        return true; // Include but log warning
-      }
-
-      const isRecent = pubDate >= twoDaysAgo;
-      if (!isRecent) {
-        briefingLog.warn(2, `Filtered stale news (${item.published_date}): "${item.title?.slice(0, 40)}..."`, OP.AI);
-      }
-      return isRecent;
-    } catch (err) {
-      return true; // Include on error
-    }
-  });
-
-  if (filtered.length < newsItems.length) {
-    briefingLog.info(`Filtered ${newsItems.length - filtered.length} stale news items`, OP.AI);
-  }
-
-  return filtered;
-}
+import { filterFreshNews } from '../../strategy/strategy-utils.js';
+import { getLocalDateString } from '../../../../shared/dayparts.js';
 
 /**
  * Build the enhanced news prompt with Market, City, Airport, Headlines.
@@ -142,23 +92,19 @@ export async function fetchRideshareNews({ snapshot }) {
   // 2026-01-09: Require ALL location data - no fallbacks for global app
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
     briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch news', OP.AI);
-    return { items: [], reason: 'Location data not available (missing timezone)' };
+    throw new Error('News snapshot missing required location or timezone');
   }
   const city = snapshot.city;
   const state = snapshot.state;
   const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
 
-  // Get current date in user's timezone
-  let date;
-  if (snapshot?.local_iso) {
-    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
-  } else {
-    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
-  }
+  // local_iso is the snapshot's stored wall clock, not a current absolute instant.
+  // Search today's news in the same explicit timezone used by saved readers.
+  const date = getLocalDateString(new Date(), timezone);
 
   // 2026-04-16: Resolve market — snapshot.market is authoritative, DB lookup is fallback.
   // Null means genuinely unknown; buildNewsPrompt handles the placeholder.
-  const market = snapshot.market || await getMarketForLocation(city, state);
+  const market = snapshot.market || await getMarketForLocation(city, state, snapshot.country);
   if (!market) {
     briefingLog.warn(2, `No market resolved for ${city}, ${state} — news search will use [unknown-market] placeholder`, OP.AI);
   }
@@ -188,7 +134,7 @@ export async function fetchRideshareNews({ snapshot }) {
       secondaryCat: 'NEWS',
       location: 'pipelines/news.js:fetchRideshareNews',
     }, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`);
-    return { items: [], reason: 'Briefer model not configured' };
+    throw new Error('News provider not configured');
   }
 
   try {
@@ -206,19 +152,21 @@ export async function fetchRideshareNews({ snapshot }) {
         secondaryCat: 'NEWS',
         location: 'pipelines/news.js:fetchRideshareNews',
       }, 'News fetch failed', result.error);
-      return { items: [], reason: 'news-fetch-failed', provider: 'briefer' };
+      throw new Error('News provider failed: ' + (result.error || 'unknown provider failure'));
     }
 
     const parsed = safeJsonParse(result.output);
-    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
+    const newsArray = Array.isArray(parsed) ? parsed : parsed?.items;
+    if (!Array.isArray(newsArray)) throw new Error('News response is not a valid items array');
 
     if (newsArray.length === 0) {
       briefingLog.info(`No news items found for ${market}`, OP.AI);
-      return { items: [], reason: `No rideshare news found for ${market} market`, provider: 'briefer' };
+      return { items: [], reason: parsed?.reason || `No rideshare news found for ${market} market`, provider: 'briefer' };
     }
 
-    // Filter recent news + sort by impact
-    const filtered = filterRecentNews(newsArray, date);
+    // One strict freshness policy for collection, saved readers and Strategy:
+    // valid publication dates, driver-local calendar cutoff, no future reports.
+    const filtered = filterFreshNews(newsArray, new Date(), timezone);
     const sorted = filtered.sort((a, b) => {
       const impactOrder = { high: 0, medium: 1, low: 2 };
       return (impactOrder[a.impact] ?? 2) - (impactOrder[b.impact] ?? 2);
@@ -228,12 +176,12 @@ export async function fetchRideshareNews({ snapshot }) {
 
     return {
       items: sorted,
-      reason: null,
+      reason: sorted.length === 0 ? 'All returned news was outside the requested date window' : null,
       provider: 'briefer'
     };
   } catch (err) {
     briefingLog.error(2, `News fetch error: ${err.message}`, err, OP.AI);
-    return { items: [], reason: `News fetch error: ${err.message}`, provider: 'briefer' };
+    throw err;
   }
 }
 

@@ -3,7 +3,7 @@
 // Updated 2026-01-05: Added schema awareness and action validation
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { appendFile, readFile } from 'fs/promises';
+import { appendFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../../db/drizzle.js';
@@ -11,51 +11,41 @@ import { snapshots, strategies, driver_profiles } from '../../../shared/schema.j
 import { eq, desc, sql } from 'drizzle-orm';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { isOperator } from '../../middleware/require-operator.js';
 import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { voiceTurnsLimiter } from '../../middleware/rate-limit.js';
 import { validateAction } from '../rideshare-coach/validate.js';
+import { parseActions } from './parse-actions.js';
+import { saveMemoWithReceipt } from '../rideshare-coach/memos.js';
 // 2026-08-14 (voice-turns): model provenance for voice_transcript rows comes
 // from the registry (COACH_VOICE_LIVE role), never a hardcoded model string.
 import { getRoleConfig } from '../../lib/ai/model-registry.js';
+import { formatCoachSourceContext } from '../../lib/ai/coach-source-context.js';
+import { getCoachContextProgress } from '../../lib/ai/coach-context-progress.js';
+import { readCoachResponse } from '../../lib/ai/adapters/coach-responses.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
 
 const router = Router();
 
-// ═══════════════════════════════════════════════════════════════════════════
-// OFFER ANALYZER RULES — read-only context loader (2026-05-05)
-// Caches the canonical rules doc + LLM role registry once per process so the
-// Coach can reason about WHY the analyzer recommended what it did without
-// burning disk reads on every chat turn.
-// ═══════════════════════════════════════════════════════════════════════════
-
-let _offerRulesCache = null;
-async function getOfferAnalyzerRules() {
-  if (_offerRulesCache !== null) return _offerRulesCache;
-
-  const __dirname_chat = path.dirname(fileURLToPath(import.meta.url));
-  const rootDir = path.join(__dirname_chat, '..', '..', '..');
-  const docPath = path.join(rootDir, 'docs', 'architecture', 'OFFER_ANALYZER.md');
-  const registryPath = path.join(rootDir, 'server', 'lib', 'ai', 'model-registry.js');
-
+// History belongs to each saved observation's timezone. The UTC instant and
+// explicit offset keep repeated DST wall times distinguishable across sessions.
+function formatSnapshotHistoryTime(snapshot) {
+  const saved = snapshot.created_at;
+  const isInstant = saved instanceof Date || (typeof saved === 'string' &&
+    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(saved));
+  const instant = isInstant ? new Date(saved) : null;
+  if (!instant || !Number.isFinite(instant.getTime())) return 'Saved timestamp unavailable';
+  const recorded = instant.toISOString();
   try {
-    const [doc, registry] = await Promise.all([
-      readFile(docPath, 'utf-8').catch(err => {
-        console.warn(`[COACH] Failed to read OFFER_ANALYZER.md: ${err.message}`);
-        return '';
-      }),
-      readFile(registryPath, 'utf-8').catch(err => {
-        console.warn(`[COACH] Failed to read model-registry.js: ${err.message}`);
-        return '';
-      })
-    ]);
-    _offerRulesCache = { doc, registry };
-    console.log(`[COACH] Loaded offer analyzer rules: doc=${doc.length}c, registry=${registry.length}c`);
-    return _offerRulesCache;
-  } catch (err) {
-    console.error('[COACH] Unexpected error loading offer rules:', err.message);
-    _offerRulesCache = { doc: '', registry: '' };
-    return _offerRulesCache;
+    if (typeof snapshot.timezone !== 'string' || !snapshot.timezone.trim()) throw new Error('Missing saved timezone');
+    const local = instant.toLocaleString('en-US', {
+      timeZone: snapshot.timezone, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'longOffset',
+    });
+    return `${local} (${snapshot.timezone}; recorded ${recorded})`;
+  } catch {
+    return `Local time unavailable (saved timezone missing or invalid; recorded ${recorded})`;
   }
 }
 
@@ -64,184 +54,17 @@ async function getOfferAnalyzerRules() {
 // Parse special action tags from AI responses and execute them
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Parse AI actions from response text
- * 2026-01-06: P1-B fix - Improved to handle nested JSON properly
- *
- * Supports two formats:
- * 1. Legacy inline: [SAVE_NOTE: {...}] (kept for backward compat)
- * 2. JSON envelope: ```json\n{"actions": [...], "response": "..."}\n``` (preferred)
- */
-function parseActions(responseText) {
-  const actions = {
-    notes: [],
-    events: [],
-    news: [],
-    systemNotes: [],
-    zoneIntel: [],
-    eventReactivations: [],
-    addEvents: [],          // 2026-02-17: Coach-created events from driver intel
-    updateEvents: [],       // 2026-02-17: Coach-corrected event details
-    coachMemos: [],         // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
-    marketIntel: [],        // 2026-03-18: C-3 — market-wide intelligence from driver conversations
-    venueIntel: [],         // 2026-03-18: C-3 — staging spots, GPS dead zones, venue intel
-    offerDecisions: [],     // 2026-05-05: New offer decisions to log (coach_offer_decisions)
-    offerDecisionUpdates: [],// 2026-05-05: Lifecycle/verdict updates on existing decisions
-    offerIntelBackfills: [] // 2026-05-05: Ground-truth backfills onto offer_intelligence
-  };
-
-  let cleanedText = responseText;
-
-  // 2026-03-18: FIX (H-3) — Match only JSON blocks containing "actions" array.
-  // Previous regex captured the first ```json block, which could be a code example.
-  const jsonEnvelopeMatch = responseText.match(/```json\s*([\s\S]*?"actions"\s*:\s*\[[\s\S]*?)\s*```/);
-  if (jsonEnvelopeMatch) {
-    try {
-      const envelope = JSON.parse(jsonEnvelopeMatch[1]);
-      if (envelope.actions && Array.isArray(envelope.actions)) {
-        for (const action of envelope.actions) {
-          const actionType = action.type?.toUpperCase();
-          const actionData = action.data || action;
-
-          if (actionType === 'SAVE_NOTE') actions.notes.push(actionData);
-          else if (actionType === 'DEACTIVATE_EVENT') actions.events.push(actionData);
-          else if (actionType === 'REACTIVATE_EVENT') actions.eventReactivations.push(actionData);
-          else if (actionType === 'ADD_EVENT') actions.addEvents.push(actionData);
-          else if (actionType === 'UPDATE_EVENT') actions.updateEvents.push(actionData);
-          else if (actionType === 'COACH_MEMO') actions.coachMemos.push(actionData);
-          else if (actionType === 'DEACTIVATE_NEWS') actions.news.push(actionData);
-          else if (actionType === 'SYSTEM_NOTE') actions.systemNotes.push(actionData);
-          else if (actionType === 'ZONE_INTEL') actions.zoneIntel.push(actionData);
-          else if (actionType === 'MARKET_INTEL') actions.marketIntel.push(actionData);
-          else if (actionType === 'SAVE_VENUE_INTEL') actions.venueIntel.push(actionData);
-          // 2026-05-05: Offer decision pipeline
-          else if (actionType === 'LOG_OFFER_DECISION') actions.offerDecisions.push(actionData);
-          else if (actionType === 'UPDATE_OFFER_DECISION') actions.offerDecisionUpdates.push(actionData);
-          else if (actionType === 'BACKFILL_OFFER_INTEL') actions.offerIntelBackfills.push(actionData);
-        }
-        // Use the response field if present, otherwise remove the JSON block
-        cleanedText = envelope.response || responseText.replace(jsonEnvelopeMatch[0], '').trim();
-        console.log(`[COACH] Parsed JSON envelope: ${envelope.actions.length} actions`);
-        return { actions, cleanedText };
-      }
-    } catch (e) {
-      console.warn(`[COACH] JSON envelope parse failed, falling back to regex:`, e.message);
-    }
-  }
-
-  // 2026-01-06: Improved regex-based parsing with proper JSON extraction
-  // Uses balanced brace matching instead of [^}]+ which breaks on nested JSON
-  const actionTypes = [
-    { prefix: 'SAVE_NOTE', key: 'notes' },
-    { prefix: 'DEACTIVATE_EVENT', key: 'events' },
-    { prefix: 'REACTIVATE_EVENT', key: 'eventReactivations' },
-    { prefix: 'ADD_EVENT', key: 'addEvents' },
-    { prefix: 'UPDATE_EVENT', key: 'updateEvents' },
-    { prefix: 'COACH_MEMO', key: 'coachMemos' },
-    { prefix: 'DEACTIVATE_NEWS', key: 'news' },
-    { prefix: 'SYSTEM_NOTE', key: 'systemNotes' },
-    { prefix: 'ZONE_INTEL', key: 'zoneIntel' },
-    { prefix: 'MARKET_INTEL', key: 'marketIntel' },
-    { prefix: 'SAVE_VENUE_INTEL', key: 'venueIntel' },
-    // 2026-05-05: Offer decision pipeline (legacy regex form)
-    { prefix: 'LOG_OFFER_DECISION', key: 'offerDecisions' },
-    { prefix: 'UPDATE_OFFER_DECISION', key: 'offerDecisionUpdates' },
-    { prefix: 'BACKFILL_OFFER_INTEL', key: 'offerIntelBackfills' }
-  ];
-
-  for (const { prefix, key } of actionTypes) {
-    // Find all instances of [PREFIX: {...]
-    const pattern = new RegExp(`\\[${prefix}:\\s*`, 'g');
-    let match;
-
-    while ((match = pattern.exec(responseText)) !== null) {
-      const startIndex = match.index + match[0].length;
-      const jsonResult = extractBalancedJson(responseText, startIndex);
-
-      if (!jsonResult.json) {
-        // 2026-03-18: FIX (M-3) — Log when AI generates malformed action tags
-        console.warn(`[COACH] ${prefix} action tag found but JSON extraction failed (malformed/unclosed braces)`);
-      } else {
-        try {
-          const parsed = JSON.parse(jsonResult.json);
-          actions[key].push(parsed);
-          // Build the full match to remove (include closing bracket)
-          const fullMatch = responseText.slice(match.index, jsonResult.endIndex + 1);
-          // 2026-03-18: FIX (M-2) — replaceAll so duplicate tags are both removed
-          cleanedText = cleanedText.replaceAll(fullMatch, '');
-        } catch (e) {
-          console.warn(`[COACH] Failed to parse ${key} JSON:`, e.message);
-        }
-      }
-    }
-  }
-
-  return { actions, cleanedText: cleanedText.trim() };
-}
-
-/**
- * Extract balanced JSON from string starting at given index
- * Handles nested braces correctly
- */
-function extractBalancedJson(str, startIndex) {
-  if (str[startIndex] !== '{') {
-    return { json: null, endIndex: startIndex };
-  }
-
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-
-  for (let i = startIndex; i < str.length; i++) {
-    const char = str[i];
-
-    if (escape) {
-      escape = false;
-      continue;
-    }
-
-    if (char === '\\' && inString) {
-      escape = true;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-
-    if (!inString) {
-      if (char === '{') depth++;
-      else if (char === '}') {
-        depth--;
-        if (depth === 0) {
-          // Check for closing bracket ]
-          let endIndex = i;
-          const remaining = str.slice(i + 1);
-          const closeBracket = remaining.match(/^\s*\]/);
-          if (closeBracket) {
-            endIndex = i + closeBracket[0].length;
-          }
-          return {
-            json: str.slice(startIndex, i + 1),
-            endIndex
-          };
-        }
-      }
-    }
-  }
-
-  return { json: null, endIndex: str.length };
-}
+// 2026-09-11: parseActions/extractBalancedJson live in ./parse-actions.js (unit-tested; reports parse failures).
 
 /**
  * Execute parsed actions asynchronously (non-blocking)
  */
-async function executeActions(actions, userId, snapshotId, conversationId) {
-  const results = { saved: 0, errors: [] };
+async function executeActions(actions, userId, snapshotId, conversationId, signal) {
+  const results = { saved: 0, errors: [], memos: [] };
 
   // Save user notes (with validation)
   for (const note of actions.notes) {
+    signal?.throwIfAborted();
     try {
       // 2026-01-05: Validate before execution
       const validation = validateAction('SAVE_NOTE', {
@@ -279,6 +102,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // Deactivate events (with validation)
   for (const event of actions.events) {
+    signal?.throwIfAborted();
     try {
       // 2026-01-05: Validate before execution
       const validation = validateAction('DEACTIVATE_EVENT', {
@@ -313,6 +137,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   // Reactivate events (undo mistaken deactivations)
   // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const event of actions.eventReactivations) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('REACTIVATE_EVENT', {
         event_title: event.event_title,
@@ -346,6 +171,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   // Deactivate news
   // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const news of actions.news) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('DEACTIVATE_NEWS', {
         news_title: news.news_title,
@@ -377,6 +203,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   // Save system notes
   // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const sysNote of actions.systemNotes) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('SYSTEM_NOTE', {
         type: sysNote.type || 'pain_point',
@@ -412,12 +239,14 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-02-17: Add new events (driver-reported intel)
   for (const event of actions.addEvents) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('ADD_EVENT', {
         title: event.title,
         venue_name: event.venue_name,
         address: event.address,
         event_start_date: event.event_start_date,
+        event_end_date: event.event_end_date,
         event_start_time: event.event_start_time,
         event_end_time: event.event_end_time,
         category: event.category,
@@ -442,7 +271,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         ...validation.data,
         city,
         state,
-        user_id: userId
+        user_id: userId,
+        timezone: snapshot?.timezone
       });
       if (addResult) {
         results.saved++;
@@ -457,6 +287,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-02-17: Update existing events (driver-corrected details)
   for (const event of actions.updateEvents) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('UPDATE_EVENT', {
         event_title: event.event_title,
@@ -500,6 +331,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   const coachInboxPath = path.join(__dirname_chat, '..', '..', '..', 'docs', 'coach-inbox.md');
 
   for (const memo of actions.coachMemos) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('COACH_MEMO', {
         type: memo.type || 'observation',
@@ -516,18 +348,14 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       const { type, title, detail, priority, related_files } = validation.data;
 
       // PRIMARY WRITE: DB (survives Cloud Run). Throws on failure → propagates to results.errors.
-      const dbRow = await rideshareCoachDAL.saveCoachMemo({
-        type,
-        title,
-        detail,
-        priority,
-        related_files,
-        triggering_user_id: userId ?? null,
-        triggering_conversation_id: conversationId ?? null,
-        triggering_snapshot_id: snapshotId ?? null,
-      });
+      const receipt = await saveMemoWithReceipt(
+        data => rideshareCoachDAL.saveCoachMemo(data),
+        { type, title, detail, priority, related_files },
+        { userId, conversationId, snapshotId }
+      );
       results.saved++;
-      console.log(`[COACH] [ACTIONS] 📝 Coach memo saved to DB: "${title}" (${type}) id=${dbRow.id}`);
+      results.memos.push(receipt);
+
 
       // SECONDARY WRITE: filesystem (dev convenience). Best-effort — failure is logged, not raised.
       // In prod (Cloud Run), this either succeeds-then-vanishes or fails silently; either way the
@@ -538,7 +366,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         const entry = `\n### [${type.toUpperCase()}] ${title}\n- **Priority:** ${priority} | **Date:** ${timestamp}\n- ${detail}${filesLine}\n`;
         await appendFile(coachInboxPath, entry, 'utf-8');
       } catch (fsErr) {
-        console.warn(`[COACH] [ACTIONS] FS write failed (non-fatal, DB row id=${dbRow.id}):`, fsErr.message);
+        console.warn(`[COACH] [ACTIONS] FS write failed (non-fatal, DB row id=${receipt.id}):`, fsErr.message);
       }
     } catch (e) {
       results.errors.push(`CoachMemo: ${e.message}`);
@@ -547,6 +375,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // Save zone intelligence (crowd-sourced market knowledge) - with validation
   for (const zone of actions.zoneIntel) {
+    signal?.throwIfAborted();
     try {
       // 2026-01-05: Validate before execution
       const validation = validateAction('ZONE_INTEL', {
@@ -588,6 +417,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-03-18: Market intelligence — driver-reported surge patterns, timing insights (C-3)
   for (const intel of actions.marketIntel) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('MARKET_INTEL', {
         market: intel.market,
@@ -623,6 +453,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-03-18: Venue catalog — staging spots, GPS dead zones, venue intel (C-3)
   for (const venue of actions.venueIntel) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('SAVE_VENUE_INTEL', {
         venue_name: venue.venue_name,
@@ -655,75 +486,14 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
     }
   }
 
-  // 2026-05-05: Coach offer decision logging — driver-decision intel from chat tab
-  // Each call inserts a new coach_offer_decisions row tagged to user/conversation/snapshot.
-  for (const decision of actions.offerDecisions) {
-    try {
-      const validation = validateAction('LOG_OFFER_DECISION', decision);
-      if (!validation.ok) {
-        results.errors.push(`LogOfferDecision validation: ${validation.errors.map(e => e.message).join(', ')}`);
-        continue;
-      }
-      const decisionRow = await rideshareCoachDAL.saveCoachOfferDecision({
-        ...validation.data,
-        user_id: userId,
-        conversation_id: conversationId,
-        snapshot_id: snapshotId
-      });
-      if (decisionRow) {
-        results.saved++;
-        console.log(`[COACH] [ACTIONS] Logged offer decision ${decisionRow.id?.substring(0, 8)} (${validation.data.ai_recommendation})`);
-      } else {
-        results.errors.push(`LogOfferDecision: write returned null`);
-      }
-    } catch (e) {
-      results.errors.push(`LogOfferDecision: ${e.message}`);
-    }
-  }
-
-  // 2026-05-05: Lifecycle / verdict updates on existing decision rows
-  // (e.g., "I accepted that one but cancelled mid-trip" → user_decision='Cancelled')
-  for (const update of actions.offerDecisionUpdates) {
-    try {
-      const validation = validateAction('UPDATE_OFFER_DECISION', update);
-      if (!validation.ok) {
-        results.errors.push(`UpdateOfferDecision validation: ${validation.errors.map(e => e.message).join(', ')}`);
-        continue;
-      }
-      const { id, ...fields } = validation.data;
-      const updated = await rideshareCoachDAL.updateCoachOfferDecision(id, userId, fields);
-      if (updated) {
-        results.saved++;
-        console.log(`[COACH] [ACTIONS] Updated offer decision ${id?.substring(0, 8)}`);
-      } else {
-        results.errors.push(`UpdateOfferDecision "${id}": no row matched (wrong id or not owned by user)`);
-      }
-    } catch (e) {
-      results.errors.push(`UpdateOfferDecision: ${e.message}`);
-    }
-  }
-
-  // 2026-05-05: Coach backfilling ground-truth from screenshot OCR back into the
-  // raw offer_intelligence row (Siri parse often had nulls; screenshot is canonical).
-  for (const backfill of actions.offerIntelBackfills) {
-    try {
-      const validation = validateAction('BACKFILL_OFFER_INTEL', backfill);
-      if (!validation.ok) {
-        results.errors.push(`BackfillOfferIntel validation: ${validation.errors.map(e => e.message).join(', ')}`);
-        continue;
-      }
-      const { offer_intelligence_id, ...fields } = validation.data;
-      // 2026-08-11: user-scoped — the id is LLM-emitted, never trust it alone
-      const updated = await rideshareCoachDAL.updateOfferIntelligence(offer_intelligence_id, userId, fields);
-      if (updated) {
-        results.saved++;
-        console.log(`[COACH] [ACTIONS] Backfilled offer_intelligence ${offer_intelligence_id?.substring(0, 8)} (${Object.keys(fields).join(',')})`);
-      } else {
-        results.errors.push(`BackfillOfferIntel "${offer_intelligence_id}": no row matched`);
-      }
-    } catch (e) {
-      results.errors.push(`BackfillOfferIntel: ${e.message}`);
-    }
+  // Coach reads Analyzer evidence; it cannot create verdicts or rewrite offers.
+  // Recognize old tags so a model cannot falsely report a successful save.
+  for (const [key, label] of [
+    ['offerDecisions', 'LOG_OFFER_DECISION'],
+    ['offerDecisionUpdates', 'UPDATE_OFFER_DECISION'],
+    ['offerIntelBackfills', 'BACKFILL_OFFER_INTEL'],
+  ]) {
+    if (actions[key]?.length) results.errors.push(`${label}: Coach offer writes are disabled. Use the Offer Analyzer and Daily Offers controls.`);
   }
 
   if (results.errors.length > 0) {
@@ -825,8 +595,18 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
   console.log('[coach] Fetching context for snapshot:', snapshotId);
 
   try {
+    if (req.query.summary === '1') {
+      const [snapshot, strategy, briefing, offerHistory] = await Promise.all([
+        rideshareCoachDAL.getHeaderSnapshot(snapshotId),
+        rideshareCoachDAL.getLatestStrategy(snapshotId),
+        rideshareCoachDAL.getComprehensiveBriefing(snapshotId),
+        rideshareCoachDAL.getOfferHistory(req.auth.userId, 20),
+      ]);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(getCoachContextProgress({ snapshot, strategy, briefing, offerHistory }));
+    }
     // Use CoachDAL for read-only access
-    const context = await rideshareCoachDAL.getCompleteContext(snapshotId);
+    const context = await rideshareCoachDAL.getCompleteContext(snapshotId, null, req.auth.userId);
     
     res.json({
       snapshot_id: snapshotId,
@@ -836,6 +616,8 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
       briefing: context.briefing,
       smart_blocks: context.smartBlocks,
       count: context.smartBlocks.length,
+      progress: context.progress,
+      offer_history: context.offerHistory,
     });
   } catch (error) {
     console.error('[coach] Context fetch failed:', error.message);
@@ -851,10 +633,28 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 // POST /api/chat - AI Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: requireAuth enforces user must be signed in
 router.post('/', requireAuth, async (req, res) => {
-  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = req.body;
+  // Spoken continuations may need another read after an earlier action finished.
+  // Conversation history is retained, but reconciliation cannot mutate app data.
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const answerOnly = body.answerOnly === true;
+  const { userId, message, threadHistory = [], snapshotId: rawSnapshotId, strategyId: rawStrategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = body;
+  // 2026-09-10 (CodeQL type-confusion class): these reach `.slice()` before the try block
+  // below; a non-string body value ({}/number) threw synchronously and hung the request.
+  const snapshotId = typeof rawSnapshotId === 'string' && rawSnapshotId ? rawSnapshotId : null;
+  const strategyId = typeof rawStrategyId === 'string' && rawStrategyId ? rawStrategyId : null;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
+  }
+
+  const validAttachment = attachment => attachment && typeof attachment === 'object'
+    && typeof attachment.data === 'string';
+  if ((clientConversationId != null && (typeof clientConversationId !== 'string' || !UUID_RE.test(clientConversationId)))
+    || !Array.isArray(attachments) || !attachments.every(validAttachment)
+    || !Array.isArray(threadHistory) || !threadHistory.every(turn => turn && typeof turn.content === 'string'
+      && ['user', 'assistant'].includes(turn.role)
+      && (turn.attachments == null || (Array.isArray(turn.attachments) && turn.attachments.every(validAttachment))))) {
+    return res.status(400).json({ error: 'Invalid conversationId, threadHistory or attachments' });
   }
 
   // 2026-01-15: Removed 'anonymous' fallback - requireAuth middleware guarantees userId
@@ -874,13 +674,17 @@ router.post('/', requireAuth, async (req, res) => {
   // is checked after snapshot resolution below. 2026-08-11: previously a hard
   // 400 fired here whenever the browser hadn't hydrated its snapshot copy yet,
   // even though the driver's snapshot row carried the timezone all along.
-  let userTimezone = clientSnapshot?.timezone || null;
+  let userTimezone = typeof clientSnapshot?.timezone === 'string' ? clientSnapshot.timezone : null;
   let userLocalDateTime = null;
 
   // 2026-01-06: SECURITY - Redact sensitive data from logs
   // Log only metadata, never message content or PII
   console.log(`[COACH] Request: user=${authUserId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} thread=${threadHistory.length}msgs attachments=${attachments.length}`);
   console.log(`[COACH] Context: strategy=${strategyId?.slice(0, 8) || 'none'} snapshot=${snapshotId?.slice(0, 8) || 'none'} tz=${userTimezone}`);
+
+  const ac = new AbortController();
+  const onClose = () => { if (!res.writableEnded) ac.abort(); };
+  res.on('close', onClose);
 
   try {
     // Use CoachDAL for full schema read access with ALL tables
@@ -935,7 +739,8 @@ router.post('/', requireAuth, async (req, res) => {
       // Pass authenticated user ID for driver profile lookup (in case snapshot has different/null user_id)
       if (activeSnapshotId) {
         fullContext = await rideshareCoachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
-        contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext);
+        contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext)
+          + formatCoachSourceContext(fullContext.snapshot, fullContext.briefing, fullContext);
 
         console.log(`[COACH] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
         console.log(`[COACH] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, driverProfile=${!!fullContext.driverProfile}, vehicle=${!!fullContext.driverVehicle}`);
@@ -943,9 +748,11 @@ router.post('/', requireAuth, async (req, res) => {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
 
-      // Authoritative timezone from the loaded snapshot row when the client
-      // copy was absent. Still no invented values: neither source → 400.
-      if (!userTimezone) userTimezone = fullContext?.snapshot?.timezone || null;
+      // An owned saved snapshot supersedes a stale or conflicting browser copy.
+      // A missing saved timezone stays missing rather than trusting a client claim.
+      if (fullContext?.snapshot) userTimezone = fullContext.snapshot.timezone || null;
+      try { if (userTimezone) new Intl.DateTimeFormat('en-US', { timeZone: userTimezone }).format(); }
+      catch { userTimezone = null; }
       if (!userTimezone) {
         console.warn('[COACH] No timezone from client copy or DB snapshot row - cannot provide time context');
         return res.status(400).json({
@@ -980,9 +787,7 @@ router.post('/', requireAuth, async (req, res) => {
 
             snapshotHistoryInfo = `\n\n📍 **Recent Session History (${history.length} sessions):**\n`;
             for (const snap of history.slice(0, 5)) {
-              const date = new Date(snap.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-              const time = new Date(snap.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-              snapshotHistoryInfo += `- ${date} ${time}: ${snap.city}, ${snap.state}${snap.holiday ? ` (${snap.holiday})` : ''}\n`;
+              snapshotHistoryInfo += `- ${formatSnapshotHistoryTime(snap)}: ${snap.city}, ${snap.state}${snap.holiday ? ` (${snap.holiday})` : ''}\n`;
             }
           }
         } catch (e) {
@@ -1030,7 +835,9 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    // Save user message to coach_conversations (non-blocking, authenticated users only)
+    ac.signal.throwIfAborted();
+
+    // Save user message to coach_conversations (authenticated users only)
     let userMessageId = null;
     let userPersistenceError = null;
     if (isAuthenticated) {
@@ -1060,17 +867,17 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    // 2026-02-13: Enhanced system prompt — model identity, vision/OCR, Google Search, full capabilities
-    let systemPrompt = `You are the AI Coach — a powerful AI assistant powered by Gemini 3 Pro Preview.
+    // 2026-02-13: Enhanced system prompt — model identity, vision/OCR, web search, full capabilities
+    let systemPrompt = `You are the AI Coach — a powerful AI assistant configured through the AI_COACH role.
 You are much more than just a rideshare assistant. You're a frontier AI model with advanced capabilities.
 
 **YOUR IDENTITY & MODEL:**
-- You are Gemini 3 Pro Preview (NOT Flash) — a frontier multimodal AI model by Google
-- You have FULL Google Search access for real-time information
+- You are the Vecto Pilot AI Coach. The AI_COACH role configures your model.
+- You have FULL web search access for real-time information
 - You have VISION capabilities — you can see and analyze images, screenshots, photos, maps, and documents
 - You have OCR capabilities — you can read text from screenshots, receipts, signs, and any image
 - When a user sends an image or screenshot, you CAN and SHOULD analyze it thoroughly
-- You are the smartest, most capable model in the Gemini family
+- Use the supplied context and tools; do not invent facts or capabilities.
 
 **Your Capabilities:**
 
@@ -1113,8 +920,8 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 - Your previous notes about this driver are shown in context below
 - USE NOTES to give increasingly personalized advice over time!
 
-**Web Search & Verification (via Google Search):**
-- You have LIVE Google Search access - use it proactively to verify events, check facts, find current information
+**Web Search & Verification (via web search):**
+- You have LIVE web search access - use it proactively to verify events, check facts, find current information
 - When users ask you to verify something or look something up, SEARCH THE WEB for current information
 - Cross-reference briefing data with live web searches for accuracy
 - Do NOT list sources or citations at the end of your responses - just provide the information naturally
@@ -1138,7 +945,7 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 
 ❤️ **Wellbeing First (Melody doctrine, 2026-08-14):**
 - The driver is a person before they are a driver. If they mention feeling unwell, exhausted, stressed, in pain, or unsafe, address THAT before any strategy — acknowledge it, and suggest what actually helps (rest, food, pulling over, calling it a night — lost earnings are never worth their health).
-- If they need free or low-cost resources — food banks, shelter, financial assistance, healthcare clinics, legal aid, addiction or crisis support — USE GOOGLE SEARCH to find real, current, LOCAL resources near their snapshot location, with names, addresses, hours, and a Google Maps link.
+- If they need free or low-cost resources — food banks, shelter, financial assistance, healthcare clinics, legal aid, addiction or crisis support — USE WEB SEARCH to find real, current, LOCAL resources near their snapshot location, with names, addresses, hours, and a Google Maps link.
 - For signs of a mental-health crisis, respond with warmth, take it seriously, and include the 988 Suicide & Crisis Lifeline (call/text 988 in the US) among the resources — and encourage professional help without lecturing.
 - Never brush off a non-driving topic. There is no "that's not my job" — help on any topic, or find who can.
 
@@ -1192,8 +999,8 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 - ALWAYS check current date/time before deactivating — if a driver corrects you, reactivate immediately
 
 📝 **Coach Inbox (Remember & Suggest):**
-- When a user asks you to REMEMBER something, save a feature idea, or you want to suggest code changes — use COACH_MEMO
-- This writes to \`docs/coach-inbox.md\` which Claude Code checks at session start
+- When a user asks you to report a bug, save a feature idea, or suggest code changes — use COACH_MEMO
+- This saves a durable reported memo scoped to this driver. A receipt appears only after the database confirms it.
 - Format: \`[COACH_MEMO: {"type": "feature_request", "title": "Add donate link to concierge page", "detail": "Melody wants a link on the public concierge page that allows passengers to donate/tip to support the app", "priority": "medium", "related_files": ["client/src/pages/concierge/PublicConciergePage.tsx"]}]\`
 - Types: feature_request, remember, bug, code_suggestion, observation, todo
 - Priority: high, medium, low
@@ -1263,12 +1070,12 @@ You can WRITE to these tables and files via action tags:
 - zone_intelligence → [ZONE_INTEL: {...}]
 - coach_system_notes → [SYSTEM_NOTE: {...}]
 - news_deactivations → [DEACTIVATE_NEWS: {...}]
-- **docs/coach-inbox.md** → [COACH_MEMO: {...}] ← Feature ideas, things to remember, code suggestions for Claude Code
+- **coach_memos (Reported memos)** → [COACH_MEMO: {...}] ← Feature ideas, things to remember, code suggestions for Claude Code
 
 **Important:**
 - You understand context from conversation history
 - Brief responses like "yes", "go ahead", "thanks" relate to what you just said
-- When asked to verify or search: USE GOOGLE SEARCH actively
+- When asked to verify or search: USE WEB SEARCH actively
 - You're not limited to rideshare topics - help with anything!
 - SAVE NOTES when you learn something useful about the driver!
 - Reference your market knowledge to give smarter, research-backed advice
@@ -1277,39 +1084,7 @@ ${contextInfo}
 
 You're a powerful AI companion with research-backed market intelligence and persistent memory. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.
 
-**CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.`;
-
-    // 2026-05-05: Splice the read-only offer analyzer rules into the system prompt.
-    // Doc + registry land at the bottom of the prompt so they don't displace
-    // the user's snapshot/strategy context if the model has to truncate.
-    try {
-      const offerRules = await getOfferAnalyzerRules();
-      if (offerRules.doc || offerRules.registry) {
-        systemPrompt += `
-
-══════════════════════════════════════════════════════════════════════════
-**OFFER ANALYZER RULES (READ-ONLY)** — for explaining WHY the analyzer recommends what it does
-══════════════════════════════════════════════════════════════════════════
-
-📄 **Source: \`docs/architecture/OFFER_ANALYZER.md\`** (canonical business rules + LLM phase architecture)
-
-${offerRules.doc}
-
-══════════════════════════════════════════════════════════════════════════
-
-📄 **Source: \`server/lib/ai/model-registry.js\`** (LLM role definitions — system prompts, model IDs, output schemas)
-
-\`\`\`js
-${offerRules.registry}
-\`\`\`
-
-══════════════════════════════════════════════════════════════════════════
-END OFFER ANALYZER RULES (read-only — propose changes via [COACH_MEMO])
-══════════════════════════════════════════════════════════════════════════`;
-      }
-    } catch (e) {
-      console.warn('[COACH] Failed to splice offer analyzer rules:', e.message);
-    }
+**IDENTITY:** You are the Vecto Pilot AI Coach. Do not claim to be an unconfigured model or provider.`;
 
     // SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
     if (isSuperUser) {
@@ -1337,7 +1112,7 @@ You are interacting with Melody — the architect and developer of Vecto Pilot.
 You have elevated context access for deeper system insight.
 
 **YOUR IDENTITY:**
-- You are Gemini 3 Pro Preview — the frontier model
+- You are the Vecto Pilot AI Coach. The AI_COACH role configures your model.
 - You are Melody's personal AI Coach with full data transparency
 - You can discuss code, architecture, and system internals openly
 
@@ -1354,12 +1129,12 @@ You have elevated context access for deeper system insight.
 - User notes, zone intel, system notes, event CRUD, news deactivations
 - Market intelligence — surge patterns, timing insights, market-wide analysis
 - Venue catalog — staging spots, GPS dead zones, venue intel
-- Coach memos — feature requests, TODOs, bugs (docs/coach-inbox.md)
+- Coach memos — feature requests, TODOs, bugs (durable reported memos)
 
 Memory & Context:
 - In-conversation continuity from the thread history the client sends with each message (this prompt does not read coach_conversations)
 - Cross-session learning via your saved notes, coach memos, system notes, and offer history (loaded into your context above)
-- Google Search via Gemini tools for real-time research
+- Web search through the configured Coach provider for real-time research
 
 **When Melody sends a screenshot or image:**
 - Analyze it with full vision/OCR capabilities
@@ -1384,7 +1159,7 @@ ${JSON.stringify(agentContext.projectState, null, 2)}
 Help with ANYTHING — rideshare strategy, data analysis, research, architecture questions.
 Full transparency. Maximum insight.
 
-**CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.
+**IDENTITY:** You are the Vecto Pilot AI Coach. Do not claim to be an unconfigured model or provider.
 ══════════════════════════════════════════════════════════════════════════`;
       } catch (err) {
         console.warn('[COACH] Failed to inject Super User context:', err.message);
@@ -1396,9 +1171,8 @@ Full transparency. Maximum insight.
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    // 2026-02-13: Process attachments into Gemini multimodal format (vision/OCR)
-    // Gemini expects: parts: [{ text: "..." }, { inline_data: { mime_type: "image/png", data: "base64..." } }]
-    console.log(`[COACH] Processing ${attachments.length} attachments for Gemini coach`);
+    // Provider-neutral parts preserve attachment content for the role adapter.
+    console.log(`[COACH] Processing ${attachments.length} attachments for Coach`);
 
     // Build the current user message parts (text + any image attachments)
     const userParts = [];
@@ -1406,7 +1180,7 @@ Full transparency. Maximum insight.
       userParts.push({ text: message });
     }
 
-    // Convert base64 data URL attachments to Gemini inline_data format
+    // Preserve base64 attachment content and filenames for the role adapter
     // 2026-04-05: SECURITY — import sanitizeForLog once for use across all attachments
     const { sanitizeForLog } = await import('../../lib/utils/sanitize.js');
     for (const att of attachments) {
@@ -1415,12 +1189,13 @@ Full transparency. Maximum insight.
       if (att.data && att.type) {
         try {
           // att.data is a data URL: "data:image/png;base64,iVBOR..."
-          // Gemini needs just the raw base64 string and mime_type separately
+          // The adapter receives MIME type and base64 content separately
           const base64Match = att.data.match(/^data:([^;]+);base64,(.+)$/);
           if (base64Match) {
             const mimeType = base64Match[1]; // e.g., "image/png"
             const base64Data = base64Match[2]; // raw base64 string
             userParts.push({
+              filename: att.name,
               inline_data: {
                 mime_type: mimeType,
                 data: base64Data,
@@ -1448,127 +1223,42 @@ Full transparency. Maximum insight.
     const messageHistory = threadHistory
       .filter(msg => msg && msg.role && msg.content) // Validate messages
       .map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user', // Gemini uses 'model' for assistant
-        parts: [{ text: msg.content }]
+        role: msg.role === 'assistant' ? 'model' : 'user', // Existing history contract uses model for assistant
+        parts: [{ text: msg.content }, ...(msg.role === 'user' ? (msg.attachments || []).map(att => {
+          const match = att.data?.match(/^data:([^;]+);base64,(.+)$/);
+          if (!match) throw new Error('A previous Coach attachment could not be read');
+          return { filename: att.name, inline_data: { mime_type: match[1], data: match[2] } };
+        }) : [])]
       }))
       .concat([
         {
           role: 'user',
-          parts: userParts // Text + inline images for Gemini vision
+          parts: userParts // Text and original attachment content
         }
       ]);
 
-    console.log(`[COACH] Sending ${messageHistory.length} messages to Gemini...`);
-
-    // 2026-01-06: Use adapter pattern for AI_COACH role (P1-A fix)
-    // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing branding
-    // Model config (gemini-3.5-flash alias, temp=0.7, google_search) is now in model-registry.js
     try {
-      console.log(`[COACH] Calling AI_COACH role via adapter with streaming...`);
-
-      // Import adapter at runtime to avoid circular dependencies
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
-
-      // Cancel the upstream Gemini call if the client disconnects mid-stream
-      // (browser tab closed, mic-driven barge-in, etc). Without this the
-      // server keeps generating + billing after the client is gone.
-      const ac = new AbortController();
-      req.on('close', () => ac.abort());
-
-      // 2026-05-07: Retry once on empty response. Gemini sometimes returns 200
-      // with an empty stream (transient quota exhaustion or upstream hiccup);
-      // a single retry typically succeeds. If both attempts fail, fall through
-      // to the empty-response branch with a clear user message.
-      let response = null;
+      if (answerOnly) systemPrompt += '\n\nANSWER-ONLY RECONCILIATION: Read current records and answer the latest continued or corrected request. Do not emit action tags, save notes, learn tips, or change any data. Do not repeat earlier actions. If a new or changed action is needed, explain its current confirmed state and ask for a fresh confirmation. Conversation history is still recorded.';
+      const roleConfig = getRoleConfig('AI_COACH');
       let totalText = '';
-      let lastResponseStatus = 0;
-      let lastErrText = '';
-      let safetyBlocked = false;
-
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        response = await callModelStream('AI_COACH', {
-          system: systemPrompt,
-          messageHistory,
-          signal: ac.signal
+      let actualModel = roleConfig.model;
+      {
+        ac.signal.throwIfAborted();
+        const response = await callModelStream('AI_COACH', {
+          system: systemPrompt, messageHistory, signal: ac.signal,
         });
-
-        if (!response.ok) {
-          lastResponseStatus = response.status;
-          lastErrText = await response.text();
-          console.error(`[COACH] Gemini API error attempt ${attempt} status=${response.status}: ${lastErrText.substring(0, 200)}`);
-          if (attempt === 2) break;
-          // Brief backoff before retry; non-OK responses are usually transient.
-          await new Promise(resolve => setTimeout(resolve, 500));
-          continue;
-        }
-
-        // Stream the response chunks to client
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let attemptText = '';
-        safetyBlocked = false;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const jsonStr = line.slice(6).trim();
-              if (!jsonStr || jsonStr === '[DONE]') continue;
-
-              try {
-                const data = JSON.parse(jsonStr);
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                if (text) {
-                  attemptText += text;
-                  // Stream chunk to client only on the attempt we're keeping (first or retry).
-                  res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
-                }
-
-                const finishReason = data.candidates?.[0]?.finishReason;
-                if (finishReason === 'SAFETY') {
-                  console.warn('[COACH] Response blocked by safety filter');
-                  safetyBlocked = true;
-                  res.write(`data: ${JSON.stringify({ delta: '\n\nI apologize, but I cannot continue with that response.' })}\n\n`);
-                }
-              } catch (parseErr) {
-                // Skip unparseable chunks (partial JSON, etc.)
-              }
-            }
+        for await (const event of readCoachResponse(response)) {
+          ac.signal.throwIfAborted();
+          if (event.delta) {
+            totalText += event.delta;
+            res.write(`data: ${JSON.stringify({ delta: event.delta })}\n\n`);
           }
+          if (event.completed && event.model) actualModel = event.model;
         }
-
-        if (attemptText) {
-          totalText = attemptText;
-          break; // Success — keep this attempt's text and stop retrying.
-        }
-
-        if (safetyBlocked) {
-          // Safety-block message already streamed; no retry needed.
-          break;
-        }
-
-        console.warn(`[COACH] Empty streaming response from Gemini (attempt ${attempt})`);
-        if (attempt === 2) break;
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
-
-      // Surface non-OK status with a retryable hint when applicable.
-      if (response && !response.ok) {
-        const friendlyMsg = lastResponseStatus === 429
-          ? 'Coach is briefly rate-limited. Try again in a few seconds.'
-          : 'Coach hit an upstream error. Try sending again.';
-        res.write(`data: ${JSON.stringify({ delta: friendlyMsg })}\n\n`);
-        res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
-        return res.end();
-      }
+      ac.signal.throwIfAborted();
+      if (!totalText.trim()) throw new Error('Coach returned an empty answer');
 
       // 2026-03-18: Declared outside if(totalText) so done event can always reference it
       // 2026-05-05: Same hoist for persistenceError — line 1380 references it after
@@ -1577,21 +1267,27 @@ Full transparency. Maximum insight.
       // to the already-streamed bubble.
       let actionsResult = null;
       let persistenceError = null;
+      let displayResponse = totalText;
 
       if (totalText) {
-        console.log(`[COACH] Gemini streamed response: ${totalText.length} chars`);
+        console.log(`[COACH] Coach streamed response: ${totalText.length} chars`);
 
         // 2026-03-18: Parse actions and execute them (awaited for client feedback)
-        const { actions, cleanedText } = parseActions(totalText);
+        const { actions, cleanedText: parsedText, parseErrors } = parseActions(totalText);
+        let cleanedText = parsedText;
+        displayResponse = cleanedText;
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
-        if (hasActions) {
+        if (hasActions && answerOnly) {
+          actionsResult = { saved: 0, errors: ['This answer-only follow-up did not execute any requested action; a fresh confirmation is required'] };
+        }
+        if (hasActions && !answerOnly) {
           console.log(`[COACH] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, addEvents=${actions.addEvents.length}, updateEvents=${actions.updateEvents.length}, memos=${actions.coachMemos.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}, marketIntel=${actions.marketIntel.length}, venueIntel=${actions.venueIntel.length}`);
 
           // 2026-03-18: FIX (C-1) — Await actions so results can be sent to client.
           // DB writes are sub-50ms each; minor latency is worth guaranteed feedback.
           try {
-            actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId);
+            actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId, ac.signal);
             if (actionsResult.saved > 0) {
               console.log(`[COACH] Executed ${actionsResult.saved} actions`);
             }
@@ -1599,6 +1295,20 @@ Full transparency. Maximum insight.
             console.error('[COACH] Action execution error:', e.message);
             actionsResult = { saved: 0, errors: [e.message] };
           }
+        }
+
+        ac.signal.throwIfAborted();
+
+        // 2026-09-11 (desktop-coach-review item 2): parse failures join execution failures in
+        // the done payload, and an explicit not-saved line is appended to the streamed AND
+        // persisted text, so no unqualified "saved" claim survives a failed action.
+        const actionFailures = [...(parseErrors || []), ...(actionsResult?.errors || [])];
+        if (actionFailures.length > 0) {
+          actionsResult = { ...actionsResult, saved: actionsResult?.saved || 0, errors: actionFailures };
+          const notSavedNote = `\n\n⚠️ Not saved: ${actionFailures.join('; ')}. Nothing was written for these — ask me to try again.`;
+          cleanedText += notSavedNote;
+          displayResponse = cleanedText;
+          res.write(`data: ${JSON.stringify({ delta: notSavedNote })}\n\n`);
         }
 
         // Save assistant response to coach_conversations (authenticated users only)
@@ -1610,14 +1320,16 @@ Full transparency. Maximum insight.
             // were already parsed. The AI explicitly chose what to save; auto-extraction
             // would duplicate those notes with slightly different titles.
             const hasSaveNoteActions = actions?.notes?.length > 0;
-            const extractedTips = hasSaveNoteActions
+            const extractedTips = answerOnly || hasSaveNoteActions
               ? 0
               : await rideshareCoachDAL.extractAndSaveTips(authUserId, cleanedText, {
                   snapshot_id: activeSnapshotId,
-                  conversation_id: conversationId
+                  conversation_id: conversationId,
+                  signal: ac.signal
                 });
 
-            await rideshareCoachDAL.saveConversationMessage({
+            ac.signal.throwIfAborted();
+            const savedAssistant = await rideshareCoachDAL.saveConversationMessage({
               user_id: authUserId,
               snapshot_id: activeSnapshotId,
               conversation_id: conversationId,
@@ -1628,27 +1340,24 @@ Full transparency. Maximum insight.
               market_slug: fullContext?.marketSlug || null, // For cross-driver learning
               // 2026-03-18: extractAndSaveTips returns a number, not an object
               extracted_tips: [],
-              model_used: 'gemini-3.5-flash',
+              model_used: actualModel,
               location_context: fullContext?.snapshot ? {
                 city: fullContext.snapshot.city,
                 state: fullContext.snapshot.state,
                 country: fullContext.snapshot.country
               } : null
             });
+            if (!savedAssistant) throw new Error('Assistant history write returned no record');
           } catch (e) {
             console.warn('[COACH] Failed to save assistant message:', e.message);
             persistenceError = e.message;
           }
         }
-      } else if (!safetyBlocked) {
-        // Reached here only if BOTH retry attempts produced empty streams AND
-        // safety filter wasn't the cause (safety case streamed its own message).
-        console.warn('[COACH] Empty streaming response from Gemini after retry');
-        res.write(`data: ${JSON.stringify({ delta: "Coach didn't return a response. Try sending again or rephrasing your question." })}\n\n`);
       }
 
       // 2026-03-18: FIX (C-1) — Include action results so client gets feedback
-      const donePayload = { done: true, conversation_id: conversationId };
+      ac.signal.throwIfAborted();
+      const donePayload = { done: true, conversation_id: conversationId, response_text: displayResponse };
       if (actionsResult) {
         donePayload.actions_result = actionsResult;
       }
@@ -1658,16 +1367,17 @@ Full transparency. Maximum insight.
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
-      console.error('[COACH] Gemini request error:', error.message);
+      if (res.destroyed) return;
+      console.error('[COACH] Provider request error:', error.message);
       const friendlyMsg = error.name === 'AbortError'
         ? 'Coach request was canceled.'
-        : 'Coach hit an error. Try sending again.';
-      res.write(`data: ${JSON.stringify({ delta: friendlyMsg })}\n\n`);
-      res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
+        : 'Coach could not complete this request. Please check your saved notes and reported memos before trying again.';
+      res.write(`data: ${JSON.stringify({ done: true, error: friendlyMsg })}\n\n`);
       res.end();
     }
 
   } catch (error) {
+    if (res.destroyed) return;
     console.error('[COACH] Error:', error);
     
     if (!res.headersSent) {
@@ -1676,6 +1386,8 @@ Full transparency. Maximum insight.
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
     }
+  } finally {
+    res.off('close', onClose);
   }
 });
 
@@ -1729,7 +1441,8 @@ router.post('/voice-turns', requireAuth, voiceTurnsLimiter, async (req, res) => 
       if (!owned.ok) return res.status(owned.status).json(owned.body);
     }
 
-    const voiceModel = getRoleConfig('COACH_VOICE_LIVE').model;
+    const isLiveFragment = req.body.voiceMode === 'gpt-live';
+    const voiceModel = getRoleConfig(isLiveFragment ? 'COACH_VOICE_OPENAI_LIVE' : 'COACH_VOICE_LIVE').model;
 
     // saveConversationMessage is non-throwing (null on failure) — count what
     // actually landed and report it honestly instead of assuming all saved.
@@ -1741,7 +1454,7 @@ router.post('/voice-turns', requireAuth, voiceTurnsLimiter, async (req, res) => 
         conversation_id: conversationId,
         role: turn.role,
         content: turn.content,
-        content_type: 'voice_transcript',
+        content_type: isLiveFragment ? 'voice_transcript_fragment' : 'voice_transcript',
         model_used: voiceModel,
       });
       if (row) saved++;
@@ -1798,7 +1511,7 @@ router.post('/conversations/:messageId/star', requireAuth, async (req, res) => {
   const { starred } = req.body;
 
   try {
-    const result = await rideshareCoachDAL.toggleMessageStar(messageId, starred !== false);
+    const result = await rideshareCoachDAL.toggleMessageStar(messageId, req.auth.userId, starred !== false);
     if (result) {
       res.json({ success: true, message_id: messageId, starred: result.is_starred });
     } else {
@@ -1904,12 +1617,25 @@ router.post('/deactivate-event', requireAuth, async (req, res) => {
   }
 
   try {
+    // 2026-09-10 (verification extra finding, not in Astra's report): this was a second
+    // deactivation surface with NO market check — the DAL matched the title against the
+    // 100 newest active events nationwide. Same rule as /api/briefing/event/:id/deactivate:
+    // the caller needs a current snapshot, and only events in that city can match.
+    const [userSnapshot] = await db.select({ city: snapshots.city })
+      .from(snapshots)
+      .where(eq(snapshots.user_id, userId))
+      .orderBy(desc(snapshots.created_at))
+      .limit(1);
+    if (!userSnapshot?.city && !isOperator(req.auth)) {
+      return res.status(403).json({ error: 'A current snapshot in the event market is required to deactivate events' });
+    }
     const result = await rideshareCoachDAL.deactivateEvent({
       user_id: userId,
       event_title,
       reason: reason || 'User requested removal',
       notes: notes || null,
-      deactivated_by: 'user'
+      deactivated_by: 'user',
+      restrict_city: isOperator(req.auth) ? null : userSnapshot.city
     });
 
     if (result) {

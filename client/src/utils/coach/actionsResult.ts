@@ -10,11 +10,15 @@
 export interface ActionsResult {
   saved: number;
   errors?: string[];
+  memos?: { id: string; type: string; title: string; created_at: string }[];
 }
 
 export interface DonePayloadMeta {
   actions_result?: ActionsResult;
   persistence_error?: string;
+  done?: boolean;
+  error?: string | boolean;
+  response_text?: string;
 }
 
 export interface DonePayloadHandlers {

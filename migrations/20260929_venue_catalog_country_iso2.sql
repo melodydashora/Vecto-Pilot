@@ -1,0 +1,35 @@
+-- 2026-09-29: venue_catalog.country legacy long name -> ISO 3166-1 alpha-2 code.
+--
+-- PROVENANCE: Claude-authored, 2026-09-29. Written while fixing the working tree
+-- forward on Melody's instruction of the same day; this specific repair was proposed
+-- by Claude, was NOT reviewed or approved by Melody at the time of writing, and was
+-- NOT executed by the session that wrote it.
+--
+-- WHY: the older address parser stored the provider's long country name. In the
+-- development database (SELECT counts taken 2026-09-29; production was not checked)
+-- venue_catalog held exactly two country values: 'United States' (526 rows) and
+-- 'US' (524 rows). Every current reader and writer compares country against the
+-- ISO-2 code (market-event-reader.js, the verified event venue gate, lookupVenue),
+-- so rows holding the long name can never match: 743 of 1,280 venue-linked event
+-- rows sat at such venues and could not be returned to the Briefing, the map or the
+-- planner. The write path already stores the short code (parseAddressComponents);
+-- this repairs the rows written before that fix.
+--
+-- SCOPE: DATA ONLY. One UPDATE of one column. No schema change, no other column, no
+-- other value: rows whose country is NULL or any other text are left exactly as they
+-- are (an unknown country is never assumed). updated_at is deliberately not touched,
+-- because no fact about the venue changed, only the spelling of a stored one.
+--
+-- IDEMPOTENT: the WHERE clause matches only the legacy value, so a second run
+-- matches zero rows and changes nothing. Verified by
+-- tests/venue/catalog-country-migration-sql.test.js, which runs this text twice.
+--
+-- REVERSIBILITY: the previous value is not recorded per row. Before this file is
+-- applied the set of affected rows is exactly "country = 'United States'"; after it,
+-- those rows are indistinguishable from rows that always held 'US'.
+--
+-- APPLYING: server/db/run-migrations.js applies every new file in this folder at
+-- gateway start. Keeping this file in migrations/ therefore IS the instruction to
+-- run it on the next start against whatever database DATABASE_URL selects.
+
+UPDATE venue_catalog SET country = 'US' WHERE country = 'United States';

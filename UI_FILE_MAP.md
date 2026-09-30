@@ -57,7 +57,8 @@ This document provides a complete mapping of UI components to their source files
 | `client/src/pages/co-pilot/SettingsPage.tsx` | User profile + vehicle settings | `/co-pilot/settings` | ✅ Active |
 | `client/src/pages/co-pilot/CoachPage.tsx` | Rideshare Coach (AI chat + voice) | `/co-pilot/coach` | ✅ Active |
 | `client/src/pages/co-pilot/ConciergePage.tsx` | Driver concierge (QR sharing, driver card) | `/co-pilot/concierge` | ✅ Active |
-| `client/src/pages/co-pilot/OfferAnalyzerPage.tsx` | Per-driver offer rules + outcomes | `/co-pilot/offer-analyzer` | ✅ Active |
+| `client/src/pages/co-pilot/OfferAnalyzerPage.tsx` | Owner rules, selected-service controls, history + outcomes | `/co-pilot/offer-analyzer` | ✅ Active |
+| `client/src/pages/co-pilot/QuickAnalyzePage.tsx` | Signed-in screenshot chooser + fresh GPS + verified speech | `/co-pilot/analyze` | ✅ Active |
 | `client/src/pages/co-pilot/TranslationPage.tsx` | Real-time rider translation overlay | `/co-pilot/translate` | ✅ Active |
 | `client/src/pages/co-pilot/SchedulePage.tsx` | Weekly driving schedule + shift preferences | `/co-pilot/schedule` | ✅ Active |
 | `client/src/pages/co-pilot/DonatePage.tsx` | Donation page | `/co-pilot/donate` | ✅ Active |
@@ -105,9 +106,11 @@ This document provides a complete mapping of UI components to their source files
 
 ### Offer Analyzer Components
 
+Current contracts and source boundaries: [Analyzer reference](docs/architecture/OFFER_ANALYZER.md).
+
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
-| `client/src/components/offer-analyzer/SetupCard.tsx` | Siri Shortcut install + identity-bridge token card | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/SetupCard.tsx` | Browser quick entry/token-free Android launcher + legacy iPhone setup/token | OfferAnalyzerPage.tsx | ✅ Active |
 | `client/src/components/offer-analyzer/RateTargetsCard.tsx` | Rate targets rules card | OfferAnalyzerPage.tsx | ✅ Active |
 | `client/src/components/offer-analyzer/GatesCard.tsx` | Hard gates rules card | OfferAnalyzerPage.tsx | ✅ Active |
 | `client/src/components/offer-analyzer/GeographyCard.tsx` | Geography / avoid-places card | OfferAnalyzerPage.tsx | ✅ Active |
@@ -302,23 +305,18 @@ This document provides a complete mapping of UI components to their source files
 
 | Endpoint | Method | Called By | Purpose |
 |----------|--------|-----------|---------|
-| `/api/hooks/analyze-offer` | POST | iPhone Shortcuts / Android automation (public, token-optional) | Analyze ride offer from OCR text and/or screenshot (multipart `image` or base64) |
+| `/api/hooks/analyze-offer` | POST | Browser quick capture / configured phone automation (token-optional hook) | Analyze ride offer from OCR text and/or screenshot (multipart `image` or base64) |
 | `/api/hooks/offer-history` | GET | shortcuts only (token-required; no client caller) | Recent analyzed offers for the token owner |
 | `/api/hooks/offer-override` | POST | shortcuts only (token-required; no client caller) | Record in-the-moment override (ACCEPT/REJECT) |
 | `/api/hooks/offer-cleanup` | POST | (maintenance; token-required) | Batch-delete up to 50 of the owner's offers by id |
 
 ### Offer Analyzer APIs (authed)
 
-| Endpoint | Method | Called By | Purpose |
-|----------|--------|-----------|---------|
-| `/api/offer-analyzer/rules` | GET | OfferAnalyzerPage | Fetch per-driver ruleset |
-| `/api/offer-analyzer/rules` | PUT | OfferAnalyzerPage | Save per-driver ruleset |
-| `/api/offer-analyzer/shortcut-token` | GET | OfferAnalyzerPage | Get-or-create Siri shortcut token |
-| `/api/offer-analyzer/shortcut-token/regenerate` | POST | OfferAnalyzerPage | Rotate shortcut token |
-| `/api/offer-analyzer/shortcut-token/label` | POST | OfferAnalyzerPage | Label shortcut token |
-| `/api/offer-analyzer/offers` | GET | OfferAnalyzerPage | List analyzed offers |
-| `/api/offer-analyzer/offers/:id/outcome` | POST | OfferAnalyzerPage | Record offer outcome |
-| `/api/offer-analyzer/places/search` | GET | OfferAnalyzerPage | Avoid-places search |
+See the maintained [route registry](docs/api-routes-registry.md#offer-analyzer-endpoints)
+for rules/revisions, token setup, history/full-period stats, outcomes, reversible
+removal and Places search. The legacy hook cleanup is hard deletion, not the editor's
+remove/restore flow. Components call the authenticated APIs; `QuickAnalyzePage` obtains
+the owner token then uses the public capture hook.
 
 ---
 

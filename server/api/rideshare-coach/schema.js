@@ -47,7 +47,7 @@ export const rideshareCoachSchemaMetadata = {
     },
     ranking_candidates: {
       description: "Venue recommendations with ranking scores",
-      key_columns: ["id", "snapshot_id", "venue_name", "rank", "features", "distance_mi"],
+      key_columns: ["id", "snapshot_id", "name", "rank", "features", "distance_miles"],
       sample_query: "Get top-ranked venues for current session"
     },
     market_intelligence: {
@@ -62,13 +62,13 @@ export const rideshareCoachSchemaMetadata = {
     },
     driver_profiles: {
       description: "Driver's profile, preferences, and home location",
-      key_columns: ["id", "user_id", "first_name", "home_city", "home_timezone", "platforms"],
+      key_columns: ["id", "user_id", "first_name", "city", "home_timezone", "rideshare_platforms"],
       sample_query: "Get driver's name and home market"
     },
     driver_vehicles: {
       description: "Driver's vehicle information",
-      key_columns: ["id", "user_id", "make", "model", "year", "vehicle_type"],
-      sample_query: "Check if driver has XL-eligible vehicle"
+      key_columns: ["id", "driver_profile_id", "make", "model", "year", "seatbelts"],
+      sample_query: "Check vehicle seating capacity alongside driver profile eligibility"
     },
     user_intel_notes: {
       description: "Coach's saved notes about this driver (memory)",
@@ -175,7 +175,7 @@ export const rideshareCoachSchemaMetadata = {
 
   // Relationships for context
   relationships: [
-    "snapshots → strategies (1:N by snapshot_id)",
+    "snapshots → strategies (1:1 by snapshot_id)",
     "snapshots → briefings (1:1 by snapshot_id)",
     "snapshots → ranking_candidates (1:N by snapshot_id)",
     "venue_catalog → discovered_events (1:N by venue_id)",

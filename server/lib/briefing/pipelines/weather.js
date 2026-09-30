@@ -16,6 +16,11 @@
 
 import { briefingLog, OP } from '../../../logger/workflow.js';
 import { writeSectionAndNotify, CHANNELS, errorMarker } from '../briefing-notify.js';
+import { normalizeCoordinates } from '../../../../shared/coordinates.js';
+
+const WEATHER_TIMEOUT_MS = 15_000;
+const hasText = value => typeof value === 'string' && value.trim().length > 0;
+const validTimestamp = value => hasText(value) && Number.isFinite(Date.parse(value));
 
 /**
  * Determine whether a country uses the metric system.
@@ -24,17 +29,22 @@ import { writeSectionAndNotify, CHANNELS, errorMarker } from '../briefing-notify
  * @returns {boolean} true if metric, false if imperial
  */
 function usesMetric(country) {
-  const imperialCountries = ['US', 'United States', 'Bahamas', 'Cayman Islands', 'Palau', 'Marshall Islands', 'Myanmar'];
-  return !country || !imperialCountries.some(c => country?.toUpperCase().includes(c.toUpperCase()));
+  const imperialCountries = new Set(['US', 'USA', 'UNITED STATES', 'UNITED STATES OF AMERICA',
+    'BS', 'BAHAMAS', 'KY', 'CAYMAN ISLANDS', 'PW', 'PALAU', 'MH', 'MARSHALL ISLANDS', 'MM', 'MYANMAR']);
+  return !imperialCountries.has(typeof country === 'string' ? country.trim().toUpperCase() : '');
 }
 
 /**
  * Format temperature with both metric/imperial values + a country-appropriate display value.
- * @param {number} tempC - temperature in Celsius
+ * @param {{ degrees: number, unit: string }} temperature - Google typed measurement
  * @param {string} country - country name/code (drives display unit)
  * @returns {{ tempC: number, tempF: number, displayTemp: number, unit: string }}
  */
-function formatTemperature(tempC, country) {
+function formatTemperature(temperature, country) {
+  if (!Number.isFinite(temperature?.degrees)) return undefined;
+  const tempC = temperature.unit === 'CELSIUS' ? temperature.degrees
+    : temperature.unit === 'FAHRENHEIT' ? (temperature.degrees - 32) * 5 / 9 : undefined;
+  if (!Number.isFinite(tempC)) return undefined;
   const metric = usesMetric(country);
   if (metric) {
     return {
@@ -55,19 +65,17 @@ function formatTemperature(tempC, country) {
 }
 
 /**
- * Convert wind speed from m/s to km/h (metric) or mph (imperial).
- * @param {number} windSpeedMs - wind speed in meters per second
+ * Convert Google's declared speed unit; Weather API does not return m/s.
+ * @param {{ value: number, unit: string }} speed - Google wind.speed measurement
  * @param {string} country - country name/code
- * @returns {number|undefined} converted speed, or undefined if input is falsy
+ * @returns {number|undefined} converted speed, or undefined when unavailable
  */
-function formatWindSpeed(windSpeedMs, country) {
-  if (!windSpeedMs) return undefined;
-  const metric = usesMetric(country);
-  if (metric) {
-    return Math.round(windSpeedMs * 3.6);
-  } else {
-    return Math.round(windSpeedMs * 2.237);
-  }
+function formatWindSpeed(speed, country) {
+  if (!Number.isFinite(speed?.value) || speed.value < 0) return undefined;
+  const kmh = speed.unit === 'KILOMETERS_PER_HOUR' ? speed.value
+    : speed.unit === 'MILES_PER_HOUR' ? speed.value * 1.609344 : undefined;
+  if (!Number.isFinite(kmh)) return undefined;
+  return Math.round(usesMetric(country) ? kmh : kmh / 1.609344);
 }
 
 /**
@@ -103,12 +111,12 @@ function generateWeatherDriverImpact(current, forecast = []) {
     parts.push(`Rain — expect surge, riders avoid walking`);
   } else if (isFog) {
     parts.push(`Foggy — reduced visibility, drive carefully`);
-  } else if (temp && temp > 100) {
+  } else if (Number.isFinite(temp) && temp > 100) {
     parts.push(`Extreme heat ${temp}°F — normal demand`);
-  } else if (temp && temp < 32) {
+  } else if (Number.isFinite(temp) && temp < 32) {
     parts.push(`Freezing ${temp}°F — surge likely, riders avoid cold waits`);
   } else {
-    parts.push(`${current.conditions || 'Clear'}, ${temp ? temp + '°F' : ''} — good driving conditions`);
+    parts.push(`${current.conditions}, ${Number.isFinite(temp) ? temp + '°F' : ''} — good driving conditions`);
   }
 
   const upcomingRain = forecast.slice(0, 3).find(h =>
@@ -118,8 +126,9 @@ function generateWeatherDriverImpact(current, forecast = []) {
   );
 
   if (upcomingRain && !isRain && !isSevere) {
-    const idx = forecast.indexOf(upcomingRain);
-    parts.push(`Rain expected in ~${idx + 1} hour${idx > 0 ? 's' : ''} — surge incoming`);
+    const hours = Math.max(0, Math.ceil((Date.parse(upcomingRain.time) - Date.parse(current.observedAt)) / 3_600_000));
+    parts.push(hours === 0 ? 'Rain expected in the current forecast hour — surge incoming'
+      : `Rain expected in ~${hours} hour${hours > 1 ? 's' : ''} — surge incoming`);
   }
 
   return parts.join('. ') + '.';
@@ -134,55 +143,59 @@ function generateWeatherDriverImpact(current, forecast = []) {
  * @param {{ snapshot: object }} args
  * @returns {Promise<{ current: object, forecast: Array, fetchedAt?: string, reason?: string }>}
  */
-export async function fetchWeatherConditions({ snapshot }) {
+export async function fetchWeatherConditions({ snapshot, signal }) {
   if (!process.env.GOOGLE_MAPS_API_KEY) {
     briefingLog.warn(1, `GOOGLE_MAPS_API_KEY not set - skipping weather`, OP.API);
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'GOOGLE_MAPS_API_KEY not configured' },
-      forecast: [],
-      reason: 'GOOGLE_MAPS_API_KEY not configured'
-    };
+    throw new Error('Weather provider not configured');
   }
 
-  if (!Number.isFinite(snapshot?.lat) || !Number.isFinite(snapshot?.lng)) {
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'Snapshot missing GPS coordinates' },
-      forecast: [],
-      reason: 'Snapshot missing GPS coordinates (lat/lng)'
-    };
-  }
+  const coords = normalizeCoordinates(snapshot?.lat, snapshot?.lng);
+  if (!coords) throw new Error('Weather snapshot has missing or invalid GPS coordinates');
 
-  const { lat, lng, country } = snapshot;
+  const { lat, lng } = coords;
+  const { country } = snapshot;
   const metric = usesMetric(country);
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const controller = new AbortController();
+  const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+  const timeout = setTimeout(() => controller.abort(new Error('Weather provider timed out')), WEATHER_TIMEOUT_MS);
+  const request = async endpoint => {
+    const url = new URL(`https://weather.googleapis.com/v1/${endpoint}:lookup`);
+    url.searchParams.set('location.latitude', String(lat));
+    url.searchParams.set('location.longitude', String(lng));
+    url.searchParams.set('unitsSystem', 'METRIC');
+    url.searchParams.set('key', apiKey);
+    if (endpoint === 'forecast/hours') url.searchParams.set('hours', '6');
+    return fetch(url.toString(), { signal: requestSignal });
+  };
 
   try {
-    const [currentRes, forecastRes] = await Promise.all([
-      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${apiKey}`),
-      fetch(`https://weather.googleapis.com/v1/forecast/hours:lookup?location.latitude=${lat}&location.longitude=${lng}&hours=6&key=${apiKey}`)
-    ]);
+    requestSignal.throwIfAborted();
+    const [currentRes, forecastRes] = await Promise.all([request('currentConditions'), request('forecast/hours')]);
 
+    if (!currentRes.ok || !forecastRes.ok) {
+      throw new Error(`Weather API request failed (current HTTP ${currentRes.status}, forecast HTTP ${forecastRes.status})`);
+    }
     let current = null;
     let forecast = [];
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
-      const tempC = currentData.temperature?.degrees ?? currentData.temperature;
-      const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
-      const windSpeedMs = currentData.windSpeed?.value ?? currentData.windSpeed;
-
-      const tempData = formatTemperature(tempC, country);
-      const feelsData = formatTemperature(feelsLikeC, country);
-      const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
+      const tempData = formatTemperature(currentData.temperature, country);
+      if (!tempData || !hasText(currentData.weatherCondition?.description?.text) || !validTimestamp(currentData.currentTime)) {
+        throw new Error('Weather API returned invalid current conditions');
+      }
+      const feelsData = formatTemperature(currentData.feelsLikeTemperature, country);
+      const windSpeedDisplay = formatWindSpeed(currentData.wind?.speed, country);
 
       current = {
         temperature: tempData.displayTemp,
         tempF: tempData.tempF,
         tempC: tempData.tempC,
         tempUnit: tempData.unit,
-        feelsLike: feelsData.displayTemp,
-        feelsLikeF: feelsData.tempF,
-        feelsLikeC: feelsData.tempC,
+        feelsLike: feelsData?.displayTemp,
+        feelsLikeF: feelsData?.tempF,
+        feelsLikeC: feelsData?.tempC,
         conditions: currentData.weatherCondition?.description?.text,
         conditionType: currentData.weatherCondition?.type,
         humidity: currentData.relativeHumidity?.value ?? currentData.relativeHumidity,
@@ -200,18 +213,16 @@ export async function fetchWeatherConditions({ snapshot }) {
 
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
-      forecast = (forecastData.forecastHours || []).map((hour, idx) => {
-        const tempC = hour.temperature?.degrees ?? hour.temperature;
-        const windSpeedMs = hour.windSpeed?.value ?? hour.wind?.speed;
-        const tempData = formatTemperature(tempC, country);
-        const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
-
-        let timeValue = hour.time;
-        if (!timeValue || isNaN(new Date(timeValue).getTime())) {
-          const forecastTime = new Date();
-          forecastTime.setHours(forecastTime.getHours() + idx);
-          timeValue = forecastTime.toISOString();
+      if (!Array.isArray(forecastData.forecastHours) || forecastData.forecastHours.length === 0) {
+        throw new Error('Weather API returned no forecast hours');
+      }
+      forecast = forecastData.forecastHours.map(hour => {
+        const tempData = formatTemperature(hour?.temperature, country);
+        const timeValue = hour?.interval?.startTime;
+        if (!tempData || !validTimestamp(timeValue) || !hasText(hour?.weatherCondition?.description?.text)) {
+          throw new Error('Weather API returned an invalid forecast hour');
         }
+        const windSpeedDisplay = formatWindSpeed(hour.wind?.speed, country);
 
         return {
           time: timeValue,
@@ -219,7 +230,7 @@ export async function fetchWeatherConditions({ snapshot }) {
           tempF: tempData.tempF,
           tempC: tempData.tempC,
           tempUnit: tempData.unit,
-          conditions: hour.condition?.text ?? hour.weatherCondition?.description?.text,
+          conditions: hour.weatherCondition.description.text,
           conditionType: hour.weatherCondition?.type,
           precipitationProbability: hour.precipitationProbability?.value ?? hour.precipitation?.probability?.percent,
           windSpeed: windSpeedDisplay,
@@ -233,14 +244,14 @@ export async function fetchWeatherConditions({ snapshot }) {
       current.driverImpact = generateWeatherDriverImpact(current, forecast);
     }
 
+    requestSignal.throwIfAborted();
     return { current, forecast, fetchedAt: new Date().toISOString() };
   } catch (error) {
     briefingLog.error(1, `Weather API error`, error, OP.API);
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: `Weather API error: ${error.message}` },
-      forecast: [],
-      reason: `Google Weather API error: ${error.message}`
-    };
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
   }
 }
 
@@ -254,14 +265,8 @@ export async function fetchWeatherConditions({ snapshot }) {
  * Special case: this is the only pipeline that writes TWO sections in a single
  * `writeSectionAndNotify` call. Other pipelines write one section.
  *
- * Two error pathways are preserved:
- *   - Pathway A (thrown): synchronous/async failure inside fetchWeatherConditions →
- *     errorMarker is written to weather_current, then re-thrown so the orchestrator's
- *     Promise.allSettled captures it as `failedReasons.weather`.
- *   - Pathway B (graceful): API returns no data (e.g., GOOGLE_MAPS_API_KEY missing,
- *     bad coordinates, API 5xx) → returns `{ weather_current: { temperature: 'N/A',
- *     reason: '...' }, weather_forecast: [], reason: '<string>' }`. The orchestrator
- *     reads `weatherResult.weather_current` directly.
+ * HTTP/configuration/parse failures throw and remain failures through the final
+ * reconciliation. An unavailable weather provider is not a verified empty sky.
  *
  * @param {object} args
  * @param {object} args.snapshot - snapshot row (lat/lng/country drive the API call)
@@ -275,12 +280,11 @@ export async function discoverWeather({ snapshot, snapshotId }) {
 
   try {
     const result = await fetchWeatherConditions({ snapshot });
-    weather_current = result?.current || {
-      temperature: 'N/A',
-      conditions: 'Weather data could not be retrieved',
-      reason: 'Weather API returned no current conditions'
-    };
-    weather_forecast = result?.forecast || [];
+    if (!result?.current || !Array.isArray(result.forecast)) {
+      throw new Error('Weather provider returned an invalid response');
+    }
+    weather_current = result.current;
+    weather_forecast = result.forecast;
     reason = result?.reason || null;
 
     await writeSectionAndNotify(snapshotId, {
@@ -289,9 +293,9 @@ export async function discoverWeather({ snapshot, snapshotId }) {
     }, CHANNELS.WEATHER);
   } catch (err) {
     weather_current = errorMarker(err);
-    weather_forecast = [];
+    weather_forecast = errorMarker(err);
     reason = err.message;
-    await writeSectionAndNotify(snapshotId, { weather_current }, CHANNELS.WEATHER);
+    await writeSectionAndNotify(snapshotId, { weather_current, weather_forecast }, CHANNELS.WEATHER);
     throw err;
   }
 

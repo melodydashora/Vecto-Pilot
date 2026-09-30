@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { databaseConnectionConfig } from './connection-config.js';
 
 // DATABASE_URL auto-injected by Replit: Helium PostgreSQL 16 in dev workspace,
 // Neon serverless Postgres in published deployment.
@@ -11,10 +12,6 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
-// SSL conditional — Helium (dev) runs locally without SSL, production requires SSL.
-const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production';
-const sslConfig = isProduction ? { rejectUnauthorized: false } : false;
-
 // Create a standard Postgres pool using the environment provided URL
 // 2026-04-23: FIX — tuned pool for 57P01 resilience.
 //   - idleTimeoutMillis bumped from 10s → 30s: 10s churned connections aggressively so the
@@ -23,8 +20,7 @@ const sslConfig = isProduction ? { rejectUnauthorized: false } : false;
 //   - allowExitOnIdle: false made explicit — prevents the process from exiting when the pool
 //     is briefly empty (happens during reconnect storms).
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: sslConfig,
+  ...databaseConnectionConfig(),
   max: 25, // ISSUE #22 FIX: Increased from 10 to 25 - strategy (2-3) + briefing (4-5) + blocks (2-3) = 8-11 per user, need buffer for concurrent users
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 15000,
@@ -34,50 +30,18 @@ export const pool = new Pool({
   allowExitOnIdle: false,
 });
 
-// 2026-04-23: FIX — transient-error retry wrapper around pool.query.
-// pg.Pool already evicts dead clients from `pool.on('error')`, but queries that are in
-// flight when the server terminates the connection (57P01 admin_shutdown, 08006 connection
-// failure, etc.) fail at the caller. One retry with a small backoff is safe because:
-//   (a) 57P01 happens before the server commits anything (connection dies first), and
-//   (b) the pool's next `connect()` pulls a fresh client and the retry runs on it.
-// Both Drizzle (server/db/drizzle.js imports this same pool) and the raw `query` export
-// below inherit this behavior since we monkey-patch the instance method directly.
-const TRANSIENT_PG_ERROR_CODES = new Set([
-  '57P01', // admin_shutdown — connection terminated by server
-  '57P02', // crash_shutdown
-  '57P03', // cannot_connect_now
-  '08000', // connection_exception
-  '08003', // connection_does_not_exist
-  '08006', // connection_failure
-  '08001', // sqlclient_unable_to_establish_sqlconnection
-  '08004', // sqlserver_rejected_establishment_of_sqlconnection
-]);
-
-const originalPoolQuery = pool.query.bind(pool);
-pool.query = function retryablePoolQuery(textOrConfig, paramsOrCallback, maybeCallback) {
-  // Callback-style invocation: pass through unchanged (pool handles callback semantics
-  // internally; promise-wrapping it would break the contract).
-  if (typeof paramsOrCallback === 'function' || typeof maybeCallback === 'function') {
-    return originalPoolQuery(textOrConfig, paramsOrCallback, maybeCallback);
-  }
-
-  // Promise-style: retry once on transient error.
-  return originalPoolQuery(textOrConfig, paramsOrCallback).catch(async (err) => {
-    if (!TRANSIENT_PG_ERROR_CODES.has(err?.code)) throw err;
-    const sqlPreview = String(textOrConfig?.text || textOrConfig || '').slice(0, 80).replace(/\s+/g, ' ');
-    console.warn(`[DB] Transient ${err.code} on query; retrying once — "${sqlPreview}…"`);
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    return originalPoolQuery(textOrConfig, paramsOrCallback);
-  });
-};
+// Do not transparently replay queries after connection loss. The server may
+// have committed before its response was lost; even SELECT can invoke a
+// sequence or a volatile function. pg evicts broken clients so later explicit
+// operations can reconnect. A caller that can prove idempotence owns its retry.
 
 // Add connection acquisition monitoring to detect pool exhaustion
 const connectionWarningThreshold = 20; // ISSUE #22 FIX: Updated threshold for 25 pool size (warn at 80%)
 let lastWarningTime = 0;
 
 pool.on('connect', (client) => {
-  // Set statement timeout on each new connection
-  client.query('SET statement_timeout TO 30000');
+  // statement_timeout is sent in pg's startup configuration above. A duplicate
+  // fire-and-forget SET here used to introduce an unhandled query rejection.
   // 2026-08-17 (race review, verified with a protocol-faithful fake PG server): a client
   // that is CHECKED OUT (db.transaction / pool.connect) has no 'error' listener — pg-pool
   // removes its idle listener on acquire — so a 57P01 / socket death mid-transaction
@@ -90,7 +54,7 @@ pool.on('connect', (client) => {
   });
 });
 
-setInterval(() => {
+const poolMonitor = setInterval(() => {
   const stats = {
     idle: pool.idleCount ?? 0,
     total: pool.totalCount ?? 0,
@@ -104,6 +68,9 @@ setInterval(() => {
     lastWarningTime = Date.now();
   }
 }, 30000); // Check every 30 seconds
+
+// Monitoring must not keep CLI checks/tests alive after their work and pool close.
+poolMonitor.unref();
 
 pool.on('error', (err) => {
   // 57P01 = admin_shutdown (connection terminated by server).
@@ -121,7 +88,9 @@ export function getPool() {
   return pool;
 }
 
-// Get agent state for health monitoring (PostgreSQL via Replit is stable, always report healthy)
+// Legacy retry-agent compatibility fields only; the pool has no retry agent.
+// These defaults are not a database health probe. Health/readiness routes issue
+// their own SELECT 1 and must keep using that result to determine availability.
 export function getAgentState() {
   return {
     degraded: false,

@@ -9,8 +9,10 @@
 // ============================================================================
 
 import { db } from '../../../db/drizzle.js';
+import { assertMainRunForSnapshot, MainRunAdmissionError } from '../../main-run-admission.js';
 import { snapshots } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+import { assertBriefingReady, BriefingNotReadyError, briefingFailureReason } from '../../briefing/briefing-readiness.js';
 import { generateAndStoreBriefing } from '../../briefing/briefing-aggregator.js';
 import { briefingLog, OP } from '../../../logger/workflow.js';
 
@@ -36,6 +38,7 @@ import { briefingLog, OP } from '../../../logger/workflow.js';
  */
 export async function runBriefing(snapshotId, options = {}) {
   try {
+    await assertMainRunForSnapshot(snapshotId);
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
     let snapshot = options.snapshot;
     if (!snapshot) {
@@ -56,16 +59,22 @@ export async function runBriefing(snapshotId, options = {}) {
 
     if (!result.success) {
       briefingLog.warn(2, `Generation returned success=false: ${result.error}`);
+      if (result.briefing) throw new BriefingNotReadyError(result.briefing, snapshotId);
       throw new Error(result.error || 'Briefing generation failed');
     }
+
+    assertBriefingReady(result.briefing, snapshotId);
 
     briefingLog.done(2, `[briefing.js] Briefing stored for ${snapshotId.slice(0, 8)}`, OP.DB);
 
     // 2026-01-10: Return the fresh briefing so caller can pass it downstream
-    // This avoids re-reading from DB and ensures fresh data is used
+    // Strategy rechecks final persistence; later venue context can reuse this saved row
     return { briefing: result.briefing };
   } catch (error) {
     briefingLog.error(2, `Briefing failed for ${snapshotId.slice(0, 8)}`, error);
-    throw error;
+    if (error instanceof BriefingNotReadyError || error instanceof MainRunAdmissionError) throw error;
+    const failure = new Error(`Briefing generation failed: ${briefingFailureReason(error)}`, { cause: error });
+    failure.code = 'briefing_failed';
+    throw failure;
   }
 }
