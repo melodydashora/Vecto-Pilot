@@ -8,6 +8,7 @@ jest.unstable_mockModule('../client/src/routes', () => ({ router }));
 jest.unstable_mockModule('react-router-dom', () => ({ RouterProvider: () => <div>Anonymous guest route</div> }));
 for (const [path, name, spy] of [
   ['../client/src/contexts/auth-context', 'AuthProvider', mounts.auth],
+  ['../client/src/contexts/run-setup-context', 'RunSetupProvider', mounts.auth],
   ['../client/src/contexts/location-context-clean', 'LocationProvider', mounts.location],
   ['../client/src/contexts/co-pilot-context', 'CoPilotProvider', mounts.copilot],
 ] as const) {

@@ -7,6 +7,7 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { QUERY_KEYS } from '@/constants/apiRoutes';
 
 const helpers = await import('@/utils/co-pilot-helpers');
+jest.unstable_mockModule('@/contexts/run-setup-context', () => ({ useRunSetup: () => ({ run: null }) }));
 jest.unstable_mockModule('@/utils/co-pilot-helpers', () => ({
   ...helpers,
   getAuthHeader: () => ({ Authorization: 'Bearer synthetic' }),
@@ -23,6 +24,7 @@ jest.unstable_mockModule('@/contexts/location-context-clean', () => ({
     timeZone: 'America/Los_Angeles',
     isLocationResolved: true,
     lastSnapshotId: 'briefing-fixture',
+    runId: 'briefing-run',
   }),
 }));
 // main's CoPilotProvider scopes snapshot state to an authScope built from user.userId + token.
@@ -45,6 +47,7 @@ function aggregate() {
   return {
     snapshot_id: 'briefing-fixture',
     briefing: {
+      holiday: { name: null, _pending: false, _generationFailed: false },
       weather: { current: null, forecast: [], _pending: false, _generationFailed: false },
       traffic: { incidents: [], reason: '', _pending: false, _generationFailed: false },
       news: { items: [], reason: '', _pending: false, _generationFailed: false },
@@ -85,7 +88,7 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-describe('briefing aggregate through its real provider, page, and event cards', () => {
+describe('upstream briefing aggregate through its real provider, page, and event cards while Strategy is held', () => {
   it('shows local today and upcoming events, including a known start without an end time', async () => {
     const data = aggregate();
     data.briefing.events.items = [
@@ -109,6 +112,8 @@ describe('briefing aggregate through its real provider, page, and event cards', 
     expect(screen.getByText('Major local event')).toBeInTheDocument();
     expect(screen.queryByText('Major tomorrow event')).not.toBeInTheDocument();
     expect(jest.mocked(fetch).mock.calls.filter(([url]) => String(url).startsWith('/api/briefing/'))).toHaveLength(1);
+    expect(jest.mocked(fetch).mock.calls.some(([url]) => String(url).startsWith('/api/blocks'))).toBe(false);
+    expect(jest.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
     expect(fetch).toHaveBeenCalledWith('/api/briefing/snapshot/briefing-fixture', expect.objectContaining({ headers: { Authorization: 'Bearer synthetic' } }));
   });
 
@@ -163,4 +168,27 @@ describe('briefing aggregate through its real provider, page, and event cards', 
     expect(await screen.findByText('No scheduled events in this market today')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+});
+
+it('preserves a venue event across display midnight and surfaces missing market coverage', async () => {
+  const data = aggregate();
+  Object.assign(data.briefing.events, { market_status: 'partial', unresolved_market_events: 1 });
+  data.briefing.events.marketEvents = [{ title: 'Across-zone show', venue: 'Verified venue',
+    event_start_date: '2026-09-14', event_end_date: '2026-09-14', event_start_time: '00:15', event_end_time: '01:30',
+    start_time_iso: '2026-09-14T04:15:00Z', end_time_iso: '2026-09-14T05:30:00Z', timezone: 'America/New_York' }];
+  mount(data);
+  expect(await screen.findByText('Some market events have unconfirmed times and are not shown.')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Major Events in Your Market'));
+  expect(screen.getByText('Across-zone show')).toBeInTheDocument();
+  expect(screen.queryByText('00:15')).not.toBeInTheDocument();
+});
+
+it('shows a completed event section while another required section remains pending', async () => {
+  const data = aggregate();
+  data.briefing.school_closures._pending = true;
+  data.briefing.events.items = [{ title: 'Ready while schools load', event_start_date: '2026-09-13', event_start_time: '20:00' }];
+  mount(data);
+  expect(await screen.findByText('Ready while schools load')).toBeInTheDocument();
+  expect(screen.getByText('Loading school closures...')).toBeInTheDocument();
+  expect(screen.queryByText('Loading events...')).not.toBeInTheDocument();
 });

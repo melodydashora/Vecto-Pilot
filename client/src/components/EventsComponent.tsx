@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp, Navigation, Calendar } from "lucide-react";
-import { filterValidEvents, formatEventRunDisplay, formatEventTime, formatEventTimeRange } from "@/utils/co-pilot-helpers";
+import { eventDisplayFields, filterValidEvents, formatEventRunDisplay, formatEventTime, formatEventTimeRange } from "@/utils/co-pilot-helpers";
 
 // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 interface EventVariant {
@@ -23,7 +23,7 @@ interface Event extends EventVariant {
   type?: string;
   subtype?: string;
   estimated_distance_miles?: number;
-  impact?: "high" | "medium" | "low";
+  impact?: "high" | "medium" | "low" | null;
   recommended_driver_action?: string;
   confidence?: string;
   latitude?: number;
@@ -50,7 +50,11 @@ function endUncertaintyMessage(reports: EventVariant[] = []): string {
     : 'Some reports omit an end time. End time is unconfirmed.';
 }
 
-export default function EventsComponent({ events, isLoading: _isLoading, timezone }: EventsComponentProps) {
+export default function EventsComponent({ events: savedEvents, isLoading: _isLoading, timezone }: EventsComponentProps) {
+  const events = (Array.isArray(savedEvents) ? savedEvents : []).map(event => ({
+    ...event, ...eventDisplayFields(event, timezone),
+    event_variants: event.event_variants?.map(variant => ({ ...variant, ...eventDisplayFields(variant, timezone) })),
+  }));
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     today: true,
     upcoming: true,
@@ -82,7 +86,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
   // Open navigation to event location
   const openNavigation = (event: Event) => {
     // Try coordinates first, fall back to address
-    if (event.latitude && event.longitude) {
+    if (Number.isFinite(event.latitude) && Number.isFinite(event.longitude)) {
       // Use Google Maps with coordinates
       const url = `https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}`;
       window.open(url, '_blank');
@@ -100,7 +104,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
   };
 
   const hasNavigationInfo = (event: Event) => {
-    return !!(event.latitude && event.longitude) || !!event.address || !!event.venue;
+    return (Number.isFinite(event.latitude) && Number.isFinite(event.longitude)) || !!event.address || !!event.venue;
   };
 
   const getImpactColor = (impact?: string) => {
@@ -196,7 +200,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
       {Object.entries(groupedEvents)
         .sort(([a], [b]) => {
           const order = { concerts: 0, sports: 1, festivals: 2, conventions: 3, other: 4 };
-          return (order[a as keyof typeof order] || 999) - (order[b as keyof typeof order] || 999);
+          return (order[a as keyof typeof order] ?? 999) - (order[b as keyof typeof order] ?? 999);
         })
         .map(([category, categoryEvents]) => (
           <Card

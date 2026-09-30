@@ -8,13 +8,14 @@ describe('canonical coordinate boundary', () => {
     [90, 180, '90.000000_180.000000'], [-90, -180, '-90.000000_-180.000000'],
     [' 12.3456789 ', '-45.1234567', '12.345679_-45.123457'],
     ['.000001', '-.000001', '0.000001_-0.000001'],
-  ])('normalizes %s,%s and round-trips an exact six-decimal key', (lat, lng, key) => {
+  ])('preserves %s,%s while producing the six-decimal lookup key', (lat, lng, key) => {
     const normalized = normalizeCoordinates(lat, lng);
     expect(coordsKey(lat, lng)).toBe(key);
-    expect(parseCoordKey(key)).toEqual(normalized);
+    expect(coordsKey(parseCoordKey(key).lat, parseCoordKey(key).lng)).toBe(key);
+    expect(normalized).toEqual({ lat: Number(lat) || 0, lng: Number(lng) || 0 });
     expect(normalizeCoordinates(normalized.lat, normalized.lng)).toEqual(normalized);
   });
-  test.each([undefined, null, '', ' ', true, false, [], [1], {}, NaN, Infinity, -Infinity, '1junk', '0x10', '1e2'])('rejects a coercible or invalid coordinate: %s', value => {
+  test.each([undefined, null, '', ' ', true, false, [], [1], {}, NaN, Infinity, -Infinity, '1junk', '0x10', '1e999', '1e-7junk'])('rejects a coercible or invalid coordinate: %s', value => {
     expect(normalizeCoordinates(value, 0)).toBeNull();
     expect(normalizeCoordinates(0, value)).toBeNull();
   });
@@ -23,6 +24,18 @@ describe('canonical coordinate boundary', () => {
   });
   test('adjacent six-decimal fixes do not share their cache key', () => {
     expect(coordsKey(0.000001, 0)).not.toBe(coordsKey(0.000002, 0));
+  });
+  test('lookup-key equality never discards extra measured digits', () => {
+    const first = normalizeCoordinates(1.12345671, 2.12345671);
+    const second = normalizeCoordinates(1.12345679, 2.12345679);
+    expect(coordsKey(first.lat, first.lng)).toBe(coordsKey(second.lat, second.lng));
+    expect(first).not.toEqual(second);
+  });
+  test('URL-serialized tiny readings retain their precision while overflow and bounds still fail', () => {
+    expect(normalizeCoordinates(String(0.000000123456789), String(-0.000000987654321)))
+      .toEqual({ lat: 0.000000123456789, lng: -0.000000987654321 });
+    expect(normalizeCoordinates('1e2', 0)).toBeNull();
+    expect(normalizeCoordinates(0, '2e2')).toBeNull();
   });
 });
 

@@ -14,7 +14,7 @@ const db = {
   } }; } }),
 };
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
-jest.unstable_mockModule('../../server/lib/events/pipeline/validateEvent.js', () => ({ VALIDATION_SCHEMA_VERSION: 1 }));
+jest.unstable_mockModule('../../server/lib/events/pipeline/validateEvent.js', () => ({ VALIDATION_SCHEMA_VERSION: 1, validateEvent: jest.fn() }));
 jest.unstable_mockModule('../../server/lib/location/daypart.js', () => ({ normalizeDayPartKey: jest.fn(), dayPartLabel: jest.fn() }));
 jest.unstable_mockModule('../../server/lib/offers/offer-patterns.js', () => ({ formatOfferPatterns: jest.fn() }));
 const { RideshareCoachDAL } = await import('../../server/lib/ai/rideshare-coach-dal.js');

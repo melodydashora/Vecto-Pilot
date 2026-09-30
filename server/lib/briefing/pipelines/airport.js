@@ -168,13 +168,16 @@ async function fetchAirportConditions({ snapshot }) {
   const nearby = await findNearbyAirports(snapshot.lat, snapshot.lng);
 
   if (nearby.length === 0) {
-    // VERIFIED empty — a true geographic fact, not a failure or a guess
+    // The seeded catalog has no coverage receipt for this radius. An empty
+    // lookup cannot prove the geographic absence of airports.
     return {
       airports: [],
       busyPeriods: [],
-      recommendations: `No major airports within ${AIRPORT_RADIUS_MILES} miles of this location`,
-      reason: `verified: no airports in the ${AIRPORT_RADIUS_MILES}-mile radius`,
-      verifiedEmpty: true,
+      recommendations: 'Nearby airport coverage could not be verified.',
+      reason: `The airport catalog returned no matches in the ${AIRPORT_RADIUS_MILES}-mile radius; geographic coverage is unknown.`,
+      verifiedEmpty: false,
+      coverage: 'unknown',
+      isFallback: true,
       fetchedAt: new Date().toISOString()
     };
   }

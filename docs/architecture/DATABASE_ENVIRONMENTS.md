@@ -1,6 +1,6 @@
 # Database Environments: Dev vs. Prod
 
-> **Last Updated:** 2026-04-24
+> **Last Updated:** 2026-09-29 (runtime TLS contract; provider history retained)
 > **Status:** Verified — **dev = Replit Helium local**; **prod = Neon serverless**. The 2026-04-05 "both Helium" claim was incorrect; see changelog.
 > **Priority:** CRITICAL — Read this document at every session start
 
@@ -60,7 +60,21 @@ Replit determines the environment at deployment time, not at runtime in our code
 - **Workspace (Dev):** `DATABASE_URL` → Replit's internal Helium PostgreSQL (local, `sslmode=disable`)
 - **Deployment (Prod):** `DATABASE_URL` → Neon serverless (PostgreSQL, SSL required, valid certs)
 
-The application code reads `process.env.DATABASE_URL` and connects. That's it. No branching, no env-file cascading needed.
+The application code selects its target only from `process.env.DATABASE_URL`.
+`server/db/connection-config.js` parses that URL once for the pool, LISTEN client
+(including reconnects), and migration runner. Exact known local targets
+(`helium`, `localhost`, `127.0.0.1`, `::1`, or Unix sockets) retain plaintext when
+TLS is absent or disabled; other targets require certificate and hostname
+verification. Explicit local TLS and URL CA/client certificate/key material are
+preserved. `NODE_ENV` and `REPLIT_DEPLOYMENT` do not choose the target or bypass
+verification. Invalid configuration fails without printing URL credentials.
+
+The old runtime used `rejectUnauthorized: false` in the pool/migration runner
+and different TLS configuration during LISTEN reconnect. Those implementations
+contradicted this document's verification requirement and were replaced on
+2026-09-29. Mocked lifecycle tests and actual parser/configuration tests verify
+this policy; they do **not** prove a live remote TLS handshake. See
+[`server/db/README.md`](../../server/db/README.md) for source and test entry points.
 
 ### 2. Replit Secrets
 
@@ -156,7 +170,8 @@ for email, unset as of this date). `DATABASE_URL` is Replit-managed and stays th
 
 | File | Purpose |
 |------|---------|
-| `server/db/connection-manager.js` | Pool config, conditional SSL, 57P01 handling, monitoring |
+| `server/db/connection-config.js` | Shared DATABASE_URL parsing, local/remote TLS and certificate preservation |
+| `server/db/connection-manager.js` | Shared pool, query handling, monitoring |
 | `server/db/db-client.js` | LISTEN/NOTIFY real-time client, keepalive |
 | `server/db/drizzle.js` | Drizzle ORM instance |
 | `server/config/load-env.js` | Environment loading |
@@ -183,6 +198,8 @@ for email, unset as of this date). `DATABASE_URL` is Replit-managed and stays th
 ---
 
 ## Changelog
+
+- **2026-09-29:** Reconciled the documented strict TLS requirement with pool, migration-runner, and LISTEN/reconnect source. Added shared URL/certificate parsing and lifecycle regression coverage. No remote database handshake or deployment was performed for this verification.
 
 - **2026-04-24:** **CORRECTION.** The 2026-04-05 entry incorrectly stated "both dev and prod confirmed as Replit Helium." The 2026-04-18 NEON_AUTOSCALE audit (`docs/architecture/audits/NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md`) proved prod runs Neon serverless (direct endpoint `ep-noisy-cake-afv3ojg3`). This doc, CLAUDE.md Rule 13, and `server/db/connection-manager.js` inline comments have been updated to match reality. The "removed all Neon references" in the 2026-04-05 entry was premature — Neon was still the prod provider.
 - **2026-04-05:** Removed Neon references from `connection-manager.js` and `db-client.js` on the incorrect assumption that prod had also migrated to Helium. See 2026-04-24 correction above. Prod remained on Neon throughout.

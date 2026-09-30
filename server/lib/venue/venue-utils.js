@@ -42,7 +42,7 @@ export function parseAddressComponents(components) {
       city: null,
       state: null,
       zip: null,
-      country: 'US'
+      country: null
     };
   }
 
@@ -79,7 +79,10 @@ export function parseAddressComponents(components) {
 
   // Postal code and country
   const zip = getComponent('postal_code');
-  const country = getComponent('country') || 'US';
+  const countryComponent = components.find(c => c?.types?.includes('country'));
+  const countryCode = countryComponent?.shortText || countryComponent?.short_name;
+  const country = typeof countryCode === 'string' && /^[A-Za-z]{2}$/.test(countryCode)
+    ? countryCode.toUpperCase() : null;
 
   return { address_1, address_2, city, state, zip, country };
 }

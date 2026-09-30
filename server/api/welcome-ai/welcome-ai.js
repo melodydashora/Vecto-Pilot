@@ -19,27 +19,42 @@ const publicLimiter = rateLimit({
 });
 
 router.post('/icebreaker', publicLimiter, async (req, res) => {
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+  const onClose = () => { if (!res.writableEnded) controller.abort(); };
+  res.on('close', onClose);
   try {
     const result = await callGemini({
       model: 'gemini-3.5-flash',
+      signal,
       system: 'You are an expert in casual conversation and rideshare etiquette. Output only the conversation starter directly — no quotes, no framing, no "Here is" preamble. Just the question or comment a passenger could actually say.',
       user: 'Generate a single fun, polite icebreaker a passenger can use with their rideshare driver. Keep it casual, friendly, and short (1–2 sentences). Avoid politics, religion, romance, and anything personal or sensitive.',
       maxTokens: 200,
       temperature: 0.9,
     });
+    signal.throwIfAborted();
     if (!result.ok) {
       console.error('[welcome-ai] icebreaker — adapter not ok:', result.error);
       return res.status(502).json({ ok: false, error: 'AI temporarily unavailable. Try again in a moment.' });
     }
-    const text = String(result.output || '').trim().replace(/^["']|["']$/g, '');
+    const text = typeof result.output === 'string' ? result.output.trim().replace(/^["']|["']$/g, '').trim() : '';
+    if (!text) return res.status(502).json({ ok: false, error: 'AI returned no answer. Please try again.' });
     return res.json({ ok: true, text });
   } catch (err) {
+    if (res.destroyed) return;
+    if (signal.aborted) return res.status(controller.signal.aborted ? 499 : 504).json({ ok: false, error: 'Request canceled or timed out' });
     console.error('[welcome-ai] icebreaker error:', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
+  } finally {
+    res.off('close', onClose);
   }
 });
 
 router.post('/ask', publicLimiter, async (req, res) => {
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+  const onClose = () => { if (!res.writableEnded) controller.abort(); };
+  res.on('close', onClose);
   try {
     const { question } = req.body || {};
     if (typeof question !== 'string' || !question.trim() || question.length > 500) {
@@ -47,19 +62,27 @@ router.post('/ask', publicLimiter, async (req, res) => {
     }
     const result = await callGemini({
       model: 'gemini-3.5-flash',
+      signal,
       system: 'You are a friendly, professional rideshare driver answering a passenger\'s question. Be polite, brief (2–3 sentences max), and keep passenger safety and rideshare rules in mind. If the question is unsafe, inappropriate, or asks the driver to break platform rules, politely decline. Always speak in first person as the driver.',
       user: `A passenger in your car just asked: "${question.trim()}"`,
       maxTokens: 300,
       temperature: 0.7,
     });
+    signal.throwIfAborted();
     if (!result.ok) {
       console.error('[welcome-ai] ask — adapter not ok:', result.error);
       return res.status(502).json({ ok: false, error: 'AI temporarily unavailable. Try again in a moment.' });
     }
-    return res.json({ ok: true, text: String(result.output || '').trim() });
+    const text = typeof result.output === 'string' ? result.output.trim() : '';
+    if (!text) return res.status(502).json({ ok: false, error: 'AI returned no answer. Please try again.' });
+    return res.json({ ok: true, text });
   } catch (err) {
+    if (res.destroyed) return;
+    if (signal.aborted) return res.status(controller.signal.aborted ? 499 : 504).json({ ok: false, error: 'Request canceled or timed out' });
     console.error('[welcome-ai] ask error:', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
+  } finally {
+    res.off('close', onClose);
   }
 });
 

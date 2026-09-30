@@ -1,5 +1,12 @@
 # Vecto-Pilot Hook Catalog and Environment Audit
 
+> Historical audit. Analyzer correction (2026-09-29): the hook has a 20/minute
+> feature limiter; deterministic/NO DATA branches do not always call both models.
+> Supplied personal-rule failures fail closed and companion routes require owner
+> tokens. See [current Analyzer source contract](architecture/OFFER_ANALYZER.md).
+> Findings and old source citations below remain historical evidence, not current
+> deployment verification.
+
 ## Executive summary
 
 The repository’s externally relevant hook surface is concentrated in five places: `.replit`, `scripts/start-replit.js`, `gateway-server.js`, `server/bootstrap/routes.js`, and the two agent layers (`server/agent/embed.js` and `agent-server.js`). The most important security finding is that **the public web app and the standalone agent are both part of the active startup topology**: the workspace run button starts `scripts/start-replit.js` on port `5000` and separately starts `agent-server.js` on port `43717`, while the gateway also mounts an embedded `/agent` surface and proxies unmatched `/agent/*` paths toward the standalone agent. fileciteturn34file0 fileciteturn39file0 fileciteturn43file0 fileciteturn41file0

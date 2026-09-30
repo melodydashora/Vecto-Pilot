@@ -11,7 +11,13 @@ const { PGlite } = createRequire(import.meta.url)('@electric-sql/pglite');
 let pg, actualDb, pending;
 const db = new Proxy({}, { get: (_target, name) => actualDb[name].bind(actualDb) });
 const provider = jest.fn();
+const assertAdmission = jest.fn();
+const publish = jest.fn(callback => actualDb.transaction(callback));
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
+jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => ({
+  assertMainRunForSnapshot: assertAdmission,
+  withCurrentMainRun: (_snapshotId, callback) => publish(callback),
+}));
 jest.unstable_mockModule('../../server/lib/location/snapshot-environment.js', () => ({ snapshotEnvironment: { both: provider } }));
 const { enrichSnapshot } = await import('../../server/lib/location/enrich-snapshot.js');
 const read = async () => (await actualDb.select().from(snapshots).where(eq(snapshots.snapshot_id, pending.snapshot_id)))[0];
@@ -25,6 +31,8 @@ beforeEach(async () => {
   pending = completeSnapshot({ weather: null, air: null, status: 'pending' });
   await actualDb.insert(snapshots).values(pending);
   provider.mockReset();
+  assertAdmission.mockReset().mockResolvedValue({ run_id: 'fixture-run' });
+  publish.mockReset().mockImplementation(callback => actualDb.transaction(callback));
   const ready = completeSnapshot();
   provider.mockResolvedValue({ weather: ready.weather, air: ready.air });
 });
@@ -32,7 +40,7 @@ afterAll(async () => { await pg?.close(); });
 
 test('actual SQL persists provider values, receipt and readiness atomically', async () => {
   const saved = await enrichSnapshot(pending, pending.user_id);
-  expect(provider).toHaveBeenCalledWith(pending.lat, pending.lng);
+  expect(provider).toHaveBeenCalledWith(pending.lat, pending.lng, { scope: 'fixture-run' });
   expect(saved).toEqual(completeSnapshot());
   expect(await read()).toEqual(saved);
   expect(getSnapshotReadiness(saved).ready).toBe(true);
@@ -92,5 +100,15 @@ test('completed legacy source without a receipt requires a new snapshot, preserv
 test('wrong owner is rejected before providers or writes', async () => {
   await expect(enrichSnapshot(pending, 'another-owner')).rejects.toThrow('ownership');
   expect(provider).not.toHaveBeenCalled();
+  expect(await read()).toEqual(pending);
+});
+test('superseded admission fails before provider work and cannot return old ready success', async () => {
+  assertAdmission.mockRejectedValue(new Error('main_run_superseded'));
+  await expect(enrichSnapshot(completeSnapshot(), pending.user_id)).rejects.toThrow('main_run_superseded');
+  expect(provider).not.toHaveBeenCalled();
+});
+test('revocation during provider work fences the final update', async () => {
+  publish.mockRejectedValue(new Error('main_run_superseded'));
+  await expect(enrichSnapshot(pending, pending.user_id)).rejects.toThrow('main_run_superseded');
   expect(await read()).toEqual(pending);
 });

@@ -17,7 +17,7 @@
 //   3. VENUE_SCORER role → venue recommendations (ranking_candidates table)
 //      Input: strategy + briefing + live discovered_events (NEAR/FAR bucketed)
 //   4. Google APIs → distances, business hours, enrichment
-//   5. VENUE_EVENT_VERIFIER role → event verification
+//   5. Saved validated events → identity and local-calendar badge matching
 //
 // RACE CONDITION PREVENTION:
 //   Uses PostgreSQL Advisory Locks to prevent duplicate AI calls when
@@ -32,10 +32,11 @@
 //
 // ============================================================================
 import { Router } from 'express';
-import { getSnapshotReadiness } from '../../lib/location/snapshot-readiness.js';
+import { getSnapshotReadiness, assertSnapshotReady } from '../../lib/location/snapshot-readiness.js';
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings } from '../../../shared/schema.js';
+import { assertMainRunForSnapshot, withCurrentMainRun, MainRunAdmissionError } from '../../lib/main-run-admission.js';
+import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings, main_run_admissions } from '../../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { isStrategyReady, ensureStrategyRow, updatePhase } from '../../lib/strategy/strategy-utils.js';
 // 2026-01-10: S-004 FIX - Use canonical status constants instead of hardcoded strings
@@ -52,7 +53,6 @@ import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { readStrategySource, assertCurrentStrategySource } from '../../lib/strategy/strategy-source-store.js';
 import { strategyMatchesBriefing, StrategySourceChangedError, STRATEGY_SOURCE_RETRY } from '../../lib/strategy/strategy-source.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
-import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
 import { isPlusCode } from '../utils/http-helpers.js';
 // 2026-01-09: Only import phaseEmitter (for phase progress updates)
 // strategyEmitter/blocksEmitter removed - DB NOTIFY is canonical for readiness events
@@ -111,12 +111,14 @@ const router = Router();
  * @param {string} options.userId - Authenticated user ID (required for ownership)
  * @returns {Promise<{ranking: Object|null, generated: boolean, error: string|null}>}
  */
-async function ensureSmartBlocksExist(snapshotId, options = {}) {
+export async function ensureSmartBlocksExist(snapshotId, options = {}) {
+  await assertMainRunForSnapshot(snapshotId);
   // Check if blocks already exist
   const [existingRanking] = await db.select().from(rankings)
     .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
   if (existingRanking) {
+    await assertCurrentStrategySource(snapshotId);
     return { ranking: existingRanking, generated: false, error: null };
   }
 
@@ -129,7 +131,8 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
 
   try {
     // Short transaction to atomically check and claim
-    await db.transaction(async (tx) => {
+    await withCurrentMainRun(snapshotId, async (tx, admission) => {
+      if (admission.status === 'complete') throw new MainRunAdmissionError(409, 'main_run_restart_required', 'Continue with saved preferences to start a fresh run.');
       // Try to acquire transaction-scoped advisory lock
       const lockResult = await tx.execute(
         sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) as acquired`
@@ -143,11 +146,11 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       }
 
       // Lock acquired - check if strategy is ready and not already being processed
-      if (!strategyRow) {
-        const [row] = await tx.select().from(strategies)
-          .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-        strategyRow = row;
-      }
+      // Supplied rows may predate another worker's claim. Always re-read under
+      // the owner lock before claiming this same admitted venue stage.
+      const [row] = await tx.select().from(strategies)
+        .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+      strategyRow = row;
 
       if (!strategyRow?.strategy_for_now) {
         venuesLog.warn(`[S-002] No strategy_for_now for ${snapshotId.slice(0, 8)}`);
@@ -185,6 +188,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       // Transaction commits here, advisory lock auto-releases
     });
   } catch (err) {
+    if (err instanceof MainRunAdmissionError) throw err;
     venuesLog.error(4, `[S-002] Lock transaction failed`, err);
     return { ranking: null, generated: false, error: `lock_failed: ${err.message}` };
   }
@@ -196,30 +200,24 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     // Poll with exponential backoff (max 30s)
     for (let i = 0; i < 10; i++) {
       await new Promise(r => setTimeout(r, Math.min(1000 * (i + 1), 5000)));
+      await assertMainRunForSnapshot(snapshotId);
       const [ranking] = await db.select().from(rankings)
         .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
+        await assertCurrentStrategySource(snapshotId);
         return { ranking, generated: false, error: null };
       }
     }
     return { ranking: null, generated: false, error: 'generation_timeout' };
   }
 
-  // Validate we have all required data
-  if (!strategyRow?.strategy_for_now) {
-    return { ranking: null, generated: false, error: 'missing_immediate_strategy' };
-  }
-  if (!briefingRow) {
-    return { ranking: null, generated: false, error: 'missing_briefing' };
-  }
-  if (!snapshot) {
-    return { ranking: null, generated: false, error: 'missing_snapshot' };
-  }
-
-  // Phase 2: Generate SmartBlocks (outside transaction - makes external API calls)
+  // Phase 2: Generate outside the transaction. Every failure after claiming
+  // goes through the terminal-admission path, including missing source data.
   venuesLog.info(`Generating venue cards for ${snapshotId.slice(0, 8)}`);
-
   try {
+    const [persistedSnapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    snapshot = assertSnapshotReady(persistedSnapshot, snapshotId);
     // Re-read after claiming. A refresh may have replaced the supplied Briefing;
     // the catch below releases our venue claim if this guard fails.
     const [persistedBriefing] = await db.select().from(briefings)
@@ -247,16 +245,20 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       await updatePhase(snapshotId, 'complete', { phaseEmitter: options.phaseEmitter });
       return { ranking: newRanking, generated: true, error: null };
     } else {
-      venuesLog.warn(4, `Venue cards generated but no ranking found`);
-      return { ranking: null, generated: true, error: 'ranking_not_created' };
+      throw new Error('Venue generation completed without a persisted ranking');
     }
   } catch (err) {
+    if (err instanceof MainRunAdmissionError) throw err;
     venuesLog.error(4, `SmartBlocks generation failed`, err);
-    // Reset status so retry is possible
-    await db.update(strategies).set({
-      status: STRATEGY_STATUS.OK,
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId)).catch(() => {});
+    // Retain the successfully saved Strategy, but require a new Continue after
+    // venue failure. A later GET must not retry providers on this same snapshot.
+    await withCurrentMainRun(snapshotId, async (tx, admission) => {
+      if (admission.status === 'complete') return;
+      await tx.update(strategies).set({ status: STRATEGY_STATUS.OK, updated_at: new Date() })
+        .where(eq(strategies.snapshot_id, snapshotId));
+      await tx.update(main_run_admissions).set({ status: 'failed', updated_at: new Date() })
+        .where(eq(main_run_admissions.run_id, admission.run_id));
+    });
     if (err instanceof BriefingNotReadyError || err instanceof StrategySourceChangedError) throw err;
     return { ranking: null, generated: false, error: err.message };
   }
@@ -281,56 +283,18 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
  * @param {boolean} options.logPlusCodes - Whether to log filtered Plus Codes
  * @returns {Promise<Array>} Formatted blocks ready for client
  */
-async function mapCandidatesToBlocks(candidates, options = {}) {
-  const { isHoliday = false, hasSpecialHours = false, logPlusCodes = false } = options;
-
-  // Step 1: Batch resolve venue addresses for all candidates in parallel
-  const venueKeys = candidates.map(c => ({ lat: c.lat, lng: c.lng, name: c.name }));
-  const addressMap = await resolveVenueAddressesBatch(venueKeys);
-
-  // Step 2-4: Map each candidate using canonical transformer
-  // toApiBlock imported at top of file from '../../validation/transformers.js'
-  return candidates.map(c => {
-    const coordKey = `${c.lat},${c.lng}`;
-
-    // Step 2: Extract and filter address
-    const venueData = addressMap[coordKey];
-    let resolvedAddress = venueData?.formatted_address || venueData?.address || null;
-
-    // Filter Plus Codes
-    if (resolvedAddress && isPlusCode(resolvedAddress)) {
-      if (logPlusCodes) {
-        console.log(`[VENUE] Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
-      }
-      resolvedAddress = null;
-    }
-
-    // Fallback to candidate address if not a Plus Code
-    if (!resolvedAddress && c.address && !isPlusCode(c.address)) {
-      resolvedAddress = c.address;
-    }
-
-    // Final Plus Code check
-    if (resolvedAddress && isPlusCode(resolvedAddress)) {
-      if (logPlusCodes) {
-        console.log(`[VENUE] Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
-      }
-      resolvedAddress = null;
-    }
-
-    // Step 3: Prepare input for transformer with resolved address
-    // If holiday/special hours, suppress businessHours by setting to null
-    const inputForTransformer = {
-      ...c,
-      address: resolvedAddress || c.address,
-      // Suppress business hours on holidays (transformer will pass through null)
-      businessHours: (isHoliday || hasSpecialHours) ? null : c.business_hours,
-      business_hours: (isHoliday || hasSpecialHours) ? null : c.business_hours
-    };
-
-    // Step 4: Use canonical transformer (single source of truth for field mapping)
-    // toApiBlock handles: snake/camel variants, event_start_time/event_time, staging normalization
-    return toApiBlock(inputForTransformer);
+export async function mapCandidatesToBlocks(candidates, options = {}) {
+  const { isHoliday = false, hasSpecialHours = false } = options;
+  // A saved ranking read must not perform a new fuzzy Places lookup or write to
+  // the catalog. Its address belongs to the same provider identity as its route.
+  return candidates.map(candidate => {
+    const savedAddress = candidate.address || candidate.features?.address || null;
+    const address = savedAddress && !isPlusCode(savedAddress) ? savedAddress : null;
+    return toApiBlock({ ...candidate, address,
+      features: { ...candidate.features, address },
+      businessHours: (isHoliday || hasSpecialHours) ? null : candidate.business_hours,
+      business_hours: (isHoliday || hasSpecialHours) ? null : candidate.business_hours,
+    });
   });
 }
 
@@ -358,7 +322,7 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
   const sorted = filtered.sort((a, b) => {
     const valueDiff = (b.valuePerMin || 0) - (a.valuePerMin || 0);
     if (Math.abs(valueDiff) > 0.01) return valueDiff; // Different value tiers
-    return (a.estimatedDistanceMiles || 999) - (b.estimatedDistanceMiles || 999); // Same tier: closest first
+    return (a.estimatedDistanceMiles ?? Infinity) - (b.estimatedDistanceMiles ?? Infinity); // Same tier: closest first
   });
 
   return { blocks: sorted, rejected };
@@ -399,6 +363,8 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   }
 
   try {
+    await assertMainRunForSnapshot(snapshotId, { auth: req.auth,
+      runId: req.headers['x-main-run-id'] || req.query.runId });
     // GATE 1: Strategy must be ready before blocks
     const { ready, strategy, status } = await isStrategyReady(snapshotId);
     venuesLog.info(`Strategy check: ready=${ready}, status=${status}`);
@@ -537,6 +503,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     await assertCurrentStrategySource(snapshotId);
     return res.json({ ...feedbackState, blocks, rankingId: ranking.ranking_id, briefing, audit });
   } catch (error) {
+    if (error instanceof MainRunAdmissionError) return res.status(error.status).json({ error: error.code, message: error.message, strategyFresh: false, blocks: [] });
     matrixLog.error({
       category: 'STRATEGY',
       action: 'GET_REQUEST_FAIL',
@@ -630,6 +597,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
 
+    await assertMainRunForSnapshot(snapshotId, { auth: req.auth, runId: req.body?.runId });
+
     // CRITICAL: Validate formatted_address exists - LLMs cannot reverse geocode
     if (!snapshot.formatted_address) {
       matrixLog.error({
@@ -699,10 +668,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // 2026-01-10: S-004 FIX - Use canonical status constants
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
-    // 2026-01-10: STALENESS FIX - Reset stale strategies that never completed
-    // Root cause: Previous session left status='pending_blocks' but blocks never generated.
-    // Without this check, app serves stale cached data and TRIAD pipeline never runs.
-    // Staleness threshold: 30 minutes (TRIAD pipeline should complete in ~2 minutes)
+    // A stopped run requires a fresh explicit Continue. Preserve its strategy,
+    // Briefing and job evidence instead of deleting them to retry old context.
     const STALENESS_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
     if (existingStrategy) {
       const strategyAge = Date.now() - new Date(existingStrategy.updated_at || existingStrategy.created_at).getTime();
@@ -715,30 +682,14 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       if (isStale && (isStuckPendingBlocks || isStuckInProgress)) {
         matrixLog.warn({
           category: 'STRATEGY',
-          action: 'STALENESS_RESET',
+          action: 'STALE_RUN_REQUIRES_CONTINUE',
           location: 'blocks-fast.js:postHandler',
-        }, `STALENESS FIX: Resetting stale strategy (status=${existingStrategy.status}, age=${Math.round(strategyAge/60000)}min) for ${snapshotId.slice(0, 8)}`);
+        }, `Preserving stopped strategy (status=${existingStrategy.status}, age=${Math.round(strategyAge/60000)}min) for ${snapshotId.slice(0, 8)}`);
 
-        // Reset strategy status so fresh pipeline runs
-        await db.update(strategies).set({
-          status: STRATEGY_STATUS.PENDING,
-          phase: 'starting',
-          strategy_for_now: null,
-          updated_at: new Date()
-        }).where(eq(strategies.snapshot_id, snapshotId));
-
-        // Delete stale triad_job so new one can be created
-        await db.delete(triad_jobs).where(eq(triad_jobs.snapshot_id, snapshotId));
-
-        // Delete stale briefing so fresh data is generated
-        await db.delete(briefings).where(eq(briefings.snapshot_id, snapshotId));
-
-        matrixLog.info({
-          category: 'STRATEGY',
-          action: 'STALENESS_RESET_COMPLETE',
-          location: 'blocks-fast.js:postHandler',
-        }, `STALENESS FIX: Reset complete, running fresh pipeline for ${snapshotId.slice(0, 8)}`);
-        // Fall through to create new job and run full pipeline
+        return sendOnce(409, {
+          error: 'main_run_restart_required', retry: 'new_snapshot', strategyFresh: false,
+          message: 'This run stopped before completing. Review saved setup and Continue to start a fresh run.',
+        });
       } else if (!isStale && STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status)) {
         // Recent strategy is still running - don't interfere
         matrixLog.info({
@@ -828,14 +779,14 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
     try {
       // 2026-01-09: FIX - Use snake_case property name to match Drizzle schema
-      const [job] = await db.insert(triad_jobs).values({
+      const [job] = await withCurrentMainRun(snapshotId, tx => tx.insert(triad_jobs).values({
         snapshot_id: snapshotId,
         formatted_address: snapshot.formatted_address,
         city: snapshot.city,
         state: snapshot.state,
         kind: 'triad',
         status: 'queued'
-      }).onConflictDoNothing().returning();
+      }).onConflictDoNothing().returning());
 
       if (job) {
         // New job created - run full pipeline synchronously (no worker needed)
@@ -902,13 +853,16 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
+          if (briefingErr instanceof MainRunAdmissionError) throw briefingErr;
           briefingLog.error(2, `Briefing failed (BLOCKING): ${briefingErr.message}`);
           // Mark strategy as error so client knows to retry
-          await db.update(strategies).set({
-            status: 'error',
-            error_message: `briefing_failed: ${briefingErr.message}`.slice(0, 500),
-            updated_at: new Date()
-          }).where(eq(strategies.snapshot_id, snapshotId));
+          await withCurrentMainRun(snapshotId, async (tx, admission) => {
+            await tx.update(strategies).set({
+              status: 'error', error_message: `briefing_failed: ${briefingErr.message}`.slice(0, 500), updated_at: new Date(),
+            }).where(eq(strategies.snapshot_id, snapshotId));
+            await tx.update(main_run_admissions).set({ status: 'failed', updated_at: new Date() })
+              .where(eq(main_run_admissions.run_id, admission.run_id));
+          });
 
           return sendOnce(500, {
             error: 'briefing_failed',
@@ -1081,25 +1035,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             message: 'Smart blocks generated successfully'
           });
         } else {
-          venuesLog.warn(4, `No ranking found for ${snapshotId.slice(0, 8)} after generation`);
-
-          // Ensure phase is marked complete even without ranking
-          await updatePhase(snapshotId, 'complete', { phaseEmitter });
-
-          // Still include strategy even if no ranking
-          const [strategyRow] = await db.select().from(strategies)
-            .where(eq(strategies.snapshot_id, snapshotId))
-            .limit(1);
-
-          return sendOnce(200, {
-            status: 'ok',
-            snapshotId: snapshotId,
-            blocks: [],
-            strategy: {
-              strategyForNow: strategyRow?.strategy_for_now || ''
-            },
-            message: 'Smart blocks generated (details pending)'
-          });
+          throw new Error('SmartBlocks generation completed without a persisted ranking');
         }
       } else {
         // Job already exists - use shared helper to ensure blocks exist
@@ -1143,6 +1079,20 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         });
       }
     } catch (jobErr) {
+      if (jobErr instanceof MainRunAdmissionError) return sendOnce(jobErr.status, { error: jobErr.code, message: jobErr.message, strategyFresh: false });
+      try {
+        await withCurrentMainRun(snapshotId, (tx, admission) => {
+          // Response mapping/notification can fail after atomic completion;
+          // that failure must not relabel persisted successful history.
+          if (admission.status === 'complete') return;
+          return tx.update(main_run_admissions).set({ status: 'failed', updated_at: new Date() })
+            .where(eq(main_run_admissions.run_id, admission.run_id));
+        });
+      } catch (failureWriteError) {
+        // A superseding save/session/run must retain its status; return the
+        // original provider failure without overwriting any historical result.
+        if (!(failureWriteError instanceof MainRunAdmissionError)) throw failureWriteError;
+      }
       matrixLog.error({
         category: 'STRATEGY',
         action: 'WATERFALL_FAIL',
@@ -1156,6 +1106,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       });
     }
   } catch (error) {
+    if (error instanceof MainRunAdmissionError) return sendOnce(error.status, { error: error.code, message: error.message, strategyFresh: false });
     matrixLog.error({
       category: 'STRATEGY',
       action: 'UNEXPECTED_FAIL',

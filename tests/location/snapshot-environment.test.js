@@ -20,10 +20,10 @@ test('real zero measurements survive and carry exact coordinate and provider tim
   } });
   expect(value.air).toMatchObject({ aqi: 0, category: 'Good', source: { provider: 'google-air-quality', observed_at: air.dateTime } });
   const [url] = fetchImpl.mock.calls.find(([url]) => url.includes('weather.googleapis'));
-  expect(new URL(url).searchParams.get('location.latitude')).toBe('1.123457');
+  expect(new URL(url).searchParams.get('location.latitude')).toBe('1.12345678');
   expect(new URL(url).searchParams.get('unitsSystem')).toBe('METRIC');
   const [, options] = fetchImpl.mock.calls.find(([url]) => url.includes('airquality'));
-  expect(JSON.parse(options.body).location).toEqual({ latitude: 1.123457, longitude: -2.123457 });
+  expect(JSON.parse(options.body).location).toEqual({ latitude: 1.12345678, longitude: -2.12345678 });
 });
 
 test.each(['no index', 'missing AQI', 'text AQI', 'missing category', 'missing time', 'old time', 'future time'])('air %s is an explicit failure, never a fabricated zero', async problem => {
@@ -51,24 +51,30 @@ test('unit-aware conversion does not convert Fahrenheit twice', async () => {
   expect((await environment.weather(0, 0)).tempF).toBe(32);
 });
 
-test('header and enrichment share fresh exact-coordinate results without sharing mutable objects', async () => {
-  const [first] = await Promise.all([environment.weather(1, 2), environment.weather(1, 2)]);
+test('only simultaneous work shares provider calls; later attempts fetch again', async () => {
+  const [first, second] = await Promise.all([environment.weather(1, 2, { scope: 'run-a' }), environment.weather(1, 2, { scope: 'run-a' })]);
   expect(fetchImpl).toHaveBeenCalledTimes(1);
   first.source.coord_key = 'forged'; first.tempF = 999;
-  expect((await environment.weather(1, 2)).tempF).toBe(32);
-  expect((await environment.weather(1, 2)).source.coord_key).toBe('1.000000_2.000000');
-  await environment.weather(1.000001, 2);
+  expect(second.tempF).toBe(32);
+  expect(second.source.coord_key).toBe('1.000000_2.000000');
+  weather.temperature.degrees = 20;
+  expect((await environment.weather(1, 2, { scope: 'run-a' })).tempF).toBe(68);
   expect(fetchImpl).toHaveBeenCalledTimes(2);
-  now += 60_001; weather.currentTime = new Date(now).toISOString();
-  await environment.weather(1, 2);
-  expect(fetchImpl).toHaveBeenCalledTimes(3);
 });
 
-test('expired measurements do not return when the next provider call fails; failure is not cached', async () => {
-  await environment.weather(0, 0); now += 60_001;
+test('even recent success cannot hide the next provider failure; failure is not cached', async () => {
+  await environment.weather(0, 0);
   fetchImpl.mockResolvedValueOnce({ ok: false, status: 503 });
   await expect(environment.weather(0, 0)).rejects.toThrow('HTTP 503');
   await environment.weather(0, 0);
+  expect(fetchImpl).toHaveBeenCalledTimes(3);
+});
+test('distinct runs and extra GPS digits do not share in-flight responses', async () => {
+  await Promise.all([
+    environment.weather(1.12345671, 2, { scope: 'run-a' }),
+    environment.weather(1.12345671, 2, { scope: 'run-b' }),
+    environment.weather(1.12345679, 2, { scope: 'run-a' }),
+  ]);
   expect(fetchImpl).toHaveBeenCalledTimes(3);
 });
 
@@ -78,3 +84,47 @@ test('invalid coordinates and missing keys fail before any provider call', async
   await expect(unconfigured.air(0, 0)).rejects.toThrow('not configured');
   expect(fetchImpl).not.toHaveBeenCalled();
 });
+
+
+for (const section of ['weather', 'air']) {
+  const observedField = section === 'weather' ? 'currentTime' : 'dateTime';
+  const observation = () => section === 'weather' ? weather : air;
+
+  test.each(['2026-11-01T01:30:00', '2026-11-01'])(`${section} rejects zoneless observation %s even when its parsed epoch appears fresh`, async observed => {
+    now = Date.parse(observed);
+    observation()[observedField] = observed;
+    await expect(environment[section](0, 0)).rejects.toThrow('incomplete measurements');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    '2026-09-12T18:30:00.123456789Z',
+    '2026-09-12T14:30:00.123456789-04:00',
+    '2026-09-13T00:00:00.123456789+05:30',
+  ])(`${section} preserves explicit provider instant %s without losing its offset or fraction`, async observed => {
+    now = Date.parse('2026-09-12T18:30:00.123Z');
+    observation()[observedField] = observed;
+    const value = await environment[section](0, 0);
+    expect(value.source.observed_at).toBe(observed);
+    expect(value.source.fetched_at).toBe('2026-09-12T18:30:00.123Z');
+    expect(section === 'weather' ? value.observedAt : value.dateTime).toBe(observed);
+  });
+
+  test.each(['2026-09-12T18:30:00+05:00', '2026-09-12T18:30:00-05:00'])(`${section} uses the offset when rejecting stale or future observation %s`, async observed => {
+    observation()[observedField] = observed;
+    await expect(environment[section](0, 0)).rejects.toThrow('stale or future-dated');
+  });
+
+  test.each(['2026-02-30T12:00:00Z', '2026-09-12T24:00:00Z'])(`${section} rejects calendar or clock rollover %s instead of inventing a different instant`, async observed => {
+    now = Date.parse(observed);
+    observation()[observedField] = observed;
+    await expect(environment[section](0, 0)).rejects.toThrow('incomplete measurements');
+  });
+
+  test(`${section} retains a valid leap-day observation with offset and nanosecond evidence`, async () => {
+    const observed = '2028-02-29T00:15:00.123456789+05:30';
+    now = Date.parse('2028-02-28T18:45:00.123Z');
+    observation()[observedField] = observed;
+    expect((await environment[section](0, 0)).source.observed_at).toBe(observed);
+  });
+}

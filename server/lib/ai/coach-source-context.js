@@ -20,11 +20,25 @@ longitudinal patterns; never OCR a new offer or issue a new ACCEPT/REJECT/CANCEL
 verdict. A later analysis pass may enrich the same saved offer; preserve its
 original decision and distinguish analysis evidence from the driver's outcome.
 The recent-offer window is bounded; it is not the driver's entire history.
+Current offer_rules are the owner's saved configuration or explicitly labeled
+unsaved profile defaults. An invalid, unavailable or failed read provides no
+verified rules. Selected services are choices; eligibility is only capability.
+Current rules do not prove which rules produced an older offer: compare its
+ruleset version/hash before explaining a historical verdict. Do not claim that
+declared but inactive options (home or geographic scope overrides) ran. Read
+decision_basis and decision_per_mile separately from full-trip stored metrics.
+Offers without parsed_data_json.phase1_contract_version are legacy evidence:
+their calculation and required-check contract has not been verified by the
+current implementation. Preserve them as history, but do not present legacy
+rate columns or mixed-history averages as verified full-trip profitability.
 ${JSON.stringify({
     snapshot: snapshot?.source_record ?? snapshot ?? null,
     briefing: record,
     strategy: context.strategy ?? null,
     offer_history: context.offerHistory ?? null,
+    offer_rules: context.offerRules ?? null,
+    driver_profile: context.driverProfile ?? null,
+    driver_vehicle: context.driverVehicle ?? null,
     progress: context.progress ?? null,
   }, null, 2)}
 === END SAVED SOURCE RECORDS ===`;

@@ -8,17 +8,15 @@
 > (`server/lib/offers/rules-engine.js`) makes most rule kinds below representable
 > and editable — the exceptions are listed in the 2026-08-17 note.
 >
-> **Editor's note (Claude, 2026-08-17):** implemented as ruleset schema v3 — the
-> spec→key mapping and what is (and is not yet) enforced live in
-> `docs/architecture/OFFER_ANALYZER.md` §6.7. Not yet implemented as spec'd, tracked in
-> `docs/architecture/OFFER_ANALYZER_ROADMAP.md` (L6, L7): home/deadhead logic and
-> estimated-return miles; the 4-line output format with the Status line and the Analysis
-> Source line; the exact Error Handling string; the "unless exceptional pay offsets" escapes
-> on pickup limits and north-of-US-380; the Vision-over-OCR data-priority rule (the server
-> uses both, with regex numbers preferred over model numbers). Note also that the engine's
-> `DEFAULT_RULESET` is legacy parity (standard $0.90, premium $1.10, rating 4.85) — the
-> values in this spec are applied through Melody's saved per-driver ruleset, not the
-> defaults. The verbatim spec below is unchanged.
+> **Editor's note (Codex/Astra, 2026-09-29):** this authored body is unchanged.
+> Current implementation and limits are mapped in
+> [the canonical reference §6.7](architecture/OFFER_ANALYZER.md#67-spec--v3-mapping)
+> and [roadmap L6/L7](architecture/OFFER_ANALYZER_ROADMAP.md#l6--declared-but-unconsumed-ruleset-keys).
+> `home` and geographic scope overrides remain inert with no UI by Melody's
+> recorded D2; the concise spoken contract remains distinct from this written
+> report format. Personal values in this spec are not universal defaults.
+> Current selected services, saved rules and actual input evidence determine
+> runtime behavior; the spec is not spliced into Coach as current-owner data.
 >
 > **Editor's notes (Claude, 2026-07-02):**
 > - The word "Screenshot" appears standalone in several places — these are

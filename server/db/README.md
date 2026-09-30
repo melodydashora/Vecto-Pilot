@@ -1,66 +1,114 @@
-> **Last Verified:** 2026-01-06
+# Database runtime (`server/db/`)
 
-# Database (`server/db/`)
+> Source checked 2026-09-29. Connection and notification regressions use mocked
+> PostgreSQL clients; no deployment or remote TLS handshake is claimed here.
 
-## Purpose
+## Ownership and entry points
 
-Database connection management and Drizzle ORM configuration.
+| File | Current responsibility |
+|---|---|
+| `connection-config.js` | Parse the supplied `DATABASE_URL`; preserve connection parameters and certificate material; enforce local/remote TLS behavior. |
+| `connection-manager.js` | One shared `pg.Pool`, pool monitoring, and raw `query`/`getPool` exports. |
+| `drizzle.js` | Eager Drizzle instance using the shared pool and `shared/schema.js`. |
+| `drizzle-lazy.js` | Lazily create the Drizzle wrapper using that same pool. |
+| `pool.js` | Pool statistics and a shared-pool accessor; does not create a second pool. |
+| `db-client.js` | Dedicated PostgreSQL LISTEN connection and notification dispatcher; does **not** export `db`. |
+| `run-migrations.js` | Boot migration runner, advisory lock, checksums and migration ledger. Changing its connection config does not execute it. |
+| `rls-middleware.js` | Request database context middleware. |
 
-## Files
+Import the ORM through `server/db/drizzle.js` or `getDb()` through
+`server/db/drizzle-lazy.js`. The old README example importing `db` from
+`db-client.js` was incorrect.
 
-| File | Purpose |
-|------|---------|
-| `db-client.js` | Main database client export |
-| `connection-manager.js` | Connection pool management |
-| `pool.js` | PostgreSQL pool configuration |
-| `drizzle.js` | Drizzle ORM setup |
-| `drizzle-lazy.js` | Lazy Drizzle initialization |
-| `rls-middleware.js` | Row-level security middleware |
+## Connection and TLS contract
 
-## SQL Files
+`DATABASE_URL` is the only database selector. Pool connections, the migration
+runner, initial LISTEN connections, and reconnects all call
+`databaseConnectionConfig()`. Runtime deployment flags do not select a target
+or disable its certificate checks.
 
-| File | Purpose |
-|------|---------|
-| `001_init.sql` | Initial schema creation |
-| `002_seed_dfw.sql` | DFW area seed data |
+The helper uses node-postgres's connection-string parser once and passes the
+parsed configuration to `Pool`/`Client`. This preserves URL credentials, port,
+connection options, and `sslrootcert`/`sslcert`/`sslkey` material. It does not
+return `connectionString` for a second parse: [node-postgres documents that URL
+SSL parameters can replace an explicitly supplied SSL object](https://node-postgres.com/features/ssl).
 
-### Migration Scripts (`sql/`)
+- Exact known local targets `helium`, `localhost`, `127.0.0.1`, `::1`, and Unix
+  domain sockets retain plaintext when TLS is absent or disabled in the URL.
+- Explicit TLS for a local target remains enabled with certificate checks.
+- Other hosts always use TLS with `rejectUnauthorized: true` and normal
+  hostname verification, including URLs carrying `sslmode=disable`,
+  `no-verify`, or libpq compatibility settings. Lookalike host suffixes do not
+  qualify for plaintext.
+- Supplied private CA/client certificate/key material is retained. Missing or
+  invalid TLS files fail configuration; there is no unverifiable TLS fallback.
+- Configuration parsing errors do not include a credential-bearing URL,
+  password, original parser error, or private certificate path.
 
-| File | Purpose |
-|------|---------|
-| `2025-10-31_strategy_generic.sql` | Strategy table generalization |
-| `2025-11-03_blocks_ready_notify.sql` | Blocks ready notification trigger |
-| `2025-12-27_event_deactivation_fields.sql` | Event deactivation field additions |
+See [database environments](../../docs/architecture/DATABASE_ENVIRONMENTS.md)
+for deployment history and migration rules. The runtime policy is source
+verified; current remote certificate trust must be checked in the actual
+connection environment before claiming a successful deployment connection.
 
-## Usage
+## Notification lifecycle
 
-```javascript
-import { db } from './db/db-client.js';
+`strategy-events.js` (driver SSE) and `jobs/triad-worker.js` subscribe through
+`subscribeToChannel(channel, callback)`. Each subscription has independent,
+idempotent cleanup, even when two subscriptions use the same callback.
 
-// Query example
-const users = await db.select().from(users).where(eq(users.id, userId));
-```
+Desired subscriptions are registered before connection/LISTEN awaits. One
+per-connection queue reconciles desired channels with acknowledged LISTENs and
+UNLISTENs. A new subscriber during cleanup causes LISTEN restoration before
+reconciliation completes. A subscription failure removes only that caller;
+it cannot leave an empty channel that suppresses future LISTEN commands.
 
-## Connection String
+The dispatcher is attached before initial LISTEN and delivers only for the
+current connection. A connection becomes available through `getListenClient()`
+only after its subscriptions restore successfully. LISTEN failures invalidate
+the candidate; they are not logged as healthy restoration.
 
-Uses `DATABASE_URL` environment variable (Replit built-in PostgreSQL).
+Connection errors retain surviving subscriptions and retry after 1, 2, 4, 8,
+and 10 seconds, then every 30 seconds while subscribers remain. Connect/query
+deadlines are 15 seconds; keepalive is every four minutes. Closing cancels retry
+and keepalive timers and invalidates pending connection/query publication.
+Unsubscribe never opens a connection. Only a later explicit
+`getListenClient()`/subscription can reopen after close.
 
-## Connections
+## Query failures
 
-- **Schema:** `../../shared/schema.js`
-- **Used by:** All route handlers and lib modules
+The shared pool does not transparently replay a failed query. A connection error
+can arrive after PostgreSQL executed or committed an operation but before its
+response reached the caller. `WITH` can contain writes and `SELECT` can invoke
+sequences or volatile functions, so neither prefix proves a safe replay. The
+original error reaches the caller; pg still evicts failed clients and subsequent
+explicit operations can connect normally. Retries belong to callers that can
+prove their operation is idempotent.
 
-## Import Paths
+The 30-second statement timeout is sent through pg's startup configuration.
+The former duplicate, unawaited connect-hook `SET` query was removed. Checked-out
+client error listeners remain. `getAgentState()` contains legacy retry-agent
+compatibility fields, not a health probe; readiness/health routes perform their
+own `SELECT 1`.
 
-From different locations:
+## Verification and historical SQL
 
-```javascript
-// From server/api/*/ (nested routes)
-import { db } from '../../db/drizzle.js';
-import { getDb } from '../../db/drizzle-lazy.js';
-import { getPoolStats } from '../../db/pool.js';
-import { getAgentState } from '../../db/connection-manager.js';
+`tests/db/listen-lifecycle.test.js` exercises delayed connection, LISTEN,
+UNLISTEN, failure, reconnect, and shutdown races with mock clients.
+`tests/db/connection-config.test.js` checks the actual installed pg parser and
+client configuration, including private CA preservation and URL redaction,
+without opening database connections. SSE and worker consumers have separate
+regressions in `tests/strategy/`.
+`tests/db/query-replay.test.js` simulates committed operations with lost replies
+and verifies that neither mutation nor ambiguous/read-looking SQL is replayed.
 
-// From server/lib/*/ (lib modules)
-import { db } from '../db/drizzle.js';
-```
+The active migration runner reads root `/migrations/*.sql`. SQL under this
+directory (`001_init.sql`, `002_seed_dfw.sql`, `sql/`, and `migrations/`) is
+historical/manual material, not an additional boot pipeline.
+
+
+Final subscription release also tears down the idle physical LISTEN connection,
+cancels keepalive/reconnect timers and invalidates any pending connection attempt.
+A new subscription can open its own connection while the detached old client ends;
+late cleanup cannot close that replacement. Explicit `getListenClient()` consumers
+retain ownership until `closeListenClient()`; current production callers use
+`subscribeToChannel`, while direct acquisition is exercised by the lifecycle tests.

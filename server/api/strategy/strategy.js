@@ -17,6 +17,7 @@ import { readStrategySource } from '../../lib/strategy/strategy-source-store.js'
 import { strategyMatchesBriefing, STRATEGY_SOURCE_RETRY } from '../../lib/strategy/strategy-source.js';
 import { getBriefingReadiness } from '../../lib/briefing/briefing-readiness.js';
 import { getSnapshotReadiness } from '../../lib/location/snapshot-readiness.js';
+import { assertMainRunForSnapshot, MainRunAdmissionError } from '../../lib/main-run-admission.js';
 
 const router = Router();
 
@@ -148,10 +149,12 @@ router.post('/seed', validateBody(strategyRequestSchema), async (req, res) => {
     // creating a strategy row for it (same policy as the param routes above).
     const owned = await verifySnapshotOwnership(snapshot_id, req.auth?.userId);
     if (!owned.ok) return res.status(owned.status).json(owned.body);
+    await assertMainRunForSnapshot(snapshot_id, { auth: req.auth });
     await ensureStrategyRow(snapshot_id);
     res.json({ ok: true, snapshot_id });
   } catch (error) {
     console.error(`[STRATEGY] Seed error:`, error);
+    if (error instanceof MainRunAdmissionError) return res.status(error.status).json({ error: error.code, message: error.message });
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -161,6 +164,7 @@ router.post('/run/:snapshotId', requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
+    await assertMainRunForSnapshot(snapshotId, { auth: req.auth });
     await ensureStrategyRow(snapshotId);
 
     console.log(`[STRATEGY]  POST /run endpoint deprecated - use POST /api/blocks-fast instead for complete pipeline`);
@@ -172,6 +176,7 @@ router.post('/run/:snapshotId', requireSnapshotOwnership, async (req, res) => {
     });
   } catch (error) {
     console.error(`[STRATEGY] Run error:`, error);
+    if (error instanceof MainRunAdmissionError) return res.status(error.status).json({ error: error.code, message: error.message });
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });

@@ -1,10 +1,14 @@
 # API Routes Registry
 
-Complete reference of all API endpoints organized by domain.
+API endpoint navigation organized by domain. Route mounts and handlers are the
+source of truth; sections have different verification dates.
 
-**Last Updated:** 2026-08-17
+**Last Updated:** 2026-09-29
 
-> **Completeness pass 2026-08-17:** memory, translate (API + Siri hook), tactical-plan, coach (`/api/coach/*`), chat sub-routes, voice (Realtime + Gemini Live), traffic, admin bridge, welcome-ai, and Offer Analyzer added from `server/bootstrap/routes.js` + each router (auth per route file). `**Last Updated:** 2026-08-17`.
+> The broad inventory was assembled on 2026-08-17. The 2026-09-29 pass refreshed
+> Analyzer contracts and consolidated the small uppercase API reference: health
+> authentication, location news entry, and Coach note deletion were checked against
+> their current handlers. This is not a fresh verification of every listed route.
 
 ---
 
@@ -12,7 +16,8 @@ Complete reference of all API endpoints organized by domain.
 
 | Domain | Base Path | Auth | Purpose |
 |--------|-----------|------|---------|
-| Health | `/`, `/health`, `/ready` | No | Health probes |
+| Health | `/healthz`, `/health`, `/ready`, `/api/health` | No | Health probes |
+| Diagnostics | `/api/diagnostics/*` | Auth + operator | Operator diagnostics |
 | Location | `/api/location/*` | Yes | GPS, geocoding, weather |
 | Strategy | `/api/blocks-fast`, `/api/strategy/*` | Yes | Briefing → Strategy → Blocks pipeline (single STRATEGY_TACTICAL strategy) |
 | Briefing | `/api/briefing/*` | Yes | Events, traffic, news |
@@ -26,18 +31,24 @@ Complete reference of all API endpoints organized by domain.
 
 ---
 
-## Health Endpoints (No Auth)
+## Health and Diagnostics Endpoints
 
-| Method | Path | Handler | Purpose |
-|--------|------|---------|---------|
-| GET | `/healthz` | `bootstrap/health.js` | SPA-ready health check |
-| GET | `/health` | `health.js` | Kubernetes liveness probe |
-| GET | `/ready` | `health.js` | Kubernetes readiness probe |
-| GET | `/api/unified/capabilities` | `unified-capabilities.js` | AI model capabilities |
-| GET | `/api/diagnostics/*` | `diagnostics.js` | Debug endpoints |
-| GET | `/api/diagnostic/identity` | `diagnostic-identity.js` | Identity debugging |
-| GET | `/api/ml/*` | `ml-health.js` | ML model health |
-| GET | `/api/job-metrics` | `job-metrics.js` | Background job stats |
+| Method | Path | Handler | Auth | Purpose |
+|--------|------|---------|------|---------|
+| GET | `/healthz` | `bootstrap/health.js` | No | SPA-ready health check |
+| GET/HEAD | `/health`, `/ready` | `bootstrap/health.js` | No | Fast load-balancer probes |
+| GET | `/api/health` | `health.js` | No | Minimal public liveness JSON |
+| GET | `/api/health/details`, `/api/health/pool-stats`, `/api/health/metrics` | `health.js` | Yes | Internal health, database-pool and metrics details |
+| GET | `/api/unified/capabilities` | `unified-capabilities.js` | No | AI model capabilities |
+| GET | `/api/diagnostics` | `diagnostics.js` | Auth + operator | Database, provider, activity and storage diagnostics |
+| GET | `/api/diagnostics/db-data` | `diagnostics.js` | Auth + operator | Recent database records for diagnosis |
+| GET | `/api/diagnostic/identity` | `diagnostic-identity.js` | Yes | Identity debugging |
+| GET | `/api/ml-health/health`, `/api/ml-health/memory/:scope`, `/api/ml-health/search` | `ml-health.js` | Yes | ML health, memory and search diagnostics |
+| GET | `/api/job-metrics` (+ `/:jobId`) | `job-metrics.js` | Yes | Background job stats |
+
+Sources: [early health mounts](../server/bootstrap/health.js),
+[route mounts](../server/bootstrap/routes.js), and
+[diagnostics guards](../server/api/health/diagnostics.js).
 
 ---
 
@@ -49,7 +60,14 @@ Complete reference of all API endpoints organized by domain.
 | GET | `/api/location/weather` | `location.js` | Current weather + forecast |
 | GET | `/api/location/airquality` | `location.js` | AQI data |
 | POST | `/api/location/snapshot` | `location.js` | Save location snapshot |
+| POST | `/api/location/news-briefing` | `location.js` | Generate briefing for the authenticated driver's explicitly admitted snapshot/run |
 | GET | `/api/snapshot/:id` | `snapshot.js` | Fetch snapshot data |
+
+All `/api/location` routes use the router's authentication guard. The legacy
+`news-briefing` entry also checks owned MAIN run/snapshot lineage before generation;
+it is not an independent start trigger. See
+[location routes](../server/api/location/location.js) and
+[MAIN admission](../server/lib/main-run-admission.js).
 
 ---
 
@@ -103,12 +121,15 @@ Response: { strategy_for_now, blocks }
 | POST | `/api/chat` | `chat.js` | Yes | Rideshare Coach (SSE streaming) |
 | GET | `/api/chat/context/:snapshotId` | `chat.js` | Yes + snapshot ownership | Full coach context for a snapshot |
 | POST/GET | `/api/chat/notes` | `chat.js` | Yes | Coach notes about the user |
+| DELETE | `/api/chat/notes/:noteId` | `chat.js` | Yes + note ownership | Soft-delete the driver's note; unknown or foreign IDs return 404 |
 | POST | `/api/chat/voice-turns` | `chat.js` | Yes (25/min) | Persist verbatim voice turns (learning loop) |
 | GET | `/api/chat/conversations`, `/conversations/:conversationId`, `/history`, `/snapshot-history` | `chat.js` | Yes | Conversation + history reads |
 | POST | `/api/chat/conversations/:messageId/star` | `chat.js` | Yes | Star a message |
 | GET | `/api/chat/system-notes`, `/deactivated-news` | `chat.js` | Yes | Coach system notes / deactivated news |
 | POST | `/api/chat/deactivate-news`, `/deactivate-event` | `chat.js` | Yes | Coach-driven deactivations |
-| GET | `/api/chat/context` | `chat-context.js` | No | Read-only chat context |
+
+Source for note deletion and conversation/context routes:
+[chat router](../server/api/chat/chat.js).
 
 ## Coach API (`/api/coach/*`, Auth Required)
 
@@ -176,22 +197,26 @@ Response: { strategy_for_now, blocks }
 
 ## Offer Analyzer Endpoints
 
-Canonical doc: `docs/architecture/OFFER_ANALYZER.md` §4 / §12. Public hooks are rate-limited by `offerHookLimiter` (20/min).
+Current source: [Analyzer contract](architecture/OFFER_ANALYZER.md), §§4/12.
+Public hooks use `offerHookLimiter` (20/min); browser APIs require authentication.
+Supplied invalid/unreadable personal rules fail closed. Device labels are not identity.
 
 | Method | Path | Handler | Auth | Purpose |
 |--------|------|---------|------|---------|
-| POST | `/api/hooks/analyze-offer` | `hooks/analyze-offer.js` | `X-Shortcut-Token` optional | Verdict from OCR text and/or screenshot → `{ voice, notification, decision, reason, notices }` |
-| GET | `/api/hooks/offer-history?limit=` | `hooks/analyze-offer.js` | token required | Owner's recent analyses + stats |
-| POST | `/api/hooks/offer-override` | `hooks/analyze-offer.js` | token required | Record in-the-moment override |
-| POST | `/api/hooks/offer-cleanup` | `hooks/analyze-offer.js` | token required | Batch-delete owner's rows (≤50 ids) |
-| GET | `/api/offer-analyzer/rules` | `offer-analyzer/index.js` | Bearer | My ruleset (v3) or defaults |
-| PUT | `/api/offer-analyzer/rules` | `offer-analyzer/index.js` | Bearer | Zod-validate + upsert + version bump |
-| GET | `/api/offer-analyzer/shortcut-token` | `offer-analyzer/index.js` | Bearer | Get-or-create token |
-| POST | `/api/offer-analyzer/shortcut-token/regenerate` | `offer-analyzer/index.js` | Bearer | Rotate token |
-| POST | `/api/offer-analyzer/shortcut-token/label` | `offer-analyzer/index.js` | Bearer | Device label |
-| GET | `/api/offer-analyzer/offers?limit=` | `offer-analyzer/index.js` | Bearer | My offers LEFT JOIN outcomes + stats |
-| POST | `/api/offer-analyzer/offers/:id/outcome` | `offer-analyzer/index.js` | Bearer | Upsert driver outcome + earnings |
-| GET | `/api/offer-analyzer/places/search?q=` | `offer-analyzer/index.js` | Bearer | Places picker for avoid-list (place_id + 6-dec coords) |
+| POST | `/api/hooks/analyze-offer` | `hooks/analyze-offer.js` | shortcut token optional | Text/image Phase-1 decision, matching voice and provenance; no token is personally unverified. |
+| GET | `/api/hooks/offer-history?limit=` | `hooks/analyze-offer.js` | token required | Owner’s nonremoved recent analyses + bounded stats. |
+| POST | `/api/hooks/offer-override` | `hooks/analyze-offer.js` | token required | Owner-scoped immediate disagreement. |
+| POST | `/api/hooks/offer-cleanup` | `hooks/analyze-offer.js` | token required | Legacy hard deletion of owned rows (≤50 IDs). |
+| GET | `/api/offer-analyzer/rules` | `offer-analyzer/index.js` | Bearer | Saved migrated rules or explicitly identified unsaved profile-derived rules. |
+| PUT | `/api/offer-analyzer/rules` | `offer-analyzer/index.js` | Bearer | Validate + required expected-version save; stale writes return 409. |
+| GET | `/api/offer-analyzer/shortcut-token` | `offer-analyzer/index.js` | Bearer | Get-or-create owner token. |
+| POST | `/api/offer-analyzer/shortcut-token/regenerate` | `offer-analyzer/index.js` | Bearer | Rotate token. |
+| POST | `/api/offer-analyzer/shortcut-token/label` | `offer-analyzer/index.js` | Bearer | Device label. |
+| GET | `/api/offer-analyzer/offers` | `offer-analyzer/index.js` | Bearer | Owned rows + outcomes; local-day and bounded recent modes. |
+| GET | `/api/offer-analyzer/offers/stats` | `offer-analyzer/index.js` | Bearer | Complete requested-period counts and recorded earnings. |
+| POST | `/api/offer-analyzer/offers/:id/outcome` | `offer-analyzer/index.js` | Bearer | Partial driver-outcome updates with expected revision and canonical saved/conflict reply. |
+| POST | `/api/offer-analyzer/offers/:id/remove` or `/restore` | `offer-analyzer/index.js` | Bearer | Reversible owner-scoped removal with expected removal revision. |
+| GET | `/api/offer-analyzer/places/search?q=` | `offer-analyzer/index.js` | Bearer | Places picker with stable place identity and coordinates. |
 
 ---
 
@@ -227,9 +252,9 @@ server/api/
 │   ├── actions.js       → /api/actions
 │   └── index.js
 ├── health/
-│   ├── health.js        → /, /health, /ready
+│   ├── health.js        → /api/health/* (mounted by bootstrap/health.js)
 │   ├── diagnostics.js   → /api/diagnostics/*
-│   ├── ml-health.js     → /api/ml/*
+│   ├── ml-health.js     → /api/ml-health/*
 │   └── index.js
 ├── location/
 │   ├── location.js      → /api/location/*

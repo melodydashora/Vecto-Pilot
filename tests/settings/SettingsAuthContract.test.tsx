@@ -10,6 +10,15 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 import type { AuthApiResponse } from '@/types/auth';
 
 const mockToast = jest.fn();
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => ({ ...jest.requireActual('react-router-dom') as object, useNavigate: () => mockNavigate }));
+const mockFinishSave = jest.fn(async () => true);
+jest.mock('@/contexts/run-setup-context', () => ({ useRunSetup: () => {
+  const { useAuth } = jest.requireActual('@/contexts/auth-context') as typeof import('@/contexts/auth-context');
+  const auth = useAuth();
+  return { setup: auth.profile ? { profile: auth.profile, vehicle: auth.vehicle, settingsRevision: auth.profile.settingsRevision } : null,
+    getEditorDraft: () => null, setEditorDraft: () => {}, draftResetVersion: 0, loading: false, beginSave: () => () => {}, finishSave: mockFinishSave };
+} }));
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ toast: mockToast }) }));
 jest.mock('@/components/settings/UberSettingsSection', () => ({ UberSettingsSection: () => <div>Connection fixture</div> }));
 jest.mock('@/constants/featureFlags', () => ({ COACH_STREAMING_TTS_ENABLED: true,
@@ -19,11 +28,11 @@ import SettingsPage from '@/pages/co-pilot/SettingsPage';
 
 function account(id = 'alice'): AuthApiResponse {
   return {
-    token: `synthetic-${id}`, user: { userId: id, email: `${id}@example.invalid` },
+    token: `synthetic-${id}`, sessionId: `session-${id}`, settingsRevision: 1, user: { userId: id, email: `${id}@example.invalid` },
     profile: { id: `profile-${id}`, userId: id, firstName: id, lastName: 'Driver', nickname: `${id} saved`,
       email: `${id}@example.invalid`, phone: '5555555555', address1: '1 Synthetic Lane', city: 'Synthetic City',
       stateTerritory: 'TX', country: 'US', market: 'Synthetic Market', ridesharePlatforms: ['uber', 'private', 'legacy-service'],
-      eligEconomy: false, eligXl: false, eligXxl: false, eligComfort: false, eligLuxurySedan: false, eligLuxurySuv: false,
+      settingsRevision: 1, selectedServices: ['economy'], eligEconomy: true, eligXl: false, eligXxl: false, eligComfort: false, eligLuxurySedan: false, eligLuxurySuv: false,
       attrElectric: false, attrGreen: false, attrWav: false, attrSki: false, attrCarSeat: false,
       prefPetFriendly: false, prefTeen: false, prefAssist: false, prefShared: false,
       marketingOptIn: false, termsAccepted: true, emailVerified: true, phoneVerified: false, profileComplete: true },
@@ -52,12 +61,12 @@ async function mount(fixture = account()) {
 }
 async function saveNickname(nickname = 'Submitted nickname') {
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: nickname } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(writes).toHaveLength(1));
 }
 beforeEach(() => {
   writes.length = 0; reads.length = 0; marketWrites.length = 0; unexpected.length = 0;
-  mockToast.mockClear(); localStorage.clear(); sessionStorage.clear();
+  mockToast.mockClear(); mockNavigate.mockClear(); mockFinishSave.mockClear(); localStorage.clear(); sessionStorage.clear();
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   globalThis.structuredClone = value => JSON.parse(JSON.stringify(value));
   globalThis.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -92,39 +101,36 @@ test('real AuthProvider saves with its current token and adopts canonical profil
   await mount(); await saveNickname();
   expect(writes[0].init).toMatchObject({ method: 'PUT', headers: { Authorization: 'Bearer synthetic-alice' } });
   expect(JSON.parse(writes[0].init.body as string)).toMatchObject({ nickname: 'Submitted nickname',
-    ridesharePlatforms: ['uber', 'private', 'legacy-service'], eligEconomy: false,
+    ridesharePlatforms: ['uber', 'private', 'legacy-service'], eligEconomy: true, selectedServices: ['economy'], expectedSettingsRevision: 1,
     vehicle: { year: 2020, make: 'Synthetic', model: 'Car', seatbelts: 4 } });
-  await act(async () => { writes[0].reply.resolve(response({ success: true })); });
-  await waitFor(() => expect(reads).toHaveLength(1));
-  expect(reads[0].init.headers).toMatchObject({ Authorization: 'Bearer synthetic-alice' });
   const confirmed = account(); confirmed.profile!.nickname = 'Canonical nickname'; confirmed.profile!.phone = '+15555555555';
+  confirmed.settingsRevision = 2; confirmed.profile!.settingsRevision = 2;
   confirmed.vehicle!.make = 'Canonical make';
-  await act(async () => { reads[0].reply.resolve(response(confirmed)); });
+  await act(async () => { writes[0].reply.resolve(response({ ...confirmed, ok: true })); });
   await waitFor(() => expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('Canonical nickname'));
   expect(screen.getByRole('textbox', { name: 'Phone Number' })).toHaveValue('+15555555555');
   expect(screen.getByText(/No unsaved changes/)).toBeInTheDocument();
   expect(auth.vehicle?.make).toBe('Canonical make');
+  expect(reads).toHaveLength(0);
+  expect(mockFinishSave).toHaveBeenCalledWith();
+  expect(mockNavigate).not.toHaveBeenCalled();
   expect(mockToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Settings saved' }));
 });
 
-test.each(['profile PUT', 'profile refresh'])('a late account-A %s cannot change B or announce A completion', async phase => {
+test.each([200, 401])('a late account-A PUT (%s) cannot change B or announce A completion', async status => {
   await mount(); await saveNickname('Private Alice draft');
-  if (phase === 'profile refresh') {
-    await act(async () => { writes[0].reply.resolve(response({ success: true })); });
-    await waitFor(() => expect(reads).toHaveLength(1));
-  }
   act(() => auth.completeLogin(account('bob')));
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: 'Private Bob draft' } });
   await act(async () => {
-    if (phase === 'profile PUT') writes[0].reply.resolve(response({ success: true }));
-    else reads[0].reply.resolve(response(account()));
+    writes[0].reply.resolve(response({ ...account(), ok: true }, status));
   });
   expect(auth.user?.userId).toBe('bob');
   expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('synthetic-bob');
   expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('Private Bob draft');
   expect(screen.queryByDisplayValue('Private Alice draft')).not.toBeInTheDocument();
   expect(mockToast).not.toHaveBeenCalled();
-  expect(reads).toHaveLength(phase === 'profile PUT' ? 0 : 1);
+  expect(reads).toHaveLength(0);
+  expect(mockFinishSave).not.toHaveBeenCalled();
 });
 
 test('custom-market creation carries the authenticated identity required by its existing route', async () => {
@@ -132,12 +138,12 @@ test('custom-market creation carries the authenticated identity required by its 
   await mount(fixture);
   fireEvent.mouseDown(screen.getByRole('tab', { name: /^Location$/ }), { button: 0, ctrlKey: false });
   fireEvent.change(screen.getByRole('textbox', { name: 'Custom market name' }), { target: { value: 'Synthetic New Market' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(marketWrites).toHaveLength(1));
   expect(marketWrites[0].headers).toMatchObject({ Authorization: 'Bearer synthetic-alice' });
 });
 
-test('a held pre-save refresh cannot replace a successful submitted value when the post-save refresh fails', async () => {
+test('a held pre-save refresh cannot erase the submitted draft when PUT lacks canonical confirmation', async () => {
   jest.spyOn(console, 'error').mockImplementation(() => {});
   await mount(); await saveNickname();
   let background!: Promise<void>;
@@ -147,24 +153,25 @@ test('a held pre-save refresh cannot replace a successful submitted value when t
   await act(async () => { reads[0].reply.resolve(response(oldRefresh)); await background; });
   expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('Submitted nickname');
   await act(async () => { writes[0].reply.resolve(response({ success: true })); });
-  await waitFor(() => expect(reads).toHaveLength(2));
-  await act(async () => { reads[1].reply.reject(new Error('Synthetic refresh unavailable')); });
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save and review' })).toBeEnabled());
+  expect(reads).toHaveLength(1);
   expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('Submitted nickname');
+  expect(mockToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Error', description: expect.stringContaining('could not be confirmed') }));
+  expect(mockFinishSave).not.toHaveBeenCalled();
 });
 
-test.each([200, 401])('an older background profile read (%s) cannot supersede a newer post-save profile', async oldStatus => {
+test.each([200, 401])('an older background profile read (%s) cannot supersede the canonical PUT response', async oldStatus => {
   await mount(); await saveNickname();
   let background!: Promise<void>;
   act(() => { background = auth.refreshProfile(); });
   await waitFor(() => expect(reads).toHaveLength(1));
-  await act(async () => { writes[0].reply.resolve(response({ success: true })); });
-  await waitFor(() => expect(reads).toHaveLength(2));
   const confirmed = account(); confirmed.profile!.nickname = 'Submitted nickname';
-  await act(async () => { reads[1].reply.resolve(response(confirmed)); });
+  confirmed.settingsRevision = 2; confirmed.profile!.settingsRevision = 2;
+  await act(async () => { writes[0].reply.resolve(response({ ...confirmed, ok: true })); });
   await waitFor(() => expect(mockToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Settings saved' })));
   await act(async () => { reads[0].reply.resolve(response(account(), oldStatus)); await background; });
   expect(auth.user?.userId).toBe('alice');
   expect(auth.profile?.nickname).toBe('Submitted nickname');
   expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('Submitted nickname');
+  expect(reads).toHaveLength(1);
 });

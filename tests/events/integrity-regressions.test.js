@@ -109,3 +109,25 @@ describe('next 24-hour opening countdown', () => {
     expect(getOpenStatus(schedule, 'Etc/UTC', new Date('2026-09-12T20:00:00Z')).minutes_until_open).toBe(1680);
   });
 });
+
+
+describe('explicit performance schedules survive semantic deduplication', () => {
+ test('different known starts within two hours and different ends remain source variants', () => {
+  for (const variant of [{ event_start_time: '20:00' }, { event_end_time: '23:00' }, { event_start_time: null }]) {
+   expect(deduplicateEventsSemantic([base, { ...base, ...variant }], { log: false }).deduplicated).toHaveLength(2);
+  }
+ });
+ test('identical complete schedules still deduplicate title variants', () => {
+  expect(deduplicateEventsSemantic([base, { ...base, title: base.title + ' Live' }], { log: false }).deduplicated).toHaveLength(1);
+ });
+});
+
+
+describe('provider place identifiers remain bounded opaque hints', () => {
+  test('preserves a non-ChIJ identifier without promoting it to provider evidence', () => {
+    expect(normalizeEvent({ ...base, place_id: 'provider-opaque:one' }).place_id).toBe('provider-opaque:one');
+  });
+  test.each(['', 'unknown', 'N/A', 'a'.repeat(256), 'white space', 'control\u0000value', 123])('rejects absent/malformed hint %j', place_id => {
+    expect(normalizeEvent({ ...base, place_id }).place_id).toBeNull();
+  });
+});

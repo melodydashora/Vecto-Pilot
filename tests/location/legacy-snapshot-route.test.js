@@ -1,185 +1,254 @@
-import { jest, beforeEach, afterEach, test, expect } from '@jest/globals';
+import { jest, beforeAll, beforeEach, afterAll, test, expect } from '@jest/globals';
 import express from 'express';
 import request from 'supertest';
-import { getTableName } from 'drizzle-orm';
-import { PgDialect } from 'drizzle-orm/pg-core';
+import { createRequire } from 'node:module';
+import { drizzle } from 'drizzle-orm/pglite';
+import { getTableConfig } from 'drizzle-orm/pg-core';
+import { eq } from 'drizzle-orm';
+import { snapshots } from '../../shared/schema.js';
 import { completeSnapshot } from '../fixtures/complete-snapshot.js';
 import { getSnapshotReadiness } from '../../server/lib/location/snapshot-readiness.js';
 
-let cacheRow;
-let storedRow;
-const inserted = [];
-const cacheKeys = [];
-const cacheLookup = jest.fn(async () => cacheRow ? [cacheRow] : []);
-const marketLookup = jest.fn();
-const briefing = jest.fn();
-const environment = jest.fn();
-const db = {
-  select: () => ({ from: table => ({ where: predicate => ({ limit: async () => {
-    expect(getTableName(table)).toBe('coords_cache');
-    cacheKeys.push(new PgDialect().sqlToQuery(predicate).params);
-    return cacheLookup();
-  } }) }) }),
-  insert: table => ({ values: async row => {
-    expect(getTableName(table)).toBe('snapshots');
-    inserted.push(row);
-    storedRow = row;
-  } }),
-  query: { snapshots: { findFirst: async () => storedRow } },
-};
+const { PGlite } = createRequire(import.meta.url)('@electric-sql/pglite');
+let pg, actualDb, admission, allowed;
+const owner = completeSnapshot().user_id;
+const session = completeSnapshot().session_id;
+const runId = '00000000-0000-4000-8000-000000000004';
+const db = new Proxy({}, { get: (_target, name) => typeof actualDb[name] === 'function' ? actualDb[name].bind(actualDb) : actualDb[name] });
+const location = jest.fn(), environment = jest.fn(), market = jest.fn();
+const recordError = jest.fn(async () => true);
+class MainRunAdmissionError extends Error {
+  constructor(status, code, message = code) { super(message); this.status = status; this.code = code; }
+}
+const assertAdmission = jest.fn(async (auth, id) => {
+  if (!allowed || id !== runId || auth.userId !== owner || auth.sessionId !== session) throw new MainRunAdmissionError(409, 'main_run_required');
+  return { ...admission };
+});
+const bind = jest.fn(async (tx, auth, id, row) => {
+  await assertAdmission(auth, id);
+  if (admission.snapshot_id) return (await tx.select().from(snapshots).where(eq(snapshots.snapshot_id, admission.snapshot_id)))[0];
+  const [saved] = await tx.insert(snapshots).values(row).returning();
+  admission.snapshot_id = saved.snapshot_id;
+  return saved;
+});
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
+jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => ({
+  MainRunAdmissionError, assertCurrentMainRun: assertAdmission, bindMainRunSnapshot: bind,
+  recordMainRunSnapshotError: recordError,
+  assertMainRunForSnapshot: jest.fn(),
+  withDriverSettingsLock: (auth, callback) => db.transaction(async tx => { await assertAdmission(auth, runId); return callback(tx); }),
+}));
+jest.unstable_mockModule('../../server/lib/briefing/briefing-generation.js', () => ({
+  cancelUpstreamBriefingGenerations: jest.fn(),
+}));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({
-  requireAuth: (req, _res, next) => { req.auth = { userId: completeSnapshot().user_id }; next(); },
+  requireAuth: (req, _res, next) => { req.auth = { userId: owner, sessionId: session }; next(); },
 }));
-jest.unstable_mockModule('../../server/middleware/require-snapshot-ownership.js', () => ({
-  requireSnapshotOwnership: (_req, _res, next) => next(),
-}));
-jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromMarket: marketLookup }));
-jest.unstable_mockModule('../../server/lib/briefing/briefing-aggregator.js', () => ({ generateAndStoreBriefing: briefing }));
+jest.unstable_mockModule('../../server/middleware/require-snapshot-ownership.js', () => ({ requireSnapshotOwnership: (_req, _res, next) => next() }));
+jest.unstable_mockModule('../../server/lib/location/geocode.js', () => ({ resolveFreshGpsLocation: location, getTimezoneDataForCoords: jest.fn(), pickAddressParts: jest.fn(), pickBestGeocodeResult: jest.fn() }));
+jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromMarket: market }));
 jest.unstable_mockModule('../../server/lib/location/snapshot-environment.js', () => ({ snapshotEnvironment: { both: environment } }));
-const { default: router } = await import('../../server/api/location/snapshot.js');
-const app = express().use(express.json()).use('/api/snapshot', router);
-const payload = () => {
-  const row = completeSnapshot();
-  return {
-    snapshot_id: row.snapshot_id, user_id: 'untrusted-owner', session_id: row.session_id,
-    created_at: row.created_at.toISOString(), coord: { lat: row.lat, lng: row.lng },
-    // Conflicting client labels/time must not replace the coordinate-resolved record.
-    resolved: { city: 'Home city', state: 'Home state', country: 'Home country', timezone: 'UTC', formatted_address: 'Home address' },
-    time_context: { hour: 16, dow: 4, date: '1999-01-01', day_part_key: 'afternoon' },
-    weather: row.weather, air: row.air, permissions: row.permissions,
-  };
-};
-const post = body => request(app).post('/api/snapshot').send(body);
-
-beforeEach(() => {
-  const row = completeSnapshot();
-  cacheRow = { coord_key: row.coord_key, city: row.city, state: row.state, country: row.country,
-    formatted_address: row.formatted_address, timezone: row.timezone };
-  storedRow = null;
-  inserted.length = 0;
-  cacheKeys.length = 0;
-  jest.clearAllMocks();
-  jest.spyOn(Date, 'now').mockReturnValue(row.created_at.getTime());
+jest.unstable_mockModule('../../server/lib/location/enrich-snapshot.js', () => ({ enrichSnapshot: jest.fn() }));
+const { default: snapshotRouter } = await import('../../server/api/location/snapshot.js');
+const { default: locationRouter } = await import('../../server/api/location/location.js');
+const { snapshotResponse } = await import('../../server/lib/location/main-run-snapshot.js');
+const app = express().use(express.json()).use('/api/snapshot', snapshotRouter).use('/api/location', locationRouter);
+const payload = () => ({ runId, lat: 1.123456789, lng: -2.123456789, accuracy: 5, gps_timestamp: Date.now(), permission: 'granted',
+  created_at: '2099-01-01T00:00:00Z', resolved: { city: 'forged', timezone: 'UTC' }, weather: { tempF: 999 }, air: { aqi: 999 } });
+const send = (path, data) => path.endsWith('/resolve') ? request(app).get(path).query(data) : request(app).post(path).send(data);
+const rows = () => actualDb.select().from(snapshots);
+beforeAll(async () => {
+  pg = new PGlite(); actualDb = drizzle(pg, { schema: { snapshots } });
+  await pg.exec('CREATE TABLE snapshots (' + getTableConfig(snapshots).columns.map(c => '"' + c.name + '" ' + c.getSQLType()).join(', ') + ')');
+}, 30_000);
+beforeEach(async () => {
+  await pg.exec('TRUNCATE snapshots'); jest.clearAllMocks(); allowed = true;
+  admission = { run_id: runId, user_id: owner, session_id: session, snapshot_id: null, created_at: new Date(Date.now() - 1000) };
+  const fixture = completeSnapshot();
+  location.mockResolvedValue({ city: fixture.city, state: fixture.state, country: fixture.country, formattedAddress: fixture.formatted_address, timeZone: fixture.timezone });
+  market.mockResolvedValue({ market_name: fixture.market });
   environment.mockImplementation(async (lat, lng) => {
-    const measured = completeSnapshot({ lat, lng });
-    return { weather: measured.weather, air: measured.air };
+    const value = completeSnapshot({ lat, lng, createdAt: new Date() });
+    return { weather: value.weather, air: value.air };
   });
-  cacheLookup.mockImplementation(async () => cacheRow ? [cacheRow] : []);
-  marketLookup.mockResolvedValue({ market_name: row.market, timezone: 'UTC' });
-  briefing.mockResolvedValue({ success: true, complete: true });
 });
-afterEach(() => { jest.restoreAllMocks(); });
+afterAll(async () => { await pg?.close(); });
 
-test('Sunday midnight and zero values persist a complete row and hand the identical record to Briefing', async () => {
-  const expected = completeSnapshot();
-  const result = await post(payload());
-  expect(result.status).toBe(201);
-  expect(result.body).toMatchObject({ ok: true, status: 'ok', missing_fields: [], briefing_status: 'complete', hour: 0, dow: 0 });
-  expect(inserted).toHaveLength(1);
-  expect(inserted[0]).toEqual(expected);
-  expect(getSnapshotReadiness(inserted[0]).ready).toBe(true);
-  expect(briefing).toHaveBeenCalledWith({ snapshotId: expected.snapshot_id, snapshot: inserted[0] });
-  expect(briefing.mock.calls[0][0].snapshot).toBe(inserted[0]);
-  expect(marketLookup).toHaveBeenCalledWith(expected.city, expected.state, expected.country);
-  expect(cacheKeys).toEqual([[expected.coord_key]]);
+test.each(['/api/snapshot', '/api/location/snapshot', '/api/location/resolve'])('%s enforces admission before providers and persists fresh canonical data with full GPS precision', async path => {
+  const held = await send(path, { ...payload(), runId: undefined });
+  expect(held.status).toBe(409); expect(location).not.toHaveBeenCalled(); expect(environment).not.toHaveBeenCalled();
+  const response = await send(path, payload());
+  expect(response.status).toBe(path.endsWith('/resolve') ? 200 : 201);
+  const [saved] = await rows();
+  expect(saved).toMatchObject({ user_id: owner, session_id: session, lat: 1.123456789, lng: -2.123456789, city: 'Fixture city', status: 'ok' });
+  expect(saved.created_at.getUTCFullYear()).not.toBe(2099);
+  expect(saved.weather.tempF).toBe(0); expect(saved.air.aqi).toBe(0);
+  expect(environment).toHaveBeenCalledWith(saved.lat, saved.lng, { scope: runId });
+  expect(getSnapshotReadiness(saved).ready).toBe(true);
+  expect(response.body.created_at).toBe(saved.created_at.toISOString());
+  expect(response.body.local_iso).not.toMatch(/Z|[+-]\d\d:\d\d$/);
 });
 
-test('coordinate precision is normalized before cache identity and H3 are derived', async () => {
-  const result = await post({ ...payload(), coord: { lat: '1.12345649', lng: '-2.12345649' } });
-  expect(result.status).toBe(201);
-  expect(cacheKeys).toEqual([['1.123456_-2.123456']]);
-  expect(inserted[0]).toMatchObject({ lat: 1.123456, lng: -2.123456 });
-  expect(getSnapshotReadiness(inserted[0]).ready).toBe(true);
+test('one admitted run binds once and duplicate delivery returns the same immutable source', async () => {
+  const first = await send('/api/snapshot', payload());
+  environment.mockRejectedValue(new Error('must not recollect already bound source'));
+  const replay = await send('/api/location/resolve', payload());
+  expect(replay.status).toBe(200); expect(replay.body.snapshot_id).toBe(first.body.snapshot_id);
+  expect(environment).toHaveBeenCalledTimes(1); expect(await rows()).toHaveLength(1);
 });
 
-test.each(['weather', 'air'])('browser %s is ignored; provider measurements still complete the row', async field => {
-  const body = payload();
-  body[field] = { forged: true, aqi: 999, tempF: 999 };
-  const result = await post(body);
-  expect(result.status).toBe(201);
-  expect(inserted[0][field]).toEqual(completeSnapshot()[field]);
-  expect(briefing).toHaveBeenCalledTimes(1);
+test('simultaneous identical-coordinate captures share provider work and return the saved GPS receipt', async () => {
+  const releases = [];
+  const data = payload();
+  const ready = completeSnapshot({ lat: data.lat, lng: data.lng, createdAt: new Date() });
+  environment.mockImplementation(() => new Promise(resolve => { releases.push(resolve); }));
+  const first = send('/api/snapshot', data).then(result => result);
+  const second = send('/api/location/resolve', { ...data, accuracy: 8 }).then(result => result);
+  while (assertAdmission.mock.calls.length < 2 || !releases.length) await new Promise(resolve => setImmediate(resolve));
+  const providers = { location: location.mock.calls.length, environment: environment.mock.calls.length };
+  // Settle every captured promise in the baseline too, so an assertion failure
+  // cannot strand either HTTP request.
+  for (const release of releases) release({ weather: ready.weather, air: ready.air });
+  const responses = await Promise.all([first, second]);
+  expect(providers).toEqual({ location: 1, environment: 1 });
+  expect(responses.map(result => result.status)).toEqual([201, 200]);
+  const [saved] = await rows();
+  expect(await rows()).toHaveLength(1);
+  for (const result of responses) {
+    expect(result.body).toMatchObject({ snapshot_id: saved.snapshot_id, lat: saved.lat, lng: saved.lng,
+      gps_timestamp: Date.parse(saved.permissions.observed_at), accuracy: saved.permissions.accuracy_m });
+  }
 });
 
-test.each(['permissions'])('missing %s remains pending and never invokes Briefing', async field => {
-  const body = payload();
-  delete body[field];
-  const result = await post(body);
-  expect(result.status).toBe(201);
-  expect(result.body).toMatchObject({ status: 'pending', briefing_status: 'not_started' });
-  expect(result.body.missing_fields).toContain(field);
-  expect(inserted[0][field]).toBeNull();
-  expect(briefing).not.toHaveBeenCalled();
+test('after a failed capture the next attempt performs fresh provider work', async () => {
+  location.mockRejectedValueOnce(new Error('fixture reverse geocode outage'));
+  expect((await send('/api/snapshot', payload())).status).toBe(502);
+  expect((await send('/api/snapshot', payload())).status).toBe(201);
+  expect(location).toHaveBeenCalledTimes(2);
+  expect(environment).toHaveBeenCalledTimes(2);
 });
 
-test('provider failure is explicit and cannot be substituted with browser data', async () => {
-  environment.mockRejectedValue(new Error('fixture provider unavailable'));
-  const result = await post(payload());
+test.each(['/api/snapshot', '/api/location/snapshot', '/api/location/resolve'])('%s classifies collection failure without exposing provider details', async path => {
+  location.mockRejectedValueOnce(new Error('HTTP 503 https://example.invalid/?key=private-fixture-secret'));
+  const result = await send(path, payload());
   expect(result.status).toBe(502);
-  expect(result.body.error).toBe('snapshot_environment_unavailable');
-  expect(inserted).toHaveLength(0);
-  expect(briefing).not.toHaveBeenCalled();
+  expect(result.body).toEqual({ ok: false, error: 'snapshot_collection_failed',
+    message: 'Current location details could not be collected. Use Refresh to try again.' });
+  expect(JSON.stringify(result.body)).not.toContain('private-fixture-secret');
+  expect(recordError).toHaveBeenCalledWith({ userId: owner, sessionId: session }, runId, 'snapshot_collection_failed');
+  expect(await rows()).toHaveLength(0);
 });
 
-test('browser creation time cannot make old or future source appear current', async () => {
-  const result = await post({ ...payload(), created_at: '2099-01-01T00:00:00Z' });
-  expect(result.status).toBe(201);
-  expect(inserted[0].created_at).toEqual(completeSnapshot().created_at);
+test.each(['/api/snapshot', '/api/location/snapshot', '/api/location/resolve'])('%s hides unclassified failures instead of trusting upstream status or code', async path => {
+  assertAdmission.mockRejectedValueOnce(Object.assign(new Error('private database detail'), { status: 403, code: 'upstream_private_code' }));
+  const result = await send(path, payload());
+  expect(result.status).toBe(500);
+  expect(result.body).toEqual({ ok: false, error: 'snapshot_failed',
+    message: 'Saved location could not be prepared. Use Refresh to try again.' });
+  expect(location).not.toHaveBeenCalled();
+  expect(environment).not.toHaveBeenCalled();
+  expect(await rows()).toHaveLength(0);
 });
 
-test.each([null, new Error('fixture market unavailable')])('unresolved current market remains pending without a home-market fallback: %s', async outcome => {
-  if (outcome instanceof Error) marketLookup.mockRejectedValue(outcome);
-  else marketLookup.mockResolvedValue(outcome);
-  const result = await post(payload());
-  expect(result.status).toBe(201);
-  expect(result.body).toMatchObject({ status: 'pending', briefing_status: 'not_started' });
-  expect(result.body.missing_fields).toContain('market');
-  expect(inserted[0].market).toBeNull();
-  expect(briefing).not.toHaveBeenCalled();
+test('simultaneous distinct full-precision fixes do not share sources; every reply describes the single saved winner', async () => {
+  const firstInput = payload();
+  const secondInput = { ...firstInput, lat: firstInput.lat + 0.00000001, accuracy: 8, gps_timestamp: firstInput.gps_timestamp + 1 };
+  const releases = [];
+  environment.mockImplementation((lat, lng) => new Promise(resolve => {
+    const row = completeSnapshot({ lat, lng, createdAt: new Date() });
+    releases.push(() => resolve({ weather: row.weather, air: row.air }));
+  }));
+  const first = send('/api/snapshot', firstInput).then(result => result);
+  const second = send('/api/location/resolve', secondInput).then(result => result);
+  while (releases.length < 2) await new Promise(resolve => setImmediate(resolve));
+  releases[1]();
+  const winner = await second;
+  releases[0]();
+  const loser = await first;
+  expect(location).toHaveBeenCalledTimes(2);
+  expect(environment).toHaveBeenCalledTimes(2);
+  const [saved] = await rows();
+  expect(saved.lat).toBe(secondInput.lat);
+  expect(await rows()).toHaveLength(1);
+  for (const result of [winner, loser]) expect(result.body).toMatchObject({ snapshot_id: saved.snapshot_id,
+    lat: secondInput.lat, lng: secondInput.lng, accuracy: secondInput.accuracy, gps_timestamp: secondInput.gps_timestamp });
+});
+
+test('missing historical GPS receipt stays unavailable instead of borrowing the creation time', () => {
+  const response = snapshotResponse(completeSnapshot(), runId);
+  expect(response.gps_timestamp).toBeNull();
+  expect(response.accuracy).toBeNull();
+});
+
+test('superseded provider response cannot bind or become current success', async () => {
+  environment.mockImplementationOnce(async () => { allowed = false; const row = completeSnapshot({ createdAt: new Date(), lat: payload().lat, lng: payload().lng }); return { weather: row.weather, air: row.air }; });
+  expect((await send('/api/snapshot', payload())).status).toBe(409);
+  expect(await rows()).toHaveLength(0);
+});
+
+test('a fresh attempt cannot use an earlier completed source to hide missing required provider data', async () => {
+  const first = await send('/api/snapshot', payload());
+  admission.snapshot_id = null; admission.created_at = new Date(Date.now() - 1);
+  environment.mockRejectedValueOnce(new Error('required provider failed'));
+  const next = await send('/api/snapshot', payload());
+  expect(next.status).toBe(502); expect(next.body.ok).toBe(false);
+  expect((await rows()).map(row => row.snapshot_id)).toEqual([first.body.snapshot_id]);
 });
 
 test.each([
-  ['invalid coordinate', body => { body.coord.lat = 90.000001; }, () => {}, 'invalid_coordinates'],
-  ['missing coordinate', body => { delete body.coord.lng; }, () => {}, 'invalid_coordinates'],
-  ['invalid creation time', body => { body.created_at = 'invalid'; }, () => {}, 'invalid_created_at'],
-  ['null creation time', body => { body.created_at = null; }, () => {}, 'invalid_created_at'],
-  ['unresolved GPS', () => {}, () => { cacheRow = null; }, 'location_not_resolved'],
-  ['invalid timezone', () => {}, () => { cacheRow.timezone = 'bad/timezone'; }, 'timezone_required'],
-])('%s is rejected before persistence or Briefing', async (_label, changeBody, changeCache, error) => {
-  const body = payload();
-  changeBody(body);
-  changeCache();
-  const result = await post(body);
-  expect(result.status).toBe(400);
-  expect(result.body.error).toBe(error);
-  expect(inserted).toHaveLength(0);
-  expect(briefing).not.toHaveBeenCalled();
+  ['denied permission', data => { data.permission = 'denied'; }],
+  ['stale GPS', data => { data.gps_timestamp = Date.now() - 120000; }],
+  ['GPS predates admission', data => { data.gps_timestamp = Date.now() - 15000; }],
+  ['invalid accuracy', data => { data.accuracy = 0; }],
+  ['boolean accuracy', data => { data.accuracy = true; }],
+  ['array accuracy', data => { data.accuracy = [5]; }],
+  ['missing coordinate', data => { delete data.lng; }],
+])('%s blocks before provider work', async (_label, change) => {
+  const data = payload(); change(data);
+  expect((await send('/api/snapshot', data)).status).toBe(400);
+  expect(environment).not.toHaveBeenCalled(); expect(location).not.toHaveBeenCalled(); expect(await rows()).toHaveLength(0);
 });
 
-test('cache read failure cannot be substituted with client location labels', async () => {
-  cacheLookup.mockRejectedValue(new Error('fixture database failure'));
-  expect((await post(payload())).status).toBe(500);
-  expect(inserted).toHaveLength(0);
-  expect(briefing).not.toHaveBeenCalled();
+test('unresolved current market cannot inherit the home profile or become ready', async () => {
+  market.mockResolvedValue(null);
+  const result = await send('/api/snapshot', payload());
+  expect(result.status).toBe(422); expect(result.body.error).toBe('snapshot_incomplete');
+  expect(await rows()).toHaveLength(0);
 });
 
-test.each([{ success: false, complete: false }, { success: true, complete: false }, new Error('fixture Briefing failure')])('Briefing failure stays explicit even after a valid snapshot save: %s', async outcome => {
-  if (outcome instanceof Error) briefing.mockRejectedValue(outcome);
-  else briefing.mockResolvedValue(outcome);
-  const result = await post(payload());
-  expect(result.status).toBe(201);
-  expect(result.body).toMatchObject({ status: 'ok', briefing_status: 'failed' });
-  expect(getSnapshotReadiness(inserted[0]).ready).toBe(true);
-});
-
-test.each([true, false])('GET computes readiness from the actual stored row, complete=%s', async complete => {
-  storedRow = completeSnapshot();
-  if (!complete) storedRow.weather = null;
-  const result = await request(app).get(`/api/snapshot/${storedRow.snapshot_id}`);
-  expect(result.status).toBe(200);
-  expect(result.body.status).toBe(complete ? 'ok' : 'pending');
+test.each([true, false])('owned historical GET reports actual readiness without generation, complete=%s', async complete => {
+  const row = completeSnapshot(); if (!complete) row.weather = null;
+  await actualDb.insert(snapshots).values(row);
+  const result = await request(app).get('/api/snapshot/' + row.snapshot_id);
+  expect(result.status).toBe(200); expect(result.body.status).toBe(complete ? 'ok' : 'pending');
   expect(result.body.missing_fields).toEqual(complete ? [] : ['weather']);
-  expect(storedRow.status).toBe('ok');
-  expect(inserted).toHaveLength(0);
+  expect(environment).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['2026-03-08T06:59:00Z', '2026-03-08T01:59:00', -300],
+  ['2026-03-08T07:01:00Z', '2026-03-08T03:01:00', -240],
+  ['2026-11-01T05:30:00Z', '2026-11-01T01:30:00', -240],
+  ['2026-11-01T06:30:00Z', '2026-11-01T01:30:00', -300],
+])('DB/API preserve true instant %s and separate DST wall time %s', async (instant, wall, offsetMinutes) => {
+  const fixture = completeSnapshot({ createdAt: instant });
+  const [saved] = await actualDb.insert(snapshots).values(fixture).returning();
+  const raw = (await pg.query('SELECT local_iso::text AS wall, created_at FROM snapshots')).rows[0];
+  expect(raw.wall.replace(' ', 'T')).toBe(wall);
+  expect(new Date(raw.created_at).toISOString()).toBe(new Date(instant).toISOString());
+  expect(saved.created_at.toISOString()).toBe(new Date(instant).toISOString());
+  const response = JSON.parse(JSON.stringify(snapshotResponse(saved, runId)));
+  expect(response.created_at).toBe(new Date(instant).toISOString());
+  expect(response.local_iso).toBe(wall);
+  expect((Date.parse(wall + 'Z') - Date.parse(response.created_at)) / 60000).toBe(offsetMinutes);
+  expect(getSnapshotReadiness(saved).ready).toBe(true);
+  const fetched = await request(app).get('/api/snapshot/' + saved.snapshot_id);
+  expect(fetched.body.local_iso).toBe(wall);
+  expect(fetched.body.created_at).toBe(response.created_at);
+});
+
+test.each(['/api/snapshot/drop', '/api/location/release-snapshot'])('%s preserves earlier source rows and requires Continue', async path => {
+  await actualDb.insert(snapshots).values(completeSnapshot());
+  expect((await request(app).post(path).send({})).status).toBe(409);
+  expect(await rows()).toHaveLength(1);
 });

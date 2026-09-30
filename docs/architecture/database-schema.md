@@ -687,82 +687,19 @@ function normalizeVenueName(name) {
 
 ## Omni-Presence Tables (Level 4 Architecture)
 
-### `intercepted_signals` - External Offer Analysis (Headless Ingestion)
+### `intercepted_signals` — legacy table
 
-**Purpose:** Store and analyze ride offers intercepted from external sources (iOS Siri Shortcut, etc.). Part of the "Siri Interceptor" feature for hands-free offer evaluation.
+This is a retained historical table, not the active Analyzer store. The current hook
+writes `offer_intelligence`; owner config is in `offer_rulesets`, and actual driver
+outcomes are separate revisioned `offer_outcomes`. Use `shared/schema.js` and migrations
+for exact columns/constraints, and [Analyzer §11](OFFER_ANALYZER.md#11-data-model) for
+current behavior. The old hardcoded threshold table and headless-FK explanation were
+retired in the [September29 reconciliation](removals/2026-09-29-offer-analyzer-doc-reconciliation.md).
 
-**⚠️ CRITICAL: Headless Ingestion Pattern**
-
-This table supports **headless clients** (iOS Shortcuts, Android automations) that cannot authenticate via JWT. The `user_id` column is **intentionally NOT a Foreign Key** to allow "fire and forget" inserts.
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  WHY NO FK CONSTRAINT ON user_id?                                       │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  Problem: Siri Shortcuts run WITHOUT an authenticated user session.      │
-│  They can't carry JWT tokens or create valid user sessions.              │
-│                                                                          │
-│  Solution: user_id resolved from the per-user shortcut token (still no FK); │
-│                                                                          │
-│  ❌ WITH FK: INSERT fails → "foreign key violation" → rejection loop     │
-│  ✅ NO FK:   INSERT succeeds → signals stored → user linked later        │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-**Files:**
-- Schema: `shared/schema.js`
-- Insert: none today — `server/api/hooks/analyze-offer.js` writes `offer_intelligence` (this table is legacy)
-- Query: none (no SignalTerminal exists); the live consumer is `client/src/components/offer-analyzer/OffersCard.tsx` via `/api/offer-analyzer/offers` + SSE `/events/offers`
-
-**Data Flow:**
-```
-Phone shortcut → OCR text and/or screenshot → POST /api/hooks/analyze-offer
-    → regex pre-parse + per-driver rules → verdict → async INSERT offer_intelligence
-    → pg_notify(offer_analyzed) → per-user SSE /events/offers → OffersCard
-    (offer_intelligence / offer_rulesets / offer_outcomes: docs/architecture/OFFER_ANALYZER.md §11)
-```
-
-**Key Columns:**
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID (PK) | Primary identifier |
-| `device_id` | VARCHAR (NOT NULL) | **PRIMARY identifier for headless clients** |
-| `user_id` | UUID (nullable, **NO FK**) | Optional - linked later when driver logs in |
-| `raw_text` | TEXT | Raw OCR text from screenshot |
-| `parsed_data` | JSONB | `{price, miles, time, pickup, dropoff, platform}` |
-| `decision` | TEXT | 'ACCEPT' / 'REJECT' |
-| `decision_reasoning` | TEXT | AI explanation for decision |
-| `confidence_score` | DECIMAL | 0.0-1.0 confidence in decision |
-| `user_override` | TEXT | null / 'ACCEPT' / 'REJECT' (if driver overrode AI) |
-| `source` | VARCHAR | 'siri_shortcut' / 'android_automation' / 'manual' |
-| `created_at` | TIMESTAMP | When signal was received |
-
-**Parsed Data JSONB Schema:**
-```json
-{
-  "price": 12.50,          // Dollar amount
-  "miles": 4.2,            // Trip distance
-  "time": 8,               // Estimated minutes
-  "pickup": "Main St",     // Pickup location (if parsed)
-  "dropoff": "Airport",    // Dropoff location (if parsed)
-  "platform": "uber",      // Detected platform
-  "surge": 1.5,            // Surge multiplier (if detected)
-  "per_mile": 2.98         // Calculated $/mile
-}
-```
-
-**Decision Logic:**
-| Metric | ACCEPT Threshold | REJECT Threshold |
-|--------|------------------|------------------|
-| $/mile | ≥ $2.00 | < $1.50 |
-| $/minute | ≥ $1.50 | < $1.00 |
-| Distance | ≤ 15 miles | > 25 miles |
-
-**Indexes:**
-- `idx_intercepted_signals_user_id` on `user_id`
-- `idx_intercepted_signals_created` on `(user_id, created_at DESC)`
+A headless shortcut token resolves an actual owner without browser JWT; `device_id`
+is telemetry and does not link an anonymous row to a future login. Phase2 storage is
+conditional on trusted timezone resolution and a successful transaction. A speech
+response does not prove the row exists.
 
 ---
 
@@ -1383,7 +1320,7 @@ Venue enrichment data calculated during TRIAD pipeline:
 ```
 **Valid types:** bar, restaurant, nightclub, stadium, arena, theater, event_host, hotel, casino, concert_hall
 
-### `parsed_data` (in intercepted_signals)
+### `parsed_data` (historical `intercepted_signals` example; not current Analyzer schema)
 ```json
 {
   "price": 12.50,

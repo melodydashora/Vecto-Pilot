@@ -15,7 +15,7 @@ jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({
   callModel: jest.fn(async () => { throw new Error('Unexpected model dispatch'); }),
 }));
 jest.unstable_mockModule('../../server/lib/venue/venue-cache.js', () => ({
-  getVenuesByType: jest.fn(), enrichVenueFromPlaceId: jest.fn(),
+  getVenuesByType: jest.fn(), upsertVenue: jest.fn(),
 }));
 jest.unstable_mockModule('../../server/db/connection-manager.js', () => ({
   getPool: () => { throw new Error('Venue tests must not open a pool'); },

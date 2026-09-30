@@ -8,14 +8,14 @@
 
 import { db } from '../../db/drizzle.js';
 import { venue_catalog } from '../../../shared/schema.js';
-import { eq, and, or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
 // 2026-02-13: Removed direct callGemini import — traffic call now uses callModel('VENUE_TRAFFIC')
 import { barsLog, placesLog, venuesLog, aiLog, matrixLog } from '../../logger/workflow.js';
-import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
+import { parseAddressComponents } from './venue-utils.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 // 2026-01-14: Cache First pattern - check database before calling Google Places API
-import { getVenuesByType, enrichVenueFromPlaceId } from './venue-cache.js';
-import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
+import { getVenuesByType, upsertVenue } from './venue-cache.js';
 // 2026-01-10: D-014 Phase 4 - Use canonical hours module directly for all isOpen calculations
 import { parseGoogleWeekdayText, getOpenStatus } from './hours/index.js';
 
@@ -31,7 +31,7 @@ function getPriceDisplay(priceLevel) {
     case 'PRICE_LEVEL_EXPENSIVE': return { level: '$$$', rank: 3 };
     case 'PRICE_LEVEL_MODERATE': return { level: '$$', rank: 2 };
     case 'PRICE_LEVEL_INEXPENSIVE': return { level: '$', rank: 1 };
-    default: return { level: '$$', rank: 2 }; // Default to moderate
+    default: return { level: null, rank: null };
   }
 }
 
@@ -39,159 +39,35 @@ function getPriceDisplay(priceLevel) {
  * Calculate if venue is open, time until close, and time until open
  * 2026-01-09: Added opens_in_minutes for "opening soon" UI feature
  */
-function calculateOpenStatus(place, timezone) {
+function validTimezone(value) {
+  try { if (typeof value !== 'string' || !value) return null; new Intl.DateTimeFormat('en-US', { timeZone: value }); return value; } catch { return null; }
+}
+function calculateOpenStatus(place) {
+  const timezone = validTimezone(place.timeZone?.id);
   const hours = place.currentOpeningHours || place.regularOpeningHours;
-  if (!hours) {
-    barsLog.debug(`No hours data for "${place.displayName?.text}" - Google didn't return opening hours`);
-    return { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null, opens_in_minutes: null };
+  const unknown = { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null, opens_in_minutes: null };
+  if (!hours) return unknown;
+  const descriptions = Array.isArray(hours.weekdayDescriptions) ? hours.weekdayDescriptions : [];
+  let canonical = null;
+  if (timezone && descriptions.length) {
+    const parsed = parseGoogleWeekdayText(descriptions);
+    if (parsed.ok) canonical = getOpenStatus(parsed.schedule, timezone);
   }
-
-  // 2026-01-10: D-014 Phase 4 - Use canonical hours module for consistent evaluation
-  const weekdayDescs = hours.weekdayDescriptions || [];
-  let is_open = null;
-  let canonicalStatus = null;
-
-  // Try canonical calculation first (requires timezone + weekday descriptions)
-  if (timezone && weekdayDescs.length > 0) {
-    const parseResult = parseGoogleWeekdayText(weekdayDescs);
-    if (parseResult.ok) {
-      canonicalStatus = getOpenStatus(parseResult.schedule, timezone);
-      is_open = canonicalStatus.is_open;
-      barsLog.debug(`"${place.displayName?.text}" - Calculated is_open=${is_open} from weekdayDescriptions (canonical)`);
-    }
-  }
-
-  // 2026-01-10: D-018 Fix - openNow used for debug comparison when canonical is available
-  // 2026-02-26: FALLBACK - Use openNow when weekdayDescriptions is absent.
-  // Google Nearby Search often returns openNow + periods but NOT weekdayDescriptions.
-  // By this point, venues have passed name/upscale/rating/Haiku filters — they're real bars.
-  if (hours.openNow !== undefined && is_open !== null) {
-    // Canonical is available — log discrepancy but trust canonical
-    if (hours.openNow !== is_open) {
-      barsLog.warn(1, `"${place.displayName?.text}" - openNow DISCREPANCY: Google=${hours.openNow}, Canonical=${is_open} (using canonical)`);
-    }
-  } else if (is_open === null && hours.openNow !== undefined) {
-    // No canonical data — use openNow as fallback (better than dropping the venue entirely)
-    is_open = hours.openNow;
-    barsLog.debug(`"${place.displayName?.text}" - Using openNow=${hours.openNow} as fallback (no weekdayDescriptions)`);
-  }
-
-  // Get today's hours - NO FALLBACK, timezone required for accurate venue status
-  if (!timezone) {
-    barsLog.warn(1, `"${place.displayName?.text}" - Missing timezone, cannot determine today's hours`);
-    return {
-      is_open,
-      hours_today: null,
-      closing_soon: false,
-      minutes_until_close: null,
-      opens_in_minutes: null,
-      weekday_descriptions: hours.weekdayDescriptions || []
-    };
-  }
+  const is_open = typeof hours.openNow === 'boolean' ? hours.openNow : canonical?.is_open ?? null;
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    weekday: 'long'
-  });
-  const todayName = formatter.format(now);
-
-  // Find today in weekdayDescriptions (weekdayDescs already defined above)
-  const todayHours = weekdayDescs.find(d =>
-    d.toLowerCase().startsWith(todayName.toLowerCase())
-  );
-
-  // Parse hours_today from weekday description (e.g., "Thursday: 4:00 PM – 2:00 AM")
-  let hours_today = null;
-  if (todayHours) {
-    const match = todayHours.match(/:\s*(.+)$/);
-    hours_today = match ? match[1].trim() : todayHours;
-  }
-
-  // Debug log for hours parsing
-  if (!hours_today && weekdayDescs.length > 0) {
-    barsLog.debug(`"${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions`);
-  }
-
-  // 2026-02-26: Fallback — generate hours_today from periods when weekdayDescriptions is missing
-  // Google Nearby Search often has periods but not weekdayDescriptions
-  if (!hours_today && hours.periods && hours.periods.length > 0 && timezone) {
-    const dayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short' });
-    const dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
-    const todayDow = dayMap[dayFormatter.format(now)] ?? now.getDay();
-
-    const todayPeriod = hours.periods.find(p => p.open?.day === todayDow);
-    if (todayPeriod && todayPeriod.open) {
-      const fmtTime = (h, m) => {
-        const suffix = h >= 12 ? 'PM' : 'AM';
-        const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-        return m ? `${h12}:${String(m).padStart(2, '0')} ${suffix}` : `${h12}:00 ${suffix}`;
-      };
-      const openStr = fmtTime(todayPeriod.open.hour, todayPeriod.open.minute || 0);
-      if (todayPeriod.close) {
-        const closeStr = fmtTime(todayPeriod.close.hour, todayPeriod.close.minute || 0);
-        hours_today = `${openStr} – ${closeStr}`;
-      } else {
-        hours_today = `${openStr} – Open 24 hours`;
-      }
-      barsLog.debug(`"${place.displayName?.text}" - Generated hours_today from periods: ${hours_today}`);
-    }
-  }
-
-  // 2026-01-10: D-014 Phase 4 - Use canonical status data when available
-  // The canonical evaluator already calculates these values accurately
-  let closing_soon = canonicalStatus?.closing_soon || false;
-  let minutes_until_close = canonicalStatus?.minutes_until_close || null;
-  let opens_in_minutes = canonicalStatus?.minutes_until_open || null;
-
-  // Fallback: If canonical status not available but we have Google periods data, calculate manually
-  if (!canonicalStatus && hours.periods && timezone) {
-    // Get current time in venue's timezone.
-    // 2026-07-06: hourCycle 'h23' + %24 — `hour12: false` yields "24" at
-    // midnight on Node <=21 (V8 h24), which put currentMinutes at 1440+ and
-    // broke open/closed math for the 12:00-12:59 AM hour.
-    const localFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23'
-    });
-    const parts = localFormatter.formatToParts(now);
-    const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0') % 24;
-    const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
-    const currentMinutes = currentHour * 60 + currentMinute;
-
-    // Calculate opens_in_minutes for closed venues
-    if (is_open === false) {
-      for (const period of hours.periods) {
-        if (period.open?.hour !== undefined) {
-          let openMinutes = period.open.hour * 60 + (period.open.minute || 0);
-          if (openMinutes > currentMinutes) {
-            opens_in_minutes = openMinutes - currentMinutes;
-            break;
-          }
-        }
-      }
-    }
-
-    // Calculate minutes until close for open venues
-    if (is_open) {
-      for (const period of hours.periods) {
-        if (period.close?.hour !== undefined) {
-          let closeMinutes = period.close.hour * 60 + (period.close.minute || 0);
-          if (closeMinutes < currentMinutes) {
-            closeMinutes += 24 * 60;
-          }
-          minutes_until_close = closeMinutes - currentMinutes;
-          if (minutes_until_close <= 60) {
-            closing_soon = true;
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  return { is_open, hours_today, closing_soon, minutes_until_close, opens_in_minutes };
+  const minutesUntil = value => {
+    const timestamp = typeof value === 'string' ? Date.parse(value) : NaN;
+    return Number.isFinite(timestamp) && timestamp >= now.getTime() ? Math.ceil((timestamp - now.getTime()) / 60000) : null;
+  };
+  // Provider timestamps include the correct local date, split shifts and holidays.
+  // Do not scan arbitrary periods by clock time or borrow the viewer's timezone.
+  const minutes_until_close = is_open === true ? minutesUntil(hours.nextCloseTime) ?? canonical?.minutes_until_close ?? null : null;
+  const opens_in_minutes = is_open === false ? minutesUntil(hours.nextOpenTime) ?? canonical?.minutes_until_open ?? null : null;
+  const day = timezone ? new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'long' }).format(now) : null;
+  const today = day ? descriptions.find(text => typeof text === 'string' && text.toLowerCase().startsWith(day.toLowerCase() + ':')) : null;
+  return { is_open, hours_today: today?.replace(/^[^:]+:\s*/, '') || null,
+    closing_soon: is_open === true && minutes_until_close !== null && minutes_until_close <= 60,
+    minutes_until_close, opens_in_minutes };
 }
 
 /**
@@ -247,15 +123,13 @@ function isExcludedVenue(name) {
  * 2026-02-18: Enhanced from simple keep/remove to quality classification.
  * Haiku classifies each venue as Premium (P), Standard (S), or Remove (X).
  * The quality tier is stored on the venue object and persisted to venue_catalog.
- * Once cached, Haiku is never called again for that venue ("assess once, cache forever").
+ * Catalog recommendations require fresh provider hours; new discovery batches are classified.
  *
  * @param {Array} venues - Venues from Google Places (after quick filter + upscale filter)
  * @returns {Array} Classified venues with venue_quality_tier set (removes X-tier)
  */
 async function classifyAndFilterVenues(venues) {
-  if (venues.length === 0) return [];
-
-  // 2026-02-18: Include rating in venue list so Haiku can factor in customer satisfaction
+  if (!venues.length) return [];
   const venueList = venues.map((v, i) => {
     const ratingStr = v.rating ? ` | rating: ${v.rating}` : '';
     return `${i + 1}. ${v.name} (${v.expense_level}${ratingStr})`;
@@ -274,109 +148,22 @@ ${venueList}
 Return ONLY a JSON object mapping venue number to classification. Example: {"1":"P","2":"S","3":"X","4":"P","5":"S"}
 Classify ALL venues. No explanation.`;
 
-  try {
-    matrixLog.info({
-      category: 'VENUE',
-      connection: 'AI',
-      action: 'DISPATCH',
-      roleName: 'VENUE_FILTER',
-      location: 'venue-intelligence.js:classifyAndFilterVenues',
-    }, `Calling VENUE_FILTER to classify ${venues.length} venues`);
-    const result = await callModel('VENUE_FILTER', {
-      system: 'You are a venue classifier. Return ONLY a JSON object mapping numbers to P/S/X. No explanation.',
-      user: prompt,
-      maxTokens: 300,
-      temperature: 0
-    });
-
-    if (!result.ok) {
-      matrixLog.error({
-        category: 'VENUE',
-        connection: 'AI',
-        action: 'COMPLETE',
-        roleName: 'VENUE_FILTER',
-        location: 'venue-intelligence.js:classifyAndFilterVenues',
-      }, 'VENUE_FILTER classification failed', result.error);
-      return venues; // Return unfiltered on error
-    }
-
-    // Parse the response - extract JSON object {"1":"P","3":"S",...}
-    const objMatch = result.output.match(/\{[^}]+\}/);
-    if (objMatch) {
-      try {
-        const classifications = JSON.parse(objMatch[0]);
-        const classified = [];
-        let premiumCount = 0;
-        let standardCount = 0;
-
-        for (const [indexStr, tier] of Object.entries(classifications)) {
-          const idx = parseInt(indexStr) - 1;
-          const venue = venues[idx];
-          if (!venue) continue;
-
-          if (tier === 'X' || tier === 'x') continue; // Remove
-
-          venue.venue_quality_tier = (tier === 'P' || tier === 'p') ? 'premium' : 'standard';
-          if (venue.venue_quality_tier === 'premium') premiumCount++;
-          else standardCount++;
-          classified.push(venue);
-        }
-
-        matrixLog.info({
-          category: 'VENUE',
-          connection: 'AI',
-          action: 'COMPLETE',
-          roleName: 'VENUE_FILTER',
-          location: 'venue-intelligence.js:classifyAndFilterVenues',
-        }, `VENUE_FILTER classified ${classified.length}/${venues.length} venues (${premiumCount} premium, ${standardCount} standard)`);
-        return classified;
-      } catch (parseErr) {
-        matrixLog.warn({
-          category: 'VENUE',
-          connection: 'AI',
-          action: 'PARSE',
-          roleName: 'VENUE_FILTER',
-          location: 'venue-intelligence.js:classifyAndFilterVenues',
-        }, 'Could not parse VENUE_FILTER classification JSON');
-      }
-    }
-
-    // Fallback: Try legacy array format [1, 3, 5] for backwards compatibility
-    const arrMatch = result.output.match(/\[[\d,\s]*\]/);
-    if (arrMatch) {
-      const keepIndices = JSON.parse(arrMatch[0]);
-      const filtered = keepIndices
-        .map(i => venues[i - 1])
-        .filter(Boolean);
-      // No quality tier assigned — will be null (legacy behavior)
-      matrixLog.info({
-        category: 'VENUE',
-        connection: 'AI',
-        action: 'COMPLETE',
-        roleName: 'VENUE_FILTER',
-        location: 'venue-intelligence.js:classifyAndFilterVenues',
-      }, `VENUE_FILTER kept ${filtered.length}/${venues.length} venues (legacy format)`);
-      return filtered;
-    }
-
-    matrixLog.warn({
-      category: 'VENUE',
-      connection: 'AI',
-      action: 'PARSE',
-      roleName: 'VENUE_FILTER',
-      location: 'venue-intelligence.js:classifyAndFilterVenues',
-    }, 'Could not parse VENUE_FILTER response');
-    return venues;
-  } catch (error) {
-    matrixLog.error({
-      category: 'VENUE',
-      connection: 'AI',
-      action: 'COMPLETE',
-      roleName: 'VENUE_FILTER',
-      location: 'venue-intelligence.js:classifyAndFilterVenues',
-    }, 'VENUE_FILTER classification error', error);
-    return venues; // Return unfiltered on error
+  const result = await callModel('VENUE_FILTER', {
+    system: 'Classify each listed venue as P, S or X. Return only the complete JSON index mapping.', user: prompt,
+    maxTokens: 300, temperature: 0, signal: AbortSignal.timeout(30000),
+  });
+  if (!result.ok) throw new Error('Venue classification unavailable');
+  let classifications;
+  try { classifications = JSON.parse(result.output.replace(/^```(?:json)?\s*|\s*```$/g, '')); }
+  catch { throw new Error('Venue classification returned invalid JSON'); }
+  if (!classifications || Array.isArray(classifications) || Object.keys(classifications).length !== venues.length ||
+      venues.some((_venue, index) => !['P', 'S', 'X'].includes(classifications[String(index + 1)]))) {
+    throw new Error('Venue classification is incomplete or invalid');
   }
+  return venues.flatMap((venue, index) => {
+    const tier = classifications[String(index + 1)];
+    return tier === 'X' ? [] : [{ ...venue, venue_quality_tier: tier === 'P' ? 'premium' : 'standard' }];
+  });
 }
 
 /**
@@ -407,22 +194,23 @@ Classify ALL venues. No explanation.`;
  * coords and never given substitute coordinates.
  *
  * @param {Array<object>} places - `data.places` from the Places API response
- * @param {string|null} timezone - IANA zone for open/closed calculation
  * @returns {Array<object>} venues with finite lat/lng only
  */
-export function mapGooglePlacesToVenues(places, timezone) {
+export function mapGooglePlacesToVenues(places) {
   const venues = [];
   for (const place of places || []) {
-    const venueName = place.displayName?.text || 'Unknown Venue';
+    const venueName = place.displayName?.text;
     const latitude = place.location?.latitude;
     const longitude = place.location?.longitude;
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    const point = normalizeCoordinates(latitude, longitude);
+    if (!venueName || !place.id || !point) {
       barsLog.warn(1, `"${venueName}" (${place.id || 'no place_id'}) dropped: Google Places returned no usable coordinates (lat=${String(latitude)}, lng=${String(longitude)})`);
       continue;
     }
 
+    if (['CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY'].includes(place.businessStatus)) continue;
     const price = getPriceDisplay(place.priceLevel);
-    const openStatus = calculateOpenStatus(place, timezone);
+    const openStatus = calculateOpenStatus(place);
     const type = place.primaryType === 'night_club' ? 'nightclub' :
                  place.primaryType === 'wine_bar' ? 'wine_bar' : 'bar';
 
@@ -444,11 +232,14 @@ export function mapGooglePlacesToVenues(places, timezone) {
       minutes_until_close: openStatus.minutes_until_close,
       // 2026-01-09: Added opens_in_minutes for "opening soon" badges
       opens_in_minutes: openStatus.opens_in_minutes,
-      rating: place.rating || null,
-      crowd_level: place.rating >= 4.5 ? 'high' : place.rating >= 4 ? 'medium' : 'low',
-      rideshare_potential: price.rank >= 3 ? 'high' : price.rank >= 2 ? 'medium' : 'low',
-      lat: latitude,
-      lng: longitude,
+      rating: Number.isFinite(place.rating) ? place.rating : null,
+      crowd_level: null,
+      rideshare_potential: null,
+      ...parseAddressComponents(place.addressComponents),
+      timezone: validTimezone(place.timeZone?.id),
+      business_status: place.businessStatus || 'UNKNOWN',
+      lat: point.lat,
+      lng: point.lng,
       place_id: place.id,
       google_types: place.types || [],
       // 2026-02-26: Capture raw hours for persistence to venue_catalog
@@ -460,339 +251,98 @@ export function mapGooglePlacesToVenues(places, timezone) {
   return venues;
 }
 
+const discoveryInFlight = new Map();
+const CATALOG_HOURS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+function relevantVenues(venues) {
+  return venues.filter(venue => {
+    if (!venue.place_id || !Number.isFinite(venue.expense_rank) || venue.expense_rank < 2 ||
+        !Number.isFinite(venue.rating) || venue.rating < 4.6 || isExcludedVenue(venue.name)) return false;
+    if (venue.isOpen === true) return true;
+    if (venue.isOpen === false && venue.expense_rank >= 3) {
+      venue.closed_go_anyway = true;
+      venue.closed_reason = 'Outside opening hours; nearby staging is a suggestion, not confirmed demand.';
+      return true;
+    }
+    return false;
+  }).sort((a, b) => Number(b.isOpen === true) - Number(a.isOpen === true) ||
+    Number(a.closing_soon === true) - Number(b.closing_soon === true) ||
+    Number(b.venue_quality_tier === 'premium') - Number(a.venue_quality_tier === 'premium') ||
+    b.expense_rank - a.expense_rank || Number(a.distance_miles) - Number(b.distance_miles));
+}
+function cachedPlace(row) {
+  const descriptions = value => Array.isArray(value?.weekdayDescriptions) ? value.weekdayDescriptions :
+    typeof value === 'string' ? value.split('; ').filter(Boolean) : [];
+  const weekdays = descriptions(row.business_hours).length ? descriptions(row.business_hours) : descriptions(row.hours_full_week);
+  return { id: row.place_id, displayName: { text: row.venue_name }, formattedAddress: row.formatted_address || row.address,
+    location: { latitude: row.lat, longitude: row.lng }, timeZone: { id: row.timezone },
+    priceLevel: ({ 1: 'PRICE_LEVEL_INEXPENSIVE', 2: 'PRICE_LEVEL_MODERATE', 3: 'PRICE_LEVEL_EXPENSIVE', 4: 'PRICE_LEVEL_VERY_EXPENSIVE' })[row.expense_rank],
+    rating: row.google_rating == null ? null : Number(row.google_rating), nationalPhoneNumber: row.phone_number,
+    primaryType: row.category === 'nightclub' ? 'night_club' : row.category, types: row.venue_types,
+    regularOpeningHours: weekdays.length ? { weekdayDescriptions: weekdays } : null };
+}
 export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 25, timezone = null }) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    barsLog.warn(1, `GOOGLE_MAPS_API_KEY not set`);
-    return {
-      query_time: new Date().toLocaleTimeString(),
-      location: `${city}, ${state}`,
-      total_venues: 0,
-      venues: [],
-      last_call_venues: []
-    };
-  }
-
-  // Cap radius at 50km (Google Places limit)
-  const radiusMeters = Math.min(radiusMiles * 1609.34, 50000);
-  barsLog.start(`${city}, ${state} (${Math.round(radiusMeters/1609.34)} mile radius)`);
-
-  // ==========================================================================
-  // STEP 0: CACHE FIRST PATTERN
-  // Check database before calling Google Places API to avoid redundant API calls
-  // 2026-01-14: Added to reduce API costs and improve response time
-  // ==========================================================================
+  const point = normalizeCoordinates(lat, lng);
+  if (!point || !city || !validTimezone(timezone) || !Number.isFinite(radiusMiles) || radiusMiles <= 0) throw new Error('Invalid venue discovery location, timezone or radius');
+  const radiusMeters = Math.min(radiusMiles * 1609.344, 50000);
+  const args = { ...point, city, state: state || '', radiusMiles: radiusMeters / 1609.344, timezone };
+  const key = JSON.stringify(args);
+  if (discoveryInFlight.has(key)) return structuredClone(await discoveryInFlight.get(key));
+  const pending = discoverNearbyVenuesOnce(args, radiusMeters);
+  discoveryInFlight.set(key, pending);
+  try { return structuredClone(await pending); }
+  finally { if (discoveryInFlight.get(key) === pending) discoveryInFlight.delete(key); }
+}
+async function discoverNearbyVenuesOnce(args, radiusMeters) {
+  const { lat, lng, city, state, radiusMiles, timezone } = args;
+  const response = (venues, source) => ({ query_time: new Date().toLocaleTimeString('en-US', { timeZone: timezone }),
+    location: [city, state].filter(Boolean).join(', '), total_venues: venues.length, venues,
+    last_call_venues: venues.filter(venue => venue.isOpen === true && venue.closing_soon), search_sources: [source] });
+  // A failed catalog query is not proof that the area is empty.
+  const cached = await getVenuesByType({ venueTypes: ['bar', 'nightclub', 'wine_bar'], city, state, limit: 100 });
+  const seen = new Set();
+  const nearby = cached.filter(row => {
+    const age = Date.now() - Date.parse(row.business_hours?._fetchedAt);
+    if (!row.place_id || seen.has(row.place_id) || !normalizeCoordinates(row.lat, row.lng) ||
+        !['premium', 'standard'].includes(row.venue_quality_tier) ||
+        !Number.isFinite(age) || age < 0 || age > CATALOG_HOURS_MAX_AGE_MS ||
+        ['closed', 'permanently_closed', 'temporarily_closed'].includes(row.last_known_status) ||
+        haversineDistanceMiles(lat, lng, row.lat, row.lng) > radiusMiles) return false;
+    seen.add(row.place_id); return true;
+  });
+  const rehydrated = nearby.flatMap(row => mapGooglePlacesToVenues([cachedPlace(row)]).map(venue => ({ ...venue,
+    city: row.city, state: row.state, country: row.country, venue_quality_tier: row.venue_quality_tier || null,
+    distance_miles: haversineDistanceMiles(lat, lng, venue.lat, venue.lng), from_cache: true })));
+  const reusable = relevantVenues(rehydrated);
+  if (reusable.length >= 5) return response(reusable, 'Database Cache');
+  if (!GOOGLE_MAPS_API_KEY) throw new Error('Places provider is not configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('Places discovery timed out')), 15000);
+  let data;
   try {
-    const cachedBars = await getVenuesByType({
-      venueTypes: ['bar', 'nightclub', 'wine_bar'],
-      city,
-      state,
-      limit: 100 // Get more than we need, filter by distance
-    });
-
-    if (cachedBars.length > 0) {
-      barsLog.phase(0, `Found ${cachedBars.length} cached venues in ${city}, ${state}`);
-
-      // Filter to venues within search radius using Haversine distance
-      const nearbyBars = cachedBars.filter(v => {
-        if (!Number.isFinite(v.lat) || !Number.isFinite(v.lng)) return false;
-        const distance = haversineDistanceMiles(lat, lng, v.lat, v.lng);
-        return distance <= radiusMiles;
-      });
-
-      barsLog.phase(0, `${nearbyBars.length} venues within ${radiusMiles} mile radius`);
-
-      // 2026-02-26: Count venues WITH hours data — venues without hours get filtered out anyway
-      // Previously: 10 cached venues (no hours) → all filtered → 0 results served
-      // Now: only count venues that can actually calculate open/closed status
-      const venuesWithHours = nearbyBars.filter(v => v.hours_full_week || v.business_hours);
-      if (venuesWithHours.length < 5 && nearbyBars.length >= 5) {
-        barsLog.phase(0, `Only ${venuesWithHours.length}/${nearbyBars.length} cached venues have hours — falling through to API for fresh data`);
-      }
-
-      // 2026-04-04: Batch backfill — trigger non-blocking enrichment for venues with
-      // place_id but missing hours. They'll have hours on the next request.
-      const venuesMissingHours = nearbyBars.filter(v =>
-        v.place_id && v.place_id.startsWith('ChIJ') &&
-        !v.hours_full_week && !v.business_hours
-      );
-      if (venuesMissingHours.length > 0) {
-        barsLog.phase(0, `Backfilling hours for ${venuesMissingHours.length} venues missing data`);
-        // Rate limit: max 5 concurrent, fire-and-forget
-        const batch = venuesMissingHours.slice(0, 5);
-        for (const v of batch) {
-          enrichVenueFromPlaceId(v.venue_id, v.place_id).catch(err => {
-            barsLog.warn(0, `Hours backfill failed for "${v.venue_name}": ${err.message}`);
-          });
-        }
-      }
-
-      // If we have 5+ cached venues WITH HOURS, re-hydrate with live status and return
-      if (venuesWithHours.length >= 5) {
-        barsLog.phase(0, `Using ${nearbyBars.length} cached venues (Cache First, ${venuesWithHours.length} have hours)`);
-
-        // Re-hydrate cached venues with live open status calculations
-        const rehydrated = nearbyBars.map(v => {
-          // 2026-04-04: Extract weekdayDescriptions from stored data, handling all formats:
-          // - New object format: { weekdayDescriptions: [...] }
-          // - Old string format: "Monday: 6 AM – 11 PM; Tuesday: ..." (split on '; ')
-          // - Old periods-only array: [{ open: {...}, close: {...} }] (no weekdayDescriptions)
-          function extractWeekdayDescs(data) {
-            if (!data) return [];
-            if (Array.isArray(data.weekdayDescriptions)) return data.weekdayDescriptions;
-            if (typeof data === 'string') return data.split('; ').filter(Boolean);
-            if (Array.isArray(data) && data[0]?.open) return []; // periods array, no descriptions
-            return [];
-          }
-
-          const businessDescs = extractWeekdayDescs(v.business_hours);
-          const hoursDescs = extractWeekdayDescs(v.hours_full_week);
-          const weekdayDescriptions = businessDescs.length > 0 ? businessDescs : hoursDescs;
-
-          const mockPlace = {
-            displayName: { text: v.venue_name },
-            currentOpeningHours: weekdayDescriptions.length > 0 ? { weekdayDescriptions } : null,
-            regularOpeningHours: weekdayDescriptions.length > 0 ? { weekdayDescriptions } : null
-          };
-
-          const openStatus = calculateOpenStatus(mockPlace, timezone);
-
-          return {
-            name: v.venue_name,
-            type: v.category || 'bar',
-            address: v.formatted_address || v.address || '',
-            // 2026-02-18: Now stored in venue_catalog (previously always null)
-            phone: v.phone_number || null,
-            expense_level: v.expense_rank === 4 ? '$$$$' : v.expense_rank === 3 ? '$$$' : v.expense_rank === 2 ? '$$' : '$',
-            expense_rank: v.expense_rank || 2,
-            isOpen: openStatus.is_open,
-            is_open: openStatus.is_open,
-            hours_today: openStatus.hours_today,
-            closing_soon: openStatus.closing_soon,
-            minutes_until_close: openStatus.minutes_until_close,
-            opens_in_minutes: openStatus.opens_in_minutes,
-            // 2026-02-18: Raw Google rating now stored (previously discarded to crowd_level)
-            rating: v.google_rating || null,
-            crowd_level: v.crowd_level || 'medium',
-            rideshare_potential: v.rideshare_potential || 'medium',
-            // 2026-02-18: Haiku quality tier from venue_catalog (assess once, cache forever)
-            venue_quality_tier: v.venue_quality_tier || null,
-            lat: v.lat,
-            lng: v.lng,
-            place_id: v.place_id,
-            google_types: v.venue_types || [],
-            distance_miles: haversineDistanceMiles(lat, lng, v.lat, v.lng).toFixed(1),
-            from_cache: true // Flag to indicate cached data
-          };
-        });
-
-        // Apply same filtering as Google Places results
-        // 2026-02-26: Filter to $$+ venues, 4.6+ rating, with known hours
-        const filteredVenues = rehydrated.filter(v => {
-          if (v.expense_rank < 2) return false;
-          // Rating filter: 4.6+ stars (skip venues without rating — they haven't been verified)
-          if (v.rating && parseFloat(v.rating) < 4.6) return false;
-          if (v.isOpen === true) return true;
-          if (v.isOpen === false && v.expense_rank >= 3) {
-            v.closed_go_anyway = true;
-            v.closed_reason = "High-value venue - good for staging spillover";
-            return true;
-          }
-          // 2026-04-16 (P0-1 fix): Hours unknown = DROP, regardless of quality tier.
-          // Quality tier confirms venue TYPE, not operating STATUS. See ARCHITECTURE_REQUIREMENTS.md §1.
-          return false;
-        });
-
-        // Sort by open status, quality tier, expense, then distance
-        filteredVenues.sort((a, b) => {
-          const aOpen = a.isOpen === true;
-          const bOpen = b.isOpen === true;
-          if (aOpen && !bOpen) return -1;
-          if (!aOpen && bOpen) return 1;
-          // 2026-02-18: Premium venues sort above standard
-          const aPremium = a.venue_quality_tier === 'premium' ? 1 : 0;
-          const bPremium = b.venue_quality_tier === 'premium' ? 1 : 0;
-          if (bPremium !== aPremium) return bPremium - aPremium;
-          if ((b.expense_rank || 0) !== (a.expense_rank || 0)) {
-            return (b.expense_rank || 0) - (a.expense_rank || 0);
-          }
-          return parseFloat(a.distance_miles) - parseFloat(b.distance_miles);
-        });
-
-        const lastCallVenues = filteredVenues.filter(v => v.isOpen && v.closing_soon);
-
-        barsLog.complete(`${filteredVenues.length} venues from cache (${filteredVenues.filter(v => v.isOpen).length} open)`);
-
-        return {
-          query_time: new Date().toLocaleTimeString(),
-          location: `${city}, ${state}`,
-          total_venues: filteredVenues.length,
-          venues: filteredVenues,
-          last_call_venues: lastCallVenues,
-          search_sources: ['Database Cache']
-        };
-      }
-    }
-  } catch (cacheErr) {
-    // Non-blocking: if cache lookup fails, fall through to Google Places API
-    barsLog.warn(0, `Cache lookup failed, falling back to API: ${cacheErr.message}`);
-  }
-  // ==========================================================================
-  // END CACHE FIRST PATTERN - Fall through to Google Places API
-  // ==========================================================================
-
-  try {
-    // Call Google Places API (New) - searchNearby
-    // Focus on bar-specific types only (not generic 'restaurant')
-    const response = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.businessStatus,places.formattedAddress,places.nationalPhoneNumber,places.currentOpeningHours,places.regularOpeningHours,places.priceLevel,places.rating,places.location,places.primaryType,places.types'
-      },
-      body: JSON.stringify({
-        // Only bar-focused types - no generic 'restaurant' which returns fast food
-        includedTypes: ['bar', 'night_club', 'wine_bar'],
-        locationRestriction: {
-          circle: {
-            center: { latitude: lat, longitude: lng },
-            radius: radiusMeters
-          }
-        },
-        maxResultCount: 20,
-        rankPreference: 'DISTANCE'
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      placesLog.error(1, `Google Places API error ${response.status}: ${errText}`);
-      throw new Error(`Google Places API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const places = data.places || [];
-
-    barsLog.phase(1, `Google Places returned ${places.length} venues`);
-
-    // Transform Google Places data to our venue format (see mapGooglePlacesToVenues)
-    let venues = mapGooglePlacesToVenues(places, timezone);
-
-    // Step 1: Quick filter - remove obvious fast food/chains
-    venues = venues.filter(v => !isExcludedVenue(v.name));
-    barsLog.phase(1, `After quick filter: ${venues.length} venues`);
-
-    // Step 2: Only keep upscale venues ($$ and above) with 4.6+ rating
-    venues = venues.filter(v => v.expense_rank >= 2);
-    barsLog.phase(1, `After upscale filter ($$+): ${venues.length} venues`);
-
-    // 2026-02-26: Rating quality filter — 4.6+ stars only
-    venues = venues.filter(v => !v.rating || v.rating >= 4.6);
-    barsLog.phase(1, `After rating filter (4.6+): ${venues.length} venues`);
-
-    // Step 3: LLM filter for remaining ambiguous venues (if any remain)
-    if (venues.length > 0) {
-      venues = await classifyAndFilterVenues(venues);
-    }
-
-    // Step 4: "CLOSED GO ANYWAY" Logic
-    // 2026-01-14: Filter venues by operating status
-    // - Open (isOpen === true): Always keep
-    // - Closed + $$$ (isOpen === false, expense_rank >= 3): Keep for staging spillover
-    // - Unknown + Haiku-classified (isOpen === null, has venue_quality_tier): Keep (verified bar)
-    // - Unknown + unclassified: Drop (unreliable — could be BBQ joints, smoke shops, etc.)
-    const relevantVenues = venues.filter(v => {
-      // 1. Open status ONLY - must have confirmed operating hours
-      if (v.isOpen === true) return true;
-
-      // 2. Closed Go Anyway: High value venues ($$$+) worth staging near
-      if (v.isOpen === false && v.expense_rank >= 3) {
-        v.closed_go_anyway = true; // Flag for UI/Strategy
-        v.closed_reason = "High-value venue - good for staging spillover";
-        return true;
-      }
-
-      // 3. Hours unknown: DROP regardless of quality tier (2026-04-16, P0-1 fix)
-      // Quality tier confirms venue TYPE, not operating STATUS. If Google Places
-      // has no hours, we cannot claim "open now". See ARCHITECTURE_REQUIREMENTS.md §1.
-      if (v.isOpen === null) {
-        barsLog.debug(`Dropping "${v.name}" (tier: ${v.venue_quality_tier || 'none'}) - hours unknown, cannot confirm open`);
-        return false;
-      }
-
-      return false; // Closed low-value venues
-    });
-
-    // 2026-01-14: Strategic sort for drivers (2026-04-16: removed tier 3 — hours-unknown venues no longer pass filter)
-    // 1. Open venues with time to work (not closing soon) - sorted by expense ($$$$ first)
-    // 2. Last call venues (closing soon) - still valuable for quick pickups
-    // 3. Closed High-Value Venues ($$$+) - staging spillover
-    relevantVenues.sort((a, b) => {
-      const aOpen = a.isOpen === true;
-      const bOpen = b.isOpen === true;
-
-      // Open venues first
-      if (aOpen && !bOpen) return -1;
-      if (!aOpen && bOpen) return 1;
-
-      if (aOpen && bOpen) {
-        // Within open venues:
-        // Put non-closing-soon venues first (more time to work them)
-        const aClosingSoon = a.closing_soon === true;
-        const bClosingSoon = b.closing_soon === true;
-        if (aClosingSoon !== bClosingSoon) return aClosingSoon ? 1 : -1;
-
-        // 2026-02-18: Premium venues sort above standard at same expense level
-        const aPremium = a.venue_quality_tier === 'premium' ? 1 : 0;
-        const bPremium = b.venue_quality_tier === 'premium' ? 1 : 0;
-        if (bPremium !== aPremium) return bPremium - aPremium;
-
-        // Then sort by expense (highest first)
-        if ((b.expense_rank || 0) !== (a.expense_rank || 0)) {
-          return (b.expense_rank || 0) - (a.expense_rank || 0);
-        }
-        return (b.rating || 0) - (a.rating || 0);
-      }
-
-      // Both closed (Go Anyway) - sort by expense
-      return (b.expense_rank || 0) - (a.expense_rank || 0);
-    });
-
-    // Extract last-call venues
-    // 2026-01-10: Use isOpen (camelCase) for consistency
-    const lastCallVenues = relevantVenues.filter(v => v.isOpen && v.closing_soon);
-
-    barsLog.complete(`${relevantVenues.length} venues (incl. ${relevantVenues.filter(v => v.isOpen === false).length} closed high-value)`);
-
-    // 2026-02-18: FIX - Persist API results to venue_catalog for cache-first pattern.
-    // Previously persistVenuesToDatabase was defined but NEVER CALLED — every request hit Google Places API.
-    // Fire-and-forget: response returns immediately while DB write happens in background.
-    persistVenuesToDatabase(relevantVenues, { city, state }).catch(err => {
-      barsLog.warn(1, `Non-blocking persist failed: ${err.message}`);
-    });
-
-    return {
-      query_time: new Date().toLocaleTimeString(),
-      location: `${city}, ${state}`,
-      total_venues: relevantVenues.length,
-      venues: relevantVenues,
-      last_call_venues: lastCallVenues,
-      search_sources: ['Google Places API']
-    };
-
-  } catch (error) {
-    barsLog.error(2, `Discovery failed`, error);
-    // Return empty result on error - don't use stale fallback data
-    return {
-      query_time: new Date().toLocaleTimeString(),
-      location: `${city || 'Unknown'}, ${state || ''}`,
-      total_venues: 0,
-      venues: [],
-      last_call_venues: [],
-      search_sources: ['Error - Google Places API failed'],
-      error: error.message
-    };
-  }
+    const result = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.businessStatus,places.formattedAddress,places.addressComponents,places.timeZone,places.nationalPhoneNumber,places.currentOpeningHours,places.regularOpeningHours,places.priceLevel,places.rating,places.location,places.primaryType,places.types' },
+      body: JSON.stringify({ includedTypes: ['bar', 'night_club', 'wine_bar'],
+        locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: radiusMeters } },
+        maxResultCount: 20, rankPreference: 'DISTANCE' }) });
+    if (!result.ok) throw new Error(`Places discovery failed: HTTP ${result.status}`);
+    data = await result.json(); controller.signal.throwIfAborted();
+  } finally { clearTimeout(timer); controller.abort(); }
+  if (!data || (data.places !== undefined && !Array.isArray(data.places))) throw new Error('Places discovery returned invalid data');
+  const providerIds = new Set();
+  const places = mapGooglePlacesToVenues(data.places).filter(venue => {
+    if (providerIds.has(venue.place_id)) return false;
+    providerIds.add(venue.place_id);
+    venue.distance_miles = haversineDistanceMiles(lat, lng, venue.lat, venue.lng);
+    return venue.distance_miles <= radiusMiles;
+  });
+  const candidates = relevantVenues(places);
+  const classified = await classifyAndFilterVenues(candidates);
+  // Keep the single-flight receipt until persistence finishes, avoiding a second
+  // miss/provider call while the first request's detached writes are pending.
+  await persistVenuesToDatabase(classified, args);
+  return response(relevantVenues(classified), 'Google Places API');
 }
 
 /**
@@ -803,12 +353,23 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
  * @param {string} params.city - City name
  * @returns {Promise<Object>} Traffic intelligence
  */
-export async function getTrafficIntelligence({ lat, lng, city, state }) {
+const trafficInFlight = new Map();
+export async function getTrafficIntelligence(args) {
+  const point = normalizeCoordinates(args.lat, args.lng);
+  if (!point) throw new Error('Traffic requires valid coordinates');
+  const key = JSON.stringify({ ...point, city: args.city, state: args.state, timezone: args.timezone });
+  if (trafficInFlight.has(key)) return structuredClone(await trafficInFlight.get(key));
+  const pending = getTrafficIntelligenceOnce({ ...args, ...point });
+  trafficInFlight.set(key, pending);
+  try { return structuredClone(await pending); }
+  finally { if (trafficInFlight.get(key) === pending) trafficInFlight.delete(key); }
+}
+async function getTrafficIntelligenceOnce({ lat, lng, city, state, timezone }) {
   const currentTime = new Date();
-  const timeString = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const timeString = currentTime.toISOString();
   
   const prompt = `Analyze CURRENT traffic conditions RIGHT NOW at coordinates (${lat}, ${lng}) in ${city}, ${state}.
-Current time: ${timeString}
+Current instant: ${timeString}. Driver timezone: ${timezone || 'unknown'}.
 
 Provide real-time traffic intelligence:
 1. Overall traffic density (1-10 scale, 10 = gridlock)
@@ -836,7 +397,8 @@ Return ONLY valid JSON:
     }, 'Calling VENUE_TRAFFIC role for traffic intelligence');
     const result = await callModel('VENUE_TRAFFIC', {
       system: 'You are a traffic intelligence system. Return ONLY valid JSON with no preamble.',
-      user: prompt
+      user: prompt,
+      signal: AbortSignal.timeout(30000)
     });
 
     if (!result.ok) {
@@ -844,6 +406,10 @@ Return ONLY valid JSON:
     }
 
     const trafficData = JSON.parse(result.output);
+    if (!['high', 'medium', 'low'].includes(trafficData?.density_level) || typeof trafficData.driver_advice !== 'string' ||
+        !trafficData.driver_advice.trim() || !Array.isArray(trafficData.congestion_areas) || !Array.isArray(trafficData.high_demand_zones)) {
+      throw new Error('Venue traffic returned incomplete data');
+    }
     matrixLog.info({
       category: 'VENUE',
       connection: 'AI',
@@ -855,10 +421,10 @@ Return ONLY valid JSON:
     // MAP TO UNIFIED SCHEMA for briefing-service compatibility
     return {
       summary: trafficData.driver_advice || '',
-      congestionLevel: trafficData.density_level || 'low',
+      congestionLevel: trafficData.density_level || null,
       incidents: (trafficData.congestion_areas || []).map(c => ({
         description: c.area + ': ' + c.reason,
-        severity: c.severity ? (c.severity > 7 ? 'high' : c.severity > 3 ? 'medium' : 'low') : 'medium'
+        severity: Number.isFinite(c.severity) ? (c.severity > 7 ? 'high' : c.severity > 3 ? 'medium' : 'low') : null
       })),
       highDemandZones: trafficData.high_demand_zones || [],
       driver_advice: trafficData.driver_advice || '',
@@ -872,15 +438,7 @@ Return ONLY valid JSON:
       roleName: 'VENUE_TRAFFIC',
       location: 'venue-intelligence.js:getTrafficIntelligence',
     }, 'VENUE_TRAFFIC failed', error);
-    // Return safe fallback
-    return {
-      summary: 'Traffic data currently unavailable',
-      congestionLevel: 'medium',
-      incidents: [],
-      highDemandZones: [],
-      driver_advice: 'Traffic data currently unavailable',
-      fetchedAt: new Date().toISOString()
-    };
+    throw error;
   }
 }
 
@@ -895,14 +453,14 @@ export async function getSmartBlocksIntelligence({ lat, lng, city, state, radius
 
     // Run venue discovery and traffic intelligence in parallel
     const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, timezone, localIso });
-    const trafficPromise = getTrafficIntelligence({ lat, lng, city, state }).catch(err => {
+    const trafficPromise = getTrafficIntelligence({ lat, lng, city, state, timezone }).catch(err => {
       venuesLog.warn(1, `Traffic intelligence failed: ${err.message}`);
-      return { density_level: 'unknown', high_demand_zones: [], driver_advice: '' };
+      return { available: false, congestionLevel: null, highDemandZones: [], driver_advice: 'Traffic data unavailable' };
     });
 
     const [venueData, trafficData] = await Promise.all([venuePromise, trafficPromise]);
 
-    venuesLog.done(1, `Combined intelligence: venues=${venueData.total_venues}, traffic=${trafficData.density_level}`);
+    venuesLog.done(1, `Combined intelligence: venues=${venueData.total_venues}, traffic=${trafficData.congestionLevel}`);
 
     return {
       timestamp: new Date().toISOString(),
@@ -912,8 +470,8 @@ export async function getSmartBlocksIntelligence({ lat, lng, city, state, radius
       combined_insights: {
         top_opportunities: venueData.venues?.slice(0, 5) || [],
         last_call_alerts: venueData.last_call_venues || [],
-        traffic_hotspots: trafficData.high_demand_zones || [],
-        driver_summary: `${venueData.total_venues || 0} venues nearby. Traffic: ${trafficData.density_level || 'unknown'}. ${trafficData.driver_advice || ''}`
+        traffic_hotspots: trafficData.highDemandZones || [],
+        driver_summary: `${venueData.total_venues || 0} venues nearby. Traffic: ${trafficData.congestionLevel || 'unknown'}. ${trafficData.driver_advice || ''}`
       }
     };
   } catch (error) {
@@ -932,145 +490,28 @@ export async function getSmartBlocksIntelligence({ lat, lng, city, state, radius
  * @param {Object} context - Context {city, state}
  * @returns {Promise<Array>} - Upserted venue records
  */
-export async function persistVenuesToDatabase(venues, context) {
-  if (!venues || !Array.isArray(venues) || venues.length === 0) {
-    return [];
+export async function persistVenuesToDatabase(venues) {
+  const saved = [];
+  for (const venue of venues || []) {
+    if (!venue.place_id || !normalizeCoordinates(venue.lat, venue.lng) || !venue.address) continue;
+    try {
+      const row = await upsertVenue({ venueName: venue.name, placeId: venue.place_id, lat: venue.lat, lng: venue.lng,
+        address: venue.address, formattedAddress: venue.address, city: venue.city, state: venue.state, country: venue.country,
+        timezone: venue.timezone, hours: (venue._currentOpeningHours || venue._regularOpeningHours) ? { ...(venue._currentOpeningHours || venue._regularOpeningHours), _fetchedAt: new Date().toISOString() } : null, hoursFullWeek: venue._regularOpeningHours,
+        hoursSource: (venue._currentOpeningHours || venue._regularOpeningHours) ? 'google_places' : null, venueTypes: [venue.type], category: venue.type,
+        expenseRank: venue.expense_rank, source: 'google_places_new', discoverySource: 'bar_discovery',
+      }, { isBar: true, recordStatus: 'verified' });
+      if (!row?.venue_id || row.place_id !== venue.place_id) continue;
+      await db.update(venue_catalog).set({ google_rating: venue.rating,
+        phone_number: venue.phone, venue_quality_tier: venue.venue_quality_tier || null,
+        last_known_status: venue.business_status === 'OPERATIONAL' ? 'open' : null,
+        // Rating and price are not live crowd counts or measured ride demand.
+        crowd_level: null, rideshare_potential: null,
+      }).where(eq(venue_catalog.venue_id, row.venue_id));
+      saved.push(row);
+    } catch (error) { venuesLog.warn(4, `Venue persistence unavailable: ${error.message}`); }
   }
-
-  try {
-    const now = new Date();
-    const upserted = [];
-
-    for (const v of venues) {
-      const coordKey = generateCoordKey(v.lat, v.lng);
-      const normalizedName = normalizeVenueName(v.name);
-
-      // Check if venue already exists by coord_key or (normalized_name + city + state)
-      const conditions = [];
-      if (coordKey) {
-        conditions.push(eq(venue_catalog.coord_key, coordKey));
-      }
-      if (normalizedName && context.city && context.state) {
-        conditions.push(and(
-          eq(venue_catalog.normalized_name, normalizedName),
-          eq(venue_catalog.city, context.city),
-          eq(venue_catalog.state, context.state?.toUpperCase())
-        ));
-      }
-
-      let existing = null;
-      if (conditions.length > 0) {
-        const [found] = await db.select()
-          .from(venue_catalog)
-          .where(conditions.length === 1 ? conditions[0] : or(...conditions))
-          .limit(1);
-        existing = found;
-      }
-
-      // District Extraction (from venue name)
-      const district = extractDistrictFromVenueName(v.name);
-      const districtSlug = district ? normalizeDistrictSlug(district) : null;
-
-      if (existing) {
-        // Update existing venue with latest bar data + district info
-        const venueTypes = Array.isArray(existing.venue_types) ? existing.venue_types : [];
-        if (!venueTypes.includes('bar')) {
-          venueTypes.push('bar');
-        }
-
-        // 2026-01-14: Progressive Enrichment - Bar Tab discovery is a verified source
-        // Use OR logic for is_bar (once true, stays true)
-        // Use MAX logic for record_status (verified > enriched > stub)
-        const statusPriority = { 'stub': 0, 'enriched': 1, 'verified': 2 };
-        const existingPriority = statusPriority[existing.record_status] || 0;
-        const finalRecordStatus = existingPriority < 2 ? 'verified' : existing.record_status;
-
-        const [updated] = await db.update(venue_catalog)
-          .set({
-            expense_rank: v.expense_rank || existing.expense_rank,
-            crowd_level: v.crowd_level || existing.crowd_level,
-            rideshare_potential: v.rideshare_potential || existing.rideshare_potential,
-            venue_types: venueTypes,
-            // Prefer existing district if set, otherwise try new extraction
-            district: existing.district || district,
-            district_slug: existing.district_slug || districtSlug,
-            // 2026-01-14: Progressive Enrichment fields
-            is_bar: true, // Bar Tab discovery = is_bar
-            record_status: finalRecordStatus, // Verified source
-            // 2026-02-18: Store Google Places data + Haiku quality tier
-            google_rating: v.rating || existing.google_rating,
-            phone_number: v.phone || existing.phone_number,
-            // Quality tier: once assessed as 'premium', stays 'premium' (assess once, cache forever)
-            venue_quality_tier: v.venue_quality_tier || existing.venue_quality_tier,
-            // 2026-02-26: Store hours so cached venues can calculate open/closed status
-            ...(v._regularOpeningHours ? { hours_full_week: v._regularOpeningHours } : {}),
-            ...(v._regularOpeningHours?.weekdayDescriptions ? {
-              business_hours: v._regularOpeningHours.weekdayDescriptions.join('; ')
-            } : {}),
-            access_count: (existing.access_count || 0) + 1,
-            last_accessed_at: now,
-            updated_at: now
-          })
-          .where(eq(venue_catalog.venue_id, existing.venue_id))
-          .returning();
-
-        if (updated) upserted.push(updated);
-      } else {
-        // Insert new venue with district
-        const venueType = v.type === 'nightclub' ? 'nightclub' :
-                          v.type === 'wine_bar' ? 'wine_bar' : 'bar';
-
-        // 2026-01-14: Progressive Enrichment - Bar Tab discovery creates verified bars
-        const [inserted] = await db.insert(venue_catalog)
-          .values({
-            venue_name: v.name,
-            normalized_name: normalizedName,
-            address: v.address,
-            lat: v.lat,
-            lng: v.lng,
-            coord_key: coordKey,
-            city: context.city,
-            state: context.state?.toUpperCase(),
-            formatted_address: v.address,
-            place_id: v.place_id,
-            venue_types: [venueType],
-            category: venueType,
-            expense_rank: v.expense_rank,
-            crowd_level: v.crowd_level,
-            rideshare_potential: v.rideshare_potential,
-            district: district,
-            district_slug: districtSlug,
-            source: 'google_places',
-            discovery_source: 'bar_discovery',
-            // 2026-01-14: Progressive Enrichment fields
-            is_bar: true,           // Bar Tab discovery = is_bar
-            is_event_venue: false,
-            record_status: 'verified', // Bar Tab is a trusted source
-            // 2026-02-18: Store Google Places data + Haiku quality tier
-            google_rating: v.rating || null,
-            phone_number: v.phone || null,
-            venue_quality_tier: v.venue_quality_tier || null,
-            // 2026-02-26: Store hours so cached venues can calculate open/closed status
-            hours_full_week: v._regularOpeningHours || null,
-            business_hours: v._regularOpeningHours?.weekdayDescriptions?.join('; ') || null,
-            access_count: 1,
-            last_accessed_at: now,
-            updated_at: now
-          })
-          .onConflictDoNothing()
-          .returning();
-
-        if (inserted) upserted.push(inserted);
-      }
-    }
-
-    venuesLog.done(4, `Persisted ${upserted.length} venues to venue_catalog`);
-    return upserted;
-  } catch (error) {
-    venuesLog.warn(4, `Failed to persist venues: ${error.message}`);
-    // Don't throw - allow API to continue even if DB persistence fails
-    return [];
-  }
+  return saved;
 }
 
 export default {

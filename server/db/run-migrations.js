@@ -43,6 +43,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { databaseConnectionConfig } from './connection-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_MIGRATIONS_DIR = path.join(__dirname, '..', '..', 'migrations');
@@ -78,13 +79,10 @@ export async function runMigrations({ migrationsDir = DEFAULT_MIGRATIONS_DIR } =
     return { applied: [], baselined: [], skipped: 0 };
   }
 
-  // Same SSL conditional as db-client.js: Helium dev is local/no-SSL,
-  // deployment (Neon) requires it.
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production';
+  // The pool, initial LISTEN, reconnect, and migration runner share one policy.
   const client = new pg.Client({
-    connectionString,
+    ...databaseConnectionConfig(),
     application_name: 'migration-runner',
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
   });
 
   const applied = [];

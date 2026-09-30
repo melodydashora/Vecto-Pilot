@@ -57,7 +57,7 @@ export async function callModel(role, { system, user, messages, images })
 ```
 
 1. Look up role in model-registry → get model config
-2. Check for env override (`AGENT_OVERRIDE_MODEL`, `AI_COACH_OVERRIDE_MODEL`)
+2. Resolve the pinned role through `getRoleConfig()`; the old model environment overrides were removed
 3. Build adapter configs for primary + fallback (if enabled)
 4. Execute via HedgedRouter or direct adapter call
 5. Apply timeout (120s default)
@@ -168,7 +168,7 @@ VENUE_FILTER, BRIEFING_WEATHER, BRIEFING_TRAFFIC, BRIEFING_SCHOOLS, BRIEFING_AIR
 | Anthropic (Claude) | Google (Gemini Flash) |
 | OpenAI (GPT) | Google (Gemini Flash) |
 
-**Exception:** `OFFER_ANALYZER` (vision-based) excluded — can't fallback to non-vision models.
+**Analyzer boundary:** cross-provider eligibility and same-provider503 retry are distinct. Follow `adapters/index.js` and registry source; cancellation suppresses retry after abort. See [Analyzer source contract](OFFER_ANALYZER.md).
 
 ---
 
@@ -188,16 +188,18 @@ VENUE_FILTER, BRIEFING_WEATHER, BRIEFING_TRAFFIC, BRIEFING_SCHOOLS, BRIEFING_AIR
 
 ---
 
-## 6. Streaming vs Batch
+## 6. Streaming vs batch
 
-| Aspect | Batch (callModel) | Streaming (callModelStream) |
-|--------|-------------------|---------------------------|
-| All adapters | Yes | Gemini only |
-| Return type | `{ ok, output, latencyMs }` | `Response` (SSE stream) |
-| Fallback | HedgedRouter | No fallback |
-| JSON mode | Auto-detected | Not available |
-| Use case | Strategy, briefing, venues | Rideshare Coach chat |
-| Timeout | 120s | 90s |
+Use actual call paths, not a provider-wide assumption. `callModel()` routes bounded
+nonstream requests; `callModelStream()` includes the specialized Coach Responses path
+in `coach-responses.js` as well as provider-specific streaming. Completion markers,
+transport errors and cancellation differ. Active voice delegates questions to the brain;
+it does not bootstrap all saved source records itself.
+
+Current Analyzer cancellation passes a caller signal through router and Gemini SDK
+request configuration; a deadline does not prove upstream billing stopped. Role pins and
+adapter request construction are the source of supported parameters. See
+[AI preflight](../preflight/ai-models.md) and [Coach API](../../server/api/chat/README.md).
 
 ---
 
@@ -245,7 +247,7 @@ Update `getFallbackConfig()` with cross-provider fallback for the new provider.
 | Concurrency gate (10/provider) | Working |
 | Error classification | Working |
 | Fallback chains (9 roles) | Working |
-| Streaming (Gemini only) | Working |
+| Coach streaming | Specialized Responses path; verify current adapter tests, not a blanket provider availability claim. |
 | JSON mode (Gemini) | Working |
 | Vision (Gemini) | Working |
 | Web search (Anthropic + Gemini + OpenAI) | Working |
@@ -254,7 +256,7 @@ Update `getFallbackConfig()` with cross-provider fallback for the new provider.
 
 ## 9. Known Gaps
 
-1. **Streaming limited to Gemini** — Coach chat can't fallback to Claude/OpenAI streaming.
+1. **Streaming contracts differ** — Coach Responses and legacy provider streams have distinct completion/error behavior; do not infer automatic cross-provider streaming fallback.
 2. **No adapter for local models** — Can't route to Ollama/vLLM for cost savings.
 3. **Vertex adapter unused** — Available but no roles route through it.
 4. **No per-request cost tracking** — Token counts not logged.
@@ -264,7 +266,7 @@ Update `getFallbackConfig()` with cross-provider fallback for the new provider.
 
 ## 10. TODO — Hardening Work
 
-- [ ] **Add streaming to all adapters** — Support Claude and OpenAI streaming for Coach fallback
+- [ ] **Streaming fallback policy** — any new cross-provider Coach fallback needs its own complete/error/cancellation contract; OpenAI Responses is already implemented.
 - [ ] **Add local model adapter** — Ollama/vLLM for cost-sensitive roles
 - [ ] **Remove or use Vertex adapter** — Either route roles or delete dead code
 - [ ] **Per-request token logging** — Track input/output tokens for cost monitoring

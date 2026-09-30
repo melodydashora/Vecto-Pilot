@@ -1,11 +1,14 @@
 import { jest, test, expect } from '@jest/globals';
 import { completeSnapshot } from '../fixtures/complete-snapshot.js';
+import { mainRunBoundary } from '../fixtures/main-run-boundary.js';
 
 let preferences;
 const venues = Array.from({ length: 6 }, (_, i) => ({ name: `Fixture venue ${i}`, category: 'dining', pro_tips: ['Use the marked pickup area.'] }));
 const model = jest.fn(async () => ({ ok: true, output: JSON.stringify({ recommended_venues: venues, tactical_summary: 'Synthetic current-location demand plan.' }) }));
 const forbidden = jest.fn(async () => { throw new Error('Unexpected database/provider call'); });
 const log = new Proxy({}, { get: () => jest.fn() });
+const admission = mainRunBoundary({});
+jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => admission.exports);
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: model }));
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: { select: forbidden, insert: forbidden } }));
 jest.unstable_mockModule('../../server/lib/venue/venue-enrichment.js', () => ({ searchPlaceByText: forbidden }));
@@ -22,6 +25,10 @@ jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ venuesLog: 
 const { generateTacticalPlan } = await import('../../server/lib/strategy/tactical-planner.js');
 
 test('changing home distance cannot flag or reorder equally near current-location venues as beyond the pickup limit', async () => {
+  admission.state.configuration = {
+    profile: { selected_services: ['economy'] }, vehicle: { model: 'Saved vehicle' },
+    rules: { version: 9, hash: 'withheld-analyzer', config: { min_per_mile: 2.75 } },
+  };
   const snapshot = completeSnapshot({ lat: 1, lng: 1 });
   const run = async (home_lat, home_lng) => {
     preferences = { profile_loaded: true, home_lat, home_lng, max_deadhead_mi: 1 };
@@ -38,4 +45,9 @@ test('changing home distance cannot flag or reorder equally near current-locatio
   expect(distantHome.recommended_venues[0].distance_from_home_mi).toBeGreaterThan(1);
   expect(model.mock.calls[0][1].system).toContain("CURRENT location; max_deadhead_mi limits empty travel to a ride pickup");
   expect(forbidden).not.toHaveBeenCalled();
+  const prompt = JSON.stringify(model.mock.calls[0][1]);
+  expect(prompt).toContain('selected_services');
+  expect(prompt).toContain('Saved vehicle');
+  expect(prompt).not.toContain('withheld-analyzer');
+  expect(prompt).not.toContain('min_per_mile');
 });

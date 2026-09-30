@@ -102,7 +102,14 @@ function venueNamesMatch(name1, name2) {
  */
 function toEventMatch(event) {
   return {
+    id: event.id,
     title: event.title,
+    event_start_date: event.event_start_date,
+    event_end_date: event.event_end_date,
+    all_day: event.all_day,
+    timezone: event.timezone || event.vc_timezone || null,
+    start_time_iso: event.start_time_iso,
+    end_time_iso: event.end_time_iso,
     venue_name: event.vc_venue_name || event.venue_name,
     event_start_time: event.event_start_time,
     event_end_time: event.event_end_time,

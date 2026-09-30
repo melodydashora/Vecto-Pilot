@@ -6,7 +6,7 @@
  * docs/EVENTS.md §4 and todo #5): venue_catalog.place_id is UNIQUE, so
  * venue_id ↔ place_id is a bijection and any join-based place_id key partitions
  * identically to venue_id. The code change was reverted; these tests pin the
- * venue_id-keyed contract AS IT EXISTS, including the known open limitation.
+ * venue_id-keyed historical contract. September 29 repairs below add atomic writers and preserve ambiguous performance schedules.
  *
  * Test-design rules (from the 2026-07-02 adversarial review — keep them):
  *   - Fixtures must be representable under the live schema constraints. Never
@@ -26,257 +26,111 @@
  */
 import { jest, describe, test, expect, beforeEach } from '@jest/globals';
 import { PgDialect } from 'drizzle-orm/pg-core';
-
-const executeMock = jest.fn();
-
-jest.unstable_mockModule('../server/db/drizzle.js', () => ({
-  db: { execute: executeMock },
-}));
-jest.unstable_mockModule('../server/logger/workflow.js', () => ({
-  briefingLog: {
-    error: jest.fn(), warn: jest.fn(), info: jest.fn(),
-    phase: jest.fn(), done: jest.fn(),
-  },
-  OP: new Proxy({}, { get: (_t, prop) => String(prop) }),
-}));
-
-const { mergeIntoOverlappingActiveSpan, collapseDuplicateEventSpans } =
-  await import('../server/lib/briefing/cleanup-events.js');
-
+const executeMock = jest.fn(), transactions = jest.fn();
+const db = { execute: executeMock, transaction: transactions };
+jest.unstable_mockModule('../server/db/drizzle.js', () => ({ db }));
+jest.unstable_mockModule('../server/logger/workflow.js', () => ({ briefingLog: new Proxy({}, { get: () => jest.fn() }), OP: {} }));
+const { mergeIntoOverlappingActiveSpan, collapseDuplicateEventSpans, withEventVenueLock, resolveEventWriteHash } = await import('../server/lib/briefing/cleanup-events.js');
 const dialect = new PgDialect();
-const render = (sqlObj) => dialect.sqlToQuery(sqlObj);
-
-beforeEach(() => {
-  executeMock.mockReset();
+const render = query => dialect.sqlToQuery(query);
+const row = (id, extra = {}) => ({ id, venue_id: 'venue-a', title: 'Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-14', event_start_time: '19:00', event_end_time: '22:00', ...extra });
+const incoming = extra => ({ venueId: 'venue-a', title: 'Wicked', startDate: '2026-07-05', endDate: '2026-07-18', startTime: '19:00', endTime: '22:00', ...extra });
+beforeEach(() => { executeMock.mockReset(); transactions.mockReset().mockImplementation(write => write(db)); });
+describe('serialized span writers', () => {
+ test('union is monotonic SQL and not a stale SELECT-computed replacement', async () => {
+  executeMock.mockResolvedValueOnce({ rows: [row('existing')] }).mockResolvedValueOnce({ rowCount: 1 });
+  expect(await mergeIntoOverlappingActiveSpan(incoming())).toBe('existing');
+  const scan = render(executeMock.mock.calls[0][0]), update = render(executeMock.mock.calls[1][0]);
+  expect(scan.sql).toContain('FOR UPDATE'); expect(scan.params).toEqual(['venue-a', '2026-07-18', '2026-07-05']);
+  expect(update.sql).toContain('LEAST(event_start_date'); expect(update.sql).toContain('GREATEST(event_end_date'); expect(update.params).toEqual(['2026-07-05', '2026-07-18', 'existing']);
+ });
+ test.each([{ startDate: '2026-07-05', endDate: '2026-07-05' }, { startDate: '2026-07-05', endDate: '2026-07-06' }, { venueId: null }, { startTime: null }])('single/overnight/unknown spans %j never merge', async extra => {
+  expect(await mergeIntoOverlappingActiveSpan(incoming(extra))).toBeNull(); expect(executeMock).not.toHaveBeenCalled();
+ });
+ test.each([
+  [row('single', { event_end_date: '2026-07-01' })], [row('matinee', { event_start_time: '14:00' })],
+  [row('different', { title: 'Hamilton' })], [row('a'), row('b')], [],
+ ].map(rows => ({ rows })))('incompatible or ambiguous candidates remain source variants (%j)', async ({ rows }) => {
+  executeMock.mockResolvedValue({ rows }); expect(await mergeIntoOverlappingActiveSpan(incoming())).toBeNull(); expect(executeMock).toHaveBeenCalledTimes(1);
+ });
+ test('a matching row after another title is found without erasing the other performance', async () => {
+  executeMock.mockResolvedValueOnce({ rows: [row('other', { title: 'Hamilton' }), row('match')] }).mockResolvedValueOnce({ rowCount: 1 });
+  expect(await mergeIntoOverlappingActiveSpan(incoming())).toBe('match');
+ });
+ test('database failure aborts the write instead of becoming insert permission', async () => {
+  executeMock.mockRejectedValue(new Error('fixture unavailable')); await expect(mergeIntoOverlappingActiveSpan(incoming())).rejects.toThrow('fixture unavailable');
+ });
+ test('venue lock encloses both the overlap check and the insertion callback', async () => {
+  const tx = { execute: jest.fn(async () => ({ rows: [] })) }; transactions.mockImplementation(async write => write(tx));
+  const write = jest.fn(async executor => { expect(executor).toBe(tx); expect(tx.execute).toHaveBeenCalledTimes(1); return 'insert receipt'; });
+  expect(await withEventVenueLock('venue-a', write)).toBe('insert receipt');
+  expect(render(tx.execute.mock.calls[0][0]).sql).toContain('pg_advisory_xact_lock'); expect(render(tx.execute.mock.calls[0][0]).params).toEqual(['event-venue:venue-a']);
+ });
+ test('two simultaneous miss-to-insert writers serialize into one union', async () => {
+  let tail = Promise.resolve(); const saved = [];
+  transactions.mockImplementation(async write => {
+   let release;
+   const tx = { execute: async query => {
+    const { sql, params } = render(query);
+    if (sql.includes('pg_advisory_xact_lock')) { const previous = tail; tail = new Promise(resolve => { release = resolve; }); await previous; return {}; }
+    if (sql.includes('SELECT id')) return { rows: structuredClone(saved) };
+    if (sql.includes('LEAST')) { saved[0].event_start_date = [saved[0].event_start_date, params[0]].sort()[0]; saved[0].event_end_date = [saved[0].event_end_date, params[1]].sort().at(-1); return {}; }
+    throw new Error('Unexpected SQL');
+   } };
+   try { return await write(tx); } finally { release?.(); }
+  });
+  const persist = extra => withEventVenueLock('venue-a', async tx => { const event = incoming(extra); const merged = await mergeIntoOverlappingActiveSpan(event, tx); if (!merged) saved.push(row('inserted', { event_start_date: event.startDate, event_end_date: event.endDate })); });
+  await Promise.all([persist({ startDate: '2026-07-03', endDate: '2026-07-18' }), persist({ startDate: '2026-07-01', endDate: '2026-07-20' })]);
+  expect(saved).toHaveLength(1); expect(saved[0]).toMatchObject({ event_start_date: '2026-07-01', event_end_date: '2026-07-20' });
+ });
+});
+describe('conservative cleanup', () => {
+ function scan(rows) { executeMock.mockImplementation(async query => { const { sql } = render(query); if (sql.includes('SELECT DISTINCT')) return { rows: [{ venue_id: 'venue-a' }] }; if (sql.includes('SELECT id')) return { rows }; if (sql.includes('UPDATE')) return { rowCount: 2 }; return {}; }); }
+ test('contained matching multi-day variants soft-deactivate under the writer lock', async () => {
+  scan([row('loser1', { event_start_date: '2026-07-05', event_end_date: '2026-07-08' }), row('survivor'), row('loser2', { event_start_date: '2026-07-03', event_end_date: '2026-07-09' })]);
+  expect(await collapseDuplicateEventSpans()).toBe(2);
+  const statements = executeMock.mock.calls.map(([q]) => render(q)); const update = statements.find(q => q.sql.includes('UPDATE discovered_events'));
+  expect(statements.some(q => q.sql.includes('pg_advisory_xact_lock'))).toBe(true);
+  expect(update.params).toEqual(['venue-a', 'loser2', 'loser1']); expect(update.sql).toContain("deactivation_reason = 'duplicate_span'"); expect(update.sql).not.toContain('DELETE');
+ });
+ test.each([
+  [row('a', { event_end_date: '2026-07-01' }), row('b', { event_end_date: '2026-07-01', event_start_time: '14:00' })],
+  [row('a'), row('b', { event_start_time: '14:00' })],
+  [row('a'), row('b', { event_start_date: '2026-07-05', event_end_date: '2026-07-20' })],
+  [row('a'), row('b', { event_end_time: null })],
+ ].map(rows => ({ rows })))('single-day, different-clock, partial-overlap and unknown schedules survive (%j)', async ({ rows }) => {
+  scan(rows); expect(await collapseDuplicateEventSpans()).toBe(0); expect(executeMock.mock.calls.map(([q]) => render(q).sql).some(sql => sql.includes('UPDATE discovered_events'))).toBe(false);
+ });
+ test('cleanup error is reported and leaves events untouched', async () => { executeMock.mockRejectedValue(new Error('outage')); expect(await collapseDuplicateEventSpans()).toBe(0); });
 });
 
-describe('mergeIntoOverlappingActiveSpan — venue_id-keyed write-time merge', () => {
-  test('merges an overlapping same-venue titles-matching span and extends it to the union span (exact param order)', async () => {
-    executeMock
-      .mockResolvedValueOnce({
-        rows: [{ id: 'row-a', title: 'Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-10' }],
-      })
-      .mockResolvedValueOnce({ rowCount: 1 });
 
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: 'venue-a',
-      title: 'Wicked',
-      startDate: '2026-07-05',
-      endDate: '2026-07-14',
-    });
-
-    expect(id).toBe('row-a');
-
-    // Candidate scan keys on venue_id and the overlap window.
-    const scan = render(executeMock.mock.calls[0][0]);
-    expect(scan.sql).toContain('venue_id =');
-    expect(scan.sql).toContain('is_active = true');
-    expect(scan.params).toEqual(['venue-a', '2026-07-14', '2026-07-05']);
-
-    // Extension UPDATE writes union [start, end] — param ORDER is load-bearing:
-    // arrayContaining would pass a start/end swap that writes an inverted span.
-    const update = render(executeMock.mock.calls[1][0]);
-    expect(update.params).toEqual(['2026-07-01', '2026-07-14', 'row-a']);
-  });
-
-  test('with MULTIPLE overlapping candidates, the titles-matching row wins — not rows[0]', async () => {
-    // Real data has concurrent distinct shows at one venue; a rows[0]-only
-    // implementation must fail here (mutation-verified gap in the prior suite).
-    executeMock
-      .mockResolvedValueOnce({
-        rows: [
-          { id: 'row-hamilton', title: 'Hamilton', event_start_date: '2026-07-01', event_end_date: '2026-07-10' },
-          { id: 'row-wicked', title: 'Broadway Dallas presents Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-10' },
-        ],
-      })
-      .mockResolvedValueOnce({ rowCount: 1 });
-
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: 'venue-a',
-      title: 'Wicked',
-      startDate: '2026-07-05',
-      endDate: '2026-07-14',
-    });
-
-    expect(id).toBe('row-wicked');
-  });
-
-  test('no titles-matching candidate → null, and no extension UPDATE runs', async () => {
-    executeMock.mockResolvedValueOnce({
-      rows: [{ id: 'row-x', title: 'Hamilton', event_start_date: '2026-07-01', event_end_date: '2026-07-10' }],
-    });
-
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: 'venue-a',
-      title: 'Wicked',
-      startDate: '2026-07-05',
-      endDate: '2026-07-14',
-    });
-
-    expect(id).toBeNull();
-    expect(executeMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('exact-span match merges without an extension UPDATE', async () => {
-    executeMock.mockResolvedValueOnce({
-      rows: [{ id: 'row-a', title: 'Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-14' }],
-    });
-
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: 'venue-a',
-      title: 'Wicked',
-      startDate: '2026-07-01',
-      endDate: '2026-07-14',
-    });
-
-    expect(id).toBe('row-a');
-    expect(executeMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('single-day events never merge (exact event_hash owns them) — no DB call at all', async () => {
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: 'venue-a',
-      title: 'Wicked',
-      startDate: '2026-07-05',
-      endDate: '2026-07-05',
-    });
-
-    expect(id).toBeNull();
-    expect(executeMock).not.toHaveBeenCalled();
-  });
-
-  test('missing venueId → null with no DB call (unresolved venues never merge)', async () => {
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: null,
-      title: 'Wicked',
-      startDate: '2026-07-05',
-      endDate: '2026-07-14',
-    });
-
-    expect(id).toBeNull();
-    expect(executeMock).not.toHaveBeenCalled();
-  });
-
-  test('DB error is non-fatal: returns null so the caller inserts normally', async () => {
-    executeMock.mockRejectedValueOnce(new Error('connection refused'));
-
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: 'venue-a',
-      title: 'Wicked',
-      startDate: '2026-07-05',
-      endDate: '2026-07-14',
-    });
-
-    expect(id).toBeNull();
-  });
-
-  test('KNOWN OPEN LIMITATION (todo #5): a different venue_id for the same physical venue does NOT merge', async () => {
-    // Pins current behavior deliberately. The cross-venue escape (same physical
-    // venue as two venue_catalog rows — e.g. Places-API POI row vs geocode-
-    // fallback row) is real and OPEN; a place_id-equality anchor provably cannot
-    // close it (UNIQUE constraint → bijection). When a catalog-identity fix
-    // lands, update this test intentionally — do not "fix" it in passing.
-    executeMock.mockResolvedValueOnce({ rows: [] }); // scan at venue-b sees nothing
-
-    const id = await mergeIntoOverlappingActiveSpan({
-      venueId: 'venue-b-same-physical-place-as-a',
-      title: 'Wicked',
-      startDate: '2026-07-05',
-      endDate: '2026-07-14',
-    });
-
-    expect(id).toBeNull();
-    const scan = render(executeMock.mock.calls[0][0]);
-    expect(scan.params).toContain('venue-b-same-physical-place-as-a');
-  });
+describe('timed source variants retain compatible stored identities', () => {
+ const event = row('first', { event_start_date: '2026-07-01', event_end_date: '2026-07-01' });
+ test('new and identical first-show schedules keep their original hash', async () => {
+  executeMock.mockResolvedValueOnce({}).mockResolvedValueOnce({ rows: [] });
+  expect(await resolveEventWriteHash(db, event, 'legacy-hash')).toBe('legacy-hash');
+  executeMock.mockResolvedValueOnce({}).mockResolvedValueOnce({ rows: [event] });
+  expect(await resolveEventWriteHash(db, event, 'legacy-hash')).toBe('legacy-hash');
+ });
+ test('same venue/title/day matinee and evening get separate stable identities without overwriting the first', async () => {
+  executeMock.mockImplementation(async query => ({ rows: render(query).sql.includes('SELECT venue_id') ? [event] : [] }));
+  const matinee = { ...event, event_start_time: '14:00', event_end_time: '17:00' };
+  const first = await resolveEventWriteHash(db, matinee, 'legacy-hash');
+  expect(first).not.toBe('legacy-hash'); expect(await resolveEventWriteHash(db, matinee, 'legacy-hash')).toBe(first);
+  expect(await resolveEventWriteHash(db, { ...matinee, event_start_time: '10:00' }, 'legacy-hash')).not.toBe(first);
+  expect(executeMock.mock.calls.map(([q]) => render(q).sql).some(sql => sql.includes('UPDATE'))).toBe(false);
+ });
+ test('unknown saved timing or another known venue stays a separate source variant', async () => {
+  executeMock.mockImplementation(async query => ({ rows: render(query).sql.includes('SELECT venue_id') ? [{ ...event, event_start_time: null }] : [] }));
+  expect(await resolveEventWriteHash(db, event, 'legacy-hash')).not.toBe('legacy-hash');
+ });
 });
 
-describe('collapseDuplicateEventSpans — venue_id-keyed cleanup sweep', () => {
-  test('scan targets active rows with a venue link only', async () => {
-    executeMock.mockResolvedValueOnce({ rows: [] });
 
-    const n = await collapseDuplicateEventSpans();
-
-    expect(n).toBe(0);
-    const scan = render(executeMock.mock.calls[0][0]);
-    expect(scan.sql).toContain('is_active = true');
-    expect(scan.sql).toContain('venue_id IS NOT NULL');
-  });
-
-  test('3-way cluster: widest span survives, BOTH losers are soft-deactivated in one UPDATE', async () => {
-    executeMock
-      .mockResolvedValueOnce({
-        rows: [
-          { id: 'loser-1', venue_id: 'venue-a', title: 'Wicked', event_start_date: '2026-07-05', event_end_date: '2026-07-08' },
-          { id: 'survivor', venue_id: 'venue-a', title: 'Broadway Dallas presents Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-14' },
-          { id: 'loser-2', venue_id: 'venue-a', title: 'Wicked', event_start_date: '2026-07-03', event_end_date: '2026-07-09' },
-        ],
-      })
-      .mockResolvedValueOnce({ rowCount: 2 });
-
-    const n = await collapseDuplicateEventSpans();
-
-    expect(n).toBe(2);
-    const update = render(executeMock.mock.calls[1][0]);
-    // Both loser ids bound (kills a slice(0,1) regression); survivor absent.
-    expect(update.params).toEqual(expect.arrayContaining(['loser-1', 'loser-2']));
-    expect(update.params).not.toContain('survivor');
-    // Soft-deactivation contract: UPDATE, never DELETE (module + repo rule).
-    // Params-only assertions cannot see these inline literals — pin the SQL.
-    expect(update.sql).toContain('UPDATE discovered_events');
-    expect(update.sql).toContain('is_active = false');
-    expect(update.sql).toContain("deactivation_reason = 'duplicate_span'");
-    expect(update.sql).not.toContain('DELETE');
-  });
-
-  test('same venue, genuinely distinct titles never merge', async () => {
-    executeMock.mockResolvedValueOnce({
-      rows: [
-        { id: 'e1', venue_id: 'venue-a', title: 'Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-10' },
-        { id: 'e2', venue_id: 'venue-a', title: 'FIFA Fan Festival', event_start_date: '2026-07-01', event_end_date: '2026-07-10' },
-      ],
-    });
-
-    const n = await collapseDuplicateEventSpans();
-
-    expect(n).toBe(0);
-    expect(executeMock).toHaveBeenCalledTimes(1); // no UPDATE issued
-  });
-
-  test('same venue + matching titles but NON-overlapping dates never merge', async () => {
-    executeMock.mockResolvedValueOnce({
-      rows: [
-        { id: 'e1', venue_id: 'venue-a', title: 'Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-05' },
-        { id: 'e2', venue_id: 'venue-a', title: 'Wicked', event_start_date: '2026-07-10', event_end_date: '2026-07-14' },
-      ],
-    });
-
-    const n = await collapseDuplicateEventSpans();
-
-    expect(n).toBe(0);
-    expect(executeMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('KNOWN OPEN LIMITATION (todo #5): different venue_ids never cluster, even with matching titles + overlap', async () => {
-    // Deliberate pin of the open cross-venue escape (see merge-suite twin test).
-    executeMock.mockResolvedValueOnce({
-      rows: [
-        { id: 'e1', venue_id: 'venue-a', title: 'Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-10' },
-        { id: 'e2', venue_id: 'venue-b', title: 'Wicked', event_start_date: '2026-07-01', event_end_date: '2026-07-10' },
-      ],
-    });
-
-    const n = await collapseDuplicateEventSpans();
-
-    expect(n).toBe(0);
-    expect(executeMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('DB error is non-fatal: returns 0 so cleanup never blocks discovery', async () => {
-    executeMock.mockRejectedValueOnce(new Error('connection refused'));
-
-    const n = await collapseDuplicateEventSpans();
-
-    expect(n).toBe(0);
-  });
+test('venue tag refresh follows the successful event callback inside the same lock transaction', async () => {
+ const order = []; const tx = { execute: async query => { const text = render(query).sql; order.push(text.includes('pg_advisory') ? 'lock' : 'tag'); return {}; } };
+ transactions.mockImplementation(write => write(tx));
+ await withEventVenueLock('venue-a', async () => { order.push('insert'); }, { refreshTag: true });
+ expect(order).toEqual(['lock', 'insert', 'tag']);
 });

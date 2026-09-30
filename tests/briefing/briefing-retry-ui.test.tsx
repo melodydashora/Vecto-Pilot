@@ -12,7 +12,8 @@ jest.unstable_mockModule('@tanstack/react-query', () => ({
 const refreshGPS = jest.fn(async () => {
   window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
 });
-const location = { lastSnapshotId: 'test-snapshot', refreshGPS };
+const location = { lastSnapshotId: 'test-snapshot', runId: 'test-run', refreshGPS };
+jest.unstable_mockModule('../../client/src/contexts/run-setup-context.tsx', () => ({ useRunSetup: () => ({ run: { runId: 'test-run', snapshotId: 'test-snapshot' } }) }));
 jest.unstable_mockModule('../../client/src/contexts/location-context-clean.tsx', () => ({ useLocation: () => location }));
 jest.unstable_mockModule('../../client/src/contexts/auth-context.tsx', () => ({ useAuth: () => ({ isAuthenticated: authenticated, user: { userId: 'synthetic-driver' }, token: 'synthetic-token' }) }));
 jest.unstable_mockModule('../../client/src/utils/co-pilot-helpers.ts', () => ({
@@ -21,8 +22,12 @@ jest.unstable_mockModule('../../client/src/utils/co-pilot-helpers.ts', () => ({
 jest.unstable_mockModule('../../client/src/hooks/useEnrichmentProgress.ts', () => ({ useEnrichmentProgress: () => ({ progress: 0, strategyProgress: 0, phase: 'strategy', pipelinePhase: 'analyzing' }) }));
 jest.unstable_mockModule('../../client/src/hooks/useBriefingQueries.ts', () => ({ useBriefingQueries: () => ({ isLoading: {} }) }));
 jest.unstable_mockModule('../../client/src/hooks/useBarsQuery.ts', () => ({ useBarsQuery: () => ({}) }));
-const { CoPilotProvider } = await import('../../client/src/contexts/co-pilot-context');
-const app = () => React.createElement(CoPilotProvider, null, React.createElement('p', null, 'Dashboard content'));
+const { CoPilotProvider, useCoPilot } = await import('../../client/src/contexts/co-pilot-context');
+function Dashboard() {
+  const state = useCoPilot();
+  return <><p>Dashboard content</p><p data-testid="local-error">{state.strategyError}</p></>;
+}
+const app = () => React.createElement(CoPilotProvider, null, React.createElement(Dashboard));
 
 beforeEach(() => {
   authenticated = true; strategyData = null;
@@ -30,15 +35,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-test('a current Briefing failure replaces dashboard with reason and starts a fresh snapshot on retry', async () => {
+test('a current Briefing failure stays within Strategy and returning to the app never captures fresh GPS', async () => {
   strategyData = { _snapshotId: 'test-snapshot', status: 'error', error: 'briefing_failed', message: 'weather_forecast: The data provider timed out.' };
   render(app());
-  expect(screen.getByRole('alert').textContent).toContain('Briefing Could Not Be Completed');
-  expect(screen.getByRole('alert').textContent).toContain('weather_forecast: The data provider timed out.');
-  expect(screen.queryByText('Dashboard content')).toBeNull();
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Try Again' })); });
-  expect(refreshGPS).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('local-error').textContent).toContain('weather_forecast: The data provider timed out.');
+  expect(screen.getByText('Dashboard content')).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
+  await act(async () => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
+  expect(refreshGPS).not.toHaveBeenCalled();
   expect(screen.getByText('Dashboard content')).toBeTruthy();
 });
 
@@ -55,11 +59,12 @@ test('a late failure for an old snapshot does not replace the current dashboard'
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
-test('logout clears the blocking screen without reviving the old snapshot error', () => {
+test('logout clears local session failure details without reviving the old snapshot error', () => {
   strategyData = { _snapshotId: 'test-snapshot', status: 'error', error: 'briefing_failed', message: 'news: Provider unavailable' };
   const view = render(app());
-  expect(screen.getByRole('alert')).toBeTruthy();
+  expect(screen.getByTestId('local-error').textContent).toContain('news: Provider unavailable');
   authenticated = false;
   view.rerender(app());
   expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByTestId('local-error').textContent).toBe('');
 });

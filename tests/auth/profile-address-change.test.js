@@ -2,19 +2,39 @@ import { jest, beforeEach, test, expect } from '@jest/globals';
 import express from 'express';
 import request from 'supertest';
 import { getTableName } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 // Import the real router only after its database and external transports are
 // replaced. This normal-project test cannot open the workspace DATABASE_URL.
 let profile;
+let vehicles;
+const dialect = new PgDialect();
+function vehicleMatches(row, condition) {
+  const query = dialect.sqlToQuery(condition);
+  const comparisons = [...query.sql.matchAll(/"driver_vehicles"\."([^"]+)"\s*=\s*\$(\d+)/g)];
+  if (!comparisons.length) throw new Error('Unsupported vehicle fixture query');
+  return comparisons.every(([, column, parameter]) => row[column] === query.params[Number(parameter) - 1]);
+}
 const writes = [];
+const readOrder = [];
 const marketLookup = jest.fn(async () => [{ market_anchor: 'Auto market' }]);
 const db = {
-  query: { driver_profiles: { findFirst: async () => profile }, driver_vehicles: { findFirst: async () => null } },
-  update: table => ({ set: values => ({ where: async () => {
-    writes.push({ table: getTableName(table), values });
-    Object.assign(profile, values);
+  query: { driver_profiles: { findFirst: async () => { readOrder.push('profile'); return profile; } },
+    driver_vehicles: { findFirst: async ({ where }) => { readOrder.push('vehicle'); return vehicles.find(row => vehicleMatches(row, where)) ?? null; } } },
+  transaction: async callback => { readOrder.push('transaction'); const result = await callback(db); readOrder.push('commit'); return result; },
+  execute: async () => ({ rows: [] }),
+  update: table => ({ set: values => ({ where: () => ({ returning: async () => {
+    writes.push({ table: getTableName(table), values }); Object.assign(profile, values); return [profile];
+  } }) }) }),
+  select: () => ({ from: table => ({ where: () => {
+    const query = { for: mode => { readOrder.push(`lock:${getTableName(table)}:${mode}`); return query; }, limit: async () => {
+      const name = getTableName(table);
+      if (name === 'driver_profiles') return [profile];
+      if (name === 'driver_vehicles') return [];
+      if (name === 'users') return [{ user_id: 'fixture-owner', session_id: 'fixture-session', session_start_at: new Date(), last_active_at: new Date() }];
+      return marketLookup();
+    } }; return query;
   } }) }),
-  select: () => ({ from: () => ({ where: () => ({ limit: marketLookup }) }) }),
 };
 const geocodeAddress = jest.fn();
 const invalidateUser = jest.fn();
@@ -23,7 +43,7 @@ const log = new Proxy({}, { get: () => jest.fn() });
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
 jest.unstable_mockModule('../../server/lib/offers/ruleset-store.js', () => ({ invalidateUser }));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({
-  requireAuth: (req, _res, next) => { req.auth = { userId: 'fixture-owner' }; next(); },
+  requireAuth: (req, _res, next) => { req.auth = { userId: 'fixture-owner', sessionId: 'fixture-session' }; next(); },
 }));
 jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ matrixLog: log }));
 jest.unstable_mockModule('../../server/lib/location/geocode.js', () => ({ geocodeAddress }));
@@ -43,15 +63,42 @@ jest.unstable_mockModule('../../server/lib/auth/identity-policy.js', () => ({ is
 jest.unstable_mockModule('../../server/lib/jwt.js', () => ({ signJWT: forbidden }));
 const { default: router } = await import('../../server/api/auth/auth.js');
 const app = express().use(express.json()).use('/api/auth', router);
-const save = body => request(app).put('/api/auth/profile').send(body);
+const save = body => request(app).put('/api/auth/profile').send({ expectedSettingsRevision: profile.settings_revision, ...body });
 
 beforeEach(() => {
-  profile = { id: 'fixture-profile', user_id: 'fixture-owner', address_1: '10 Test Street', address_2: null,
+  vehicles = [];
+  profile = { id: 'fixture-profile', user_id: 'fixture-owner', settings_revision: 1, address_1: '10 Test Street', address_2: null,
     city: 'Test City', state_territory: 'TX', zip_code: '75001', country: 'US', market: 'Chosen market',
     home_lat: 33.123456, home_lng: -96.123456, home_timezone: 'America/Chicago' };
   writes.length = 0;
+  readOrder.length = 0;
   jest.clearAllMocks();
   geocodeAddress.mockResolvedValue({ lat: 34.123456, lng: -97.123456, formattedAddress: 'Changed address', timezone: 'America/Chicago' });
+});
+
+test('/me reads the profile and vehicle while its owner SHARE lock holds the saved revision stable', async () => {
+  const result = await request(app).get('/api/auth/me');
+  expect(result.status).toBe(200);
+  expect(result.body.settingsRevision).toBe(1);
+  expect(readOrder).toEqual(['transaction', 'lock:users:share', 'profile', 'vehicle', 'commit']);
+  expect(writes).toHaveLength(0);
+});
+
+test('/me hydrates only the active primary vehicle used by saved setup', async () => {
+  vehicles = [
+    { id: 'retired', driver_profile_id: profile.id, is_primary: true, is_active: false, year: 2020 },
+    { id: 'other-owner', driver_profile_id: 'another-profile', is_primary: true, is_active: true, year: 2021 },
+    { id: 'secondary', driver_profile_id: profile.id, is_primary: false, is_active: true, year: 2022 },
+    { id: 'current', driver_profile_id: profile.id, is_primary: true, is_active: true, year: 2026 },
+  ];
+  const result = await request(app).get('/api/auth/me');
+  expect(result.status).toBe(200);
+  expect(result.body.vehicle).toMatchObject({ id: 'current', year: 2026 });
+  vehicles.pop();
+  const retiredOnly = await request(app).get('/api/auth/me');
+  expect(retiredOnly.status).toBe(200);
+  expect(retiredOnly.body.vehicle).toBeNull();
+  expect(writes).toHaveLength(0);
 });
 
 test('unchanged full Settings address skips geocoding and market replacement while saving false/private/unknown values', async () => {
@@ -100,11 +147,11 @@ test.each([['address2', 'address_2'], ['zipCode', 'zip_code']])('clearing persis
   expect(profile[column]).toBeNull();
 });
 
-test('geocoding failure remains nonfatal for a genuine address change', async () => {
+test('geocoding failure saves the changed address without retaining coordinates from the old address', async () => {
   geocodeAddress.mockRejectedValue(new Error('Synthetic provider unavailable'));
   expect((await save({ city: 'Changed City' })).status).toBe(200);
   expect(profile.city).toBe('Changed City');
-  expect(profile.home_lat).toBe(33.123456);
+  expect(profile).toMatchObject({ home_lat: null, home_lng: null, home_timezone: null, home_formatted_address: null });
 });
 
 test('existing economics round-trip through profile PUT and GET with explicit zero and null', async () => {
@@ -141,4 +188,17 @@ test.each([
   expect(result.body.error).toBe('INVALID_PREFERENCE');
   expect(writes).toHaveLength(0);
   expect(invalidateUser).not.toHaveBeenCalled();
+});
+
+// The market is an explicit work preference, not a geocoding side effect.
+test('changing an address and explicitly choosing a market preserves the chosen market', async () => {
+  expect((await save({ city: 'Changed City', market: 'Driver chosen market' })).status).toBe(200);
+  expect(profile.market).toBe('Driver chosen market');
+  expect(marketLookup).not.toHaveBeenCalled();
+});
+
+test('a successful provider response without valid coordinates cannot retain stale home context', async () => {
+  geocodeAddress.mockResolvedValue({ lat: NaN, lng: 2, timezone: 'Etc/UTC' });
+  expect((await save({ city: 'Changed City' })).status).toBe(200);
+  expect(profile).toMatchObject({ home_lat: null, home_lng: null, home_timezone: null, home_formatted_address: null });
 });

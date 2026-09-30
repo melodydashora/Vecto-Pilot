@@ -1,141 +1,9 @@
-// 2026-01-09: P1-6 FIX - Using centralized constants
-import React, { createContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './auth-context';
-import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
+import { useRunSetup } from './run-setup-context';
 import { API_ROUTES } from '@/constants/apiRoutes';
-// 2026-09-10: Refresh clears the provided client, preserving its defaults (VP-006).
-import { useQueryClient } from '@tanstack/react-query';
-// 2026-07-06: shared daypart adapter — GPS-resolved timezone required, no device-tz math
 import { normalizeCoordinates, validateGpsFix } from '@shared/coordinates.js';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
-// ═══════════════════════════════════════════════════════════════════════════
-// Three-table architecture (per SAVE-IMPORTANT.md):
-//   - driver_profiles: Identity (forever)
-//   - users: Session (login → logout/60min TTL)
-//   - snapshots: Activity (forever)
-//
-// Session rules:
-//   - Login creates users row with session_id, current_snapshot_id=null
-//   - Snapshot creation updates users.current_snapshot_id
-//   - Every authenticated request updates users.last_active_at (60 min sliding window)
-//   - Hard limit: 2 hours from session_start_at = force re-login
-//   - Logout deletes users row immediately
-//
-// Client behavior:
-//   - Does NOT persist snapshot_id across reloads (server owns it)
-//   - Fires 'vecto-snapshot-saved' event for downstream components
-//   - Manual refresh (force=true) creates fresh snapshot
-// ═══════════════════════════════════════════════════════════════════════════
-
-// SessionStorage persistence for snapshot data
-// Prevents data loss when switching between apps (rideshare app ↔ Vecto)
-// 2026-01-09: P1-6 - Use centralized constant
-const SNAPSHOT_STORAGE_KEY = SESSION_KEYS.SNAPSHOT;
-// TTL for session storage - KEEP SHORT for real-time intelligence
-// 2 minutes allows quick app switches (rideshare app ↔ Vecto) but ensures fresh data otherwise
-// LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
-// 2026-01-06: P3-B - Extended TTL for resume support
-// Previous: 2 min (too short - driver switches to the rideshare app for 5 min, loses everything)
-// Previous: 1 hour (too long - stale traffic/events data)
-// New: 15 min - reasonable for app switching during active shift
-// The server has its own 60-min TTL for snapshot reuse, this is for CLIENT-side resume
-const SNAPSHOT_TTL_MS = 15 * 60 * 1000; // 15 minutes TTL for resume
-
-// Clear sessionStorage - called when driver clicks GPS refresh button
-// Driver does this when returning to staging area to get fresh data
-function clearSnapshotStorage(): void {
-  sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
-  console.log('🔄 [LocationContext] Cleared sessionStorage - fresh data requested');
-}
-
-// Inline geolocation helper with manual timeout fallback
-// Browser's geolocation timeout can hang in some environments (previews, permission blocked)
-function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
-  // eslint-disable-next-line no-async-promise-executor
-  return new Promise(async (resolve) => {
-    let resolved = false;
-
-    // Check permission state first (if available)
-    let permissionState = 'unknown';
-    try {
-      if (navigator.permissions) {
-        const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-        permissionState = result.state; // 'granted', 'denied', or 'prompt'
-      }
-    } catch (_e) {
-      permissionState = 'query-failed';
-    }
-
-    // Debug: Log environment info
-    console.log('[getGeoPosition] Starting...', {
-      hasNavigator: typeof navigator !== 'undefined',
-      hasGeolocation: typeof navigator !== 'undefined' && !!navigator.geolocation,
-      isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
-      protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
-      hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
-      permissionState
-    });
-
-    if (!navigator.geolocation) {
-      console.warn('[getGeoPosition] Geolocation not supported');
-      resolve(null);
-      return;
-    }
-
-    // Manual timeout - must be > browser timeout to let browser respond first.
-    // 2026-06-11: browser GPS timeout raised to 15s (high-accuracy cold start needs room),
-    // so this anti-hang fallback is 17s (> 15s) — otherwise it would preempt a slow GPS fix.
-    const manualTimeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        console.warn('[getGeoPosition] Manual timeout (17s) - browser geolocation hung.');
-        resolve(null);
-      }
-    }, 17000);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (resolved) return;
-        resolved = true;
-        clearTimeout(manualTimeout);
-        const fix = validateGpsFix({
-          latitude: position.coords.latitude, longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy, timestamp: position.timestamp,
-        });
-        if (fix.ok === false) {
-          console.warn('[getGeoPosition]', fix.error);
-          resolve(null);
-          return;
-        }
-        console.log('[getGeoPosition] Fresh precise location received (coordinates redacted)');
-        resolve({
-          latitude: fix.lat,
-          longitude: fix.lng,
-          accuracy: fix.accuracy
-        });
-      },
-      (error) => {
-        if (resolved) return;
-        // 2026-06-11: NO FALLBACK — fail hard (per Melody + CLAUDE.md "fail hard on missing GPS").
-        // The previous Wi-Fi/IP geolocate fallback returned COARSE coords (false 6-decimal
-        // precision) that silently corrupted the whole GPS-derived pipeline (city, timezone,
-        // coords_key, venue ranking). Returning null makes the caller raise a CriticalError that
-        // prompts the driver to enable precise Location Services — a wrong location is worse than none.
-        resolved = true;
-        clearTimeout(manualTimeout);
-        console.error('[getGeoPosition] GPS unavailable (no fallback by design):', error.code, error.message);
-        resolve(null);
-      },
-      // 2026-06-11: ALWAYS request a fresh GPS fix. enableHighAccuracy:false previously let
-      // Safari position by Wi-Fi/IP (~28 mi off) and maximumAge:60000 accepted a 60s-stale cache.
-      // The entire pipeline (city → timezone → venue ranking) keys off this coordinate, so
-      // accuracy here is non-negotiable. (PublicConciergePage already uses highAccuracy:true.)
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  });
-}
+import { handleRequestAuthFailure } from '@/lib/session-auth';
 
 interface LocationContextType {
   currentCoords: { latitude: number; longitude: number } | null;
@@ -145,731 +13,281 @@ interface LocationContextType {
   timeZone: string | null;
   isUpdating: boolean;
   lastUpdated: string | null;
-  refreshGPS: () => Promise<void>;
+  refreshGPS: () => Promise<string | null>;
   overrideCoords: { latitude: number; longitude: number; city?: string } | null;
-  // Weather and air quality - fetched once during enrichment, shared via context
   weather: { temp: number; conditions: string; description?: string } | null;
   airQuality: { aqi: number; category: string } | null;
-  // Location resolution gate - true when city/formattedAddress are available
-  // Use this to gate downstream queries (Bar Tab, Strategy) to prevent race conditions
   isLocationResolved: boolean;
   isLoading: boolean;
   setOverrideCoords: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
-  // Expose snapshot ID directly so co-pilot can access it as fallback
   lastSnapshotId: string | null;
+  runId: string | null;
+  locationRequested?: boolean;
+  contextReady?: boolean;
+  collectionId?: string | null;
   locationError?: { code: string; message: string } | null;
 }
-
 export const LocationContext = createContext<LocationContextType | null>(null);
-
-// Custom hook to consume location context
-export const useLocation = () => {
-  const context = React.useContext(LocationContext);
-  if (!context) {
-    throw new Error('useLocation must be used within LocationProvider');
-  }
+export function useLocation() {
+  const context = useContext(LocationContext);
+  if (!context) throw new Error('useLocation must be used within LocationProvider');
   return context;
-};
-
-export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Get auth state to link snapshots to logged-in user
-  // Also get profile for home location fallback when GPS fails
-  const { token, user, profile, isLoading: authLoading } = useAuth();
-  const queryClient = useQueryClient();
-
-  const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [currentLocationString, setCurrentLocationString] = useState('Getting location...');
-  const [city, setCity] = useState<string | null>(null);
-  const [state, setState] = useState<string | null>(null);
-  const [timeZone, setTimeZone] = useState<string | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [overrideCoords, setOverrideCoords] = useState<{ latitude: number; longitude: number; city?: string } | null>(null);
-  // Weather and air quality state - fetched once during enrichment, exposed via context
-  const [weather, setWeather] = useState<{ temp: number; conditions: string; description?: string } | null>(null);
-  const [airQuality, setAirQuality] = useState<{ aqi: number; category: string } | null>(null);
-  // Location resolution gate - prevents race conditions by gating downstream queries
-  const [isLocationResolved, setIsLocationResolved] = useState(false);
-  // 2026-02-01: FAIL HARD - Location error state for immediate critical error trigger
-  // When set, CoPilotContext should block the UI with CriticalError modal
-  const [locationError, setLocationError] = useState<{ code: string; message: string } | null>(null);
-  // Expose snapshot ID directly so co-pilot can access it as fallback if event is missed
-  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
-  const generationCounterRef = useRef(0);
-  const isInitialMountRef = useRef(true);
-  const lastEnrichmentCoordsRef = useRef<string | null>(null);
-  const sessionRestoreAttemptedRef = useRef(false);
-  // AbortController for request cancellation - prevents stale responses from overwriting fresh data
-  // Updated 2026-01-05: Fixes network waste when users tap refresh rapidly
-  const abortControllerRef = useRef<AbortController | null>(null);
-  // 2026-01-07: Ref to always access latest refreshGPS without adding to effect deps
-  // Adding refreshGPS to deps caused infinite loop (Maximum update depth exceeded)
-  // The ref is updated after refreshGPS is defined (see useEffect below refreshGPS definition)
-  const refreshGPSRef = useRef<((force?: boolean) => Promise<void>) | undefined>(undefined);
-  const gpsRequestGenerationRef = useRef(0);
-
-  // 2026-01-14: Refs to access current state values in GPS effect without adding to deps
-  // This prevents the closure capture problem where setTimeout sees stale values
-  const lastSnapshotIdRef = useRef<string | null>(null);
-  const currentCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const cityRef = useRef<string | null>(null);
-  // 2026-03-18: Added timeZone ref — resume path must verify timezone before gating queries
-  const timeZoneRef = useRef<string | null>(null);
-
-  // 2026-04-10: FIX — Clear ALL location state when auth drops (zombie snapshot fix).
-  // Without this, LocationContext holds a stale lastSnapshotId after logout.
-  // CoPilotContext's sync effect sees it and immediately re-syncs the dead snapshot,
-  // reopening SSE connections and operating on stale data.
-  const prevTokenRef = useRef(token);
-  useEffect(() => {
-    if (prevTokenRef.current && !token) {
-      gpsRequestGenerationRef.current++;
-      generationCounterRef.current++;
-      console.log('🔐 [LocationContext] Auth lost — clearing all location state');
-      // Clear React state
-      setLastSnapshotId(null);
-      setCurrentCoords(null);
-      setCity(null);
-      setState(null);
-      setTimeZone(null);
-      setWeather(null);
-      setAirQuality(null);
-      setIsLocationResolved(false);
-      setCurrentLocationString('Getting location...');
-      setLastUpdated(null);
-      setOverrideCoords(null);
-      setLocationError(null);
-      // Clear refs so they don't hold stale values for next session
-      lastSnapshotIdRef.current = null;
-      currentCoordsRef.current = null;
-      cityRef.current = null;
-      timeZoneRef.current = null;
-      lastEnrichmentCoordsRef.current = null;
-      // Reset GPS effect flag — next login must trigger fresh GPS fetch
-      gpsEffectRanRef.current = false;
-      sessionRestoreAttemptedRef.current = false;
-      // Cancel any in-flight enrichment requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      // Clear sessionStorage so no stale snapshot survives for resume
-      sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
-    }
-    prevTokenRef.current = token;
-  }, [token]);
-
-  // 2026-01-06: P3-B - Restore FULL session including snapshotId for resume
-  // Previous: Only restored display data, always created new snapshot
-  // Problem: User switches apps for 5 min → returns → 35-50s regeneration
-  // Solution: Restore snapshotId if within TTL, mark as "resume" to skip regeneration
-  //
-  // LESSON LEARNED (updated 2026-01-06):
-  // The "duplicate waterfalls" issue was caused by MOUNT-CLEARING strategy (P3-A fix)
-  // With P3-A fixed, we can now safely restore snapshotId because:
-  // - Strategy is also restored from localStorage if snapshotId matches
-  // - CoPilotContext will see existing strategy and not regenerate
-  useEffect(() => {
-    if (sessionRestoreAttemptedRef.current) return;
-    sessionRestoreAttemptedRef.current = true;
-
-    try {
-      const stored = sessionStorage.getItem(SNAPSHOT_STORAGE_KEY);
-      if (!stored) return;
-
-      const data = JSON.parse(stored);
-
-      // Check TTL - don't restore stale data (real-time app needs fresh intel)
-      if (!Number.isFinite(data.timestamp) || data.timestamp > Date.now() || Date.now() - data.timestamp > SNAPSHOT_TTL_MS) {
-        console.log('📦 [LocationContext] Stored snapshot expired (>15min), starting fresh');
-        sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
-        return;
-      }
-
-      console.log('📦 [LocationContext] RESUME MODE - restoring full session:', data.snapshotId?.slice(0, 8));
-
-      // 2026-01-06: P3-B - Now restore snapshotId for resume
-      // This works because P3-A fixed the mount-clearing issue
-      if (data.snapshotId) {
-        setLastSnapshotId(data.snapshotId);
-        // Mark as resume for P3-D - CoPilotContext should not trigger blocks-fast
-        sessionStorage.setItem(SESSION_KEYS.RESUME_REASON, 'resume');
-      }
-      if (data.coords) setCurrentCoords(data.coords);
-      if (data.city) setCity(data.city);
-      if (data.state) setState(data.state);
-      if (data.timeZone) setTimeZone(data.timeZone);
-      if (data.locationString) setCurrentLocationString(data.locationString);
-      if (data.weather) setWeather(data.weather);
-      if (data.airQuality) setAirQuality(data.airQuality);
-      if (typeof data.lastUpdated === 'string' && Number.isFinite(Date.parse(data.lastUpdated))) setLastUpdated(data.lastUpdated);
-
-      // 2026-01-07: DO NOT set isLocationResolved during restore
-      // LESSON LEARNED: Setting isLocationResolved = true here caused auth loop bug.
-      // The restore runs BEFORE auth finishes loading (empty deps []).
-      // If we gate queries here, they fire before auth is ready → 401 → logout loop.
-      //
-      // Instead, let the normal flow handle this:
-      // 1. Auth loads → isLoading becomes false
-      // 2. GPS effect runs (line 604) → sees we have cached coords
-      // 3. enrichLocation is called → server validates snapshot
-      // 4. On success, isLocationResolved is set to true (line 428)
-      //
-      // The restored display data (city, weather, etc.) shows immediately in UI,
-      // but API queries wait until auth + snapshot validation complete.
-
-      // Skip GPS fetch on resume - we have valid cached data
-      // The coord tracking prevents duplicate enrichment
-      if (data.coords) {
-        const coordKey = `${data.coords.latitude.toFixed(6)},${data.coords.longitude.toFixed(6)}`;
-        lastEnrichmentCoordsRef.current = coordKey;
-        console.log('[LocationContext] Cached display restored; fresh GPS still required');
-      }
-    } catch (e) {
-      console.warn('[LocationContext] Failed to restore from sessionStorage:', e);
-    }
-  }, []);
-
-  // Persist snapshot data to sessionStorage when it changes
-  // This enables persistence across app switches
-  useEffect(() => {
-    if (!lastSnapshotId || !lastUpdated || !isLocationResolved) return;
-
-    const dataToStore = {
-      snapshotId: lastSnapshotId,
-      coords: currentCoords,
-      city,
-      state,
-      timeZone,
-      locationString: currentLocationString,
-      weather,
-      airQuality,
-      isLocationResolved,
-      lastUpdated,
-      timestamp: Date.parse(lastUpdated),
+}
+type Fix = { lat: number; lng: number; accuracy: number; timestamp: number };
+function freshPosition(signal: AbortSignal): Promise<Fix> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error('This browser does not support precise location.')); return; }
+    let settled = false;
+    const finish = (error?: Error, fix?: Fix) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal.removeEventListener('abort', aborted);
+      if (error) reject(error); else resolve(fix!);
     };
+    const aborted = () => finish(new DOMException('Aborted', 'AbortError'));
+    const timer = setTimeout(() => finish(new Error('Precise location timed out. Retry when safely parked.')), 17000);
+    signal.addEventListener('abort', aborted, { once: true });
+    if (signal.aborted) { aborted(); return; }
+    navigator.geolocation.getCurrentPosition(position => {
+      const fix = validateGpsFix({ latitude: position.coords.latitude, longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy, timestamp: position.timestamp });
+      if (fix.ok === false) { finish(new Error(fix.error)); return; }
+      finish(undefined, { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy, timestamp: position.timestamp });
+    }, error => finish(new Error(error.code === 1 ? 'Location permission was denied. Enable precise location, then continue again.'
+      : error.code === 3 ? 'Precise location timed out. Retry when safely parked.' : 'A fresh precise location is unavailable. Retry when safely parked.')),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+}
+const emptyLocation = {
+  currentCoords: null, currentLocationString: 'Getting location…', city: null, state: null, timeZone: null,
+  isUpdating: false, lastUpdated: null, overrideCoords: null, weather: null, airQuality: null,
+  isLocationResolved: false, isLoading: false, lastSnapshotId: null, locationError: null,
+};
+type LocationData = Omit<LocationContextType, 'refreshGPS' | 'setOverrideCoords' | 'runId'>;
 
-    sessionStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(dataToStore));
-    console.log('💾 [LocationContext] Persisted snapshot to sessionStorage:', lastSnapshotId.slice(0, 8));
-  }, [lastSnapshotId, currentCoords, city, state, timeZone, currentLocationString, weather, airQuality, isLocationResolved, lastUpdated]);
+// Restore the server-owned context for a live session. Only first-session GPS
+// and an explicit header refresh collect new context; focus/navigation never do.
+export function LocationProvider({ children }: { children: React.ReactNode }) {
+  const { user, token, isAuthenticated, sessionId } = useAuth();
+  const setup = useRunSetup();
+  const scope = useMemo(() => token && user?.userId && isAuthenticated
+    ? { token, ownerId: user.userId, sessionId: sessionId ?? null } : null,
+    [token, user?.userId, isAuthenticated, sessionId]);
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const setupRef = useRef(setup);
+  setupRef.current = setup;
+  const collection = useRef<AbortController | null>(null);
+  const initialized = useRef<typeof scope>(null);
+  const restoredContext = useRef<{ scope: typeof scope; fingerprint: string } | null>(null);
+  const deniedPermission = useRef<typeof scope>(null);
+  const [saved, setSaved] = useState<{ scope: typeof scope; data: LocationData }>({ scope: null, data: emptyLocation });
+  const [requestedScope, setRequestedScope] = useState<typeof scope>(null);
+  const [ready, setReady] = useState<{ scope: typeof scope; value: boolean }>({ scope: null, value: false });
+  const [capture, setCapture] = useState<{ scope: typeof scope; id: string | null }>({ scope: null, id: null });
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+  const captureRef = useRef(capture);
+  captureRef.current = capture;
+  const data = saved.scope === scope ? saved.data : emptyLocation;
 
-  const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number, forceRefresh = false) => {
-    const normalized = normalizeCoordinates(lat, lng);
-    if (!normalized) {
-      setLocationError({ code: 'gps_invalid', message: 'Location coordinates are invalid. Retry precise location.' });
-      return;
+  const confirmedLocation = useCallback((resolved: any, readOnly = false): LocationData => {
+    if (!scope || resolved.user_id !== scope.ownerId ||
+        (scope.sessionId && resolved.sessionId !== scope.sessionId)) {
+      throw new Error('Saved location did not confirm this session.');
     }
-    lat = normalized.lat;
-    lng = normalized.lng;
-    // 2026-03-18: Dedup based on snapshot state, not forceRefresh flag.
-    // Only skip if same coordinates AND an active snapshot exists.
-    // When snapshot is released (logout, manual refresh, sign-in), always proceed.
-    // This replaces scattered lastEnrichmentCoordsRef.current = null clearing.
-    const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-    if (!forceRefresh && lastEnrichmentCoordsRef.current === coordKey && lastSnapshotIdRef.current) {
-      console.log('Skipping enrichment - same coordinates with active snapshot');
-      return;
+    const coords = normalizeCoordinates(resolved.lat, resolved.lng);
+    const observedAt = typeof resolved.gps_timestamp === 'number' && resolved.gps_timestamp > 0
+      ? new Date(resolved.gps_timestamp) : null;
+    if (!coords || !resolved.snapshot_id || !resolved.city ||
+        (!readOnly && !resolved.timeZone) || (!readOnly && (resolved.status !== 'ok' || resolved.ready !== true || !observedAt || !Number.isFinite(observedAt.getTime()) || !resolved.formattedAddress ||
+        !Number.isFinite(resolved.weather?.tempF) || typeof resolved.weather?.conditions !== 'string' ||
+        !Number.isFinite(resolved.air?.aqi) || typeof resolved.air?.category !== 'string'))) {
+      throw new Error('Saved location, weather or air quality is incomplete.');
     }
-    lastEnrichmentCoordsRef.current = coordKey;
+    let timeZone: string | null = typeof resolved.timeZone === 'string' && resolved.timeZone ? resolved.timeZone : null;
+    if (timeZone) {
+      try { new Intl.DateTimeFormat('en-US', { timeZone }).format(new Date()); }
+      catch { timeZone = null; }
+    }
+    if (!readOnly && !timeZone) throw new Error('Your saved location has no verified timezone.');
+    return { ...emptyLocation, currentCoords: { latitude: coords.lat, longitude: coords.lng },
+      currentLocationString: resolved.formattedAddress || [resolved.city, resolved.state].filter(Boolean).join(', '), city: resolved.city, state: resolved.state,
+      timeZone, lastUpdated: observedAt && Number.isFinite(observedAt.getTime()) ? observedAt.toISOString() : null, lastSnapshotId: resolved.snapshot_id,
+      isLocationResolved: true, weather: Number.isFinite(resolved.weather?.tempF) && typeof resolved.weather?.conditions === 'string'
+        ? { temp: resolved.weather.tempF, conditions: resolved.weather.conditions } : null,
+      airQuality: Number.isFinite(resolved.air?.aqi) && typeof resolved.air?.category === 'string'
+        ? { aqi: resolved.air.aqi, category: resolved.air.category } : null };
+  }, [scope]);
 
-    // Cancel any pending requests before starting new ones
-    // Updated 2026-01-05: Prevents network waste when users tap refresh rapidly
-    if (abortControllerRef.current) {
-      console.log('🛑 [LocationContext] Cancelling previous enrichment request');
-      abortControllerRef.current.abort();
+  const prepareBriefing = useCallback(async (snapshotId: string, controller: AbortController) => {
+    if (!scope) return false;
+    const response = await fetch(API_ROUTES.LOCATION.NEWS_BRIEFING, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + scope.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snapshotId }), signal: controller.signal,
+    });
+    if (scopeRef.current !== scope || collection.current !== controller || controller.signal.aborted) return false;
+    if (handleRequestAuthFailure(response.status, scope.token)) throw new Error('Your session ended. Sign in again to continue.');
+    const result = await response.json();
+    if (!response.ok || result.success !== true || result.complete !== true) {
+      throw new Error(result.message || 'Briefing could not finish. Refresh when you are ready to try again.');
     }
+    return true;
+  }, [scope]);
+
+  const refreshGPS = useCallback(async (): Promise<string | null> => {
+    if (!scope || scopeRef.current !== scope) return null;
+    collection.current?.abort();
     const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    const currentGeneration = ++generationCounterRef.current;
-    console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
-    console.log(`🔐 [LocationContext] Auth state: token=${token ? 'yes' : 'no'}, userId=${user?.userId || 'anonymous'}`);
-
-    // 2026-01-07: SAFEGUARD - Never make location requests without auth
-    // This catches stale closure bugs where enrichLocation was captured with null token
-    if (!token || !user?.userId) {
-      console.error('[LocationContext] ❌ BUG: enrichLocation called without auth! Aborting to prevent 401 loop.');
-      console.error('[LocationContext] This is likely a stale closure - refreshGPS captured old enrichLocation');
-      return;
-    }
-
+    collection.current = controller;
+    const captureId = crypto.randomUUID();
+    const current = () => scopeRef.current === scope && collection.current === controller && !controller.signal.aborted;
+    setRequestedScope(scope);
+    const activeCapture = { scope, id: captureId };
+    captureRef.current = activeCapture;
+    setCapture(activeCapture);
+    setReady({ scope, value: false });
+    // Keep previously resolved context on screen during the explicit refresh.
+    setSaved(previous => ({ scope, data: { ...(previous.scope === scope ? previous.data : emptyLocation),
+      isUpdating: true, isLoading: true, locationError: null } }));
     try {
-      // 2026-01-09: P0-2 FIX - Removed user_id query param (was security bypass)
-      // Authentication ONLY comes from Authorization header now
-      // 2026-01-15: Using centralized API_ROUTES constant
-      let resolveUrl = API_ROUTES.LOCATION.RESOLVE_WITH_PARAMS(lat, lng, accuracy);
-      // Force refresh bypasses server-side snapshot reuse (60 min TTL)
-      // This is used when user explicitly clicks the refresh button
-      if (forceRefresh) {
-        resolveUrl += '&force=true';
-      }
-
-      // Prepare headers - include auth token if logged in (ONLY source of auth)
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      // 2026-01-09: P0-2 FIX - Removed sensitive DEBUG logging
-      // Token prefixes and userIds were being logged, exposing auth details
-      console.log('[LocationContext] Making location resolve request');
-
-      // 2026-05-05: Manual refresh drops the current snapshot BEFORE re-resolve.
-      // Server DELETE cascades briefings/events/traffic/etc. for that snapshot,
-      // then this resolve creates a brand-new row with current GPS. This is the
-      // mechanism that breaks the Frisco-lock symptom — without the drop, the
-      // server can reuse the stale snapshot row and the user keeps seeing old
-      // venues / old TomTom incidents from the prior location.
-      // Best-effort: a drop failure should not block the resolve attempt.
-      if (forceRefresh && token) {
-        try {
-          const dropRes = await fetch(API_ROUTES.SNAPSHOT.DROP, {
-            method: 'POST',
-            headers,
-            signal: controller.signal,
-          });
-          if (dropRes.ok) {
-            const body = await dropRes.json().catch(() => ({}));
-            console.log(`[LocationContext] 🗑️ Snapshot drop ok (dropped=${body?.dropped ?? 'unknown'})`);
-          } else {
-            console.warn(`[LocationContext] Snapshot drop returned ${dropRes.status} — proceeding with resolve anyway`);
-          }
-        } catch (err) {
-          console.warn('[LocationContext] Snapshot drop failed (non-blocking):', err);
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════════
-      // TWO-PHASE UI UPDATE: Weather/AQI appear ~200-300ms before city/state
-      // Weather and AQI are faster (single Google API each), location is slower
-      // (Google Geocode + Timezone + DB writes)
-      // ═══════════════════════════════════════════════════════════════════════════
-
-      // Start all requests in parallel with abort signal
-      // Updated 2026-01-05: Added signal for request cancellation
-      // 2026-01-15: Using centralized API_ROUTES constants
-      const locationPromise = fetch(resolveUrl, { headers, signal: controller.signal });
-      // 2026-02-17: Added auth headers — location routes require auth since 2026-02-12
-      const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
-      const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
-
-      // 2026-04-05: FIX — Weather/air data parsed into reusable promises.
-      // Previously, .then() consumed res.json() and the fallback at line ~460 tried to
-      // read the same response body again → "body already consumed" → silent failure →
-      // weatherData stayed null → snapshot enrichment PATCH never fired.
-      // Now: parse once into a promise, await it wherever needed.
-      const weatherDataPromise = weatherPromise.then(async (res) => {
-        if (!res.ok) return null;
-        return await res.json();
-      }).catch((err) => { console.warn('[LocationContext] Weather fetch failed:', err); return null; });
-
-      const airQualityDataPromise = airPromise.then(async (res) => {
-        if (!res.ok) return null;
-        return await res.json();
-      }).catch((err) => { console.warn('[LocationContext] AQI fetch failed:', err); return null; });
-
-      // PHASE 1: Update UI as soon as weather/air resolve (faster APIs)
-      weatherDataPromise.then((data) => {
-        if (currentGeneration !== generationCounterRef.current) return;
-        if (data?.available) {
-          setWeather({
-            temp: data.temperature,
-            conditions: data.conditions,
-            description: data.description
-          });
-          console.log('🌤️ [LocationContext] Weather updated (phase 1)');
-        }
+      const fix = await freshPosition(controller.signal);
+      if (!current()) return null;
+      const response = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + scope.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ captureId, lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy,
+          gps_timestamp: fix.timestamp, permission: 'granted' }), signal: controller.signal,
       });
-
-      airQualityDataPromise.then((data) => {
-        if (currentGeneration !== generationCounterRef.current) return;
-        if (data?.available) {
-          setAirQuality({
-            aqi: data.aqi,
-            category: data.category
-          });
-          console.log('💨 [LocationContext] AQI updated (phase 1)');
-        }
-      });
-
-      // PHASE 2: Wait for location resolve (slower due to DB writes)
-      const locationRes = await locationPromise;
-
-      if (currentGeneration !== generationCounterRef.current) {
-        console.log(`⏭️ Generation #${currentGeneration} superseded - ignoring results`);
-        return;
+      if (!current()) return null;
+      if (handleRequestAuthFailure(response.status, scope.token)) return null;
+      const resolved = await response.json();
+      if (!current()) return null;
+      if (!response.ok || resolved.snapshot_id !== captureId) throw new Error(resolved.message || 'Your fresh location could not be saved.');
+      const confirmed = confirmedLocation(resolved);
+      setSaved({ scope, data: { ...confirmed, isUpdating: true } });
+      window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', { detail: { snapshotId: captureId, reason: 'context' } }));
+      await prepareBriefing(captureId, controller);
+      if (!current()) return null;
+      // Confirm the same source in the canonical session before a header action
+      // can admit Strategy. Failed readback leaves generation held.
+      const canonical = await setupRef.current.reload();
+      if (!current()) return null;
+      if (!canonical || canonical.sessionId !== (scope.sessionId ?? resolved.sessionId) ||
+          !canonical.currentSnapshot?.ready || !canonical.currentSnapshot.briefingReady ||
+          canonical.currentSnapshot.user_id !== scope.ownerId || canonical.currentSnapshot.sessionId !== canonical.sessionId ||
+          (canonical.currentSnapshot.snapshot_id !== captureId && canonical.currentSnapshot.sourceSnapshotId !== captureId)) {
+        throw new Error('Refreshed context could not be confirmed. Review it before starting Strategy.');
       }
-
-      // Handle authentication errors - clear stale token and redirect to login
-      if (locationRes.status === 401) {
-        // 2026-01-07: DEBUG - Log detailed info about the 401
-        let errorBody = null;
-        try {
-          errorBody = await locationRes.clone().json();
-        } catch (_e) { /* ignore */ }
-        console.error('🔐 [LocationContext] ❌ 401 ERROR - Authentication failed!');
-        console.error('🔐 [LocationContext] Response body:', errorBody);
-        console.error('🔐 [LocationContext] Token was present:', !!token);
-        console.error('🔐 [LocationContext] User ID sent:', user?.userId);
-
-        // Clear stale token from localStorage (using centralized STORAGE_KEYS)
-        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-        // Dispatch event so auth context can update
-        window.dispatchEvent(new CustomEvent('auth-token-expired'));
-        // Redirect to sign-in
-        window.location.href = '/auth/sign-in?expired=true';
-        return;
-      }
-
-      const locationData = await locationRes.json();
-
-      // 2026-04-05: Await parsed data from reusable promises (no double-read risk)
-      await Promise.all([weatherDataPromise, airQualityDataPromise]);
-      if (currentGeneration !== generationCounterRef.current) return;
-
-      // Update city/state (phase 2 - after location resolves)
-      setCity(locationData.city);
-      setState(locationData.state);
-      setTimeZone(locationData.timeZone);
-      // 2026-02-01: FAIL HARD - If city/state missing, trigger critical error
-      // This prevents waterfall from progressing with incomplete location data
-      if (locationData.city && locationData.state) {
-        setCurrentLocationString(`${locationData.city}, ${locationData.state}`);
-        setLocationError(null); // Clear any previous error
-      } else {
-        // FAIL HARD: Set error state that will block the UI
-        console.error('❌ [LocationContext] FAIL HARD: City/state missing from geocode response', {
-          city: locationData.city,
-          state: locationData.state,
-          formattedAddress: locationData.formattedAddress
-        });
-
-        // CRITICAL: Clear ALL stale data from session restore
-        // Without valid coords, weather/AQI/timezone are meaningless and misleading
-        setWeather(null);
-        setAirQuality(null);
-        setTimeZone(null);
-        setCity(null);
-        setState(null);
-        setCurrentCoords(null);
-        setLastSnapshotId(null);
-        sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
-        console.log('🧹 [LocationContext] Cleared ALL stale data - coords are required for everything');
-
-        setLocationError({
-          code: 'geocode_incomplete',
-          message: 'Could not determine your city/state. Please check GPS permissions and try again.'
-        });
-        setCurrentLocationString('Location unavailable');
-        return; // Stop processing - don't allow waterfall to continue
-      }
-      setLastUpdated(new Date().toISOString());
-      console.log('📍 [LocationContext] Location updated (phase 2):', locationData.city, locationData.state);
-
-      // Location remains provisional until the server validates the persisted enrichment.
-      setIsLocationResolved(false);
-
-      // NOTE: JWT tokens are only used for registered users who login via /api/auth/login
-      // Anonymous users access data via snapshot ownership (snapshot_id acts as capability token)
-      // The old /api/auth/token endpoint is disabled in production
-
-      // ═══════════════════════════════════════════════════════════════════════════
-      // SNAPSHOT: Server creates snapshot during resolve, returns snapshot_id
-      // We just need to enrich it with weather/air and dispatch the event
-      // ═══════════════════════════════════════════════════════════════════════════
-      const snapshotId = locationData.snapshot_id;
-
-      if (snapshotId) {
-        console.log(`📸 [LocationContext] Using server-created snapshot: ${snapshotId.slice(0, 8)}...`);
-
-        // Keep partial source data available to Coach, but only publish readiness after
-        // the server confirms every required field in this saved snapshot.
-        setLastSnapshotId(snapshotId);
-        let snapshotReady = false;
-        {
-          const enrichmentRes = await fetch(API_ROUTES.LOCATION.SNAPSHOT_ENRICH(snapshotId), {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', ...headers },
-            // The server selects verified data using the saved snapshot coords.
-            body: JSON.stringify({}),
-            signal: controller.signal,
-          });
-          const result = await enrichmentRes.json();
-          if (currentGeneration !== generationCounterRef.current) return;
-          snapshotReady = enrichmentRes.ok && result.ok === true && result.status === 'ok' &&
-            Number.isFinite(result.weather?.tempF) && typeof result.weather?.conditions === 'string' &&
-            Number.isFinite(result.air?.aqi) && typeof result.air?.category === 'string';
-          if (snapshotReady) {
-            setWeather({ temp: result.weather.tempF, conditions: result.weather.conditions, description: result.weather.description });
-            setAirQuality({ aqi: result.air.aqi, category: result.air.category });
-          }
-        }
-        if (currentGeneration !== generationCounterRef.current) return;
-        if (!snapshotReady) {
-          setLocationError({ code: 'snapshot_incomplete', message: 'Location data is incomplete. Weather, air quality and all location details must finish before Strategy. Retry when safely parked.' });
-          return;
-        }
-        setIsLocationResolved(true);
-        setLocationError(null);
-
-        // Set snapshot ID in state (fallback for co-pilot if event is missed)
-        setLastSnapshotId(snapshotId);
-
-        // 2026-01-06: P3-D - Include reason for smart resume support
-        // CoPilotContext uses this to decide whether to trigger blocks-fast
-        // 2026-07-06: holiday is NOT in this event anymore — it moved to the
-        // briefing (briefings.holiday); GlobalHeader reads it from the
-        // aggregate briefing query and refetches on briefing_ready SSE.
-        const reason = forceRefresh ? 'manual_refresh' : 'init';
-        window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-          detail: { snapshotId, reason }
-        }));
-      } else {
-        setLocationError({ code: 'snapshot_missing', message: 'Your location snapshot could not be saved. Retry for fresh data.' });
-        setIsLocationResolved(false);
-      }
+      setReady({ scope, value: true });
+      setSaved({ scope, data: confirmed });
+      return captureId;
     } catch (error) {
-      // Ignore AbortError - request was intentionally cancelled (user tapped refresh rapidly)
-      // Updated 2026-01-05: Graceful handling of cancelled requests
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('🛑 [LocationContext] Enrichment cancelled by newer request');
-        return;
+      if (!current()) return null;
+      const message = error instanceof Error ? error.message : 'Fresh location is unavailable.';
+      setSaved(previous => ({ scope, data: { ...(previous.scope === scope ? previous.data : emptyLocation),
+        isUpdating: false, isLoading: false, locationError: { code: 'context_preparation_failed', message } } }));
+      return null;
+    } finally { if (collection.current === controller) collection.current = null; }
+  }, [scope, confirmedLocation, prepareBriefing]);
+
+  useEffect(() => {
+    if (!scope || setup.loading || !setup.setup || (collection.current && !collection.current.signal.aborted)) return;
+    const firstContext = initialized.current !== scope;
+    const fingerprint = JSON.stringify([setup.setup.currentSnapshot ?? null, setup.setup.currentContextPending === true]);
+    if (!firstContext && restoredContext.current?.scope === scope && restoredContext.current.fingerprint === fingerprint) return;
+    initialized.current = scope;
+    restoredContext.current = { scope, fingerprint };
+    const snapshot = setup.setup.currentSnapshot;
+    if (!snapshot) {
+      setReady({ scope, value: false });
+      if (setup.setup.currentContextPending) {
+        setRequestedScope(scope);
+        setSaved({ scope, data: { ...emptyLocation, currentLocationString: 'Previous refresh unfinished',
+          locationError: { code: 'context_preparation_unfinished', message: 'Your previous refresh did not finish. Use Refresh when you’re ready to try again.' } } });
+      } else if (firstContext) void refreshGPS();
+      else {
+        setSaved(previous => ({ scope, data: { ...(previous.scope === scope ? previous.data : emptyLocation),
+          locationError: { code: 'context_incomplete', message: 'Saved context is unavailable. Use Refresh when you’re ready.' } } }));
       }
-      console.error('[LocationContext] Enrichment failed:', error);
-      setIsLocationResolved(false);
-      setLocationError({ code: 'snapshot_incomplete', message: 'Fresh location data could not be completed. Please retry.' });
+      return;
     }
-  // 2026-01-06: Depend on user?.userId (primitive) instead of user object
-  // This prevents callback recreation when user object reference changes but userId stays the same
-  }, [token, user?.userId]);
-
-  // refreshGPS: Fetch GPS and resolve location
-  // forceNewSnapshot: true = user clicked refresh button, always create new snapshot
-  //                   false = initial mount, allow server to reuse existing snapshot if < 60 min
-  const refreshGPS = useCallback(async (forceNewSnapshot = true) => {
-    const gpsGeneration = ++gpsRequestGenerationRef.current;
-    generationCounterRef.current++;
-    abortControllerRef.current?.abort();
-    setIsUpdating(true);
-    setOverrideCoords(null);
-    setIsLocationResolved(false); // Reset - gates queries until new location resolves
-
-    // Only clear storage when user explicitly requests fresh data
-    if (forceNewSnapshot) {
-      // 2026-02-17: Full waterfall reset — matches logout behavior (minus auth teardown).
-      // 1. Null snapshot on server IMMEDIATELY (before GPS fetch)
-      // 2. Cancel/clear all query cache
-      // 3. Clear all client-side snapshot + strategy storage
-      // This ensures no stale data survives. Fresh GPS coords will trigger a clean pipeline.
-      const authToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      if (authToken) {
-        try {
-          await fetch(API_ROUTES.LOCATION.RELEASE_SNAPSHOT, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${authToken}` },
-          });
-        } catch {
-          // Best-effort — enrichLocation with force=true will also null it
-        }
-      }
-      if (gpsGeneration !== gpsRequestGenerationRef.current) return;
-
-      void queryClient.cancelQueries();
-      queryClient.clear();
-
-      // 2026-03-18: Null snapshot so enrichment dedup sees "no active snapshot" → always proceeds
-      setLastSnapshotId(null);
-      lastSnapshotIdRef.current = null;
-
-      // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
-      clearSnapshotStorage();
-
-      // Clear old strategy
-      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-      window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
-    }
-
+    // Reconcile changed canonical context with read-only data. Unchanged focus
+    // reads preserve local holds; interrupted preparation stays a manual retry.
     try {
-      const coords = await getGeoPosition();
-      if (gpsGeneration !== gpsRequestGenerationRef.current) return;
-      if (coords) {
-        console.log('📍 [LocationContext] GPS success - using live location');
-        setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
-        // 2026-03-18: Always force-refresh enrichment from refreshGPS.
-        // Driver may be at same coords but needs fresh snapshot data every sign-in.
-        // The dedup check only applies to the auto-enrich effect (coord change detection).
-        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, true);
-      } else {
-        // 2026-06-11: NO FALLBACK — fail hard. This previously fell back to profile.homeLat/homeLng,
-        // silently substituting the driver's REGISTERED HOME for their LIVE location (often tens of
-        // miles off) — and because that path never calls the Geolocation API, Safari never prompts.
-        // Location MUST come from live GPS, never the profile (memory #213 / #231 / #332). Surface a
-        // CriticalError so the driver enables precise Location Services and retries.
-        console.error('[LocationContext] GPS unavailable — failing hard (no profile/home fallback)');
-        setCurrentCoords(null);
-        setWeather(null);
-        setAirQuality(null);
-        setLocationError({ code: 'gps_unavailable', message: 'A fresh precise location is unavailable. Enable precise location for this browser, then retry when safely parked.' });
-      }
-    } finally {
-      if (gpsGeneration === gpsRequestGenerationRef.current) setIsUpdating(false);
+      const confirmed = confirmedLocation(snapshot, true);
+      setSaved({ scope, data: confirmed });
+      setRequestedScope(scope);
+      const permissionDenied = deniedPermission.current === scope;
+      setReady({ scope, value: !permissionDenied && !!confirmed.timeZone && !setup.setup.currentContextPending && snapshot.ready === true && snapshot.briefingReady === true });
+      if (permissionDenied || !confirmed.timeZone || setup.setup.currentContextPending || !snapshot.ready || !snapshot.briefingReady) setSaved({ scope, data: { ...confirmed,
+        locationError: permissionDenied
+          ? { code: 'location_permission_denied', message: 'Location permission was denied. Enable location, then use Refresh when ready.' }
+          : !confirmed.timeZone
+          ? { code: 'context_incomplete', message: 'Saved location has no verified timezone. Use Refresh when you’re ready.' }
+          : setup.setup.currentContextPending
+          ? { code: 'context_preparation_unfinished', message: 'Your previous refresh did not finish. Use Refresh when you’re ready to try again.' }
+          : !snapshot.ready
+          ? { code: 'context_incomplete', message: 'Saved context is incomplete. Use Refresh when you’re ready.' }
+          : { code: 'briefing_incomplete', message: 'Briefing is unfinished. Use Refresh to try again when ready.' } } });
+    } catch (error) {
+      setRequestedScope(scope);
+      setSaved({ scope, data: { ...emptyLocation, locationError: { code: 'saved_context_incomplete',
+        message: error instanceof Error ? error.message : 'Saved context could not be restored.' } } });
     }
-  }, [enrichLocation, profile?.homeLat, profile?.homeLng, queryClient]);
-
-  // 2026-01-07: Keep ref in sync with latest refreshGPS
-  // This allows the GPS effect to always call the latest version
-  // without adding refreshGPS to its deps (which causes infinite loop)
-  useEffect(() => {
-    refreshGPSRef.current = refreshGPS;
-  }, [refreshGPS]);
-
-  // 2026-03-18: Keep enrichLocation ref in sync — auto-enrich effect uses this
-  // to avoid depending on the enrichLocation reference (which changes on auth state change)
-  const enrichLocationRef = useRef<typeof enrichLocation | undefined>(undefined);
-  useEffect(() => {
-    enrichLocationRef.current = enrichLocation;
-  }, [enrichLocation]);
-
-  // 2026-01-14: Keep state refs in sync for GPS effect to read current values
-  // Without this, setTimeout closure captures stale values from when effect ran
-  useEffect(() => { lastSnapshotIdRef.current = lastSnapshotId; }, [lastSnapshotId]);
-  useEffect(() => { currentCoordsRef.current = currentCoords; }, [currentCoords]);
-  useEffect(() => { cityRef.current = city; }, [city]);
-  useEffect(() => { timeZoneRef.current = timeZone; }, [timeZone]);
-
-  // Initial GPS fetch - ONLY start when user is AUTHENTICATED
-  // This ensures snapshots are ALWAYS linked to the authenticated user
-  // Anonymous users on sign-up/sign-in pages should NOT create snapshots
-  // Note: Browser may show "[Violation] Only request geolocation in response to user gesture"
-  // This is a warning, not an error - we try anyway and fall back to button click if needed
-  //
-  // 2026-01-14: FIX - Removed lastSnapshotId, currentCoords, city from deps
-  // These values are SET by refreshGPS, so having them in deps caused cascade:
-  // 1. Effect runs → refreshGPS called → setCurrentCoords
-  // 2. currentCoords changed → effect re-runs → another refreshGPS
-  // This was causing 4x GPS fetches in 200ms!
-  //
-  // Instead, we use refs to check cached data without adding to deps.
-  // The ref is updated in session restore (line 270-273) and by state updates.
-  const gpsEffectRanRef = useRef(false);
+  }, [scope, setup.loading, setup.setup, refreshGPS, confirmedLocation, data.isUpdating]);
 
   useEffect(() => {
-    // Don't start GPS fetch until auth state is determined
-    if (authLoading) {
-      console.log('🔐 [LocationContext] Waiting for auth state to load...');
-      return;
-    }
-
-    // CRITICAL: Only start GPS fetch if user is AUTHENTICATED
-    // Anonymous users should not create snapshots
-    if (!user?.userId || !token) {
-      console.log('🔐 [LocationContext] User not authenticated - skipping GPS fetch');
-      return;
-    }
-
-    // 2026-01-14: Prevent duplicate GPS fetches
-    // This flag ensures we only start ONE GPS fetch per auth session
-    if (gpsEffectRanRef.current) {
-      console.log('⏭️ [LocationContext] GPS effect already ran this session - skipping');
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      // Double-check the flag inside timeout (state might have changed)
-      if (gpsEffectRanRef.current) return;
-
-      // A restored display is historical until a fresh GPS fix validates location.
-      // Never unlock the waterfall solely from a sessionStorage snapshot.
-      // Resume failed or no cached data (fresh sign-in).
-      // No need to clear lastEnrichmentCoordsRef — snapshot is null so dedup won't skip.
-      gpsEffectRanRef.current = true;
-      console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
-      refreshGPSRef.current?.(false);
-    }, 50);
-    return () => clearTimeout(timer);
-  // 2026-01-14: CRITICAL - Only depend on auth state, NOT on GPS data (lastSnapshotId, currentCoords, city)
-  // Those values are SET by refreshGPS, so having them in deps caused 4x GPS fetches
-  }, [authLoading, user?.userId, token]);
-
-  // Listen for snapshot ownership errors (when user changes but stale snapshot ID is used)
-  // This triggers a fresh GPS fetch to create a new snapshot for the current user
-  useEffect(() => {
-    const handleOwnershipError = () => {
-      console.warn('🚨 [LocationContext] Snapshot ownership error - clearing and refreshing');
-      // 2026-03-18: Null snapshot (state + ref) so enrichment dedup sees no active snapshot
-      setLastSnapshotId(null);
-      lastSnapshotIdRef.current = null;
-      // Clear sessionStorage to remove any persisted stale data
-      clearSnapshotStorage();
-      // Trigger fresh GPS fetch → force new snapshot for current user
-      // 2026-01-07: Use ref to access latest refreshGPS
-      refreshGPSRef.current?.(true);
+    if (!scope) return;
+    let active = true;
+    let permission: PermissionStatus | null = null;
+    const holdContext = (code: string, message: string) => {
+      if (!active || scopeRef.current !== scope) return;
+      collection.current?.abort();
+      collection.current = null;
+      setReady({ scope, value: false });
+      setSaved(previous => ({ scope, data: { ...(previous.scope === scope ? previous.data : emptyLocation),
+        isUpdating: false, isLoading: false, locationError: { code, message } } }));
     };
-
-    window.addEventListener('snapshot-ownership-error', handleOwnershipError);
-    return () => window.removeEventListener('snapshot-ownership-error', handleOwnershipError);
-  }, []); // Empty deps - event listener only needs to be set up once
-
-  // 2026-03-18: Auto-enrich when coords change during an active session.
-  // Only fires when: (a) not initial mount, (b) coords changed, (c) active snapshot exists.
-  // During sign-in/manual refresh, snapshot is null → refreshGPS handles enrichment directly.
-  // Uses enrichLocationRef to avoid re-firing when enrichLocation reference changes (auth state).
-  useEffect(() => {
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      return;
+    const revoked = () => {
+      if (permission?.state === 'denied') {
+        deniedPermission.current = scope;
+        holdContext('location_permission_denied', 'Location permission was denied. Enable location, then use Refresh when ready.');
+      } else if (deniedPermission.current === scope) deniedPermission.current = null;
+    };
+    const ownershipError = (event: Event) => {
+      const failedId = (event as CustomEvent).detail?.snapshotId;
+      const known = savedRef.current.scope === scope ? savedRef.current.data.lastSnapshotId : null;
+      const pending = captureRef.current.scope === scope ? captureRef.current.id : null;
+      const collecting = collection.current && !collection.current.signal.aborted;
+      const currentId = collecting ? pending : known;
+      if (failedId && failedId !== currentId) return;
+      holdContext('snapshot_ownership_error', 'Saved context could not be verified for this session. Use Refresh when ready.');
+    };
+    window.addEventListener('snapshot-ownership-error', ownershipError);
+    if (navigator.permissions?.query) {
+      void navigator.permissions.query({ name: 'geolocation' }).then(status => {
+        if (!active || scopeRef.current !== scope) return;
+        permission = status;
+        permission.addEventListener('change', revoked);
+        revoked();
+      }).catch(() => { /* The GPS request remains authoritative where Permissions is unsupported. */ });
     }
+    return () => {
+      active = false;
+      permission?.removeEventListener('change', revoked);
+      window.removeEventListener('snapshot-ownership-error', ownershipError);
+    };
+  }, [scope]);
 
-    // Only auto-enrich if driver has an active snapshot (normal driving, not sign-in/refresh)
-    if (currentCoords && lastSnapshotIdRef.current) {
-      console.log('📍 Coordinates changed during active session - triggering enrichment');
-      enrichLocationRef.current?.(currentCoords.latitude, currentCoords.longitude, 10);
-    }
-  }, [currentCoords?.latitude, currentCoords?.longitude]);
-
-  // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
-  // Without useMemo, every render creates a new object → all consumers re-render → cascade
-  // This was causing "Maximum update depth exceeded" errors
-  const contextValue = useMemo(() => ({
-    currentCoords,
-    currentLocationString,
-    city,
-    state,
-    timeZone,
-    isUpdating,
-    lastUpdated,
-    refreshGPS,
-    overrideCoords,
-    weather,
-    airQuality,
-    isLocationResolved,
-    lastSnapshotId,
-    isLoading: isUpdating,
-    setOverrideCoords,
-    // 2026-02-01: FAIL HARD - Expose location error for CoPilotContext to trigger CriticalError
-    locationError,
-  }), [
-    currentCoords,
-    currentLocationString,
-    city,
-    state,
-    timeZone,
-    isUpdating,
-    lastUpdated,
-    refreshGPS,
-    overrideCoords,
-    weather,
-    airQuality,
-    isLocationResolved,
-    lastSnapshotId,
-    setOverrideCoords,
-    locationError,
-  ]);
-
-  return (
-    <LocationContext.Provider value={contextValue}>
-      {children}
-    </LocationContext.Provider>
-  );
-};
+  useEffect(() => () => { collection.current?.abort(); }, [scope]);
+  const setOverrideCoords = useCallback(() => {
+    // Current GPS cannot be replaced with an unverified city or home address.
+    setupRef.current.reviewSetup();
+  }, []);
+  const value = useMemo(() => ({ ...data, refreshGPS, setOverrideCoords, runId: setup.run?.runId ?? null,
+    locationRequested: !!scope && requestedScope === scope, contextReady: ready.scope === scope && ready.value,
+    collectionId: capture.scope === scope ? capture.id : null }),
+    [data, refreshGPS, setOverrideCoords, setup.run?.runId, scope, requestedScope, ready, capture]);
+  return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>;
+}

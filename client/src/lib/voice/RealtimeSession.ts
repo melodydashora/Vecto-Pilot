@@ -44,6 +44,7 @@ export class RealtimeSession implements VoiceSession {
   private stream: MediaStream | null = null;
   private audioEl: HTMLAudioElement | null = null;
   private stopped = false;
+  private controller = new AbortController();
 
   // 2026-08-14 (unified voice thread): turn accumulation + relay machinery.
   // Model transcript deltas accumulate here; user turns arrive final-only
@@ -63,6 +64,7 @@ export class RealtimeSession implements VoiceSession {
   }
 
   async start(): Promise<void> {
+    if (this.stopped) return;
     const { events } = this.opts;
     events.onStatus('connecting');
 
@@ -82,8 +84,10 @@ export class RealtimeSession implements VoiceSession {
         ...(authToken && { Authorization: `Bearer ${authToken}` }),
       },
       body: JSON.stringify({ userId: this.opts.userId, snapshotId: this.opts.snapshotId }),
+      signal: this.controller.signal,
     });
     const mint = (await res.json()) as MintResponse;
+    if (this.stopped) return;
     if (!res.ok || !mint.ok || !mint.token) {
       throw new Error(mint.error || `Realtime token mint failed (HTTP ${res.status})`);
     }
@@ -93,6 +97,13 @@ export class RealtimeSession implements VoiceSession {
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
+
+    // Permission can resolve after End; immediately release that late capture.
+    if (this.stopped) {
+      this.stream.getTracks().forEach(track => track.stop());
+      this.stream = null;
+      return;
+    }
 
     // 3. Peer connection: mic up, model voice down.
     this.pc = new RTCPeerConnection();
@@ -152,10 +163,13 @@ export class RealtimeSession implements VoiceSession {
 
     // 5. SDP negotiation against the GA calls endpoint.
     const offer = await this.pc.createOffer();
+    if (this.stopped) return;
     await this.pc.setLocalDescription(offer);
+    if (this.stopped) return;
     const sdpRes = await fetch(`${SDP_ENDPOINT}?model=${encodeURIComponent(mint.model)}`, {
       method: 'POST',
       body: offer.sdp,
+      signal: this.controller.signal,
       headers: {
         Authorization: `Bearer ${mint.token}`,
         'Content-Type': 'application/sdp',
@@ -166,6 +180,7 @@ export class RealtimeSession implements VoiceSession {
       throw new Error(`Realtime SDP exchange failed (HTTP ${sdpRes.status}) ${detail.slice(0, 200)}`);
     }
     const answerSdp = await sdpRes.text();
+    if (this.stopped) return;
     await this.pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
   }
 
@@ -180,6 +195,7 @@ export class RealtimeSession implements VoiceSession {
   }
 
   private handleEvent(event: any): void {
+    if (this.stopped) return;
     const { events } = this.opts;
     switch (event?.type) {
       // Driver started speaking — no interim text exists (whisper-1 is
@@ -315,6 +331,7 @@ export class RealtimeSession implements VoiceSession {
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
+    this.controller.abort();
     this.dc?.close();
     this.dc = null;
     this.stream?.getTracks().forEach((t) => t.stop());

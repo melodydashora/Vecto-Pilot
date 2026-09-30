@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/auth-context';
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
-import type { BlocksResponse, SmartBlock } from '@/types/co-pilot';
+import type { BlocksResponse, SmartBlock, StrategyData } from '@/types/co-pilot';
 
 export interface VenueDismissal { place_id: string; action_id: string; venue_name: string }
 export interface VenueFeedbackState {
@@ -74,6 +74,13 @@ export function useVenueFeedback(snapshotId: string | null, rankingId?: string) 
       // The provider appends its authenticated session revision to this prefix.
       queryClient.setQueriesData<BlocksResponse>({ queryKey: QUERY_KEYS.BLOCKS_FAST(snapshotId) }, previous =>
         previous && previous.rankingId === rankingId ? { ...previous, blocks: value.blocks } : previous);
+      // Strategy hydration reads the saved polling response. Keep its confirmed
+      // shortlist current so a later refresh retains the driver's saved choices.
+      queryClient.setQueriesData<StrategyData & { rankingId?: string; blocks?: SmartBlock[]; venueFeedbackRevision?: number }>({
+        queryKey: QUERY_KEYS.BLOCKS_STRATEGY(snapshotId),
+        predicate: query => query.queryKey.length < 3 || query.queryKey[2] === user?.userId,
+      }, previous => previous?.snapshotId === snapshotId && previous.rankingId === rankingId
+        ? { ...previous, blocks: value.blocks, venueFeedbackRevision: value.scope_revision } : previous);
     }
   };
 

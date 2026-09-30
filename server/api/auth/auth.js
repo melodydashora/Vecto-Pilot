@@ -37,11 +37,30 @@ import { ensureMarket } from '../../lib/markets/ensure-market.js';
 import { matrixLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
 import { validateAddress } from '../../lib/location/address-validation.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { signJWT } from '../../lib/jwt.js';
-import { economicPreferencesForApi, parseEconomicPreferenceUpdates } from '../../lib/driver-preferences.js';
+import { parseEconomicPreferenceUpdates } from '../../lib/driver-preferences.js';
 import { invalidateUser } from '../../lib/offers/ruleset-store.js';
+import { driverProfileResponse } from '../../lib/driver-profile-response.js';
+import { withDriverSettingsLock, MainRunAdmissionError, validSettingsRevision, validateSelectedServices } from '../../lib/main-run-admission.js';
 
 const router = Router();
+
+// Called inside a transaction. Updating the owner row serializes login with
+// setup saves, Continue, logout and publication; hydrate one saved revision.
+async function createDriverSession(tx, userId, sessionId, now) {
+  const values = { session_id: sessionId, current_snapshot_id: null, current_main_run_id: null,
+    session_start_at: now, last_active_at: now, updated_at: now };
+  const existing = await tx.query.users.findFirst({ where: eq(users.user_id, userId) });
+  if (existing) await tx.update(users).set(values).where(eq(users.user_id, userId));
+  else await tx.insert(users).values({ user_id: userId, ...values, created_at: now });
+  const profile = await tx.query.driver_profiles.findFirst({ where: eq(driver_profiles.user_id, userId) });
+  if (!profile) throw new Error('Driver profile disappeared during session creation');
+  const vehicle = await tx.query.driver_vehicles.findFirst({ where: and(
+    eq(driver_vehicles.driver_profile_id, profile.id), eq(driver_vehicles.is_primary, true), eq(driver_vehicles.is_active, true),
+  ) });
+  return { profile, vehicle };
+}
 
 // 2026-03-17: SECURITY FIX (F-10) — No hardcoded fallback secret.
 // REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
@@ -303,7 +322,7 @@ router.post('/register', async (req, res) => {
         }, `Address validation: ${addressValidation.validationStatus}`);
 
         // Use corrected address if available
-        if (addressValidation.corrected?.address1) {
+        if (addressValidation.valid && addressValidation.validationStatus === 'CONFIRMED' && addressValidation.corrected?.address1) {
           finalAddress = {
             address1: addressValidation.corrected.address1,
             address2: addressValidation.corrected.address2 || null,
@@ -320,10 +339,11 @@ router.post('/register', async (req, res) => {
         }
 
         // Use validation coordinates if available (often more precise than geocoding)
-        if (addressValidation.lat && addressValidation.lng) {
+        const validatedCoordinates = addressValidation.valid && addressValidation.validationStatus === 'CONFIRMED'
+          ? normalizeCoordinates(addressValidation.lat, addressValidation.lng) : null;
+        if (validatedCoordinates) {
           geocodeResult = {
-            lat: addressValidation.lat,
-            lng: addressValidation.lng,
+            ...validatedCoordinates,
             formattedAddress: addressValidation.formattedAddress,
             // Note: Address Validation doesn't return timezone, will get from geocode if needed
           };
@@ -362,6 +382,8 @@ router.post('/register', async (req, res) => {
           zipCode: finalAddress.zipCode,
           country: finalAddress.country
         });
+        const coordinates = normalizeCoordinates(geocodeResult?.lat, geocodeResult?.lng);
+        geocodeResult = coordinates ? { ...geocodeResult, ...coordinates } : null;
         if (geocodeResult) {
           matrixLog.info({
             category: 'AUTH',
@@ -393,7 +415,7 @@ router.post('/register', async (req, res) => {
         ))
         .limit(1);
 
-      if (marketData?.market_anchor) {
+      if (!resolvedMarket && marketData?.market_anchor) {
         resolvedMarket = marketData.market_anchor;
         matrixLog.info({
           category: 'AUTH',
@@ -562,7 +584,8 @@ router.post('/register', async (req, res) => {
     const createdVehicle = await db.query.driver_vehicles.findFirst({
       where: and(
         eq(driver_vehicles.driver_profile_id, profile.id),
-        eq(driver_vehicles.is_primary, true)
+        eq(driver_vehicles.is_primary, true),
+        eq(driver_vehicles.is_active, true)
       )
     });
 
@@ -577,64 +600,7 @@ router.post('/register', async (req, res) => {
       ok: true,
       token,
       customMarket: customMarketResult, // 2026-09-10: null unless the body declared one
-      user: {
-        userId: newUser.user_id,
-        email: profile.email
-      },
-      profile: {
-        id: profile.id,
-        userId: profile.user_id,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        nickname: profile.driver_nickname || profile.first_name,
-        email: profile.email,
-        phone: profile.phone,
-        address1: profile.address_1,
-        address2: profile.address_2,
-        city: profile.city,
-        stateTerritory: profile.state_territory,
-        zipCode: profile.zip_code,
-        country: profile.country,
-        market: profile.market,
-        ridesharePlatforms: profile.rideshare_platforms || [],
-        ...economicPreferencesForApi(profile),
-        // Home location (from registration geocoding)
-        homeLat: profile.home_lat,
-        homeLng: profile.home_lng,
-        homeTimezone: profile.home_timezone,
-        homeFormattedAddress: profile.home_formatted_address,
-        // New eligibility fields
-        eligEconomy: profile.elig_economy ?? true,
-        eligXl: profile.elig_xl || false,
-        eligXxl: profile.elig_xxl || false,
-        eligComfort: profile.elig_comfort || false,
-        eligLuxurySedan: profile.elig_luxury_sedan || false,
-        eligLuxurySuv: profile.elig_luxury_suv || false,
-        attrElectric: profile.attr_electric || false,
-        attrGreen: profile.attr_green || false,
-        attrWav: profile.attr_wav || false,
-        attrSki: profile.attr_ski || false,
-        attrCarSeat: profile.attr_car_seat || false,
-        prefPetFriendly: profile.pref_pet_friendly || false,
-        prefTeen: profile.pref_teen || false,
-        prefAssist: profile.pref_assist || false,
-        prefShared: profile.pref_shared || false,
-        marketingOptIn: profile.marketing_opt_in || false,
-        termsAccepted: true, // Always true for new registrations
-        emailVerified: false,
-        phoneVerified: false,
-        profileComplete: true,
-        createdAt: profile.created_at
-      },
-      vehicle: createdVehicle ? {
-        id: createdVehicle.id,
-        driverProfileId: createdVehicle.driver_profile_id,
-        year: createdVehicle.year,
-        make: createdVehicle.make,
-        model: createdVehicle.model,
-        seatbelts: createdVehicle.seatbelts,
-        isPrimary: createdVehicle.is_primary
-      } : null
+      ...driverProfileResponse(profile, createdVehicle, newSessionId)
     });
 
   } catch (err) {
@@ -742,80 +708,30 @@ router.post('/login', async (req, res) => {
       location: 'auth.js:login',
     }, `Password verification: ${isValid ? 'success' : 'failed'}`);
 
-    if (!isValid) {
-      // Increment failed attempts
-      const newAttempts = (creds.failed_login_attempts || 0) + 1;
-      const lockUntil = newAttempts >= 5
-        ? new Date(Date.now() + 15 * 60 * 1000) // Lock for 15 mins after 5 failures
-        : null;
-
-      await db.update(auth_credentials)
-        .set({
-          failed_login_attempts: newAttempts,
-          locked_until: lockUntil,
-          updated_at: new Date()
-        })
-        .where(eq(auth_credentials.user_id, profile.user_id));
-
-      matrixLog.warn({
-        category: 'AUTH',
-        action: 'LOGIN_FAIL',
-        location: 'auth.js:login',
-      }, `Failed login attempt for user ${profile.user_id.substring(0, 8)} (${newAttempts} attempts)`);
-
-      return res.status(401).json({
-        error: 'INVALID_CREDENTIALS',
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Successful login - reset failed attempts
-    await db.update(auth_credentials)
-      .set({
-        failed_login_attempts: 0,
-        locked_until: null,
-        last_login_at: new Date(),
-        last_login_ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
-        updated_at: new Date()
-      })
-      .where(eq(auth_credentials.user_id, profile.user_id));
-
-    // 2026-01-05: Session Architecture - Create/reset users row on login
-    // Highlander Rule: one session per user.
-    // CRITICAL FIX (2026-01-05): Use UPSERT instead of DELETE+INSERT!
-    // DELETE causes CASCADE delete of driver_profiles and auth_credentials.
-    // This was destroying all user data on login!
     const newSessionId = crypto.randomUUID();
-    const now = new Date();
-
-    // Check if users row exists
-    const existingUser = await db.query.users.findFirst({
-      where: eq(users.user_id, profile.user_id)
+    const login = await db.transaction(async tx => {
+      const [current] = await tx.select().from(auth_credentials)
+        .where(eq(auth_credentials.user_id, profile.user_id)).for('update').limit(1);
+      // Verification may finish after a reset or OAuth password revocation.
+      // Authorize against the credential still stored under the row lock.
+      if (!current || current.password_hash !== creds.password_hash) return { invalid: true };
+      const now = new Date();
+      if (current.locked_until && new Date(current.locked_until) > now) return { lockedUntil: current.locked_until };
+      if (!isValid) {
+        const attempts = (current.failed_login_attempts || 0) + 1;
+        await tx.update(auth_credentials).set({ failed_login_attempts: attempts,
+          locked_until: attempts >= 5 ? new Date(now.getTime() + 15 * 60 * 1000) : null,
+          updated_at: now }).where(eq(auth_credentials.user_id, profile.user_id));
+        return { invalid: true };
+      }
+      await tx.update(auth_credentials).set({ failed_login_attempts: 0, locked_until: null,
+        last_login_at: now, last_login_ip: req.ip || req.headers['x-forwarded-for'] || 'unknown', updated_at: now })
+        .where(eq(auth_credentials.user_id, profile.user_id));
+      return createDriverSession(tx, profile.user_id, newSessionId, now);
     });
-
-    if (existingUser) {
-      // UPDATE existing session - preserves foreign key relationships
-      await db.update(users)
-        .set({
-          session_id: newSessionId,
-          current_snapshot_id: null,
-          session_start_at: now,
-          last_active_at: now,
-          updated_at: now
-        })
-        .where(eq(users.user_id, profile.user_id));
-    } else {
-      // INSERT new session row (first login after registration)
-      await db.insert(users).values({
-        user_id: profile.user_id,
-        session_id: newSessionId,
-        current_snapshot_id: null,
-        session_start_at: now,
-        last_active_at: now,
-        created_at: now,
-        updated_at: now
-      });
-    }
+    if (login.lockedUntil) return res.status(423).json({ error: 'ACCOUNT_LOCKED',
+      message: 'Account is temporarily locked. Try again later.', locked_until: login.lockedUntil });
+    if (login.invalid) return res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Invalid email or password' });
 
     matrixLog.info({
       category: 'AUTH',
@@ -828,14 +744,6 @@ router.post('/login', async (req, res) => {
     // Generate token
     const token = await generateAuthToken(profile.user_id, email, newSessionId);
 
-    // Fetch vehicle
-    const vehicle = await db.query.driver_vehicles.findFirst({
-      where: and(
-        eq(driver_vehicles.driver_profile_id, profile.id),
-        eq(driver_vehicles.is_primary, true)
-      )
-    });
-
     matrixLog.info({
       category: 'AUTH',
       action: 'LOGIN_SUCCESS',
@@ -846,64 +754,7 @@ router.post('/login', async (req, res) => {
     res.json({
       ok: true,
       token,
-      user: {
-        userId: profile.user_id,
-        email: profile.email
-      },
-      profile: {
-        id: profile.id,
-        userId: profile.user_id,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        nickname: profile.driver_nickname || profile.first_name,
-        email: profile.email,
-        phone: profile.phone,
-        address1: profile.address_1,
-        address2: profile.address_2,
-        city: profile.city,
-        stateTerritory: profile.state_territory,
-        zipCode: profile.zip_code,
-        country: profile.country,
-        market: profile.market,
-        ridesharePlatforms: profile.rideshare_platforms || [],
-        ...economicPreferencesForApi(profile),
-        // Home location (from registration geocoding)
-        homeLat: profile.home_lat,
-        homeLng: profile.home_lng,
-        homeTimezone: profile.home_timezone,
-        homeFormattedAddress: profile.home_formatted_address,
-        // New eligibility fields
-        eligEconomy: profile.elig_economy ?? true,
-        eligXl: profile.elig_xl || false,
-        eligXxl: profile.elig_xxl || false,
-        eligComfort: profile.elig_comfort || false,
-        eligLuxurySedan: profile.elig_luxury_sedan || false,
-        eligLuxurySuv: profile.elig_luxury_suv || false,
-        attrElectric: profile.attr_electric || false,
-        attrGreen: profile.attr_green || false,
-        attrWav: profile.attr_wav || false,
-        attrSki: profile.attr_ski || false,
-        attrCarSeat: profile.attr_car_seat || false,
-        prefPetFriendly: profile.pref_pet_friendly || false,
-        prefTeen: profile.pref_teen || false,
-        prefAssist: profile.pref_assist || false,
-        prefShared: profile.pref_shared || false,
-        marketingOptIn: profile.marketing_opt_in || false,
-        termsAccepted: profile.terms_accepted || false,
-        emailVerified: profile.email_verified || false,
-        phoneVerified: profile.phone_verified || false,
-        profileComplete: profile.profile_complete || false,
-        createdAt: profile.created_at
-      },
-      vehicle: vehicle ? {
-        id: vehicle.id,
-        driverProfileId: vehicle.driver_profile_id,
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        seatbelts: vehicle.seatbelts,
-        isPrimary: vehicle.is_primary
-      } : null
+      ...driverProfileResponse(login.profile, login.vehicle, newSessionId)
     });
 
   } catch (err) {
@@ -1160,7 +1011,7 @@ router.post('/reset-password', async (req, res) => {
         throw new Error('Password reset account unavailable');
       }
       await tx.update(users)
-        .set({ session_id: null, current_snapshot_id: null, updated_at: new Date() })
+        .set({ session_id: null, current_snapshot_id: null, current_main_run_id: null, updated_at: new Date() })
         .where(eq(users.user_id, userId));
       return true;
     });
@@ -1200,9 +1051,24 @@ router.get('/me', requireAuth, async (req, res) => {
   try {
     const userId = req.auth.userId;
 
-    // Get driver profile
-    const profile = await db.query.driver_profiles.findFirst({
-      where: eq(driver_profiles.user_id, userId)
+    // Read one committed profile/vehicle revision. Settings writers take this
+    // same owner row FOR UPDATE; SHARE holds their commit until both reads end.
+    // Keep /me's existing driver/agent authentication semantics: this read does
+    // not acquire the driver-only admission lock or create/extend a session.
+    const { profile, vehicle } = await db.transaction(async tx => {
+      await tx.select({ userId: users.user_id }).from(users)
+        .where(eq(users.user_id, userId)).for('share').limit(1);
+      const profile = await tx.query.driver_profiles.findFirst({
+        where: eq(driver_profiles.user_id, userId)
+      });
+      const vehicle = profile ? await tx.query.driver_vehicles.findFirst({
+        where: and(
+          eq(driver_vehicles.driver_profile_id, profile.id),
+          eq(driver_vehicles.is_primary, true),
+          eq(driver_vehicles.is_active, true)
+        )
+      }) : null;
+      return { profile, vehicle };
     });
 
     if (!profile) {
@@ -1212,92 +1078,7 @@ router.get('/me', requireAuth, async (req, res) => {
       });
     }
 
-    // Get vehicle
-    const vehicle = await db.query.driver_vehicles.findFirst({
-      where: and(
-        eq(driver_vehicles.driver_profile_id, profile.id),
-        eq(driver_vehicles.is_primary, true)
-      )
-    });
-
-    // Return structured response matching AuthApiResponse interface
-    res.json({
-      user: {
-        userId: profile.user_id,
-        email: profile.email
-      },
-      profile: {
-        id: profile.id,
-        userId: profile.user_id,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        nickname: profile.driver_nickname || profile.first_name, // Fallback to first name
-        email: profile.email,
-        phone: profile.phone,
-        address1: profile.address_1,
-        address2: profile.address_2,
-        city: profile.city,
-        stateTerritory: profile.state_territory,
-        zipCode: profile.zip_code,
-        country: profile.country,
-        market: profile.market,
-        ridesharePlatforms: profile.rideshare_platforms || [],
-        ...economicPreferencesForApi(profile),
-
-        // Home location (from registration geocoding)
-        homeLat: profile.home_lat,
-        homeLng: profile.home_lng,
-        homeTimezone: profile.home_timezone,
-        homeFormattedAddress: profile.home_formatted_address,
-
-        // New eligibility fields
-        eligEconomy: profile.elig_economy ?? true,
-        eligXl: profile.elig_xl || false,
-        eligXxl: profile.elig_xxl || false,
-        eligComfort: profile.elig_comfort || false,
-        eligLuxurySedan: profile.elig_luxury_sedan || false,
-        eligLuxurySuv: profile.elig_luxury_suv || false,
-
-        attrElectric: profile.attr_electric || false,
-        attrGreen: profile.attr_green || false,
-        attrWav: profile.attr_wav || false,
-        attrSki: profile.attr_ski || false,
-        attrCarSeat: profile.attr_car_seat || false,
-
-        prefPetFriendly: profile.pref_pet_friendly || false,
-        prefTeen: profile.pref_teen || false,
-        prefAssist: profile.pref_assist || false,
-        prefShared: profile.pref_shared || false,
-        marketingOptIn: profile.marketing_opt_in || false,
-        termsAccepted: profile.terms_accepted || false,
-
-        // Legacy fields (backward compatibility)
-        tierBlack: profile.uber_black || false,
-        tierXl: profile.uber_xxl || false,
-        tierComfort: profile.uber_comfort || false,
-        tierStandard: profile.uber_x || false,
-        tierShare: profile.uber_x_share || false,
-        uberBlack: profile.uber_black || false,
-        uberXxl: profile.uber_xxl || false,
-        uberComfort: profile.uber_comfort || false,
-        uberX: profile.uber_x || false,
-        uberXShare: profile.uber_x_share || false,
-
-        emailVerified: profile.email_verified || false,
-        phoneVerified: profile.phone_verified || false,
-        profileComplete: profile.profile_complete || false,
-        createdAt: profile.created_at
-      },
-      vehicle: vehicle ? {
-        id: vehicle.id,
-        driverProfileId: vehicle.driver_profile_id,
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        seatbelts: vehicle.seatbelts,
-        isPrimary: vehicle.is_primary
-      } : null
-    });
+    res.json(driverProfileResponse(profile, vehicle, req.auth.sessionId));
 
   } catch (err) {
     matrixLog.error({
@@ -1317,6 +1098,10 @@ router.put('/profile', requireAuth, async (req, res) => {
     const userId = req.auth.userId;
     const updates = req.body;
 
+    if (!updates || !validSettingsRevision(updates.expectedSettingsRevision)) {
+      return res.status(400).json({ error: 'settings_revision_required', message: 'Reload saved settings before saving changes.' });
+    }
+
     // Get existing profile
     const profile = await db.query.driver_profiles.findFirst({
       where: eq(driver_profiles.user_id, userId)
@@ -1327,6 +1112,11 @@ router.put('/profile', requireAuth, async (req, res) => {
         error: 'PROFILE_NOT_FOUND',
         message: 'Driver profile not found'
       });
+    }
+
+    if (profile.settings_revision !== updates.expectedSettingsRevision) {
+      return res.status(409).json({ error: 'settings_conflict', settingsRevision: profile.settings_revision,
+        message: 'Your settings changed elsewhere. Reload and re-apply your change.' });
     }
 
     // Build update object
@@ -1378,6 +1168,15 @@ router.put('/profile', requireAuth, async (req, res) => {
     if (updates.prefAssist !== undefined) profileUpdates.pref_assist = updates.prefAssist;
     if (updates.prefShared !== undefined) profileUpdates.pref_shared = updates.prefShared;
 
+    if (updates.selectedServices !== undefined) {
+      if (!validateSelectedServices(updates.selectedServices, { ...profile, ...profileUpdates })) {
+        return res.status(400).json({ error: 'INVALID_SELECTED_SERVICES', message: 'Select the services you want to provide from your eligible vehicle types.' });
+      }
+      profileUpdates.selected_services = [...updates.selectedServices];
+    } else if (profile.selected_services && !validateSelectedServices(profile.selected_services, { ...profile, ...profileUpdates })) {
+      return res.status(400).json({ error: 'INVALID_SELECTED_SERVICES', message: 'Update your selected services to match the vehicle eligibility changes.' });
+    }
+
     // Legacy tier fields (backward compatibility)
     if (updates.tierBlack !== undefined) profileUpdates.uber_black = updates.tierBlack;
     if (updates.tierXl !== undefined) profileUpdates.uber_xxl = updates.tierXl;
@@ -1416,6 +1215,8 @@ router.put('/profile', requireAuth, async (req, res) => {
       normalizeAddressPart(profileUpdates[field]) !== normalizeAddressPart(profile[field]));
 
     if (addressFieldsChanged) {
+      Object.assign(profileUpdates, { home_lat: null, home_lng: null,
+        home_formatted_address: null, home_timezone: null });
       // Build complete address from updates + existing profile data
       const addressToGeocode = {
         address1: (updates.address1?.trim() || profile.address_1),
@@ -1429,11 +1230,12 @@ router.put('/profile', requireAuth, async (req, res) => {
       // Geocode address (non-blocking - don't fail update if geocoding fails)
       try {
         const geocodeResult = await geocodeAddress(addressToGeocode);
-        if (geocodeResult) {
-          profileUpdates.home_lat = geocodeResult.lat;
-          profileUpdates.home_lng = geocodeResult.lng;
-          profileUpdates.home_formatted_address = geocodeResult.formattedAddress;
-          profileUpdates.home_timezone = geocodeResult.timezone;
+        const coordinates = normalizeCoordinates(geocodeResult?.lat, geocodeResult?.lng);
+        if (coordinates) {
+          profileUpdates.home_lat = coordinates.lat;
+          profileUpdates.home_lng = coordinates.lng;
+          profileUpdates.home_formatted_address = geocodeResult.formattedAddress || null;
+          profileUpdates.home_timezone = geocodeResult.timezone || null;
           matrixLog.info({
             category: 'AUTH',
             action: 'PROFILE_GEOCODE',
@@ -1449,89 +1251,96 @@ router.put('/profile', requireAuth, async (req, res) => {
         }, `Re-geocoding failed (non-fatal): ${geoErr.message}`);
       }
 
-      // Re-lookup market based on new city
-      const newCity = updates.city?.trim() || profile.city;
-      try {
-        const [marketData] = await db
-          .select({
-            market_anchor: platform_data.market_anchor,
-            region_type: platform_data.region_type,
-          })
-          .from(platform_data)
-          .where(and(
-            eq(platform_data.city, newCity),
-            eq(platform_data.platform, 'uber')
-          ))
-          .limit(1);
+      // An explicit work-market choice wins over address-derived defaults.
+      if (!Object.hasOwn(profileUpdates, 'market')) {
+        // Re-lookup market based on new city
+        const newCity = updates.city?.trim() || profile.city;
+        try {
+          const [marketData] = await db
+            .select({
+              market_anchor: platform_data.market_anchor,
+              region_type: platform_data.region_type,
+            })
+            .from(platform_data)
+            .where(and(
+              eq(platform_data.city, newCity),
+              eq(platform_data.platform, 'uber')
+            ))
+            .limit(1);
 
-        if (marketData?.market_anchor) {
-          profileUpdates.market = marketData.market_anchor;
-          matrixLog.info({
+          if (marketData?.market_anchor) {
+            profileUpdates.market = marketData.market_anchor;
+            matrixLog.info({
+              category: 'AUTH',
+              action: 'PROFILE_MARKET_UPDATE',
+              location: 'auth.js:updateProfile',
+            }, `Market updated: ${marketData.market_anchor} (${marketData.region_type})`);
+          }
+        } catch (marketErr) {
+          matrixLog.warn({
             category: 'AUTH',
-            action: 'PROFILE_MARKET_UPDATE',
+            action: 'PROFILE_MARKET_FAIL',
             location: 'auth.js:updateProfile',
-          }, `Market updated: ${marketData.market_anchor} (${marketData.region_type})`);
+          }, `Market re-lookup failed (non-fatal): ${marketErr.message}`);
         }
-      } catch (marketErr) {
-        matrixLog.warn({
-          category: 'AUTH',
-          action: 'PROFILE_MARKET_FAIL',
-          location: 'auth.js:updateProfile',
-        }, `Market re-lookup failed (non-fatal): ${marketErr.message}`);
       }
     }
 
-    // Update profile
-    await db.update(driver_profiles)
-      .set(profileUpdates)
-      .where(eq(driver_profiles.user_id, userId));
-    // Unsaved analyzer defaults inherit compatible profile preferences; a saved
-    // ruleset remains untouched. Invalidate this instance's token cache.
+    // Validate the entire vehicle before either record can change. No invented
+    // year/model is written for incomplete setup; the driver finishes that setup.
+    const vehicleUpdates = {};
+    if (updates.vehicle !== undefined) {
+      if (!updates.vehicle || typeof updates.vehicle !== 'object' || Array.isArray(updates.vehicle)) {
+        return res.status(400).json({ error: 'INVALID_VEHICLE' });
+      }
+      for (const key of ['year', 'seatbelts']) {
+        if (updates.vehicle[key] === undefined) continue;
+        const value = updates.vehicle[key];
+        const valid = key === 'year' ? Number.isInteger(value) && value >= 1900 && value <= new Date().getFullYear() + 2
+          : Number.isInteger(value) && value >= 1 && value <= 20;
+        if (!valid) return res.status(400).json({ error: 'INVALID_VEHICLE', field: key });
+        vehicleUpdates[key] = value;
+      }
+      for (const key of ['make', 'model']) {
+        if (updates.vehicle[key] === undefined) continue;
+        if (typeof updates.vehicle[key] !== 'string' || !updates.vehicle[key].trim()) {
+          return res.status(400).json({ error: 'INVALID_VEHICLE', field: key });
+        }
+        vehicleUpdates[key] = updates.vehicle[key].trim();
+      }
+      if (updates.vehicle.color !== undefined) {
+        if (updates.vehicle.color !== null && typeof updates.vehicle.color !== 'string') return res.status(400).json({ error: 'INVALID_VEHICLE', field: 'color' });
+        vehicleUpdates.color = updates.vehicle.color?.trim() || null;
+      }
+    }
+
+    const canonical = await withDriverSettingsLock(req.auth, async tx => {
+      const [current] = await tx.select().from(driver_profiles).where(eq(driver_profiles.user_id, userId)).limit(1);
+      if (current?.settings_revision !== updates.expectedSettingsRevision) {
+        throw new MainRunAdmissionError(409, 'settings_conflict', 'Your settings changed elsewhere. Reload and re-apply your change.',
+          { settingsRevision: current?.settings_revision });
+      }
+      const vehicles = await tx.select().from(driver_vehicles).where(and(
+        eq(driver_vehicles.driver_profile_id, profile.id), eq(driver_vehicles.is_primary, true), eq(driver_vehicles.is_active, true),
+      )).limit(2);
+      if (vehicles.length > 1) throw new MainRunAdmissionError(409, 'multiple_primary_vehicles', 'Your primary vehicle needs review before saving.');
+      let vehicle = vehicles[0] ?? null;
+      if (updates.vehicle !== undefined) {
+        if (vehicle) {
+          [vehicle] = await tx.update(driver_vehicles).set({ ...vehicleUpdates, updated_at: new Date() })
+            .where(eq(driver_vehicles.id, vehicle.id)).returning();
+        } else {
+          if (!['year', 'make', 'model', 'seatbelts'].every(key => Object.hasOwn(vehicleUpdates, key))) {
+            throw new MainRunAdmissionError(400, 'INVALID_VEHICLE', 'Year, make, model and seatbelts are required for a new vehicle.');
+          }
+          [vehicle] = await tx.insert(driver_vehicles).values({ ...vehicleUpdates, driver_profile_id: profile.id, is_primary: true, is_active: true }).returning();
+        }
+      }
+      const [saved] = await tx.update(driver_profiles).set({ ...profileUpdates, settings_revision: current.settings_revision + 1 })
+        .where(and(eq(driver_profiles.user_id, userId), eq(driver_profiles.settings_revision, updates.expectedSettingsRevision))).returning();
+      return driverProfileResponse(saved, vehicle, req.auth.sessionId);
+    });
     invalidateUser(userId);
-
-    // 2026-02-13: Update or INSERT vehicle if provided
-    // Google OAuth users may not have a vehicle record yet, so check first
-    if (updates.vehicle) {
-      const existingVehicle = await db.query.driver_vehicles.findFirst({
-        where: and(
-          eq(driver_vehicles.driver_profile_id, profile.id),
-          eq(driver_vehicles.is_primary, true)
-        )
-      });
-
-      if (existingVehicle) {
-        // Update existing vehicle record
-        const vehicleUpdates = {};
-        if (updates.vehicle.year) vehicleUpdates.year = updates.vehicle.year;
-        if (updates.vehicle.make) vehicleUpdates.make = updates.vehicle.make.trim();
-        if (updates.vehicle.model) vehicleUpdates.model = updates.vehicle.model.trim();
-        if (updates.vehicle.color !== undefined) vehicleUpdates.color = updates.vehicle.color?.trim() || null;
-        if (updates.vehicle.seatbelts) vehicleUpdates.seatbelts = updates.vehicle.seatbelts;
-        vehicleUpdates.updated_at = new Date();
-
-        await db.update(driver_vehicles)
-          .set(vehicleUpdates)
-          .where(eq(driver_vehicles.id, existingVehicle.id));
-      } else {
-        // No vehicle record exists — create one (e.g., Google OAuth user completing profile)
-        await db.insert(driver_vehicles).values({
-          driver_profile_id: profile.id,
-          year: updates.vehicle.year || new Date().getFullYear(),
-          make: updates.vehicle.make?.trim() || '',
-          model: updates.vehicle.model?.trim() || '',
-          color: updates.vehicle.color?.trim() || null,
-          seatbelts: updates.vehicle.seatbelts || 4,
-          is_primary: true
-        });
-        matrixLog.info({
-          category: 'AUTH',
-          connection: 'DB',
-          action: 'VEHICLE_CREATE',
-          tableName: 'DRIVER_VEHICLES',
-          location: 'auth.js:updateProfile',
-        }, `Created new vehicle record for user ${profile.user_id.substring(0, 8)}`);
-      }
-    }
 
     matrixLog.info({
       category: 'AUTH',
@@ -1541,10 +1350,12 @@ router.put('/profile', requireAuth, async (req, res) => {
 
     res.json({
       ok: true,
-      message: 'Profile updated successfully'
+      message: 'Profile updated successfully',
+      ...canonical,
     });
 
   } catch (err) {
+    if (err instanceof MainRunAdmissionError) return res.status(err.status).json({ error: err.code, message: err.message, ...err.details });
     matrixLog.error({
       category: 'AUTH',
       action: 'PROFILE_UPDATE_FAIL',
@@ -1571,6 +1382,7 @@ router.post('/logout', requireAuth, async (req, res) => {
       .set({
         session_id: null,
         current_snapshot_id: null,
+        current_main_run_id: null,
         updated_at: new Date()
       })
       .where(and(eq(users.user_id, userId), eq(users.session_id, req.auth.sessionId)));
@@ -1846,7 +1658,7 @@ router.post('/google/exchange', async (req, res) => {
             .set({ phone: null, phone_verified: false })
             .where(eq(driver_profiles.id, activeProfile.id));
           await tx.update(users)
-            .set({ session_id: null, current_snapshot_id: null, updated_at: new Date() })
+            .set({ session_id: null, current_snapshot_id: null, current_main_run_id: null, updated_at: new Date() })
             .where(eq(users.user_id, activeProfile.user_id));
         }
       });
@@ -1865,42 +1677,10 @@ router.post('/google/exchange', async (req, res) => {
     const newSessionId = crypto.randomUUID();
     const now = new Date();
 
-    const existingUser = await db.query.users.findFirst({
-      where: eq(users.user_id, activeProfile.user_id)
-    });
-
-    if (existingUser) {
-      await db.update(users)
-        .set({
-          session_id: newSessionId,
-          current_snapshot_id: null,
-          session_start_at: now,
-          last_active_at: now,
-          updated_at: now
-        })
-        .where(eq(users.user_id, activeProfile.user_id));
-    } else {
-      await db.insert(users).values({
-        user_id: activeProfile.user_id,
-        session_id: newSessionId,
-        current_snapshot_id: null,
-        session_start_at: now,
-        last_active_at: now,
-        created_at: now,
-        updated_at: now
-      });
-    }
+    const login = await db.transaction(tx => createDriverSession(tx, activeProfile.user_id, newSessionId, now));
 
     // 7. Generate app token
     const token = await generateAuthToken(activeProfile.user_id, activeProfile.email, newSessionId);
-
-    // 8. Fetch vehicle for response (may be null for new Google users)
-    const vehicle = await db.query.driver_vehicles.findFirst({
-      where: and(
-        eq(driver_vehicles.driver_profile_id, activeProfile.id),
-        eq(driver_vehicles.is_primary, true)
-      )
-    });
 
     matrixLog.info({
       category: 'AUTH',
@@ -1914,62 +1694,7 @@ router.post('/google/exchange', async (req, res) => {
       token,
       isNewUser: !profile, // Let client know this is a new sign-up
       passwordRevoked, // 2026-09-10: true when an unproven password was revoked on Google link
-      user: {
-        userId: activeProfile.user_id,
-        email: activeProfile.email
-      },
-      profile: {
-        id: activeProfile.id,
-        userId: activeProfile.user_id,
-        firstName: activeProfile.first_name,
-        lastName: activeProfile.last_name,
-        nickname: activeProfile.driver_nickname || activeProfile.first_name,
-        email: activeProfile.email,
-        phone: activeProfile.phone,
-        address1: activeProfile.address_1,
-        address2: activeProfile.address_2,
-        city: activeProfile.city,
-        stateTerritory: activeProfile.state_territory,
-        zipCode: activeProfile.zip_code,
-        country: activeProfile.country,
-        market: activeProfile.market,
-        ridesharePlatforms: activeProfile.rideshare_platforms || [],
-        ...economicPreferencesForApi(activeProfile),
-        homeLat: activeProfile.home_lat,
-        homeLng: activeProfile.home_lng,
-        homeTimezone: activeProfile.home_timezone,
-        homeFormattedAddress: activeProfile.home_formatted_address,
-        eligEconomy: activeProfile.elig_economy ?? true,
-        eligXl: activeProfile.elig_xl || false,
-        eligXxl: activeProfile.elig_xxl || false,
-        eligComfort: activeProfile.elig_comfort || false,
-        eligLuxurySedan: activeProfile.elig_luxury_sedan || false,
-        eligLuxurySuv: activeProfile.elig_luxury_suv || false,
-        attrElectric: activeProfile.attr_electric || false,
-        attrGreen: activeProfile.attr_green || false,
-        attrWav: activeProfile.attr_wav || false,
-        attrSki: activeProfile.attr_ski || false,
-        attrCarSeat: activeProfile.attr_car_seat || false,
-        prefPetFriendly: activeProfile.pref_pet_friendly || false,
-        prefTeen: activeProfile.pref_teen || false,
-        prefAssist: activeProfile.pref_assist || false,
-        prefShared: activeProfile.pref_shared || false,
-        marketingOptIn: activeProfile.marketing_opt_in || false,
-        termsAccepted: activeProfile.terms_accepted || false,
-        emailVerified: activeProfile.email_verified || false,
-        phoneVerified: activeProfile.phone_verified || false,
-        profileComplete: activeProfile.profile_complete || false,
-        createdAt: activeProfile.created_at
-      },
-      vehicle: vehicle ? {
-        id: vehicle.id,
-        driverProfileId: vehicle.driver_profile_id,
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        seatbelts: vehicle.seatbelts,
-        isPrimary: vehicle.is_primary
-      } : null
+      ...driverProfileResponse(login.profile, login.vehicle, newSessionId)
     });
   } catch (err) {
     matrixLog.error({

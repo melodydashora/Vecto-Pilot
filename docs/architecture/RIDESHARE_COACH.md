@@ -1,290 +1,193 @@
-# RIDESHARE_COACH.md — Rideshare Coach System
-
-> **Trust Tier:** Canonical
-> **Last Updated:** 2026-04-14
-> **Consolidates:** AI_RIDESHARE_COACH.md, AI_COACH_VOICE_PLAN.md, ai-coach-enhancements.md, coach-inbox.md
-
-## Naming Convention
-
-| Context | Name | Example |
-|---------|------|---------|
-| Product name (prose) | **Rideshare Coach** | "The Rideshare Coach helps drivers..." |
-| Canonical doc | `RIDESHARE_COACH.md` | This file |
-| Component file | `RideshareCoach.tsx` | `client/src/components/RideshareCoach.tsx` |
-| Component name | `RideshareCoach` | `export default function RideshareCoach` |
-| DAL file | `rideshare-coach-dal.js` | `server/lib/ai/rideshare-coach-dal.js` |
-| Class name | `RideshareCoachDAL` | `export class RideshareCoachDAL` |
-| Singleton export | `rideshareCoachDAL` | `import { rideshareCoachDAL } from ...` |
-| Server chat routes | `chat.js` | `server/api/chat/chat.js` |
-| Log prefix | `[RideshareCoach]` | All console.log/error/warn in coach code |
-| UI heading | `"Rideshare Coach"` | Header and welcome text shown to driver |
-| Model role | `AI_COACH` | `callModelStream('AI_COACH')` — unchanged (external config) |
-| API routes | `/api/coach/*` | Stable client contract — unchanged |
-| DB tables | `coach_conversations`, `user_intel_notes`, `coach_system_notes` | Schema-level — unchanged |
-
----
-
-## 1. Architecture Overview
-
-The Rideshare Coach is a conversational assistant powered by Gemini 3.1 Pro Preview with streaming, Google Search, vision/OCR, and 11 action tag types for database writes. It operates through a context-injection model: every chat request loads the driver's full situation (location, strategy, briefing, venues, history, notes, market intel) and injects it as a system prompt.
-
-### Data Flow
-
-```
-User message → requireAuth → snapshot resolution →
-  rideshare-coach-dal.js loads 11 data sources in parallel →
-  formatContextForPrompt() builds ~1200-line system prompt →
-  callModelStream('AI_COACH') → SSE streaming to client →
-  action tag parsing + Zod validation + DB writes →
-  done event with conversation_id + action results
-```
-
-### Key Model Role
-
-- **Role:** `AI_COACH` (model-registry.js)
-- **Model:** Gemini 3.1 Pro Preview
-- **Capabilities:** Streaming, Google Search tool, vision/OCR, 1M token context
-
----
-
-## 2. Components
-
-### Frontend: `client/src/components/RideshareCoach.tsx` (~885 lines)
-
-- Streaming message display with delta chunk appending
-- Attachment support (file picker → base64 → sent to chat API)
-- Notes panel (slide-out right panel with pin, delete, edit, optimistic UI)
-- Voice integration: mic input via `useSpeechRecognition`, TTS output via `useTTS`
-- Voice toggle persisted to localStorage (`COACH_VOICE_ENABLED`)
-- Client-side `handleEventDeactivation()` regex fallback (duplicates server-side parsing — see Known Issues)
-- Validation error banner for action parsing failures
-
-### Server: `server/api/chat/chat.js` (1,572 lines)
-
-- `POST /api/chat` — main streaming chat endpoint
-- System prompt construction (~1200 lines of injected context)
-- Action tag parsing (JSON envelope + legacy inline formats)
-- Conversation persistence to `coach_conversations` table
-- SSE protocol with `done` event carrying `actions_result`
-- `POST /api/chat/deactivate-event` — manual event deactivation
-
-### Server: `server/lib/ai/rideshare-coach-dal.js` (2,575 lines)
-
-Data access layer loading 11 parallel context sources:
-1. Header snapshot (location, weather, air, timezone, holiday)
-2. Latest strategy (consolidated + immediate)
-3. Comprehensive briefing (events, traffic, news, weather API, airport, closures)
-4. Smart Blocks (top 6 venue recommendations)
-5. Feedback (venue + strategy votes)
-6. Venue data (catalog entries)
-7. Actions (session dwell times)
-8. Market intelligence (market position, knowledge base)
-9. User notes (coach's saved observations)
-10. Driver profile (identity, vehicle, preferences, eligibility)
-11. Offer history (Siri ride offer analysis log)
-
-### Server: `server/api/rideshare-coach/` (4 files, 1,153 lines)
-
-| File | Lines | Purpose |
-|------|-------|---------|
-| `validate.js` | 423 | Zod schemas for all 11 action tag types |
-| `notes.js` | 448 | Notes CRUD: list, get, create, update, delete, pin, restore, stats |
-| `schema.js` | 261 | Schema metadata exposure for coach context |
-| `index.js` | 21 | Route mount |
-
----
-
-## 3. Action Tag System
-
-| Tag | DB Table | Purpose |
-|-----|----------|---------|
-| `SAVE_NOTE` | `user_intel_notes` | Save observation about driver |
-| `DEACTIVATE_EVENT` | `discovered_events` | Mark event as cancelled/ended |
-| `REACTIVATE_EVENT` | `discovered_events` | Un-cancel event |
-| `ADD_EVENT` | `discovered_events` | Add driver-reported event |
-| `UPDATE_EVENT` | `discovered_events` | Update event details |
-| `DEACTIVATE_NEWS` | `news_deactivations` | Hide news item for user |
-| `SYSTEM_NOTE` | `coach_system_notes` | Developer feedback from coach |
-| `ZONE_INTEL` | `zone_intelligence` | Crowd-sourced zone knowledge |
-| `MARKET_INTEL` | `market_intelligence` | Market-specific patterns |
-| `SAVE_VENUE_INTEL` | `venue_catalog` | Staging spots, GPS dead zones |
-| `COACH_MEMO` | `coach_memos` table (Neon/Helium) + `docs/coach-inbox.md` (best-effort) | 2026-05-12: DB-backed for Cloud Run survivability; workspace materializes new rows into the file via `npm run pull-coach-memos`. Plan: `docs/review-queue/PLAN_coach-memo-db-route-and-workspace-pull-2026-05-12.md`. |
-
-**Parsing:** JSON envelope (preferred) or legacy inline `[TAG: {...}]` format.
-**Validation:** Zod schemas in `validate.js` before any DB write.
-**Execution:** After stream completes, parsed actions are validated and executed. Results reported in SSE `done` event.
-
----
-
-## 4. Voice Integration Status
-
-**Status:** Implemented (2026-04-13). Uses proven hooks from Translation feature.
-
-| Component | Implementation | Status |
-|-----------|---------------|--------|
-| Speech-to-text (STT) | `useSpeechRecognition` hook (browser Web Speech API, free) | Working |
-| Text-to-speech (TTS) | `useTTS` hook → `POST /api/tts` → OpenAI TTS-1-HD | Working |
-| Voice toggle | `voiceEnabled` state, persisted to localStorage | Working |
-| Mic button | Green/red toggle with pulse animation during recording | Working |
-| Auto-speak | TTS fires after streaming completes (action tags stripped) | Working |
-
-**Dead code:** `_startVoiceChat()` and related functions (~180 lines) use the OpenAI Realtime API WebSocket approach. These are prefixed with `_` and never called. The hook-based approach was chosen for lower cost, proven reliability, and zero new dependencies.
-
-**Architecture decision:** Hooks reuse > OpenAI Realtime API. STT is free (browser), TTS is ~$0.015/1K chars vs ~$0.06/min for Realtime. See AI_COACH_VOICE_PLAN.md §8 for full comparison.
-
----
-
-## 5. Coach Personality
-
-- Warm, friendly, conversational — like a supportive expert friend
-- Match user energy: quick answers for quick questions, thorough for planning
-- Precise with venue data (exact names, addresses, times)
-- Rideshare domain expertise: Gravity Model, deadhead risk, Ant vs Sniper modes, platform algorithms
-- Memory: saves notes via `[SAVE_NOTE]`, references them naturally across sessions
-- Super User Enhancement: elevated context for `melodydashora@gmail.com`
-
----
-
-## 6. Known Issues
-
-| # | Issue | Severity | Source |
-|---|-------|----------|--------|
-| ~~1~~ | ~~Client `handleEventDeactivation()` duplicates server-side parsing~~ | ~~Medium~~ | RESOLVED — removed in Part 3 |
-| ~~9~~ | ~~`validateEvent.js` import path wrong in rideshare-coach-dal.js~~ | ~~Critical~~ | RESOLVED — `../../events/` → `../events/` (latent since Pass 1 Issue B, exposed by rename) |
-| 2 | No context size estimation — all data injected unconditionally | Medium | AI_RIDESHARE_COACH.md |
-| 3 | No conversation summarization — thread history grows unbounded | Medium | AI_RIDESHARE_COACH.md |
-| 4 | Action tag extraction is regex-based, can break on malformed JSON | Low | AI_RIDESHARE_COACH.md |
-| 5 | No per-user chat rate limit (global only) | Low | AI_RIDESHARE_COACH.md |
-| ~~6~~ | ~~\~180 lines of dead OpenAI Realtime API code in RideshareCoach.tsx~~ | ~~Low~~ | RESOLVED — dead code removed, file reduced from ~885 to 822 lines (2026-04-14) |
-| ~~10~~ | ~~NEAR events sorted distance-only, ignoring impact~~ | ~~P1~~ | RESOLVED — composite score `capacity/(1+distance)` in consolidator.js. Memory #106 |
-| COACH-H7 | No streaming fallback — Gemini outage kills coach entirely | High | DOC_DISCREPANCIES.md |
-| COACH-H8 | Conversation saves are fire-and-forget with swallowed errors | High | DOC_DISCREPANCIES.md |
-
----
-
-## 7. TODO — Hardening Work
-
-- [x] Remove client-side `handleEventDeactivation()` duplicate (server handles it) — DONE 2026-04-14
-- [ ] Add context size estimation — truncate least-important sections if over budget
-- [ ] Conversation summarization — compress old messages into summaries
-- [ ] Per-user chat rate limit — 30 messages/hour
-- [x] Remove dead OpenAI Realtime API code (~180 lines) — DONE 2026-04-14
-- [ ] Add streaming fallback for Gemini outages (COACH-H7)
-- [ ] Fix fire-and-forget conversation saves (COACH-H8)
-- [ ] Unify voice and text on same model (Gemini Live when available)
-
----
-
-## 8. Coach Pipeline End-to-End Audit
-
-See `COACH_PIPELINE_AUDIT.md` for a comprehensive, line-numbered audit mapping the architecture, route structure, client entrypoint, prompt injection, action parsing, validation, persistence, and duplicate risk checks.
-
----
-
-## 9. Coach Inbox Items
-
-The Rideshare Coach writes memos to `docs/coach-inbox.md` via `[COACH_MEMO]` action tags. Key pending items as of 2026-04-14:
-
-- Zombie Snapshot & Auth Boundary Fix (high)
-- Briefing pipeline mocked news data (high)
-- AI-Gatekeeper Architecture proposal
-- Translation API debugging
-- Live Context Payload for Chat (bypass snapshot)
-- Market Exit Warning ("Code 6")
-- PredictHQ Event Integration
-
-See `docs/coach-inbox.md` for the full queue with details.
-
----
-
-## 9. COACH-V1 — Hands-Free Driver Safety Mode (2026-05-04)
-
-**Problem:** Drivers need to ask Coach questions while driving — "best TSA entrance," "where to go right now," etc. — without taking their eyes off the road. The original move of Coach into its own tab was specifically to enable auto-activation of listening mode.
-
-**Lifecycle (locked):** Tab enter (`/co-pilot/coach` mounts `<RideshareCoach />`) = listening starts. Tab leave (component unmount) = mic listening stops via cleanup. **Note:** TTS playback intentionally persists across tab navigation until it finishes naturally or the user explicitly stops it.
-
-### 9.1. Auto-Activate Microphone
-
-`RideshareCoach.tsx` mount effect uses the `TranslationOverlay.tsx` pre-flight pattern:
-
-```tsx
-useEffect(() => {
-  if (localStorage.getItem(STORAGE_KEYS.COACH_AUTO_LISTEN_ENABLED) === 'false') return;
-  if (!micSupported || !navigator.mediaDevices?.getUserMedia) return;
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(stream => { stream.getTracks().forEach(t => t.stop()); startMic('en'); })
-    .catch(() => { /* manual toggle remains as fallback */ });
-  return () => stopMic();  // cleanup on tab leave
-}, []);
-```
-
-**Default:** ON. Persisted opt-out via `localStorage[COACH_AUTO_LISTEN_ENABLED] = 'false'`.
-
-### 9.2. Voice Stop Phrases
-
-| Phrase | Behavior | Conditions |
-|---|---|---|
-| `"stop and output"` (and 7 variants: `i'm done`, `i am done`, `send it`, `go ahead`, `this feature is complete`, `i've completed my thoughts`, `that's all`) | Stops mic + auto-sends the **phrase-stripped** transcript (existing 300ms-delay-then-send pattern) | Only fires while listening AND not speaking (feedback-loop guard) |
-| `"stop replying"` (and 7 variants: `stop and listen`, `stop talking`, `be quiet`, `hold on`, `pause`, `i'm done`, `i am done`) | Cancels Coach TTS only; mic remains listening | Only fires while speaking |
-
-Regex: Expanded natural-language grammar — word-boundary, case-insensitive substring match. Once-per-session via guard refs (`stopAndOutputFiredRef`, `stopReplyingFiredRef`) so transcript ticks don't re-fire.
-
-### 9.3. Continuous Listen-While-TTS + Feedback-Loop Guard
-
-Mic stays on during TTS playback. To prevent Coach's own voice (via speaker bleed) from triggering false transcript-driven actions, the "stop and output" effect is gated on `!isSpeaking`. During TTS, only the "stop replying" path is active. When TTS ends, `clearTranscript()` wipes any captured noise so the driver's next utterance starts fresh.
-
-### 9.4. Auto-Resume After TTS
-
-`wasSpeakingRef` tracks the speaking→silent transition. On natural TTS end (`isSpeaking` flips false), the effect clears transcript and re-calls `startMic('en')` if not already listening — no tap required.
-
-### 9.5. Driver-Safety Stop Bar
-
-`client/src/components/coach/CoachStopBar.tsx` — full-width band, **80px tall (`h-20`)**, sticky-top of the Coach card. Implements a 3-state design:
-- **IDLE (Green):** "TAP TO START COACH" (mobile-safe bootstrap)
-- **LISTENING (Blue):** "COACH IS LISTENING..."
-- **SPEAKING (Red):** "STOP" (halts TTS playback)
-
-```tsx
-<CoachStopBar isSpeaking={isSpeaking} onStop={stopSpeak} />
-```
-
-**Sizing rationale:** 2-3× standard primary CTA sizing because the safety constraint trumps visual hierarchy ("tiny right now could mean the difference between an accident and an accident"). Always-rendered ensures predictable peripheral-vision location.
-
-### 9.6. TTS Pause Reduction
-
-`cleanTextForTTS.ts` now collapses paragraph breaks (`\n{2,}`) to **comma-space** (`, `) instead of period-space (`. `). Period at paragraph boundary creates ~600ms TTS pause; comma is ~150ms — substantial flow improvement for hands-free playback. Period-level pause control is engine-limited (OpenAI TTS doesn't honor SSML; iOS speechSynthesis is OS-driven), so periods within sentences are unchanged.
-
-### 9.7. Storage Key
-
-```ts
-COACH_AUTO_LISTEN_ENABLED: 'vecto_coach_auto_listen_enabled'  // default: true
-```
-
-### 9.8. Out of Scope (Logged for Follow-Up)
-
-- **AI_COACH model upgrade:** unlimited tokens at HIGH thinking, web-search verification capability for fact-grounding (e.g., the TomTom 10-mile-radius accuracy concern). Server-side only — `model-registry.js` + `chat.js` system prompt.
-- **Refresh-token / 24h sessions:** existing 2h hard limit is unchanged.
-- **Headphone-required messaging:** mic-while-TTS feedback-loop is mitigated via filter, not eliminated. Documented for ops.
-
-### 9.9. Plan Reference
-
-Phase 0 plan: `docs/review-queue/PLAN_coach_handsfree_voice-2026-05-04.md`. Locked decisions in §3 of that plan (Q1–Q10).
-
----
-
-## Key Files
-
-| File | Lines | Purpose |
-|------|-------|---------|
-| `client/src/components/RideshareCoach.tsx` | ~1000 (was 885; +122 for COACH-V1) | React chat component + voice + hands-free |
-| `client/src/components/coach/CoachStopBar.tsx` | 50 | Driver-safety STOP button (NEW 2026-05-04) |
-| `client/src/utils/coach/cleanTextForTTS.ts` | 25 | TTS text preprocessing (paragraph→comma) |
-| `client/src/hooks/useSpeechRecognition.ts` | 218 | Browser Web Speech API wrapper |
-| `client/src/hooks/useTTS.ts` | 220 | OpenAI TTS + iOS speechSynthesis fallback |
-| `client/src/hooks/coach/useCoachAudioState.ts` | 132 | Coach audio state aggregator |
-| `server/api/chat/chat.js` | 1,572 | Chat endpoint, streaming, action parsing |
-| `server/lib/ai/rideshare-coach-dal.js` | 2,575 | Data access layer (11 sources) |
-| `server/api/rideshare-coach/validate.js` | 423 | Zod validation for all action types |
-| `server/api/rideshare-coach/notes.js` | 448 | Notes CRUD API |
-| `server/api/rideshare-coach/schema.js` | 261 | Schema metadata for coach context |
-| `docs/coach-inbox.md` | ~120 | Coach → Claude Code memo queue |
+# Rideshare Coach pipeline
+
+Source review: September 29, 2026, on `main` based at `6e983906` plus the current
+working changes. This is the canonical source map for Coach. It describes the
+repository and synthetic regression results; it is not a deployment, microphone,
+provider-availability or live-database certification.
+
+The Coach reduces the driver's need to read or type while driving. Typed and
+spoken questions reach the same backend reasoning/action path. The Offer Analyzer
+owns offer decisions; Coach explains saved evidence, preferences and strategy.
+It must not run a second live offer analyzer or silently change a driver's rules.
+
+## Entry points and ownership
+
+| Entry | Source and responsibility |
+|---|---|
+| `/co-pilot/coach` | [CoachPage](../../client/src/pages/co-pilot/CoachPage.tsx) obtains authenticated identity and current CoPilot context; [RideshareCoach](../../client/src/components/RideshareCoach.tsx) composes chat, notes, input and audio. |
+| `POST /api/chat` | [chat.js](../../server/api/chat/chat.js), authenticated canonical brain and action executor. Body `userId` is not authorization. |
+| `GET /api/chat/context/:snapshotId` | Same router, snapshot ownership required. `summary=1` returns source progress and timestamps without a model call. |
+| `POST /api/chat/voice-turns` | Same router, authenticated capture of live transcripts; validates bounded turns and snapshot ownership. |
+| `/api/coach/{notes,memos,schema,validate}` | [rideshare-coach/index.js](../../server/api/rideshare-coach/index.js) mounts authenticated note CRUD, memo receipts, schema metadata and validation. |
+| `/api/coach-live/session` | [coach-live.js](../../server/api/chat/coach-live.js), GPT-Live WebRTC setup. |
+| `/api/realtime/token`, `/api/gemini-live/token` | [realtime.js](../../server/api/chat/realtime.js), [gemini-live.js](../../server/api/chat/gemini-live.js), retained selectable live voice transports. |
+| `/api/tts` | [tts.js](../../server/api/chat/tts.js) → [tts-handler.js](../../server/lib/external/tts-handler.js), authenticated speech synthesis. |
+
+[bootstrap/routes.js](../../server/bootstrap/routes.js) establishes mounts.
+`chat-context.js` exists on disk but is not mounted by this registry; it is not the
+current client progress endpoint. `/api/chat/send` remains a legacy client constant,
+not the mounted canonical chat handler. The `/api/chat/notes` routes and richer
+`/api/coach/notes` CRUD coexist; the notes UI uses the latter. They are separate
+entry points, not two executors for one generated action.
+
+## Typed or delegated question: full trace
+
+1. [useCoachChat](../../client/src/hooks/coach/useCoachChat.ts) admits one request
+   synchronously, posts message/history/attachments and snapshot/strategy IDs,
+   and fences asynchronous results when identity, snapshot or component changes.
+   [useCanonicalVoiceSend](../../client/src/hooks/coach/useCanonicalVoiceSend.ts)
+   shares admission for classic microphone input. Live delegation uses
+   [askCoachBrain](../../client/src/lib/voice/coachBrain.ts).
+2. `POST /api/chat` checks authentication and request shape before writes/provider
+   use. Conversation IDs are UUIDs; histories and attachment arrays are validated.
+   Snapshot resolution is explicit snapshot ID, then strategy ID resolution, then
+   latest snapshot owned by the authenticated user. Supplied IDs pass ownership
+   checks before context loads.
+3. [RideshareCoachDAL.getCompleteContext](../../server/lib/ai/rideshare-coach-dal.js)
+   reads seven snapshot-scoped branches concurrently: snapshot, Strategy,
+   Briefing, Smart Blocks, feedback, venue data and actions. Once the snapshot is
+   available, it reads owner profile/active primary vehicle, notes, recent offers,
+   historical Coach decisions, prior memos/system notes, longitudinal patterns,
+   and market intelligence. `getOfferRules` rereads current saved owner rules.
+4. `formatContextForPrompt` supplies readable summaries. Snapshot wind retains
+   its measured unit; Briefing numeric temperature/wind, display units and zero
+   values are preserved. [formatCoachSourceContext](../../server/lib/ai/coach-source-context.js)
+   includes complete saved snapshot/Briefing/Strategy/offer/rules/profile/vehicle
+   records as data, with explicit provenance and missing/failed-state cautions.
+   Strategy is read independently of Briefing; a Briefing read failure must not
+   erase saved Strategy. A current Strategy requires its source receipt to match
+   the supplied Briefing generation.
+5. An owned saved snapshot's timezone supersedes the browser copy. A missing or
+   invalid timezone on that saved row returns `TIMEZONE_REQUIRED`. The existing
+   no-saved-snapshot branch can use the browser timezone hint, but has no verified
+   saved location context. This review did not introduce before-GPS coaching.
+6. The route adds snapshot history, zone intelligence and applicable operator
+   context, saves the user's message, and builds the prompt plus conversation
+   history. These history writes are awaited and failures are reported.
+7. [callModelStream](../../server/lib/ai/adapters/index.js) routes `AI_COACH` to
+   [coach-responses.js](../../server/lib/ai/adapters/coach-responses.js), the OpenAI
+   Responses transport with web search, attachments and a bounded timeout.
+   The [model registry](../../server/lib/ai/model-registry.js) pins the actual
+   brain and voice roles; no role pins changed during this review.
+8. `readCoachResponse` streams deltas and requires a completed provider response.
+   Incomplete, failed, truncated and empty responses cannot execute actions.
+   [parse-actions.js](../../server/api/chat/parse-actions.js) extracts supported
+   action tags and reports malformed JSON; [validate.js](../../server/api/rideshare-coach/validate.js)
+   validates each action before the DAL write.
+9. `executeActions` awaits writes and checks their results. Parse/write failures
+   become explicit not-saved text in the final response and persisted history.
+   Automatic tip extraction is skipped for answer-only turns and explicit
+   `SAVE_NOTE` turns; otherwise it counts only confirmed inserts.
+10. Assistant history is saved, then the SSE `done` payload carries confirmed
+    `response_text`, `conversation_id`, action results/memo receipts and any
+    persistence error. [readCoachEvents](../../client/src/utils/coach/readCoachEvents.ts)
+    and [confirmedReply](../../client/src/utils/coach/confirmedReply.ts) reject
+    incomplete success. Action refresh/confirmation and speech use the completed
+    result, not an early streamed claim that something was saved.
+
+Disconnect cancellation spans context loading through completion. No later action,
+learning insert or assistant-history write begins after cancellation is observed.
+A database write already in flight may complete; cancellation is not transaction
+rollback and callers must check saved receipts before retrying an uncertain action.
+The close listener is removed in the route's final cleanup.
+
+## Saved Analyzer evidence boundary
+
+Owner offer history is bounded to 20 nonremoved rows; pattern reads cover an
+owner-scoped 180-day window. Both can contain legacy evidence. Current owner rules
+carry source state (`saved`, `profile_defaults`, `unavailable`, `read_failed`,
+`invalid`), version, stored hash, update time, stored schema version and effective
+hash/config. Raw stored-hash verification and migrated effective rules are different
+receipts. Selected services are choices; eligibility is capability.
+
+The current rules do not prove what produced an older offer. Coach must compare
+that offer's receipt, preserve its original Analyzer decision, distinguish driver
+outcome from AI evidence, and identify legacy rows whose current decision contract
+is unverified. Saved Phase 2 evidence is reread on later turns; Coach does not wait
+for the MAIN Strategy pipeline to finish to discuss available saved information.
+
+Architecture documents and registry source text are not runtime Analyzer rules.
+`LOG_OFFER_DECISION`, `UPDATE_OFFER_DECISION` and `BACKFILL_OFFER_INTEL` tags are
+recognized only to return explicit not-saved errors; their mutations are retired.
+Driver outcome and override controls remain in the Analyzer API/UI. Coach changes
+here do not send Analyzer records into MAIN Snapshot, Briefing, Strategist or Venue
+Planner prompts. See [Offer Analyzer](OFFER_ANALYZER.md#15-coach-integration).
+
+## Supported actions and durable evidence
+
+| Tags | Write destination |
+|---|---|
+| `SAVE_NOTE` | `user_intel_notes` |
+| `DEACTIVATE_EVENT`, `REACTIVATE_EVENT`, `ADD_EVENT`, `UPDATE_EVENT` | `discovered_events` through validated DAL methods |
+| `DEACTIVATE_NEWS` | Owner-scoped `news_deactivations` |
+| `SYSTEM_NOTE` | `coach_system_notes` |
+| `ZONE_INTEL`, `MARKET_INTEL`, `SAVE_VENUE_INTEL` | `zone_intelligence`, `market_intelligence`, `venue_catalog` |
+| `COACH_MEMO` | `coach_memos` primary receipt, plus a best-effort workspace inbox append |
+
+[saveMemoWithReceipt](../../server/api/rideshare-coach/memos.js) requires a returned
+row with the receipt fields before reporting success. The inbox append is not the
+primary persistence claim. `saveCoachMemo` currently sets deployment rows to `new`
+and workspace rows to `exported`; a failed workspace append can therefore require
+manual recovery from its confirmed DB row. This review did not change that status
+policy or treat a filesystem append as proof of a DB save.
+
+[The memo export runbook](../COACH_RUNBOOK.md) describes the corrected operator
+script, supplied database selector, concurrency lock and retry receipts. Do not
+copy driver conversations or private memo contents into Git documentation.
+
+## Voice and speech lifecycle
+
+[useVoiceSession](../../client/src/hooks/coach/useVoiceSession.ts) owns the voice
+engine, wake listener, session epoch, brain cancellation, transcript queue and
+conversation ID. A session retains the credential/snapshot that owns its captured
+transcripts. Account change/unmount ends capture; late callbacks cannot append to
+a replacement account. Flushes use the original credential and may be refused if
+that session was revoked. They never relabel old words under a new credential.
+
+| Mode | Path and boundaries |
+|---|---|
+| Classic | Browser speech recognition → canonical chat → `useTTS`. Driver voice admission and confirmed completion control speech. |
+| GPT-Live | [GptLiveSession](../../client/src/lib/voice/GptLiveSession.ts) → `/api/coach-live/session`; transcript fragments and delegated requests go to the canonical brain. Continuation reconciliation sets `answerOnly` to prevent duplicate actions/learning. |
+| Gemini Live | [GeminiLiveSession](../../client/src/lib/voice/GeminiLiveSession.ts) → `/api/gemini-live/token` → Google Live session; backend questions use `askCoachBrain`. |
+| OpenAI Realtime | [RealtimeSession](../../client/src/lib/voice/RealtimeSession.ts) → `/api/realtime/token` → WebRTC; backend questions use `askCoachBrain`. |
+
+Live connection handlers authenticate and verify supplied snapshot ownership
+before minting. Legacy token handlers validate identifiers, use authenticated
+identity, mark credentials `no-store`, bound requests and propagate disconnect.
+A malformed successful OpenAI response without a credential is an upstream failure.
+Gemini mint passes the signal to the installed SDK and restores the Maps key even
+if SDK construction fails. Cancellation cannot promise reversal of provider usage
+already accepted upstream.
+
+Transcript fragments are not proof of completed audio playback. GPT-Live stores
+`voice_transcript_fragment`; retained engines store `voice_transcript`. Brain
+messages are separate records with their own provenance. The queue is bounded and
+best effort, with no retry that could disturb the active voice session.
+
+`askCoachBrain` checks cancellation before requests, completions and callbacks,
+and releases its parent abort listener after each turn. Stop aborts pending token
+and SDP requests; late microphone permission cannot restart capture. Provider-ended
+sessions stop wake listening and brain work. TTS generation cancellation reaches
+the SDK; stale audio callbacks/pollers cannot restart browser fallback speech or
+mark a replacement utterance idle. Already-authorized classic TTS may continue
+across ordinary page navigation, preserving Melody's existing preference; explicit
+Stop and account replacement end the old audio ownership.
+
+## Review evidence and limits
+
+September 29 regressions cover saved timezone precedence; malformed chat shape;
+post-disconnect actions and learning; exact weather units/zero values; voice account
+switch/unmount; late mic permission/mint; stale TTS callbacks; provider mint validation
+and cancellation; Gemini constructor restoration; and memo export concurrency/retry.
+The complete Coach backend suite plus dedicated SDK/export tests passed (203 tests
+across 13 suites); eight client suites passed (51 tests). Sources:
+[tests/coach](../../tests/coach), [client integration](../../tests/client/coach-integration.test.tsx),
+[voice lifecycle](../../tests/client/coach-voice-lifecycle.test.tsx),
+[audio cancellation](../../tests/client/coach-audio-cancellation.test.tsx),
+[brain cancellation](../../tests/client/coach-brain-cancellation.test.tsx).
+
+These use synthetic provider, hardware, filesystem and database fixtures. This
+review did not run the gateway, migrations, paid provider requests, an application
+DB write, deployment or live driving/audio acceptance. Historical audit counts and
+old model descriptions were removed rather than presented as today's facts.
+[Removal receipt](removals/2026-09-29-coach-doc-consolidation.md).

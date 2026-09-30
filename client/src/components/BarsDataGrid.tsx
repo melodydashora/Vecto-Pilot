@@ -3,7 +3,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Navigation, MapPin, DollarSign } from "lucide-react";
+import { Clock, Navigation, MapPin } from "lucide-react";
 import { openNavigation } from "@/utils/co-pilot-helpers";
 
 interface BusinessHours {
@@ -17,7 +17,7 @@ interface BusinessHours {
 // NOTE: isOpen is calculated server-side using the correct venue timezone
 // Client-side recalculation was removed because browser timezone != venue timezone
 // This caused late-night venues to show as closed in production
-// Server calculates isOpen in venue-enrichment.js using Intl.DateTimeFormat with snapshot timezone
+// Server calculates isOpen in venue-enrichment.js using Intl.DateTimeFormat with venue timezone
 
 // 2026-01-05: TERMINOLOGY FIX
 // This interface represents a "Venue Candidate" (tactical opportunity) - NOT a "Smart Block"
@@ -45,21 +45,13 @@ interface BarsTableProps {
   blocks?: VenueCandidate[];
 }
 
-// Convert value metrics to price tier display
-function getPriceTier(venue: VenueCandidate): { tier: string; color: string; priority: number } {
+// This component receives Strategy's heuristic grade, not a Google price level.
+function getGradeTier(venue: VenueCandidate): { tier: string; color: string; priority: number } {
   const grade = venue.valueGrade;
-  const valuePerMin = venue.valuePerMin || 0;
-
-  if (grade === "A" && valuePerMin > 0.8) {
-    return { tier: "$$$$$", color: "text-amber-600", priority: 5 };
-  } else if (grade === "A" && valuePerMin > 0.6) {
-    return { tier: "$$$$", color: "text-amber-600", priority: 4 };
-  } else if (grade === "A" || (grade === "B" && valuePerMin > 0.5)) {
-    return { tier: "$$$", color: "text-amber-700", priority: 3 };
-  } else if (grade === "B") {
-    return { tier: "$$", color: "text-gray-700", priority: 2 };
-  }
-  return { tier: "$", color: "text-gray-500", priority: 1 };
+  if (grade === 'A') return { tier: 'Grade A', color: 'text-amber-600', priority: 3 };
+  if (grade === 'B') return { tier: 'Grade B', color: 'text-gray-700', priority: 2 };
+  if (grade === 'C') return { tier: 'Grade C', color: 'text-gray-500', priority: 1 };
+  return { tier: 'Unrated', color: 'text-gray-500', priority: 0 };
 }
 
 // Extract closing time from business hours
@@ -68,6 +60,7 @@ function getClosingInfo(businessHours: BusinessHours | string | undefined): stri
 
   // Handle string format (condensed hours like "Mon-Fri: 6AM-10PM" or "5:00 PM - 2:00 AM")
   if (typeof businessHours === "string") {
+    if (/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i.test(businessHours)) return null;
     // Try to extract closing time from string (the time after the dash/hyphen)
     const closeMatch = businessHours.match(/[-–]\s*(\d{1,2}(?::\d{2})?\s*[AP]M)/i);
     if (closeMatch) return closeMatch[1];
@@ -101,18 +94,8 @@ function getTodayHours(businessHours: BusinessHours | string | undefined): strin
     return businessHours.todayHours;
   }
 
-  // Try to find today in weekdayTexts
-  if (businessHours.weekdayTexts && Array.isArray(businessHours.weekdayTexts)) {
-    const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
-    const todayEntry = businessHours.weekdayTexts.find((t) =>
-      t.toLowerCase().startsWith(today.toLowerCase())
-    );
-    if (todayEntry) {
-      // Extract just the hours part
-      const hoursMatch = todayEntry.match(/:\s*(.+)$/);
-      return hoursMatch ? hoursMatch[1] : todayEntry;
-    }
-  }
+  // A viewer's browser timezone cannot choose a venue's local weekday.
+  // The server must supply todayHours when that local day is known.
 
   return null;
 }
@@ -197,42 +180,26 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     return isBevenue && isNotCommon;
   });
 
-  // Filter out closed venues AND venues with unknown/missing hours
-  // Only show venues that are explicitly open (isOpen === true) AND have business hours
-  const openBars = bars.filter((bar) => {
-    // Must be explicitly open
-    if (bar.isOpen !== true) return false;
-
-    // Must have business hours
-    if (!bar.businessHours) return false;
-
-    // If businessHours is a string, it must not be empty
-    if (typeof bar.businessHours === 'string') {
-      return bar.businessHours.trim().length > 0;
-    }
-
-    // If businessHours is an object, must have todayHours or weekdayTexts
-    const hours = bar.businessHours as BusinessHours;
-    return !!(hours.todayHours || (hours.weekdayTexts && hours.weekdayTexts.length > 0));
-  });
+  // Current provider open status remains useful without an optional hours string.
+  const openBars = bars.filter(bar => bar.isOpen === true);
 
   if (openBars.length === 0) {
     return null;
   }
 
-  // Sort by price tier ($$$$$ first), then by distance
+  // Sort by the existing Strategy heuristic grade, then by distance
   const sortedBars = [...openBars].sort((a, b) => {
-    const tierA = getPriceTier(a);
-    const tierB = getPriceTier(b);
+    const tierA = getGradeTier(a);
+    const tierB = getGradeTier(b);
 
-    // Primary sort: price tier descending
+    // Primary sort: grade descending
     if (tierB.priority !== tierA.priority) {
       return tierB.priority - tierA.priority;
     }
 
     // Secondary sort: distance ascending
-    const distA = a.estimatedDistanceMiles || 999;
-    const distB = b.estimatedDistanceMiles || 999;
+    const distA = a.estimatedDistanceMiles ?? Infinity;
+    const distB = b.estimatedDistanceMiles ?? Infinity;
     return distA - distB;
   });
 
@@ -244,14 +211,13 @@ export default function BarsTable({ blocks }: BarsTableProps) {
           <span className="text-xs text-gray-500">({sortedBars.length} venues)</span>
         </div>
         <div className="flex items-center gap-1 text-xs text-gray-500">
-          <DollarSign className="w-3 h-3" />
-          <span>Sorted by earnings potential</span>
+          <span>Sorted by strategy grade</span>
         </div>
       </div>
 
       <div className="space-y-2">
         {sortedBars.map((bar, idx) => {
-          const priceTier = getPriceTier(bar);
+          const priceTier = getGradeTier(bar);
           const closingTime = getClosingInfo(bar.businessHours);
           const todayHours = getTodayHours(bar.businessHours);
           const categoryColor = getCategoryColor(bar.name, bar.category);

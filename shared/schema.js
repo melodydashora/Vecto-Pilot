@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   user_id: uuid("user_id").primaryKey().defaultRandom(), // Links to driver_profiles
   session_id: uuid("session_id"),                        // Current session UUID
   current_snapshot_id: uuid("current_snapshot_id"),      // Their ONE active snapshot
+  current_main_run_id: uuid("current_main_run_id"),      // Explicit Continue admission, separate from auth/shift identities
   // Session timing (sliding window)
   session_start_at: timestamp("session_start_at", { withTimezone: true }).notNull().defaultNow(), // When session began
   last_active_at: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),     // Last activity (60 min TTL from here)
@@ -297,7 +298,7 @@ export const venue_catalog = pgTable("venue_catalog", {
 
   // Lookup & Deduplication
   normalized_name: text("normalized_name"),  // Lowercase alphanumeric for fuzzy matching
-  coord_key: text("coord_key").unique(),     // "33.123456_-96.123456" (6 decimal precision)
+  coord_key: text("coord_key"),              // Location lookup only; distinct places can share a point
 
   // Multi-Role Tagging (replaces single venue_type from venue_cache)
   venue_types: jsonb("venue_types").default(sql`'[]'`), // ['bar', 'event_host', 'restaurant', 'stadium']
@@ -340,6 +341,7 @@ export const venue_catalog = pgTable("venue_catalog", {
   record_status: text("record_status").default('stub').notNull(),
 }, (table) => [
   // Indexes for efficient lookups
+  index('idx_venue_catalog_coord_key').on(table.coord_key),
   index('idx_venue_catalog_normalized_name').on(table.normalized_name),
   index('idx_venue_catalog_city_state').on(table.city, table.state),
   index('idx_venue_catalog_market_slug').on(table.market_slug),
@@ -372,6 +374,30 @@ export const triad_jobs = pgTable("triad_jobs", {
   status: text("status").notNull().default('queued'), // queued|running|ok|error
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Durable intent and immutable settings receipt. A run is admitted BEFORE fresh
+// location collection; binding its one snapshot does not create another intent.
+export const main_run_admissions = pgTable('main_run_admissions', {
+  run_id: uuid('run_id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull().references(() => users.user_id, { onDelete: 'restrict' }),
+  session_id: uuid('session_id').notNull(),
+  request_id: uuid('request_id').notNull(),
+  settings_revision: integer('settings_revision').notNull(),
+  rules_version: integer('rules_version').notNull(),
+  rules_hash: text('rules_hash').notNull(),
+  configuration: jsonb('configuration').notNull(),
+  snapshot_id: uuid('snapshot_id').unique().references(() => snapshots.snapshot_id, { onDelete: 'restrict' }),
+  status: text('status').notNull().default('awaiting_snapshot'),
+  error_code: text('error_code'),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  unique('main_run_admissions_intent_unique').on(table.user_id, table.session_id, table.request_id),
+  index('main_run_admissions_user_created_idx').on(table.user_id, table.created_at),
+  check('main_run_admissions_settings_revision_check', sql`${table.settings_revision} >= 1`),
+  check('main_run_admissions_rules_version_check', sql`${table.rules_version} >= 1`),
+  check('main_run_admissions_status_check', sql`${table.status} IN ('awaiting_snapshot', 'running', 'complete', 'failed')`),
+]);
 
 export const http_idem = pgTable("http_idem", {
   key: text("key").primaryKey(),
@@ -834,6 +860,8 @@ export const us_market_cities = market_cities;
 export const driver_profiles = pgTable("driver_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'restrict' }),
+  settings_revision: integer('settings_revision').notNull().default(1), // One atomic profile + primary vehicle revision
+  selected_services: jsonb('selected_services'), // Explicit work selection; null means not yet chosen, never derived from eligibility
 
   // Personal information
   first_name: text("first_name").notNull(),

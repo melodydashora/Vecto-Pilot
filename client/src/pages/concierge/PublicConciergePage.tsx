@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Loader2, MapPin, Sparkles } from 'lucide-react';
 import { AskConcierge } from '@/components/concierge/AskConcierge';
@@ -12,14 +12,22 @@ interface LocalContext { lat: number; lng: number; timezone: string }
 export default function PublicConciergePage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
-  const [context, setContext] = useState<LocalContext | null>(null);
+  const [readyToken, setReadyToken] = useState<string | null>(null);
+  const ready = !!token && readyToken === token;
+  const [savedContext, setSavedContext] = useState<{ token: string; data: LocalContext } | null>(null);
+  const context = savedContext && savedContext.token === token ? savedContext.data : null;
+  const tokenRef = useRef(token); tokenRef.current = token;
+  const locatingRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setReady(false);
+    setReadyToken(null);
+    setSavedContext(null);
+    locatingRef.current?.abort();
+    locatingRef.current = null;
+    setLocating(false);
     setError(null);
     async function openBookmark() {
       let current = token;
@@ -38,34 +46,70 @@ export default function PublicConciergePage() {
       if (!response.ok) throw new Error('This bookmark is unavailable. Start a new concierge below.');
       if (!cancelled) {
         try { localStorage.setItem(BOOKMARK_KEY, current); } catch { /* No account or location is stored here. */ }
-        setReady(true);
+        setReadyToken(current);
       }
     }
     void openBookmark().catch(err => { if (!cancelled) setError(err.message); });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; locatingRef.current?.abort(); };
   }, [token, navigate]);
 
   const locate = useCallback(() => {
-    if (!token || !ready) return;
+    if (!token || !ready || locatingRef.current) return;
     setError(null);
-    setContext(null);
+    setSavedContext(null);
     if (!navigator.geolocation) { setError('This browser does not support location.'); return; }
+    const scopeToken = token;
+    const controller = new AbortController();
+    locatingRef.current = controller;
+    const current = () => tokenRef.current === scopeToken && locatingRef.current === controller && !controller.signal.aborted;
     setLocating(true);
+    const finish = () => {
+      clearTimeout(timer);
+      if (locatingRef.current === controller) { locatingRef.current = null; setLocating(false); }
+    };
+    const timer = window.setTimeout(() => {
+      if (current()) { setError('Location timed out. Try precise location again.'); finish(); }
+      controller.abort();
+    }, 25000);
+    controller.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
     navigator.geolocation.getCurrentPosition(async position => {
+      if (!current()) return;
       try {
         const fix = validateGpsFix({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy, timestamp: position.timestamp });
-        if (!fix.ok) throw new Error(fix.error);
-        const response = await fetch(API_ROUTES.CONCIERGE.PUBLIC_CONTEXT(token, fix.lat, fix.lng), { credentials: 'omit' });
+        if (fix.ok === false) throw new Error(fix.error);
+        const response = await fetch(API_ROUTES.CONCIERGE.PUBLIC_CONTEXT(scopeToken, fix.lat, fix.lng), { credentials: 'omit', signal: controller.signal });
         const data = await response.json();
+        if (!current()) return;
         if (!response.ok || !data.timezone) throw new Error(data.error || 'Could not resolve your local time.');
-        setContext({ lat: fix.lat, lng: fix.lng, timezone: data.timezone });
-      } catch (err) { setError(err instanceof Error ? err.message : 'Location could not be resolved.'); }
-      finally { setLocating(false); }
+        new Intl.DateTimeFormat('en', { timeZone: data.timezone });
+        if (data.lat !== fix.lat || data.lng !== fix.lng) throw new Error('Location changed while resolving local time. Try again.');
+        setSavedContext({ token: scopeToken, data: { lat: data.lat, lng: data.lng, timezone: data.timezone } });
+      } catch (err) {
+        if (current()) setError(err instanceof Error ? err.message : 'Location could not be resolved.');
+      } finally { if (current()) finish(); }
     }, () => {
-      setLocating(false);
+      if (!current()) return;
       setError('Allow precise location in your browser, then try again.');
+      finish();
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   }, [token, ready]);
+
+  useEffect(() => {
+    let active = true;
+    let permission: PermissionStatus | null = null;
+    const changed = () => {
+      if (active && permission?.state === 'denied') {
+        locatingRef.current?.abort(); locatingRef.current = null;
+        setSavedContext(null); setLocating(false);
+        setError('Location permission was removed. Enable precise location to continue.');
+      }
+    };
+    void navigator.permissions?.query({ name: 'geolocation' }).then(result => {
+      if (!active) return;
+      permission = result; permission.addEventListener('change', changed); changed();
+    }).catch(() => { /* The actual GPS result governs browsers without permission queries. */ });
+    return () => { active = false; permission?.removeEventListener('change', changed); };
+  }, [token]);
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-slate-950 p-3 sm:p-6">

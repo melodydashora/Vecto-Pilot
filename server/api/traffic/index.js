@@ -15,15 +15,16 @@
 
 import { Router } from 'express';
 import { db } from '../../db/drizzle.js';
-import { discovered_traffic } from '../../../shared/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { discovered_traffic, snapshots, main_run_admissions } from '../../../shared/schema.js';
+import { eq, desc, and } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 
 const router = Router();
 
 // All routes here require authentication — incident data is per-snapshot and
-// scoped to a device. We return data only for the specific snapshot the client
-// requests; the caller is responsible for owning that snapshot.
+// scoped to the authenticated owner. A Strategy consumption reads its verified
+// original observation; historical reads do not need the current GPS pointer.
 router.use(requireAuth);
 
 /**
@@ -62,10 +63,37 @@ router.get('/incidents', async (req, res) => {
   }
 
   try {
+    const owned = await verifySnapshotOwnership(snapshot_id, req.auth.userId);
+    if (!owned.ok) return res.status(owned.status).json({ success: false, ...owned.body });
+    const requested = owned.snapshot;
+    let sourceId = snapshot_id;
+    if (requested.permissions?.context_kind === 'strategy_context') {
+      sourceId = requested.permissions.context_source_snapshot_id;
+      const generation = requested.permissions.context_source_generation_token;
+      if (typeof sourceId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceId)) {
+        return res.status(409).json({ success: false, error: 'traffic_source_unverified' });
+      }
+      const [admission] = await db.select().from(main_run_admissions).where(and(
+        eq(main_run_admissions.snapshot_id, snapshot_id), eq(main_run_admissions.user_id, req.auth.userId),
+        eq(main_run_admissions.session_id, requested.session_id),
+      )).limit(1);
+      if (!generation || admission?.configuration?.context_source?.snapshot_id !== sourceId ||
+          admission.configuration.context_source.briefing_generation_token !== generation) {
+        return res.status(409).json({ success: false, error: 'traffic_source_unverified' });
+      }
+      const [source] = await db.select().from(snapshots).where(and(
+        eq(snapshots.snapshot_id, sourceId), eq(snapshots.user_id, req.auth.userId),
+        eq(snapshots.session_id, requested.session_id),
+      )).limit(1);
+      if (!source || source.lat !== requested.lat || source.lng !== requested.lng ||
+          new Date(source.created_at).getTime() !== new Date(requested.created_at).getTime()) {
+        return res.status(409).json({ success: false, error: 'traffic_source_unverified' });
+      }
+    }
     const rows = await db
       .select()
       .from(discovered_traffic)
-      .where(eq(discovered_traffic.snapshot_id, snapshot_id))
+      .where(eq(discovered_traffic.snapshot_id, sourceId))
       .orderBy(desc(discovered_traffic.fetched_at));
 
     // Shape rows for client consumption — match the PlottableTrafficIncident
@@ -89,6 +117,7 @@ router.get('/incidents', async (req, res) => {
       success: true,
       incidents,
       snapshot_id,
+      source_snapshot_id: sourceId,
       count: incidents.length,
       fetched_at: rows.length > 0 ? rows[0].fetched_at : null,
     });

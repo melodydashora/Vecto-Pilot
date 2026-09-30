@@ -17,6 +17,7 @@ import { API_ROUTES } from '@/constants/apiRoutes';
 import { useQueryClient } from '@tanstack/react-query';
 // 2026-04-10: Close SSE connections on logout to prevent orphaned EventSource connections
 import { closeAllSSE } from '@/utils/co-pilot-helpers';
+import { handleRequestAuthFailure } from '@/lib/session-auth';
 
 interface AuthContextValue extends AuthState {
   completeLogin: (data: AuthApiResponse) => void;
@@ -24,7 +25,7 @@ interface AuthContextValue extends AuthState {
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (data: Partial<DriverProfile>) => Promise<{
+  updateProfile: (data: Partial<DriverProfile>, expectedSettingsRevision: number) => Promise<{
     success: boolean; error?: string; confirmedProfile?: AuthApiResponse; profileRefreshFailed?: boolean;
   }>;
 }
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Invalidates late profile/login responses after an auth transition.
   const authGeneration = useRef(0);
   const profileRequest = useRef(0);
+  const observedToken = useRef<string | null>(null);
   // Settings can unmount while its PUT is pending. Admission belongs to the
   // surviving provider, and stays per owner across a token rollover: an old
   // authenticated write may still be committing after the new session begins.
@@ -55,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     token: null,
     isAuthenticated: false,
     isLoading: true,
+    sessionCheckError: null,
   });
 
   const clearSessionData = useCallback(() => {
@@ -69,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearAuth = useCallback(() => {
     authGeneration.current += 1;
+    observedToken.current = null;
     clearSessionData();
     localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
     setState({ user: null, profile: null, vehicle: null, token: null,
@@ -79,9 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const completeLogin = useCallback((data: AuthApiResponse) => {
     if (!data.token) throw new Error('Login succeeded but no token was returned');
     authGeneration.current += 1;
+    observedToken.current = data.token;
     clearSessionData();
     localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-    setState({ user: data.user || null, profile: data.profile || null,
+    setState({ sessionId: data.sessionId ?? null, user: data.user || null, profile: data.profile || null,
       vehicle: data.vehicle || null, token: data.token,
       isAuthenticated: true, isLoading: false });
   }, [clearSessionData]);
@@ -100,10 +105,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [clearAuth]);
 
   useEffect(() => {
-    const handleAuthError = () => { void logout(); };
+    const handleAuthError = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.token !== undefined && (detail.token !== observedToken.current ||
+          detail.token !== localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN))) return;
+      // A server rejection already ends authorization. Clear locally without
+      // making a second authenticated request with the rejected credential.
+      if (detail?.status === 401 && typeof detail.token === 'string') clearAuth();
+      else void logout();
+    };
     window.addEventListener('vecto-auth-error', handleAuthError);
     return () => window.removeEventListener('vecto-auth-error', handleAuthError);
-  }, [logout]);
+  }, [logout, clearAuth]);
 
   const fetchProfile = useCallback(async (token: string, expectedOwnerId?: string) => {
     if (localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== token) return;
@@ -113,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       request === profileRequest.current &&
       localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === token;
     if (!isCurrent()) return;
+    setState(prev => ({ ...prev, isLoading: !prev.isAuthenticated, sessionCheckError: null }));
     try {
       const response = await fetch(API_ROUTES.AUTH.ME, {
         headers: {
@@ -135,12 +149,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error('Profile response did not confirm the requested account.');
         }
         setState({
+          sessionId: data.sessionId ?? null,
           user: data.user || null,
           profile: data.profile || null,
           vehicle: data.vehicle || null,
           token,
           isAuthenticated: true,
           isLoading: false,
+          sessionCheckError: null,
         });
         return data;
       } else {
@@ -148,16 +164,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // A transient readback failure is not an expired session. Preserve the
         // mounted editor/draft and let updateProfile report verification failure.
         if (response.status === 401) clearAuth();
-        else setState(prev => ({ ...prev, isLoading: false }));
+        else setState(prev => ({ ...prev, isLoading: false,
+          sessionCheckError: 'We could not check your saved session. Check your connection and try again.' }));
       }
     } catch (error) {
       console.error('[auth] Failed to fetch profile:', error);
-      if (isCurrent()) setState(prev => ({ ...prev, isLoading: false }));
+      if (isCurrent()) setState(prev => ({ ...prev, isLoading: false,
+        sessionCheckError: 'We could not check your saved session. Check your connection and try again.' }));
     }
   }, [clearAuth]);
 
   useEffect(() => {
     const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    observedToken.current = token;
     if (token) {
       setState(prev => ({ ...prev, token }));
       void fetchProfile(token);
@@ -166,6 +185,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return () => { authGeneration.current += 1; };
   }, [fetchProfile]);
+
+  useEffect(() => {
+    const syncSession = (event: StorageEvent) => {
+      if (event.storageArea !== localStorage ||
+          (event.key !== null && event.key !== STORAGE_KEYS.AUTH_TOKEN)) return;
+      // Events can arrive after a newer change. Read the current stored token
+      // and clear the previous owner's state before hydrating the new session.
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      if (token === observedToken.current) return;
+      observedToken.current = token;
+      authGeneration.current += 1;
+      profileRequest.current += 1;
+      clearSessionData();
+      setState({ user: null, profile: null, vehicle: null, token,
+        isAuthenticated: false, isLoading: token !== null });
+      if (token) void fetchProfile(token);
+    };
+    window.addEventListener('storage', syncSession);
+    return () => window.removeEventListener('storage', syncSession);
+  }, [clearSessionData, fetchProfile]);
+
+  // A suspended browser can resume before its network connection is ready.
+  // Retry interrupted initial verification; an already verified session keeps
+  // its current data and needs no foreground login or workflow restart.
+  useEffect(() => {
+    if (!state.sessionCheckError || state.isAuthenticated || state.isLoading || !state.token) return;
+    const token = state.token;
+    let retrying = false;
+    const retry = () => {
+      if (retrying) return;
+      retrying = true;
+      void fetchProfile(token).finally(() => { retrying = false; });
+    };
+    const visible = () => { if (document.visibilityState === 'visible') retry(); };
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      window.removeEventListener('online', retry);
+      window.removeEventListener('focus', retry);
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, [state.sessionCheckError, state.isAuthenticated, state.isLoading, state.token, fetchProfile]);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     const generation = ++authGeneration.current;
@@ -224,7 +286,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.token, state.user?.userId, fetchProfile]);
 
-  const updateProfile = useCallback(async (data: Partial<DriverProfile>) => {
+  const updateProfile = useCallback(async (data: Partial<DriverProfile>, expectedSettingsRevision: number) => {
     const userId = state.user?.userId;
     if (!state.token || !userId) {
       return { success: false, error: 'Not authenticated' };
@@ -247,8 +309,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${state.token}`,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, expectedSettingsRevision }),
       });
+
+      if (!isCurrent()) return { success: false, error: 'Your sign-in changed. Review your current settings.' };
+      if (handleRequestAuthFailure(response.status, state.token)) {
+        return { success: false, error: 'Your session ended. Sign in again to continue.' };
+      }
 
       const result: AuthApiResponse = await response.json();
 
@@ -258,10 +325,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: result.message || result.error || 'Update failed' };
       }
 
-      // Return this save's own readback; an unrelated refresh cannot confirm its payload.
-      const confirmedProfile = await fetchProfile(state.token, userId);
-      if (!isCurrent()) return { success: false, error: 'Your sign-in changed. Review your current settings.' };
-      return { success: true, confirmedProfile, profileRefreshFailed: !confirmedProfile };
+      if (result.user?.userId !== userId || result.profile?.userId !== userId || !result.profile?.id ||
+          (result.vehicle != null && result.vehicle.driverProfileId !== result.profile.id) ||
+          !Number.isInteger(result.settingsRevision) || typeof result.sessionId !== 'string' || !result.sessionId ||
+          (state.sessionId != null && result.sessionId !== state.sessionId)) {
+        return { success: false, error: 'Saved settings could not be confirmed. Your draft is preserved; reload your saved setup before continuing.' };
+      }
+      profileRequest.current++;
+      setState(prev => ({ ...prev, profile: result.profile!, vehicle: result.vehicle || null }));
+      return { success: true, confirmedProfile: result };
     } catch (error) {
       console.error('[auth] Update profile error:', error);
       return { success: false, error: 'Network error. Please try again.' };
@@ -269,7 +341,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // A stale request may release only its own admission, never another save.
       if (profileMutations.current.get(userId) === mutation) profileMutations.current.delete(userId);
     }
-  }, [state.token, state.user?.userId, fetchProfile]);
+  }, [state.token, state.user?.userId, state.sessionId]);
 
   // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
   // Without useMemo, every render creates a new object → all consumers re-render → cascade

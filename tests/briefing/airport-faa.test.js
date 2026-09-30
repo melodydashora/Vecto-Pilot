@@ -72,11 +72,13 @@ describe('FAA failure is a Briefing failure before airport model dispatch', () =
     });
   });
 
-  test('accepts verified geographic emptiness without calling FAA or a model', async () => {
+  test('catalog absence remains unknown coverage instead of verified geographic emptiness', async () => {
     findNearbyAirports.mockResolvedValue([]);
     const result = await discoverAirport(args);
-    expect(result.airport_conditions.verifiedEmpty).toBe(true);
-    expect(result.reason).toMatch(/verified/);
+    expect(result.airport_conditions.verifiedEmpty).toBe(false);
+    expect(result.airport_conditions.isFallback).toBe(true);
+    expect(result.airport_conditions.coverage).toBe('unknown');
+    expect(result.reason).toMatch(/catalog.*coverage/i);
     expect(fetchFAA).not.toHaveBeenCalled();
     expect(callModel).not.toHaveBeenCalled();
   });

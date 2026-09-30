@@ -142,58 +142,24 @@ describe('active-time basis flips the denominator', () => {
   });
 });
 
-// Exact legacy Phase-1 prompt strings (pre-2026-06-20 PHASE1_PROMPTS, now only here). The default
-// ruleset must render byte-identically so the live Siri path is unchanged.
-const LEGACY_STANDARD = `Raw JSON only. No markdown/backticks.
-
-Math: total_miles=pickup_mi+ride_mi. total_min=pickup_min+ride_min. per_mile=price/total_miles.
-
-Rules (first match wins):
-1. REJECT if rating visible and <4.85.
-2. REJECT if "Verified" missing.
-3. REJECT if $/mi<0.90.
-4. ACCEPT if $/mi>=0.90, total_min<=20.
-5. ACCEPT if $/mi>=1.10, total_min<=25.
-6. ACCEPT if $/mi>=1.75, total_min<30.
-7. ACCEPT if $/mi>=2.00, total_min 30-40.
-8. ACCEPT if $/mi>=2.00, total_min>40.
-9. REJECT.
-
-reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.
-
-{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"$0.00 0.0mi"}`;
-
-const LEGACY_PREMIUM = `Raw JSON only. No markdown/backticks.
-
-Math: total_miles=pickup_mi+ride_mi. total_min=pickup_min+ride_min. per_mile=price/total_miles.
-
-PREMIUM ride (Comfort/VIP/XL/Black). Higher floor, more time allowed.
-Rules (first match wins):
-1. REJECT if rating visible and <4.85.
-2. REJECT if "Verified" missing.
-3. REJECT if $/mi<1.10.
-4. ACCEPT if $/mi>=1.10, total_min<=25.
-5. ACCEPT if $/mi>=1.40, total_min<=30.
-6. ACCEPT if $/mi>=1.75, total_min<=40.
-7. ACCEPT if $/mi>=2.00, total_min>40.
-8. REJECT.
-
-reason: terse. "$1.21 13.7mi" or "$1.05 18mi low". No sentences.
-
-{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"$0.00 0.0mi"}`;
-
-const LEGACY_SHARE = `Raw JSON only. No markdown/backticks.
-REJECT. Share rides always rejected.
-{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"share"}`;
-
-describe('buildPhase1Prompt is byte-identical to the legacy prompt for the default ruleset', () => {
-  it('standard', () => {
-    expect(buildPhase1Prompt('standard', DEFAULT_RULESET)).toBe(LEGACY_STANDARD);
-  });
-  it('premium', () => {
-    expect(buildPhase1Prompt('premium', DEFAULT_RULESET)).toBe(LEGACY_PREMIUM);
-  });
-  it('share', () => {
-    expect(buildPhase1Prompt('share', DEFAULT_RULESET)).toBe(LEGACY_SHARE);
+// The economic oracle above stays independent of implementation. Prompt text
+// can evolve: the acceptance boundary now requires explicit extraction and
+// judgment fields rather than byte equality with a historical model prompt.
+describe('Phase-1 extraction contract', () => {
+  for (const tier of ['standard', 'premium']) {
+    it(`${tier}: asks for both legs and an explicit judgment rejection`, () => {
+      const prompt = buildPhase1Prompt(tier, DEFAULT_RULESET);
+      const contract = JSON.parse(prompt.trim().split('\n').at(-1));
+      expect(contract).toMatchObject({ price: null, total_miles: null, total_minutes: null,
+        pickup_miles: null, pickup_minutes: null, ride_miles: null, ride_minutes: null,
+        rating: null, product: '', judgment_reject: '', decision: 'NO DATA' });
+      expect(prompt).toContain('Missing/unreadable fields are null');
+      expect(prompt).toContain('Evaluate enabled judgment gates before accepting');
+      expect(prompt).toContain('REJECT if "Verified" missing.');
+      expect(prompt).toContain(tier === 'standard' ? 'REJECT if $/mi<0.90.' : 'REJECT if $/mi<1.10.');
+    });
+  }
+  it('shared rides retain the identity rejection', () => {
+    expect(buildPhase1Prompt('share', DEFAULT_RULESET)).toContain('Share rides always rejected');
   });
 });

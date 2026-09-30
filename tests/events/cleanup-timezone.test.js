@@ -23,7 +23,7 @@ describe('event cleanup executes actual generated SQL in disposable in-memory Po
       CREATE TABLE venue_catalog (venue_id text PRIMARY KEY, timezone text);
       CREATE TABLE discovered_events (
         id text PRIMARY KEY, venue_id text, event_end_date text, event_end_time text,
-        is_active boolean DEFAULT true, deactivated_at timestamptz, updated_at timestamptz
+        is_active boolean DEFAULT true, deactivated_at timestamptz, updated_at timestamptz, deactivated_by text, deactivation_reason text
       );
     `);
   }, 30000);
@@ -48,6 +48,10 @@ describe('event cleanup executes actual generated SQL in disposable in-memory Po
     await event('la-future', 'la', '2026-09-13', '18:00');
     await event('la-ended', 'la', '2026-09-13', '02:00');
     expect(await deactivatePastEvents()).toBe(2);
+    const statement = dialect.sqlToQuery(execute.mock.calls.at(-1)[0]).sql;
+    expect(statement).toContain('de.event_end_date = ei.event_end_date');
+    expect(statement).toContain('de.event_end_time = ei.event_end_time');
+    expect(statement).toContain('de.venue_id IS NOT DISTINCT FROM ei.venue_id');
     expect(error).not.toHaveBeenCalled();
     expect(await activeIds()).toEqual(['la-future']);
   });

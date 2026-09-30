@@ -1,6 +1,6 @@
 import { jest, describe, test, beforeEach, afterAll, expect } from '@jest/globals';
 const log = new Proxy({}, { get: () => jest.fn() });
-jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ briefingLog: log, matrixLog: log, OP: {} }));
+jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ briefingLog: log, matrixLog: log, triadLog: log, OP: {}, tagLog: jest.fn() }));
 const callModel = jest.fn();
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel }));
 jest.unstable_mockModule('../../server/lib/briefing/shared/get-market-for-location.js', () => ({ getMarketForLocation: async () => 'Test Market' }));
@@ -45,7 +45,7 @@ describe('Briefing provider errors remain errors', () => {
     await expect(discoverWeather(args)).rejects.toThrow('invalid current conditions');
   });
   test('successful weather keeps actual current and hourly values', async () => {
-    const payload = { temperature: { degrees: 20 }, weatherCondition: { description: { text: 'Cloudy' } } };
+    const payload = { currentTime: '2026-09-29T12:00:00Z', temperature: { degrees: 20, unit: 'CELSIUS' }, weatherCondition: { description: { text: 'Cloudy' } }, interval: { startTime: '2026-09-29T12:00:00Z' } };
     global.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => payload })
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ forecastHours: [payload] }) });
     const result = await discoverWeather(args);

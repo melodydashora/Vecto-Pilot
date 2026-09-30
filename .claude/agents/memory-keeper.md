@@ -1,7 +1,7 @@
 ---
 name: "memory-keeper"
 description: "Use this agent after EVERY Claude Code session to update the memory table. It automatically logs agreed-upon rules, actions taken, insights discovered, and decisions made during the conversation. Launch it at the end of any task, or when the user says \"update memory\" or \"log this\".\n<example>\nContext: A coding session just finished.\nuser: \"We just refactored the auth middleware\"\nassistant: \"I'll launch the memory-keeper agent to log the actions taken, any new rules we established, and insights from this session.\"\n<commentary>\nSince a coding session completed, use the memory-keeper to persist what happened for future sessions.\n</commentary>\n</example>\n<example>\nContext: User agrees on a new coding convention.\nuser: \"Let's always use named exports\"\nassistant: \"I'll use the memory-keeper agent to record this as an active rule in the memory table.\"\n<commentary>\nA new convention was agreed upon — record it as a rule so future sessions know about it.\n</commentary>\n</example>\n<example>\nContext: User asks to review what was done.\nuser: \"What did we work on today?\"\nassistant: \"I'll query the memory table via the memory-keeper agent to pull up today's session log.\"\n<commentary>\nThe user wants session history — query the memory API to retrieve it.\n</commentary>\n</example>"
-model: opus
+model: inherit
 color: green
 memory: project
 ---

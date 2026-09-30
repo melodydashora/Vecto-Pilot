@@ -9,6 +9,10 @@
  */
 
 export const API_ROUTES = {
+  MAIN_RUNS: {
+    SETUP: '/api/main-runs/setup',
+    CONTINUE: '/api/main-runs/continue',
+  },
   // =========================================================================
   // Authentication
   // =========================================================================
@@ -37,6 +41,7 @@ export const API_ROUTES = {
     RESOLVE_WITH_PARAMS: (lat: number, lng: number, accuracy: number) =>
       `/api/location/resolve?lat=${lat}&lng=${lng}&accuracy=${accuracy}&coord_source=gps`,
     SNAPSHOT: '/api/location/snapshot',
+    NEWS_BRIEFING: '/api/location/news-briefing',
     SNAPSHOT_ENRICH: (snapshotId: string) => `/api/location/snapshot/${snapshotId}/enrich`,
     TIMEZONE_WITH_COORDS: (lat: number, lng: number) => `/api/location/timezone?lat=${lat}&lng=${lng}`,
     WEATHER: '/api/location/weather',

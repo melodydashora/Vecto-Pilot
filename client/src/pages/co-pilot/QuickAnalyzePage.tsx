@@ -62,7 +62,7 @@ export default function QuickAnalyzePage() {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 }));
       if (abort.signal.aborted) return;
       const fix = validateGpsFix({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy, timestamp: position.timestamp });
-      if (!fix.ok) throw new Error(fix.error);
+      if (fix.ok === false) throw new Error(fix.error);
       const body = new FormData();
       body.append('image', file);
       body.append('latitude', fix.lat.toFixed(6));

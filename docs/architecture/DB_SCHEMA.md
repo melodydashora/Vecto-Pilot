@@ -43,10 +43,10 @@
 
 - **Engine:** PostgreSQL 16 (Replit Helium)
 - **Connection:** `DATABASE_URL` env var (auto-injected by Replit)
-- **Dev vs Prod:** Separate Helium instances. Replit switches automatically.
-- **SSL:** `false` for dev, `{ rejectUnauthorized: false }` for prod
+- **Environment selector:** `DATABASE_URL` alone selects the database; never infer shared data/schema or automatic switching from the runtime name. See [database environments](DATABASE_ENVIRONMENTS.md).
+- **TLS:** [connection-config.js](../../server/db/connection-config.js) shares parsed, certificate-verified remote TLS options across pool, LISTEN and migration runner; local connections retain their explicit local transport. See [DB runtime](../../server/db/README.md).
 - **ORM:** Drizzle ORM (TypeScript type-safe)
-- **Schema file:** `shared/schema.js` (2,074 lines)
+- **Schema file:** [shared/schema.js](../../shared/schema.js)
 
 ---
 
@@ -134,7 +134,9 @@
 
 ### `venue_catalog` — Master Venue Database
 
-57 columns including: `venue_id` (UUID PK), `place_id` (unique), `venue_name`, `address`, `lat/lng`, `coord_key` (unique), `normalized_name`, `category`, `venue_types` (jsonb), `is_bar`, `is_event_venue`, `expense_rank`, `google_rating`, `venue_quality_tier`, `business_hours`, `hours_full_week`, `last_known_status`, `record_status`.
+Key columns include `venue_id` (UUID PK), `place_id` (unique), `venue_name`, `address`, `lat/lng`, `coord_key` (nonunique location lookup), `normalized_name`, `category`, `venue_types` (jsonb), `is_bar`, `is_event_venue`, `expense_rank`, `google_rating`, `venue_quality_tier`, `business_hours`, `hours_full_week`, `last_known_status`, `record_status`.
+
+September 29, 2026 source contract: distinct Google place IDs may share an address and coordinate key. [20260929_venue_catalog_colocated_identity.sql](../../migrations/20260929_venue_catalog_colocated_identity.sql) drops only `venue_catalog_coord_key_unique` and adds `idx_venue_catalog_coord_key`; it preserves venue `place_id` uniqueness and `coords_cache.coord_key` uniqueness. The migration was tested only in isolated PGlite and **has not been applied to the app database**. Drain old catalog writers before applying it and start the matching new code afterward: the old `ON CONFLICT(coord_key)` writer requires the removed constraint. [Venue identity documentation](VENUES.md#identity-hours-and-google-contracts) traces the corresponding resolver/write rules and tests.
 
 ### `discovered_events` — Auto-Discovered Events
 
@@ -234,9 +236,9 @@ Key fields: `state`, `provider`, `user_id`, `redirect_uri`, `expires_at`, `creat
 - `market_cities` — Market → city mappings
 - `countries` — Country reference
 - `news_deactivations` — User-hidden news items
-- `offer_intelligence` — Offer Analyzer results (one row per analyzed offer; `user_id`, `ruleset_version`, `ruleset_hash` provenance)
+- `offer_intelligence` — Stored Offer Analyzer results (not every response persists; `user_id`, `ruleset_version`, `ruleset_hash` provenance; reversible removal fields)
 - `offer_rulesets` — per-driver Offer Analyzer ruleset (jsonb v3, versioned + hashed)
-- `offer_outcomes` — what the driver actually did + realized earnings (`total_earned` GENERATED)
+- `offer_outcomes` — separately reported driver action + earnings, with revisioned partial updates (`total_earned` GENERATED)
 - `driver_profiles.shortcut_token / shortcut_token_created_at / shortcut_device_label` — shortcut identity bridge (see docs/architecture/OFFER_ANALYZER.md §11)
 
 ---

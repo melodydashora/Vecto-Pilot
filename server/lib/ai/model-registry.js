@@ -297,69 +297,29 @@ export const MODEL_ROLES = {
   // ==========================
   // 9. SIRI HOOKS (offer_intelligence)
   // ==========================
-  // OFFER_ANALYZER = Phase 1, the SYNCHRONOUS phone-bound verdict for BOTH modalities
-  // (screenshot → vision; OCR text → same model). Melody's hard target (todo #43,
-  // 2026-08-14): screenshot → spoken verdict in < 3 s full trip. Deep reasoning lives
-  // in Phase 2 (OFFER_ANALYZER_DEEP, async) — never put a Pro/thinking model here.
-  //
-  // ⚠️ PINNED, NOT FLOATING: never gemini-flash-latest / *-latest (memory #342: a floating
-  //    alias resolved to an internal build and 404'd in production).
-  //
-  // 2026-08-17 LIVE BENCHMARK (verify-models-live; Melody: "curl and analyze the fastest
-  // vision model that can handle the end user rules"). /v1beta/models listed live; each
-  // candidate run against the REAL buildPhase1VisionPrompt/buildPhase1Prompt rendered
-  // from Melody's dev ruleset, 6 offer cards (UberX Priority + On-the-way, low-rating
-  // REJECT, Share, Comfort ACCEPT, blurry 480px JPEG, NON-offer screenshot), 3 runs each,
-  // temp 0.1, thinking MINIMAL, maxTokens 1024, JSON mime — scored against the
-  // deterministic engine's own verdict + extraction accuracy + notices:
-  //   gemini-3.5-flash-lite  vision p50  ~700ms p95  ~850ms  text p50  687ms  54/54  0 truncated
-  //   gemini-3.1-flash-lite  vision p50   860ms p95  1005ms  text p50  657ms  24/24  0 truncated
-  //   gemini-3.6-flash       vision p50  1027ms p95  1226ms  text p50  947ms  24/24  0 truncated
-  //   gemini-3.5-flash       vision p50 ~1250ms p95 ~1400ms  text p50 1111ms  41/42  7/42 JSON
-  //                          responses returned WITHOUT the closing brace (finishReason STOP)
-  //                          → parse-fail → deterministic fallback in prod (NO DATA on vision)
-  //   gemini-3.7-flash       MINIMAL unsupported; LOW p50 1568ms, max 16 s — no
-  //   gemini-omni-flash-preview  Interactions API only — no;  gemini-2.5-flash-lite 3/12 — no
-  // → default moved gemini-3.5-flash → gemini-3.5-flash-lite (GA id, listed live): the
-  //   fastest model that applied the per-driver rules correctly on every card, and the
-  //   only one of the top two with zero truncation. Caveat recorded honestly: cards were
-  //   synthetic (clean); Melody's on-device re-test with real Uber screenshots is the
-  //   acceptance gate (roadmap G1). Revert = one env var (OFFER_ANALYZER_MODEL) or this line.
-  //   Superseded 2026-08-11 note ("vision roles stay on 3.5 — 3.6 regresses object
-  //   detection") measured Roboflow object-detection mAP, not offer-card reading; on this
-  //   task 3.6-flash was correct 24/24 but slower than lite.
-  // maxTokens 1024: the JSON verdict is ~40-150 tokens; the low cap ends degenerate
-  //   repetition tails in ~1 s (a truncated response parse-fails → the rules engine answers).
-  // temperature 0.1: honored since 2026-08-17 — gemini-adapter.js no longer forces 0.2 on
-  //   JSON prompts when a lower value is configured (Melody: "temp config to .1").
-  // History (HIGH-thinking era, 8192 cap, 2026-05-29 → 2026-08-14 step-down):
-  //   docs/architecture/removals/2026-08-14-offer-analyzer-thinking-stepdown.md and
-  //   docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md.
+  // Phase 1 returns the phone-bound verdict for screenshot, OCR and mixed inputs.
+  // Keep deep enrichment off that response path. The under-three-second target
+  // (todo #43) requires real-device verification; it is not a measured guarantee.
+  // Models are pinned here, never selected through environment overrides.
+  // Temperature 0.1 is Melody's setting; the JSON adapter honors lower values.
+  // On model failure the server may prove a rejection, but cannot invent a passed
+  // judgment check to ACCEPT a ride. See offers/phase1-decision.js.
+  // Historical model comparisons and rationale are preserved in:
+  // docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md
+  // docs/architecture/removals/2026-09-29-offer-analyzer-doc-reconciliation.md
   OFFER_ANALYZER: {
     model: 'gemini-3.5-flash-lite',
-    purpose: 'Phase 1: Real-time fast analysis (visual screenshot OR parsed text) from phone shortcuts (ACCEPT/REJECT)',
+    purpose: 'Phase 1: Phone-bound offer analysis from screenshot, OCR or both (ACCEPT/REJECT/NO DATA)',
     maxTokens: 1024,
     temperature: 0.1, // near-deterministic; honored by gemini-adapter (min with the JSON cap)
     thinkingLevel: 'MINIMAL',
     features: ['vision'], // documentary — no adapter reads this; vision works via images[] inlineData
   },
 
-  // 2026-02-28: Phase 2 deep analysis — runs async AFTER Siri gets its fast response.
-  // Pro 3.1 provides richer reasoning, location analysis, and confidence scoring for DB storage.
-  // Not latency-sensitive — driver already has their answer from Flash.
-  // ── HARDENED 2026-06-11 (determinism doctrine — do NOT regress) ──────────────
-  //  MODEL gemini-3.1-pro-preview — the DEEPEST reasoner currently available.
-  //  WHY Pro (not Flash): Phase 2 is async — it runs AFTER Siri already answered, so it costs
-  //    ZERO eyes-on-road latency and we trade speed for depth. Web-benchmarked (I/O 2026): 3.1
-  //    Pro LEADS pure abstract reasoning (ARC-AGI-2 77.1 vs Flash 72.1) + long-context — exactly
-  //    what the enriched offer_intelligence row wants.
-  //  WHY 3.1 (not "3.5 Pro"): as of 2026-06-11 NO gemini-3.5-pro / high-thinking-3.5 exists
-  //    (confirmed live — only gemini-3.5-FLASH ships). 3.1 Pro is the latest Pro. WHEN a newer
-  //    Pro (or a high-thinking 3.5) lands, re-verify it live in /v1beta/models and bump here.
-  //  ⚠️ DO NOT downgrade to flash in a fleet migration. The 2026-05-30 migration did exactly that
-  //    (pinning every role to gemini-3.5-flash to kill the #342 404), silently making "deep" ==
-  //    Phase 1 and turning analyze-offer.js:541 aiModelUsed into a lie for ~12 days.
-  //  ⚠️ PINNED, NOT FLOATING: never gemini-pro-latest / *-latest (see OFFER_ANALYZER + #342).
+  // Phase 2 enriches saved evidence after the phone response. Its reasoning
+  // must not rewrite the spoken decision. Preserve the separately reviewed deep
+  // role when changing other roles; report the model actually used on retries.
+  // In-process execution is not a durable queue; see OFFER_ANALYZER.md §10.
   OFFER_ANALYZER_DEEP: {
     model: 'gemini-3.1-pro-preview',
     purpose: 'Phase 2: Async deep analysis (visual + text) for offer_intelligence enrichment — runs after Siri response',

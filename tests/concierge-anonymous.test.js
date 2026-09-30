@@ -51,10 +51,10 @@ describe('anonymous concierge bookmarks', () => {
     expect(timezoneLookup).not.toHaveBeenCalled();
   });
 
-  test('rounds GPS to six decimals, resolves timezone server-side, and never forwards driver fields', async () => {
+  test('preserves measured GPS precision, resolves timezone server-side, and never forwards driver fields', async () => {
     const token = createAnonymousToken();
     await request(app).post(`/api/concierge/p/${token}/ask`).send({ question: 'Hello', lat: 1.12345678, lng: -2.23456789, timezone: 'invented', driver_id: 'ignored' }).expect(200);
-    expect(ask).toHaveBeenCalledWith({ question: 'Hello', lat: 1.123457, lng: -2.234568, timezone: 'Etc/UTC', venueContext: '', eventContext: '' });
+    expect(ask).toHaveBeenCalledWith({ question: 'Hello', lat: 1.12345678, lng: -2.23456789, timezone: 'Etc/UTC', venueContext: '', eventContext: '', signal: expect.any(AbortSignal) });
   });
 
   test.each([[null, 0], ['', 0], [true, 0], [91, 0], [0, -181], [Infinity, 0]])('rejects invalid GPS without treating it as zero: %p, %p', (lat, lng) => {

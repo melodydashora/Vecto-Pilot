@@ -38,7 +38,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader, AlertTriangle } from 'lucide-react';
-import { filterTodayEvents, formatEventRunDisplay, formatEventTimeRange } from '@/utils/co-pilot-helpers';
+import { filterTodayEvents, eventDisplayFields, formatEventRunDisplay, formatEventTimeRange, type FilterableEvent } from '@/utils/co-pilot-helpers';
 import { loadGoogleMaps, getMapId } from '@/lib/maps/google-maps-loader';
 import { escapeHtml } from '@/lib/maps/escape-html';
 // 2026-04-27 (Commit 4 of CLEAR_CONSOLE_WORKFLOW spec): gate noisy diagnostic
@@ -61,14 +61,10 @@ interface Venue {
 }
 
 // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-interface MapEvent {
+export interface MapEvent extends FilterableEvent {
   title: string;
   venue?: string;
   address?: string;
-  event_start_date?: string;
-  event_end_date?: string;
-  event_start_time?: string;
-  event_end_time?: string;
   latitude?: number;
   longitude?: number;
   impact?: 'high' | 'medium' | 'low';
@@ -81,8 +77,8 @@ interface MapBar {
   name: string;
   type: string;
   address: string;
-  expenseLevel: string;
-  expenseRank: number;
+  expenseLevel: string | null;
+  expenseRank: number | null;
   isOpen: boolean;
   closingSoon: boolean;
   minutesUntilClose: number | null;
@@ -199,6 +195,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
   isLoading = false
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
+  const initialCenter = useRef({ lat: driverLat, lng: driverLng });
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const barMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -229,11 +226,12 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
   const lastEventKeyRef = useRef<string>('');
 
   // Filter events to only show TODAY's events with valid start/end times
-  const todayEvents = useMemo(() => filterTodayEvents(events, timezone), [events, timezone]);
+  const todayEvents = useMemo(() => filterTodayEvents(events, timezone)
+    .map(event => ({ ...event, ...eventDisplayFields(event, timezone) })), [events, timezone]);
 
   // Initialize Google Map via singleton loader (Phase A.1/A.3/A.4).
   useEffect(() => {
-    if (!mapRef.current || mapReady) return;
+    if (!mapRef.current) return;
 
     let cancelled = false;
     loadGoogleMaps({ libraries: ['maps', 'marker', 'geometry'] })
@@ -256,7 +254,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         }
 
         const mapOptions: google.maps.MapOptions = {
-          center: { lat: driverLat, lng: driverLng },
+          center: initialCenter.current,
           zoom: 11,
           mapTypeControl: true,
           fullscreenControl: true,
@@ -326,7 +324,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
       incidentMarkersRef.current.forEach((m) => { m.map = null; });
       infoWindowRef.current?.close();
     };
-  }, [driverLat, driverLng, mapReady]);
+  }, []);
 
   // Add driver location + venue markers
   useEffect(() => {
@@ -364,9 +362,10 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         title: venue.name,
         content: makePinContent(color, 32),
         zIndex: isTopVenue ? 999 : 500,
+        gmpClickable: true,
       });
 
-      marker.addListener('gmp-click', () => {
+      marker.addEventListener('gmp-click', () => {
         infoWindowRef.current?.close();
 
         const getGradeBadgeStyle = (grade?: string) => {
@@ -460,7 +459,8 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
 
     // 2026-04-04: Dedup check — skip if event data hasn't actually changed.
     // Prevents clearing and re-adding identical markers on every parent re-render.
-    const eventKey = todayEvents.map((e) => `${e.title}|${e.latitude}|${e.longitude}`).join(';');
+    // Schedule and metadata changes must refresh the existing marker's popup too.
+    const eventKey = JSON.stringify([timezone, todayEvents]);
     if (eventKey === lastEventKeyRef.current) return;
     lastEventKeyRef.current = eventKey;
 
@@ -470,7 +470,8 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
     eventMarkersRef.current.forEach((m) => { m.map = null; });
     eventMarkersRef.current = [];
 
-    const eventsWithCoords = todayEvents.filter((e) => e.latitude && e.longitude);
+    const eventsWithCoords = todayEvents.filter((e) => typeof e.latitude === 'number' && Number.isFinite(e.latitude) && Math.abs(e.latitude) <= 90
+      && typeof e.longitude === 'number' && Number.isFinite(e.longitude) && Math.abs(e.longitude) <= 180);
 
     eventsWithCoords.forEach((event) => {
       const marker = new AdvancedMarkerElement({
@@ -479,6 +480,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         title: event.title,
         content: makePinContent(MARKER_COLORS.event, 28),
         zIndex: 800,
+        gmpClickable: true,
       });
 
       // 2026-06-11: active multi-day runs show "Today … · runs through <end>" instead of a
@@ -510,7 +512,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         }
       };
 
-      marker.addListener('gmp-click', () => {
+      marker.addEventListener('gmp-click', () => {
         infoWindowRef.current?.close();
 
         const safeTitle = escapeHtml(event.title);
@@ -543,6 +545,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
                   <span style="font-weight: 600; color: #7c3aed; font-size: 13px;">${safeTimeDisplay}</span>
                 </div>
               ` : ''}
+              ${event.event_end_conflict ? '<span style="font-size: 12px;">End time unconfirmed</span>' : ''}
             </div>
 
             ${safeAddress ? `
@@ -604,15 +607,16 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
       const statusLabel = isClosedGoAnyway
         ? (bar.closedReason || 'Closed (Worth It)')
         : isClosingSoon
-        ? (bar.minutesUntilClose ? `Closing in ${bar.minutesUntilClose}min` : 'Closing soon')
+        ? (bar.minutesUntilClose != null ? `Closing in ${bar.minutesUntilClose}min` : 'Closing soon')
         : 'Open';
 
       const marker = new AdvancedMarkerElement({
         position: { lat: bar.lat, lng: bar.lng },
         map,
-        title: `${bar.name} (${bar.expenseLevel})`,
+        title: `${bar.name} (${bar.expenseLevel || 'Price unknown'})`,
         content: makePinContent(color, 28),
         zIndex: 600,
+        gmpClickable: true,
       });
 
       const getTypeIcon = (type: string) => {
@@ -624,7 +628,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         }
       };
 
-      marker.addListener('gmp-click', () => {
+      marker.addEventListener('gmp-click', () => {
         infoWindowRef.current?.close();
 
         const statusStyle = isClosedGoAnyway
@@ -635,7 +639,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
 
         const safeName = escapeHtml(bar.name);
         const safeStatusLabel = escapeHtml(statusLabel);
-        const safeExpense = escapeHtml(bar.expenseLevel);
+        const safeExpense = escapeHtml(bar.expenseLevel || 'Price unknown');
         const safeAddress = escapeHtml(bar.address);
 
         const content = `
@@ -731,6 +735,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         title: `${inc.category}${inc.road ? ` on ${inc.road}` : ''}`,
         content: makeIncidentContent(color, 26),
         zIndex: 700, // above bars (600), below events (800)
+        gmpClickable: true,
       });
 
       const getCategoryIcon = (category: string) => {
@@ -750,7 +755,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         inc.severity === 'medium' ? 'background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;' :
         'background: #fef9c3; color: #854d0e; border: 1px solid #fde68a;';
 
-      marker.addListener('gmp-click', () => {
+      marker.addEventListener('gmp-click', () => {
         infoWindowRef.current?.close();
         const safeCategory = escapeHtml(inc.category);
         const safeRoad = inc.road ? escapeHtml(inc.road) : '';

@@ -7,6 +7,12 @@ const economicFields = [
   ['maxDeadheadMi', 'max_deadhead_mi', 0, 500, 0],
 ];
 
+// Admission pins Analyzer rules to detect settings changes. MAIN model prompts
+// receive driver preferences/vehicle only while Analyzer integration is on hold.
+export function mainDriverContext(configuration) {
+  return { profile: configuration?.profile ?? null, vehicle: configuration?.vehicle ?? null };
+}
+
 export function economicPreferencesForApi(profile) {
   return Object.fromEntries(economicFields.map(([field, column]) => [
     field, profile[column] == null ? null : Number(profile[column]),

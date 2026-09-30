@@ -159,6 +159,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   // Per-session stable conversation id — consumed by useCoachChat's send()
   // so typed messages during a live session join the same server thread.
   const conversationIdRef = useRef<string | null>(null);
+  const sessionOwnerRef = useRef<{ userId: string; token: string | null; snapshotId?: string; mode: VoiceMode } | null>(null);
   // Aborts in-flight brain calls when the session ends (their answers would
   // have no session to speak through).
   const brainAbortRef = useRef<AbortController | null>(null);
@@ -189,7 +190,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     }
     const turns = pendingTurnsRef.current;
     pendingTurnsRef.current = [];
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    const owner = sessionOwnerRef.current;
+    if (!owner) return;
+    const token = owner.token;
     void fetch(API_ROUTES.CHAT.VOICE_TURNS, {
       method: 'POST',
       headers: {
@@ -198,8 +201,8 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       },
       body: JSON.stringify({
         conversationId,
-        voiceMode: getStoredVoiceMode(),
-        snapshotId: paramsRef.current.snapshotId,
+        voiceMode: owner.mode,
+        snapshotId: owner.snapshotId,
         turns,
       }),
       // The end-of-session batch must survive unmount/tab-leave.
@@ -232,6 +235,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   }, [flushPendingTurns]);
 
   const stop = useCallback(() => {
+    const owner = sessionOwnerRef.current;
+    const canPublish = owner?.userId === paramsRef.current.userId
+      && owner?.token === localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     // End is FINAL: kill the wake watcher too — nothing listens after End.
     const rec = wakeRecRef.current;
     wakeRecRef.current = null;
@@ -248,12 +254,13 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     sessionRef.current = null;
     flushPendingTurns();
     conversationIdRef.current = null;
+    sessionOwnerRef.current = null;
     // Backstop: links never vanish because the session died before the
     // spoken answer committed.
     const links = pendingLinksRef.current;
     if (links) {
       pendingLinksRef.current = null;
-      paramsRef.current.onVoiceTurnFinal?.('assistant', links);
+      if (canPublish) paramsRef.current.onVoiceTurnFinal?.('assistant', links);
     }
     setStatus('idle');
     setStatusDetail(undefined);
@@ -316,7 +323,11 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   const start = useCallback(async () => {
     if (mode === 'classic' || sessionRef.current) return;
     const epoch = ++sessionEpochRef.current;
-    const isCurrent = () => sessionEpochRef.current === epoch;
+    const owner = { userId: params.userId, token: localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN), snapshotId: params.snapshotId, mode };
+    sessionOwnerRef.current = owner;
+    const isCurrent = () => sessionEpochRef.current === epoch
+      && paramsRef.current.userId === owner.userId
+      && localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === owner.token;
     const guard = <Args extends unknown[]>(callback: (...args: Args) => void) =>
       (...args: Args) => { if (isCurrent()) callback(...args); };
     setError(null);
@@ -353,6 +364,8 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
           flushPendingTurns();
           sessionRef.current = null;
           conversationIdRef.current = null;
+          sessionOwnerRef.current = null;
+          sessionEpochRef.current += 1;
         }
       }),
       onUserTranscriptDelta: guard((text: string) => setInterimUser(text)),
@@ -403,6 +416,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
         return await askCoachBrain(
           {
             ...paramsRef.current,
+            authToken: owner.token,
             conversationId,
             signal: brainController.signal,
             answerOnly: options?.answerOnly === true,
@@ -484,8 +498,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     setModeState(next);
   }, [stop]);
 
-  // Tab leave / unmount → tear the session down (mic must never outlive the tab).
-  useEffect(() => stop, [stop]);
+  // Account replacement and unmount end the old capture session. Its final
+  // queued fragments retain the original token/snapshot, even if storage changed.
+  useEffect(() => stop, [stop, params.userId]);
 
   return {
     mode,

@@ -1,7 +1,7 @@
 ---
 name: "frontend-ux-auditor"
 description: "Use this agent when frontend UI changes are made, when verifying visual consistency across the app, when auditing color schema adherence, or when UX issues need to be documented. Examples:\\n<example>\\nContext: The user has just finished implementing a new dashboard component.\\nuser: \"I've added the new driver stats panel to the dashboard\"\\nassistant: \"Let me use the Agent tool to launch the frontend-ux-auditor agent to verify the new panel works correctly, matches the color schema, and is visually consistent with the rest of the app.\"\\n<commentary>\\nSince new frontend UI was added, proactively use the frontend-ux-auditor to check for UX issues and document any findings in UI-ISSUES.md.\\n</commentary>\\n</example>\\n<example>\\nContext: The user is asking for a UI review.\\nuser: \"Can you check if the settings page looks consistent with the rest of the app?\"\\nassistant: \"I'll use the Agent tool to launch the frontend-ux-auditor agent to audit the settings page for consistency and document any issues found.\"\\n</example>\\n<example>\\nContext: Color tokens were changed.\\nuser: \"I updated the primary color to a new shade of blue\"\\nassistant: \"I'm going to use the Agent tool to launch the frontend-ux-auditor agent to verify the color change propagates consistently and update the color schema documentation.\"\\n</example>"
-model: opus
+model: inherit
 color: blue
 memory: project
 ---

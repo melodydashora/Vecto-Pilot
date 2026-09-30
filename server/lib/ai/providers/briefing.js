@@ -9,6 +9,7 @@
 // ============================================================================
 
 import { db } from '../../../db/drizzle.js';
+import { assertMainRunForSnapshot, MainRunAdmissionError } from '../../main-run-admission.js';
 import { snapshots } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { assertBriefingReady, BriefingNotReadyError, briefingFailureReason } from '../../briefing/briefing-readiness.js';
@@ -37,6 +38,7 @@ import { briefingLog, OP } from '../../../logger/workflow.js';
  */
 export async function runBriefing(snapshotId, options = {}) {
   try {
+    await assertMainRunForSnapshot(snapshotId);
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
     let snapshot = options.snapshot;
     if (!snapshot) {
@@ -70,7 +72,7 @@ export async function runBriefing(snapshotId, options = {}) {
     return { briefing: result.briefing };
   } catch (error) {
     briefingLog.error(2, `Briefing failed for ${snapshotId.slice(0, 8)}`, error);
-    if (error instanceof BriefingNotReadyError) throw error;
+    if (error instanceof BriefingNotReadyError || error instanceof MainRunAdmissionError) throw error;
     const failure = new Error(`Briefing generation failed: ${briefingFailureReason(error)}`, { cause: error });
     failure.code = 'briefing_failed';
     throw failure;

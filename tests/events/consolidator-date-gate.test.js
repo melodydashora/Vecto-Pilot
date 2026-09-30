@@ -1,3 +1,4 @@
+import process from 'node:process';
 // tests/events/consolidator-date-gate.test.js
 //
 // todo #29 — event-date-gate must be end-date aware (multi-day-inclusive).
@@ -159,4 +160,22 @@ describe('driver-local event clock regressions', () => {
     expect(() => filterEventsToTimeWindow([{ title: 'Event' }], undefined)).toThrow(/timeZone is required/);
     expect(() => filterEventsToTimeWindow([{ title: 'Event' }], 'Invalid/Timezone')).toThrow();
   });
+});
+
+test('saved venue timezone controls event date gates across driver midnight', () => {
+  jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
+  const event = { title: 'Venue local event', timezone: 'America/Los_Angeles', event_start_date: '2026-09-13', event_end_date: '2026-09-13', event_start_time: '19:00', start_time_iso: '2026-09-14T02:00:00.000Z' };
+  expect(filterEventsToTimeWindow([event], 'Asia/Tokyo')).toEqual([event]);
+});
+
+test('absolute saved event instant outranks an ambiguous display clock', () => {
+  jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
+  const event = { title: 'Absolute event', event_start_date: '2026-09-14', event_start_time: '19:00', start_time_iso: '2026-09-14T02:00:00.000Z' };
+  expect(filterEventsToTimeWindow([event], 'Etc/UTC')).toEqual([event]);
+});
+
+test('explicitly unknown venue timezone does not inherit driver timezone for a local clock', () => {
+  jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
+  const event = { title: 'Unknown event zone', timezone: null, event_start_date: '2026-09-13', event_end_date: '2026-09-13', event_start_time: '19:00', start_time_iso: '' };
+  expect(filterEventsToTimeWindow([event], 'America/Los_Angeles')).toEqual([]);
 });

@@ -8,7 +8,8 @@
 // multi-rung ladder round-trips untouched until the tier is edited, then collapses.
 // The "$/hr" switch is telemetry only (global.notices.hourly_rate): the server computes
 // pay ÷ minutes × 60 and shows/speaks it — never a decider (2026-08-11/14 doctrine).
-// standard/premium always exist; comfort/xl are optional split-outs (null = inert).
+// standard/premium remain in stored config; selected services control visibility.
+// comfort/xl are optional split-outs (null = inert), independent of selection.
 
 import { useWatch, type UseFormReturn } from 'react-hook-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,10 +17,12 @@ import { Separator } from '@/components/ui/separator';
 import { SliderRow, SwitchRow } from './controls';
 import type { OfferRulesetConfig, TierConfig } from '@/lib/offer-ruleset-schema';
 import { ENABLE_SEEDS, tierMaxTripMinutes, withDerivedLadder } from '@/lib/offer-ruleset-schema';
+import { selectedServiceRateGroups } from '@shared/driver-services.js';
 import { DollarSign } from 'lucide-react';
 
 interface Props {
   form: UseFormReturn<OfferRulesetConfig>;
+  selectedServices?: readonly string[] | null;
 }
 
 interface TierEditorProps {
@@ -111,9 +114,18 @@ function TierEditor({ title, tier, onChange }: TierEditorProps) {
   );
 }
 
-export default function RateTargetsCard({ form }: Props) {
+export default function RateTargetsCard({ form, selectedServices = null }: Props) {
   const tiers = useWatch({ control: form.control, name: 'tiers' });
+  const tierProducts = useWatch({ control: form.control, name: 'tier_products' });
   const notices = useWatch({ control: form.control, name: 'global.notices' });
+  const routing = { tiers, tier_products: tierProducts };
+  const groups = selectedServiceRateGroups(selectedServices, routing);
+  const splitGroups = (['comfort', 'xl'] as const).map(tier => ({ tier,
+    group: selectedServiceRateGroups(selectedServices, { ...routing, tiers: { ...tiers, [tier]: {} } })
+      .find(group => group.tier === tier),
+  })).filter(({ group }) => group != null);
+
+  if (!groups.length) return null;
 
   const setHourly = (on: boolean) => {
     const next = {
@@ -133,7 +145,7 @@ export default function RateTargetsCard({ form }: Props) {
           <DollarSign className="h-5 w-5 text-green-500" />
           Rate Targets
         </CardTitle>
-        <CardDescription>Sliders only — one accept rule per ride tier</CardDescription>
+        <CardDescription>Rate controls for your saved service selection. Services sharing a saved rate group use the same limits.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <SwitchRow
@@ -143,57 +155,21 @@ export default function RateTargetsCard({ form }: Props) {
           help="Pay ÷ total minutes, computed from the offer and added to the notification and the spoken line. Information only — it never changes the decision."
         />
 
-        <Separator className="bg-gray-200" />
-
-        <TierEditor
-          title="Standard rides"
-          tier={tiers.standard}
-          onChange={(t) => form.setValue('tiers.standard', t, { shouldDirty: true })}
-        />
-
-        <Separator className="bg-gray-200" />
-
-        <TierEditor
-          title="Premium rides"
-          tier={tiers.premium}
-          onChange={(t) => form.setValue('tiers.premium', t, { shouldDirty: true })}
-        />
-
-        <Separator className="bg-gray-200" />
-
-        <SwitchRow
-          label="Separate Comfort rules"
-          checked={tiers.comfort != null}
-          onCheckedChange={(on) =>
-            form.setValue('tiers.comfort', on ? { ...ENABLE_SEEDS.comfort_tier } : null, { shouldDirty: true })
-          }
-          help="Off — Comfort offers follow your existing tier rules."
-        />
-        {tiers.comfort && (
-          <TierEditor
-            title="Comfort"
-            tier={tiers.comfort}
-            onChange={(t) => form.setValue('tiers.comfort', t, { shouldDirty: true })}
-          />
-        )}
-
-        <Separator className="bg-gray-200" />
-
-        <SwitchRow
-          label="Separate XL rules"
-          checked={tiers.xl != null}
-          onCheckedChange={(on) =>
-            form.setValue('tiers.xl', on ? { ...ENABLE_SEEDS.xl_tier } : null, { shouldDirty: true })
-          }
-          help="Off — XL offers follow your existing tier rules."
-        />
-        {tiers.xl && (
-          <TierEditor
-            title="XL rides"
-            tier={tiers.xl}
-            onChange={(t) => form.setValue('tiers.xl', t, { shouldDirty: true })}
-          />
-        )}
+        {groups.map(group => {
+          const tier = tiers[group.tier];
+          return tier ? <div key={group.tier} className="space-y-4" data-rate-tier={group.tier}>
+            <Separator className="bg-gray-200" />
+            <TierEditor title={group.label} tier={tier}
+              onChange={value => form.setValue(`tiers.${group.tier}`, value, { shouldDirty: true })} />
+          </div> : null;
+        })}
+        {splitGroups.map(({ tier, group }) => <div key={tier} className="space-y-4">
+          <Separator className="bg-gray-200" />
+          <SwitchRow label={`Separate ${selectedServices === null ? tier === 'comfort' ? 'Comfort' : 'XL' : group!.label} rules`}
+            checked={tiers[tier] != null}
+            onCheckedChange={on => form.setValue(`tiers.${tier}`, on ? { ...ENABLE_SEEDS[`${tier}_tier`] } : null, { shouldDirty: true })}
+            help="Off — these services use their existing shared rate group. Changing your service selection preserves every saved rate group." />
+        </div>)}
       </CardContent>
     </Card>
   );

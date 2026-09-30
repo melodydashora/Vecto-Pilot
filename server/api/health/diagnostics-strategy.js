@@ -11,6 +11,7 @@ import { runBriefing } from '../../lib/ai/providers/briefing.js';
 import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireOperator } from '../../middleware/require-operator.js';
+import { assertMainRunForSnapshot, MainRunAdmissionError } from '../../lib/main-run-admission.js';
 
 export const router = Router();
 
@@ -19,6 +20,7 @@ router.post('/test-immediate/:snapshotId', requireAuth, requireOperator, async (
   const { snapshotId } = req.params;
 
   try {
+    await assertMainRunForSnapshot(snapshotId, { auth: req.auth });
     // Check snapshot exists
     const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
@@ -44,6 +46,7 @@ router.post('/test-immediate/:snapshotId', requireAuth, requireOperator, async (
     });
   } catch (error) {
     console.error(`[AGENT] [DIAGNOSTICS] test-immediate error:`, error);
+    if (error instanceof MainRunAdmissionError) return res.status(error.status).json({ error: error.code, message: error.message });
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -53,6 +56,7 @@ router.post('/test-briefing/:snapshotId', requireAuth, requireOperator, async (r
   const { snapshotId } = req.params;
 
   try {
+    await assertMainRunForSnapshot(snapshotId, { auth: req.auth });
     // Check snapshot exists
     const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
@@ -74,6 +78,7 @@ router.post('/test-briefing/:snapshotId', requireAuth, requireOperator, async (r
     });
   } catch (error) {
     console.error(`[AGENT] [DIAGNOSTICS] test-briefing error:`, error);
+    if (error instanceof MainRunAdmissionError) return res.status(error.status).json({ error: error.code, message: error.message });
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });

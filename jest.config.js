@@ -4,6 +4,8 @@
 export default {
   testEnvironment: 'node',
   transform: {},
+  // Test-file exclusions alone leave cached packages in Jest's module index.
+  modulePathIgnorePatterns: ['<rootDir>/\\.(?:cache|config|local|worktrees)/'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },

@@ -3,7 +3,7 @@
 // Updated 2026-01-05: Added schema awareness and action validation
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { appendFile, readFile } from 'fs/promises';
+import { appendFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../../db/drizzle.js';
@@ -28,40 +28,24 @@ import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
 
 const router = Router();
 
-// ═══════════════════════════════════════════════════════════════════════════
-// OFFER ANALYZER RULES — read-only context loader (2026-05-05)
-// Caches the canonical rules doc + LLM role registry once per process so the
-// Coach can reason about WHY the analyzer recommended what it did without
-// burning disk reads on every chat turn.
-// ═══════════════════════════════════════════════════════════════════════════
-
-let _offerRulesCache = null;
-async function getOfferAnalyzerRules() {
-  if (_offerRulesCache !== null) return _offerRulesCache;
-
-  const __dirname_chat = path.dirname(fileURLToPath(import.meta.url));
-  const rootDir = path.join(__dirname_chat, '..', '..', '..');
-  const docPath = path.join(rootDir, 'docs', 'architecture', 'OFFER_ANALYZER.md');
-  const registryPath = path.join(rootDir, 'server', 'lib', 'ai', 'model-registry.js');
-
+// History belongs to each saved observation's timezone. The UTC instant and
+// explicit offset keep repeated DST wall times distinguishable across sessions.
+function formatSnapshotHistoryTime(snapshot) {
+  const saved = snapshot.created_at;
+  const isInstant = saved instanceof Date || (typeof saved === 'string' &&
+    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(saved));
+  const instant = isInstant ? new Date(saved) : null;
+  if (!instant || !Number.isFinite(instant.getTime())) return 'Saved timestamp unavailable';
+  const recorded = instant.toISOString();
   try {
-    const [doc, registry] = await Promise.all([
-      readFile(docPath, 'utf-8').catch(err => {
-        console.warn(`[COACH] Failed to read OFFER_ANALYZER.md: ${err.message}`);
-        return '';
-      }),
-      readFile(registryPath, 'utf-8').catch(err => {
-        console.warn(`[COACH] Failed to read model-registry.js: ${err.message}`);
-        return '';
-      })
-    ]);
-    _offerRulesCache = { doc, registry };
-    console.log(`[COACH] Loaded offer analyzer rules: doc=${doc.length}c, registry=${registry.length}c`);
-    return _offerRulesCache;
-  } catch (err) {
-    console.error('[COACH] Unexpected error loading offer rules:', err.message);
-    _offerRulesCache = { doc: '', registry: '' };
-    return _offerRulesCache;
+    if (typeof snapshot.timezone !== 'string' || !snapshot.timezone.trim()) throw new Error('Missing saved timezone');
+    const local = instant.toLocaleString('en-US', {
+      timeZone: snapshot.timezone, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'longOffset',
+    });
+    return `${local} (${snapshot.timezone}; recorded ${recorded})`;
+  } catch {
+    return `Local time unavailable (saved timezone missing or invalid; recorded ${recorded})`;
   }
 }
 
@@ -75,11 +59,12 @@ async function getOfferAnalyzerRules() {
 /**
  * Execute parsed actions asynchronously (non-blocking)
  */
-async function executeActions(actions, userId, snapshotId, conversationId) {
+async function executeActions(actions, userId, snapshotId, conversationId, signal) {
   const results = { saved: 0, errors: [], memos: [] };
 
   // Save user notes (with validation)
   for (const note of actions.notes) {
+    signal?.throwIfAborted();
     try {
       // 2026-01-05: Validate before execution
       const validation = validateAction('SAVE_NOTE', {
@@ -117,6 +102,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // Deactivate events (with validation)
   for (const event of actions.events) {
+    signal?.throwIfAborted();
     try {
       // 2026-01-05: Validate before execution
       const validation = validateAction('DEACTIVATE_EVENT', {
@@ -151,6 +137,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   // Reactivate events (undo mistaken deactivations)
   // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const event of actions.eventReactivations) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('REACTIVATE_EVENT', {
         event_title: event.event_title,
@@ -184,6 +171,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   // Deactivate news
   // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const news of actions.news) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('DEACTIVATE_NEWS', {
         news_title: news.news_title,
@@ -215,6 +203,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   // Save system notes
   // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const sysNote of actions.systemNotes) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('SYSTEM_NOTE', {
         type: sysNote.type || 'pain_point',
@@ -250,12 +239,14 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-02-17: Add new events (driver-reported intel)
   for (const event of actions.addEvents) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('ADD_EVENT', {
         title: event.title,
         venue_name: event.venue_name,
         address: event.address,
         event_start_date: event.event_start_date,
+        event_end_date: event.event_end_date,
         event_start_time: event.event_start_time,
         event_end_time: event.event_end_time,
         category: event.category,
@@ -280,7 +271,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         ...validation.data,
         city,
         state,
-        user_id: userId
+        user_id: userId,
+        timezone: snapshot?.timezone
       });
       if (addResult) {
         results.saved++;
@@ -295,6 +287,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-02-17: Update existing events (driver-corrected details)
   for (const event of actions.updateEvents) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('UPDATE_EVENT', {
         event_title: event.event_title,
@@ -338,6 +331,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   const coachInboxPath = path.join(__dirname_chat, '..', '..', '..', 'docs', 'coach-inbox.md');
 
   for (const memo of actions.coachMemos) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('COACH_MEMO', {
         type: memo.type || 'observation',
@@ -381,6 +375,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // Save zone intelligence (crowd-sourced market knowledge) - with validation
   for (const zone of actions.zoneIntel) {
+    signal?.throwIfAborted();
     try {
       // 2026-01-05: Validate before execution
       const validation = validateAction('ZONE_INTEL', {
@@ -422,6 +417,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-03-18: Market intelligence — driver-reported surge patterns, timing insights (C-3)
   for (const intel of actions.marketIntel) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('MARKET_INTEL', {
         market: intel.market,
@@ -457,6 +453,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
   // 2026-03-18: Venue catalog — staging spots, GPS dead zones, venue intel (C-3)
   for (const venue of actions.venueIntel) {
+    signal?.throwIfAborted();
     try {
       const validation = validateAction('SAVE_VENUE_INTEL', {
         venue_name: venue.venue_name,
@@ -489,75 +486,14 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
     }
   }
 
-  // 2026-05-05: Coach offer decision logging — driver-decision intel from chat tab
-  // Each call inserts a new coach_offer_decisions row tagged to user/conversation/snapshot.
-  for (const decision of actions.offerDecisions) {
-    try {
-      const validation = validateAction('LOG_OFFER_DECISION', decision);
-      if (!validation.ok) {
-        results.errors.push(`LogOfferDecision validation: ${validation.errors.map(e => e.message).join(', ')}`);
-        continue;
-      }
-      const decisionRow = await rideshareCoachDAL.saveCoachOfferDecision({
-        ...validation.data,
-        user_id: userId,
-        conversation_id: conversationId,
-        snapshot_id: snapshotId
-      });
-      if (decisionRow) {
-        results.saved++;
-        console.log(`[COACH] [ACTIONS] Logged offer decision ${decisionRow.id?.substring(0, 8)} (${validation.data.ai_recommendation})`);
-      } else {
-        results.errors.push(`LogOfferDecision: write returned null`);
-      }
-    } catch (e) {
-      results.errors.push(`LogOfferDecision: ${e.message}`);
-    }
-  }
-
-  // 2026-05-05: Lifecycle / verdict updates on existing decision rows
-  // (e.g., "I accepted that one but cancelled mid-trip" → user_decision='Cancelled')
-  for (const update of actions.offerDecisionUpdates) {
-    try {
-      const validation = validateAction('UPDATE_OFFER_DECISION', update);
-      if (!validation.ok) {
-        results.errors.push(`UpdateOfferDecision validation: ${validation.errors.map(e => e.message).join(', ')}`);
-        continue;
-      }
-      const { id, ...fields } = validation.data;
-      const updated = await rideshareCoachDAL.updateCoachOfferDecision(id, userId, fields);
-      if (updated) {
-        results.saved++;
-        console.log(`[COACH] [ACTIONS] Updated offer decision ${id?.substring(0, 8)}`);
-      } else {
-        results.errors.push(`UpdateOfferDecision "${id}": no row matched (wrong id or not owned by user)`);
-      }
-    } catch (e) {
-      results.errors.push(`UpdateOfferDecision: ${e.message}`);
-    }
-  }
-
-  // 2026-05-05: Coach backfilling ground-truth from screenshot OCR back into the
-  // raw offer_intelligence row (Siri parse often had nulls; screenshot is canonical).
-  for (const backfill of actions.offerIntelBackfills) {
-    try {
-      const validation = validateAction('BACKFILL_OFFER_INTEL', backfill);
-      if (!validation.ok) {
-        results.errors.push(`BackfillOfferIntel validation: ${validation.errors.map(e => e.message).join(', ')}`);
-        continue;
-      }
-      const { offer_intelligence_id, ...fields } = validation.data;
-      // 2026-08-11: user-scoped — the id is LLM-emitted, never trust it alone
-      const updated = await rideshareCoachDAL.updateOfferIntelligence(offer_intelligence_id, userId, fields);
-      if (updated) {
-        results.saved++;
-        console.log(`[COACH] [ACTIONS] Backfilled offer_intelligence ${offer_intelligence_id?.substring(0, 8)} (${Object.keys(fields).join(',')})`);
-      } else {
-        results.errors.push(`BackfillOfferIntel "${offer_intelligence_id}": no row matched`);
-      }
-    } catch (e) {
-      results.errors.push(`BackfillOfferIntel: ${e.message}`);
-    }
+  // Coach reads Analyzer evidence; it cannot create verdicts or rewrite offers.
+  // Recognize old tags so a model cannot falsely report a successful save.
+  for (const [key, label] of [
+    ['offerDecisions', 'LOG_OFFER_DECISION'],
+    ['offerDecisionUpdates', 'UPDATE_OFFER_DECISION'],
+    ['offerIntelBackfills', 'BACKFILL_OFFER_INTEL'],
+  ]) {
+    if (actions[key]?.length) results.errors.push(`${label}: Coach offer writes are disabled. Use the Offer Analyzer and Daily Offers controls.`);
   }
 
   if (results.errors.length > 0) {
@@ -699,8 +635,9 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 router.post('/', requireAuth, async (req, res) => {
   // Spoken continuations may need another read after an earlier action finished.
   // Conversation history is retained, but reconciliation cannot mutate app data.
-  const answerOnly = req.body.answerOnly === true;
-  const { userId, message, threadHistory = [], snapshotId: rawSnapshotId, strategyId: rawStrategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = req.body;
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const answerOnly = body.answerOnly === true;
+  const { userId, message, threadHistory = [], snapshotId: rawSnapshotId, strategyId: rawStrategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = body;
   // 2026-09-10 (CodeQL type-confusion class): these reach `.slice()` before the try block
   // below; a non-string body value ({}/number) threw synchronously and hung the request.
   const snapshotId = typeof rawSnapshotId === 'string' && rawSnapshotId ? rawSnapshotId : null;
@@ -708,6 +645,16 @@ router.post('/', requireAuth, async (req, res) => {
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
+  }
+
+  const validAttachment = attachment => attachment && typeof attachment === 'object'
+    && typeof attachment.data === 'string';
+  if ((clientConversationId != null && (typeof clientConversationId !== 'string' || !UUID_RE.test(clientConversationId)))
+    || !Array.isArray(attachments) || !attachments.every(validAttachment)
+    || !Array.isArray(threadHistory) || !threadHistory.every(turn => turn && typeof turn.content === 'string'
+      && ['user', 'assistant'].includes(turn.role)
+      && (turn.attachments == null || (Array.isArray(turn.attachments) && turn.attachments.every(validAttachment))))) {
+    return res.status(400).json({ error: 'Invalid conversationId, threadHistory or attachments' });
   }
 
   // 2026-01-15: Removed 'anonymous' fallback - requireAuth middleware guarantees userId
@@ -727,13 +674,17 @@ router.post('/', requireAuth, async (req, res) => {
   // is checked after snapshot resolution below. 2026-08-11: previously a hard
   // 400 fired here whenever the browser hadn't hydrated its snapshot copy yet,
   // even though the driver's snapshot row carried the timezone all along.
-  let userTimezone = clientSnapshot?.timezone || null;
+  let userTimezone = typeof clientSnapshot?.timezone === 'string' ? clientSnapshot.timezone : null;
   let userLocalDateTime = null;
 
   // 2026-01-06: SECURITY - Redact sensitive data from logs
   // Log only metadata, never message content or PII
   console.log(`[COACH] Request: user=${authUserId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} thread=${threadHistory.length}msgs attachments=${attachments.length}`);
   console.log(`[COACH] Context: strategy=${strategyId?.slice(0, 8) || 'none'} snapshot=${snapshotId?.slice(0, 8) || 'none'} tz=${userTimezone}`);
+
+  const ac = new AbortController();
+  const onClose = () => { if (!res.writableEnded) ac.abort(); };
+  res.on('close', onClose);
 
   try {
     // Use CoachDAL for full schema read access with ALL tables
@@ -797,9 +748,11 @@ router.post('/', requireAuth, async (req, res) => {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
 
-      // Authoritative timezone from the loaded snapshot row when the client
-      // copy was absent. Still no invented values: neither source → 400.
-      if (!userTimezone) userTimezone = fullContext?.snapshot?.timezone || null;
+      // An owned saved snapshot supersedes a stale or conflicting browser copy.
+      // A missing saved timezone stays missing rather than trusting a client claim.
+      if (fullContext?.snapshot) userTimezone = fullContext.snapshot.timezone || null;
+      try { if (userTimezone) new Intl.DateTimeFormat('en-US', { timeZone: userTimezone }).format(); }
+      catch { userTimezone = null; }
       if (!userTimezone) {
         console.warn('[COACH] No timezone from client copy or DB snapshot row - cannot provide time context');
         return res.status(400).json({
@@ -834,9 +787,7 @@ router.post('/', requireAuth, async (req, res) => {
 
             snapshotHistoryInfo = `\n\n📍 **Recent Session History (${history.length} sessions):**\n`;
             for (const snap of history.slice(0, 5)) {
-              const date = new Date(snap.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-              const time = new Date(snap.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-              snapshotHistoryInfo += `- ${date} ${time}: ${snap.city}, ${snap.state}${snap.holiday ? ` (${snap.holiday})` : ''}\n`;
+              snapshotHistoryInfo += `- ${formatSnapshotHistoryTime(snap)}: ${snap.city}, ${snap.state}${snap.holiday ? ` (${snap.holiday})` : ''}\n`;
             }
           }
         } catch (e) {
@@ -884,7 +835,9 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    // Save user message to coach_conversations (non-blocking, authenticated users only)
+    ac.signal.throwIfAborted();
+
+    // Save user message to coach_conversations (authenticated users only)
     let userMessageId = null;
     let userPersistenceError = null;
     if (isAuthenticated) {
@@ -1133,38 +1086,6 @@ You're a powerful AI companion with research-backed market intelligence and pers
 
 **IDENTITY:** You are the Vecto Pilot AI Coach. Do not claim to be an unconfigured model or provider.`;
 
-    // 2026-05-05: Splice the read-only offer analyzer rules into the system prompt.
-    // Doc + registry land at the bottom of the prompt so they don't displace
-    // the user's snapshot/strategy context if the model has to truncate.
-    try {
-      const offerRules = await getOfferAnalyzerRules();
-      if (offerRules.doc || offerRules.registry) {
-        systemPrompt += `
-
-══════════════════════════════════════════════════════════════════════════
-**OFFER ANALYZER RULES (READ-ONLY)** — for explaining WHY the analyzer recommends what it does
-══════════════════════════════════════════════════════════════════════════
-
-📄 **Source: \`docs/architecture/OFFER_ANALYZER.md\`** (canonical business rules + LLM phase architecture)
-
-${offerRules.doc}
-
-══════════════════════════════════════════════════════════════════════════
-
-📄 **Source: \`server/lib/ai/model-registry.js\`** (LLM role definitions — system prompts, model IDs, output schemas)
-
-\`\`\`js
-${offerRules.registry}
-\`\`\`
-
-══════════════════════════════════════════════════════════════════════════
-END OFFER ANALYZER RULES (read-only — propose changes via [COACH_MEMO])
-══════════════════════════════════════════════════════════════════════════`;
-      }
-    } catch (e) {
-      console.warn('[COACH] Failed to splice offer analyzer rules:', e.message);
-    }
-
     // SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
     if (isSuperUser) {
       try {
@@ -1320,25 +1241,23 @@ Full transparency. Maximum insight.
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
       if (answerOnly) systemPrompt += '\n\nANSWER-ONLY RECONCILIATION: Read current records and answer the latest continued or corrected request. Do not emit action tags, save notes, learn tips, or change any data. Do not repeat earlier actions. If a new or changed action is needed, explain its current confirmed state and ask for a fresh confirmation. Conversation history is still recorded.';
       const roleConfig = getRoleConfig('AI_COACH');
-      const ac = new AbortController();
-      const onClose = () => { if (!res.writableEnded) ac.abort(); };
-      res.on('close', onClose);
       let totalText = '';
       let actualModel = roleConfig.model;
-      try {
+      {
+        ac.signal.throwIfAborted();
         const response = await callModelStream('AI_COACH', {
           system: systemPrompt, messageHistory, signal: ac.signal,
         });
         for await (const event of readCoachResponse(response)) {
+          ac.signal.throwIfAborted();
           if (event.delta) {
             totalText += event.delta;
             res.write(`data: ${JSON.stringify({ delta: event.delta })}\n\n`);
           }
           if (event.completed && event.model) actualModel = event.model;
         }
-      } finally {
-        res.off('close', onClose);
       }
+      ac.signal.throwIfAborted();
       if (!totalText.trim()) throw new Error('Coach returned an empty answer');
 
       // 2026-03-18: Declared outside if(totalText) so done event can always reference it
@@ -1368,7 +1287,7 @@ Full transparency. Maximum insight.
           // 2026-03-18: FIX (C-1) — Await actions so results can be sent to client.
           // DB writes are sub-50ms each; minor latency is worth guaranteed feedback.
           try {
-            actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId);
+            actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId, ac.signal);
             if (actionsResult.saved > 0) {
               console.log(`[COACH] Executed ${actionsResult.saved} actions`);
             }
@@ -1377,6 +1296,8 @@ Full transparency. Maximum insight.
             actionsResult = { saved: 0, errors: [e.message] };
           }
         }
+
+        ac.signal.throwIfAborted();
 
         // 2026-09-11 (desktop-coach-review item 2): parse failures join execution failures in
         // the done payload, and an explicit not-saved line is appended to the streamed AND
@@ -1403,9 +1324,11 @@ Full transparency. Maximum insight.
               ? 0
               : await rideshareCoachDAL.extractAndSaveTips(authUserId, cleanedText, {
                   snapshot_id: activeSnapshotId,
-                  conversation_id: conversationId
+                  conversation_id: conversationId,
+                  signal: ac.signal
                 });
 
+            ac.signal.throwIfAborted();
             const savedAssistant = await rideshareCoachDAL.saveConversationMessage({
               user_id: authUserId,
               snapshot_id: activeSnapshotId,
@@ -1433,6 +1356,7 @@ Full transparency. Maximum insight.
       }
 
       // 2026-03-18: FIX (C-1) — Include action results so client gets feedback
+      ac.signal.throwIfAborted();
       const donePayload = { done: true, conversation_id: conversationId, response_text: displayResponse };
       if (actionsResult) {
         donePayload.actions_result = actionsResult;
@@ -1443,6 +1367,7 @@ Full transparency. Maximum insight.
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
+      if (res.destroyed) return;
       console.error('[COACH] Provider request error:', error.message);
       const friendlyMsg = error.name === 'AbortError'
         ? 'Coach request was canceled.'
@@ -1452,6 +1377,7 @@ Full transparency. Maximum insight.
     }
 
   } catch (error) {
+    if (res.destroyed) return;
     console.error('[COACH] Error:', error);
     
     if (!res.headersSent) {
@@ -1460,6 +1386,8 @@ Full transparency. Maximum insight.
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
     }
+  } finally {
+    res.off('close', onClose);
   }
 });
 

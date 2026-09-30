@@ -30,6 +30,8 @@ interface WeatherData {
   // _generationFailed: true. Surface that here as an explicit "unavailable"
   // state instead of silently hiding the card.
   _generationFailed?: boolean;
+  _pending?: boolean;
+  _exhausted?: boolean;
 }
 
 interface WeatherCardProps {
@@ -37,13 +39,20 @@ interface WeatherCardProps {
   timezone?: string | null;  // 2026-04-14: Issue W — Driver timezone for correct hour labels
 }
 
+function forecastHourLabel(time: string | undefined, timezone: string | null | undefined): string {
+  if (!time || !timezone || !Number.isFinite(Date.parse(time))) return 'Time unavailable';
+  try {
+    return new Date(time).toLocaleTimeString([], { hour: 'numeric', timeZone: timezone });
+  } catch {
+    return 'Time unavailable';
+  }
+}
+
 export function WeatherCard({ weatherData, timezone }: WeatherCardProps) {
   const weather = weatherData?.weather;
 
-  // 2026-04-19: H3 fix — explicit "weather unavailable" state when the section
-  // permanently failed (e.g., Google Weather API outage). Without this, a failed
-  // weather generation rendered as a hidden card and the user had no signal that
-  // the strategist was missing weather context.
+  // Required Briefing failures block new Strategy generation. Never imply that
+  // the app silently substituted fallback weather for a failed observation.
   if (weatherData?._generationFailed) {
     return (
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
@@ -54,27 +63,24 @@ export function WeatherCard({ weatherData, timezone }: WeatherCardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-gray-600">Weather temporarily unavailable for this snapshot — strategy is using fallback context.</div>
+          <div className="text-sm text-gray-600" role="status">Weather temporarily unavailable for this snapshot — new strategy is waiting for a complete briefing.</div>
         </CardContent>
       </Card>
     );
   }
 
-  // 2026-02-18: FIX - Show loading state instead of silent null when data hasn't arrived yet
-  if (!weather?.forecast || weather.forecast.length === 0) {
-    if (!weatherData) {
-      return (
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center py-4">
-              <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />
-              <span className="text-gray-600">Loading forecast...</span>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
-    return null; // Data loaded but no forecast available — hide card
+  if (weatherData?._pending || !Array.isArray(weather?.forecast) || weather.forecast.length === 0) {
+    const pending = !weatherData?._exhausted && (!weatherData || weatherData._pending === true);
+    return (
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center py-4" role="status">
+            {pending && <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />}
+            <span className="text-gray-600">{pending ? 'Loading forecast...' : 'Forecast unavailable for this snapshot.'}</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
@@ -101,11 +107,11 @@ export function WeatherCard({ weatherData, timezone }: WeatherCardProps) {
           {weather.forecast.slice(0, 6).map((hour, idx) => (
             <div key={idx} className="flex flex-col items-center min-w-[70px] text-center p-2 bg-white/50 rounded">
               <span className="text-xs text-gray-500 font-medium">
-                {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric', ...(timezone ? { timeZone: timezone } : {}) }) : `+${idx + 1}h`}
+                {forecastHourLabel(hour.time, timezone)}
               </span>
               <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
               <span className="text-sm font-medium text-gray-800">
-                {hour.tempF ?? 0}°F
+                {Number.isFinite(hour.tempF) ? `${hour.tempF}°F` : 'Temperature unavailable'}
               </span>
               {hour.precipitationProbability !== null && hour.precipitationProbability !== undefined && hour.precipitationProbability > 0 && (
                 <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>

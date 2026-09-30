@@ -1,282 +1,113 @@
-# ANDROID_SHORTCUT_ANALYZE.md — Offer Analyzer on Android (no Vecto app required)
+# Offer Analyzer on Android
 
-> **Current entry path (2026-09-11):** Phone Setup now downloads an actual HTTP
-> Shortcuts Android **browser launcher** JSON file. It opens the current deployment's
-> guarded quick analyzer, where a fresh precise GPS fix, screenshot, verified
-> personal rules, and current decision timestamp are required. Screenshot selection
-> remains explicit; this is not automatic cross-app capture. See
-> [mobile implementation and official import-source verification](MOBILE_CONCIERGE_2026-09-11.md).
-> The older direct-upload recipes below are historical setup references. They do
-> not enforce today's GPS freshness or verified-response checks and should not be
-> used as the current driver setup instructions.
+> Repository-source review: 2026-09-29. Current setup is a signed-in browser capture
+> flow with an optional HTTP Shortcuts **browser launcher** download. This document
+> separates it from historical direct-upload automation. No current device import,
+> capture-to-speech timing or production rollout is certified here.
 
-> **Who this is for:** drivers on Android who want the same spoken ACCEPT/REJECT the
-> iPhone shortcuts give, and whoever maintains these instructions. Android has no
-> Shortcuts app, so a free automation app does the job. The server is identical
-> (`POST /api/hooks/analyze-offer`, same token, same response) — only the phone side differs.
->
-> **Status (2026-08-17):** interim path (todo #43). Recommended tool = **HTTP Shortcuts**
-> (free, open source). **Nothing here has been device-tested yet** — Melody's Android test
-> is gate G3 in `OFFER_ANALYZER_ROADMAP.md`. Endgame = the native shell (todo #37), which
-> can capture and send the screenshot in one tap with no third-party app.
->
-> **Provenance:** tool capabilities verified 2026-08-17 against each app's own
-> documentation/source (HTTP Shortcuts docs + `strings.xml`/manifest on GitHub, Tasker user
-> guide, MacroDroid wiki, Google/Samsung support pages); server contract from
-> `server/api/hooks/analyze-offer.js` at commit `97cd2d3b` (see `OFFER_ANALYZER.md` §4).
-> Steps marked *(verify on device)* are inferred from docs, not yet clicked through.
-> iPhone: `SIRI_SHORTCUT_ANALYZE.md`. Pipeline: `OFFER_ANALYZER.md`.
+## Part 1 · Current browser setup
 
----
+1. Sign in to your deployment, open **Offer Analyzer → Phone Setup**, and review
+   selected services and saved rules. Keeping the saved choices is valid.
+2. Choose **Open quick analyzer**. In Chrome, use **Add to Home screen** or the
+   install option if offered while `/co-pilot/analyze` is selected.
+3. Configure and test while stopped. Open the icon, choose a current JPEG, PNG or
+   WebP screenshot no larger than 5 MiB, allow precise location and hear the result.
+4. A result requires personal-rule verification, a current timestamp and matching
+   decision/speech. The page expires it after 30 seconds. Audio errors are visible;
+   **Speak result** is available while the result is current.
 
-## Part 0 · Which tool?
+This flow needs screenshot selection. It cannot silently capture another app or accept
+an offer for you. Sources: `QuickAnalyzePage.tsx`, `offer-capture.ts`, `SetupCard.tsx`.
 
-| Tool | Cost | Sends the screenshot as a real file (vision lane) | Can take the screenshot itself | Speaks the verdict | Best trigger | Verdict |
-|---|---|---|---|---|---|---|
-| **HTTP Shortcuts** (Waboodoo, v4.6, Play + F-Droid) | Free, no ads | **Yes** — form-data with a File parameter; accepts an image shared from the screenshot preview | No (uses the share sheet or file picker) | Yes — `speak()` in its JavaScript | Screenshot → **Share → "Send to…"**; or Quick Settings tile (opens a picker) | **Recommended** — 2 taps after the screenshot, free |
-| **Tasker** (v6.6) | $4.49 one-time | **Yes** — `image:<path>` in *File To Send* + body fields = multipart | **Yes** (Take Screenshot; needs a one-time ADB/"Tasker Permissions" grant for prompt-free capture) | Yes — *Say* | Quick Settings tile (fully hands-free) or *Received Share* | Best if you want **one tap, no share sheet** and don't mind paying/ADB |
-| **MacroDroid** (v5.65) | Free (5 macros, ads) / Pro IAP | **Yes, via raw body** (since 2026-08-17: HTTP action *Content Body: File* posts the screenshot bytes; the server accepts `image/*` raw bodies) — it still can't do a named multipart part | Yes (+ built-in ML Kit OCR) | Yes — *Speak Text* | Quick Settings tile | Text lane (fast) **or** vision lane (raw file body) |
-| Google Assistant/Gemini Routines, Samsung Modes & Routines / Bixby | — | No HTTP/file actions at all | — | — | — | Can only *launch* one of the apps above |
+## Part 2 · Optional downloaded Android launcher
 
-All three tools appear in the screenshot preview's **Share** sheet (Android 10+; Direct-Share chips on 11+).
+SetupCard generates `Vecto-Android-launcher.json`. If using HTTP Shortcuts, import it
+with the normal **Import / Export** action, preserving existing shortcuts, then add
+**Vecto Offer** to the home screen. It opens the same deployment’s browser page;
+sign-in and screenshot selection still occur there.
 
----
+`client/src/lib/android-launcher.ts` exports a `browser` shortcut using schema version
+91 / compatibility 90. It contains no personal token, driver ID, coordinates or script.
+It uses the current deployment origin and rejects insecure non-loopback/account-bearing
+origins. This is a source-contract description, not a claim that every installed
+HTTP Shortcuts version has been tested.
 
-## Part 1 · Before you build (2 minutes)
+The [September 11 source review](MOBILE_CONCIERGE_2026-09-11.md#android-launcher-artifact-and-native-upload-boundary)
+records the official version inspected, tests and unverified physical-phone boundary.
+The earlier native GPS uploader was not shipped because its inspected API did not
+expose the actual fix timestamp needed by that proposed capture contract.
 
-1. **Get your token.** In Vecto Pilot: ☰ → **Offer Analyzer** → *Setup* card → **Your shortcut
-   token** → Copy (`vp_` + 40 characters). This is what makes the analyzer use **your** rules
-   and record offers to **your** account; without it you get default rules and nothing is
-   saved for you. Regenerating the token invalidates the old one. **The token belongs to
-   one deployment** — copied from the dev workspace it only resolves against dev; against
-   `https://vectopilot.com` it is unknown → default rules and no stored row, silently. Use
-   the URL of the deployment you copied it from, and verify on run one that a rule you
-   enabled shows (e.g. **Show $/hr in results** → `| $NN/hr` in the notification).
-2. **Set your rules** on the same page. Changes reach the analyzer within ~15 s.
-3. Know how to screenshot: **Power + Volume Down** (Pixel/most phones; Samsung: Side +
-   Volume Down, or palm swipe). A small preview appears bottom-left (Pixel) or a toolbar
-   (Samsung) with **Share** — that button is the trigger for the recommended flow.
-4. Both lanes exist on Android too:
-   - **Vision lane** (`source: android_vision`) — send the screenshot file. This is the
-     Android default (no OCR dependency).
-   - **Text lane** (`source: android_text`) — on-device OCR text as JSON; fastest verdicts
-     (milliseconds when your rules alone say REJECT; accepts take a ~0.6–0.9 s model
-     round-trip) but needs a tool with OCR (MacroDroid, or Tasker with an OCR plugin).
+## Part 3 · Existing direct-upload automation
 
----
+The server also accepts legacy configured automation without browser JWT auth:
 
-## Part 2 · HTTP Shortcuts — vision lane (recommended)
-
-Install **"HTTP Request Shortcuts"** (Waboodoo) from Google Play or F-Droid.
-
-| # | Where | Set it up like this |
-|---|---|---|
-| 1 | App → **+** → **Regular HTTP Shortcut** | Name: `Vecto Offer` |
-| 2 | Basic settings | **Method: POST** · **URL:** `https://vectopilot.com/api/hooks/analyze-offer` |
-| 3 | **Request Headers** → **+** ("Add Header") | Header `X-Shortcut-Token` · Value: *paste your token* |
-| 4 | **Request Body / Parameters** | **Request Body Type: Parameters (form-data)** |
-| 5 | → **+** → Parameter Type **File** ("Add File Parameter") | Parameter Name `image` · File Data Source **Open File Picker** · leave *File Name* empty · leave cropping unticked |
-| 6 | → **+** → Parameter Type **Text** | `source` = `android_vision` |
-| 7 | → **+** → Parameter Type **Text** *(optional)* | `device_id` = any label (e.g. `Melody Pixel`) |
-| 8 | **Response Handling** | Display Type **Notification** (or Toast) · On Success **Show nothing (run silently)** — the script below does the talking |
-| 9 | **Scripting** → *Run on Success* | paste script A (below) |
-| 10 | **Scripting** → *Run on Failure* | paste script B (below) |
-| 11 | Advanced / **Trigger & Execution Settings** | tick **Allow receiving files from share dialog** (usually on already) · tick **Allow triggering via Quick Settings Tile** · optionally **Show as app shortcut on launcher** (adds a Direct-Share chip and lets Assistant/Bixby launch it) |
-| 12 | Advanced → **Timeout** | set **30 s** (default is 10 s; the server caps its model call at 20 s) |
-| 13 | Save (✓) | |
-
-Script A — *Run on Success*:
-
-```js
-const r = JSON.parse(response.body);
-speak(r.voice);
-showNotification('Vecto Pilot', r.notification);
-```
-
-Script B — *Run on Failure*:
-
-```js
-speak('Offer check failed. Decide manually.');
-showToast('Vecto Pilot: request failed');
-```
-
-**Use it:** on the offer screen → **Power + Volume Down** → tap the preview's **Share** →
-choose **"Send to…" (HTTP Shortcuts)** or the Direct-Share chip → it sends the screenshot,
-speaks the verdict, and shows the notification. About two taps after the screenshot.
-
-**Quick Settings tile variant:** pull down the shade → edit tiles → add **"Trigger
-shortcut"** → tapping it opens the system file picker (choose the newest screenshot) →
-sends. Two extra taps versus the share route; useful if the share sheet is cluttered.
-
-**Notes (verified against the app's docs):** `speak()` reads up to 400 characters via the
-phone's TTS engine (some devices lack one); `showNotification` asks for notification
-permission once; the file picker means the shortcut can't run fully headless; if nothing
-happens from the tile, open the app menu → **Troubleshooting** → enable *Allow drawing over
-other apps* and exclude the app from Battery/Data Saver.
-
-**One-tap distribution (for us, later):** export the finished shortcut (long-press →
-Export), host the `.zip`, and give drivers `https://http-shortcuts.rmy.ch/import?url=<zip-url>`;
-keep the token as a global *Static Variable* (mark it *secret*) so each driver only pastes
-their own token. *(verify on device)*
-
-**Text lane in HTTP Shortcuts:** not native — no OCR. (Text can be shared *into* a variable
-and posted as JSON `{"text": …}`, but that needs a separate OCR step; use MacroDroid or
-Tasker for a text lane.)
-
----
-
-## Part 3 · Tasker — vision lane, fully hands-free (one tap, no share sheet)
-
-Buy/install **Tasker** ($4.49, 7-day trial). If you want prompt-free screenshots, run the
-**Tasker Permissions** helper (or `adb shell appops set net.dinglisch.android.taskerm
-PROJECT_MEDIA allow`) once; otherwise Android asks for screen-capture consent each run.
-
-**Task "Vecto Offer":**
-
-| # | Action | Fields |
-|---|---|---|
-| 1 | **Take Screenshot** | File `vp_offer` · Insert In Gallery off *(verify output path on device — commonly `Tasker/screenshots/`)* |
-| 2 | **HTTP Request** | Method **POST** · URL `https://vectopilot.com/api/hooks/analyze-offer` · Headers `X-Shortcut-Token:vp_…` (one per line, no spaces) · **Body** `source=android_vision&device_id=MyPixel` · **File To Send** `image:<path-to-vp_offer>` (the `image:` prefix names the multipart part) · Timeout **30** · *Structure Output (JSON)* on · do **not** add a Content-Type header |
-| 3 | **Say** | Text `%http_data.voice` |
-| 4 | **Notify** | Title `Vecto Pilot` · Text `%http_data.notification` |
-| 5 | *(optional)* **Flash** | `%http_response_code %http_data.reason` when the code isn't 200 |
-
-Tasker's guide is explicit that *File To Send* with a `name:` prefix plus a query-string
-style Body is sent as `multipart/form-data` — exactly what the server's `image` part needs.
-
-**Triggers:** Preferences → Action → **Quick Settings Tasks** → tile 1 = *Vecto Offer*, then
-add the tile in the shade editor (Android 13+: the *Request Add Tile* action). The shade may
-be in the screenshot — add a short *Wait* or *Hide Notification Shade* before step 1
-*(verify on device)*. Alternative: Profile → Event → System → **Received Share** (Tasker 6.5+)
-with `File To Send image:%rs_files(1)` and no Take Screenshot step → then use the
-screenshot preview's Share → Tasker.
-
-**Text lane in Tasker:** no built-in OCR. *Get Screen Info (Assistant)* → `%ai_texts`, or
-the AutoTools OCR plugin, → JavaScriptlet to build `{ text, source:"android_text", device_id }`
-→ HTTP Request with `Content-Type:application/json`. Also possible: **Read Binary** (file →
-base64) → JSON `{ "image": "%b64", "image_type": "image/png", "source": "android_vision" }`
-— the server strips whitespace/newlines from base64, so Tasker's line-wrapped output is fine.
-
----
-
-## Part 4 · MacroDroid — text lane (free tier is enough) + vision variant
-
-> **Field-verified 2026-08-17/18 on a Samsung Galaxy Ultra** (Melody + Cowork session):
-> the text lane below judged real offers the same press — pickup-limit reject in 516 ms,
-> rating reject, share auto-reject "the second I touched the button", and an honest
-> "No data. Decide manually." on non-offer screens. What follows is that working build.
-> **2026-08-24 (Melody):** delivery offers are analyzed on the **vision** lane (Part 4b) —
-> send the screenshot for those.
-
-MacroDroid's HTTP action cannot send a named multipart file, but two lanes work: the
-**text lane** (on-device OCR, Android 11+, JSON body — the fast one) and the **vision lane**
-via *Content Body: File* (the server accepts the raw screenshot bytes as the whole request
-body — `OFFER_ANALYZER.md` §4.1). Build the text macro first; the vision variant is a
-duplicate with one action changed.
-
-**Before you start (both lanes):** Settings → the screen-capture consent must be granted
-for the **Entire screen** — "A single app" gives blank OCR forever (a reboot clears a wrong
-grant). Add MacroDroid to the battery exceptions per **dontkillmyapp.com/samsung** (Samsung
-sleep/battery settings silently kill macros — this is Step 5, not optional). Enable both
-accessibility services when prompted (*MacroDroid* and *MacroDroid UI Interaction*).
-Apps that set `FLAG_SECURE` defeat screen capture/OCR — **field-verified 2026-08-17: *Read
-Screenshot Contents* reads the live offer screen on Melody's Samsung**, so the driver app
-she tested does not set it. On another platform, run just the OCR action over its live
-offer screen first: an empty array means that app blocks capture and only the share-sheet
-vision route (Part 2) works.
-
-**Text macro — action order is load-bearing** (a variable set *after* the HTTP request
-sends the **previous** offer; that bug shipped a 4:07 card at 4:09 during the field test):
-
-| # | Action | Fields |
-|---|---|---|
-| 1 | Trigger: **Floating Button** (or Quick Settings Tile) | one press on the offer screen |
-| 2 | **Pause** 2 s | lets the card finish rendering; experiment down to 0.5 s / 0 s and stop at the last accurate setting |
-| 3 | **Read Screenshot Contents** → local array `ocr_arr` | Latin · text only. *Do not add a "Take Screenshot" action — this action captures the screen itself (Take Screenshot is broken on some Samsung builds anyway).* **No join step:** the server parses MacroDroid's `[0]: … [1]: …` array rendering as-is (verified 2026-08-26) |
-| 4 | **Set Variable** local dictionary `req` → key `text` = `{lv=ocr_arr}` | **Runtime Set Variable, not a dictionary template:** dictionary values do NOT resolve magic text at output time. Pick the value with the magic-text picker in **Standard Format** (the "JSON Format" option emits `[lvjson=…]` and TTS would read the escapes). Add keys `source` = `android_text`, `device_id` = your label, `shortcut_system` = `macrodroid/<version>` (helps us diagnose OCR issues; optional) |
-| 5 | **JSON Output** `req` → `body_json` | must come **after** step 4 |
-| 6 | **HTTP Request** POST `https://vectopilot.com/api/hooks/analyze-offer` | Header `X-Shortcut-Token` = `vp_…` · Content type `application/json` · body `{lv=body_json}` · **Block until complete** ✓ · response code → `code` (int) · response → `resp` (string) |
-| 7 | **JSON Parse** `resp` → dictionary `r` | |
-| 8 | If `code` = 200 → **Display Notification** `VP` / `{lv=r[notification]}` **and** **Speak Text** `{lv=r[voice]}` (wait ✓) · Else → Speak Text "Offer check failed. Decide manually." | |
-
-**Sharing the macro:** never export your personal macro for someone else — the export
-carries **your token** in plain text (it leaked twice during the field session; regenerate
-it on the Offer Analyzer page if that ever happens). A scrubbed distributable
-(`PASTE_YOUR_TOKEN_HERE`, generic device label, no run data) is the only thing to share.
-
-### Part 4b · MacroDroid — vision variant (raw file body)
-
-Duplicate the text macro, rename it `Vecto Offer Vision`, delete steps 3–5 (OCR / Set
-Variable / JSON Output — the file replaces them), and change only the HTTP Request:
-
-| Field | Value |
+| Input | Request |
 |---|---|
-| URL | `https://vectopilot.com/api/hooks/analyze-offer?source=android_vision&device_id=<your label>&shortcut_system=macrodroid/<version>` — fields ride the query string because a raw body has none |
-| Header Params | `X-Shortcut-Token` = `vp_…` (unchanged) |
-| Content type | `image/png` (or `image/jpeg`; the server sniffs the real type from the bytes, so this isn't load-bearing — even `application/octet-stream` works) |
-| Content Body | **File** → for the first test *Select file* → pick any saved offer screenshot (the file body wants a saved file, not the clipboard). Wiring it to "the screenshot I just took" is the *Screenshot Content* trigger — capture what it offers on your device (its path token is the dynamic filename; *Local File URI* is the fallback) |
-| Everything else | identical: Block until complete, code → `code`, response → `resp`, JSON Parse → If → Speak |
+| OCR text | JSON or URL-encoded body with `text`, `source=android_text`. |
+| Screenshot | Multipart File part named `image`, or base64 JSON. |
+| Raw screenshot | Body is image bytes with `image/*` or `application/octet-stream`; metadata such as `source=android_vision` goes in query parameters. |
 
-**Test ladder:** a real offer screenshot opened from the Gallery + the native side-key
-screenshot → expect its verdict; the home screen → "No data. Decide manually."; a
-**delivery** card → a `delivery` verdict with `| $N/hr` and `| tip incl.` when the card
-said "Includes expected tip"; then check the row on `/co-pilot/offer-analyzer` shows
-`source: android_vision`, `input_mode: vision`, a non-NULL ruleset hash, and your
-`shortcut_system` tag; the server log shows `[HOOKS] Raw image upload: NKB image/png
-(file-body mode)`. Over 5 MB → 413 and the phone speaks "Image too large. Decide manually."
+Use the exact same-deployment hook URL shown in SetupCard and the owner’s
+`X-Shortcut-Token` header. `device_id` and `shortcut_system` are telemetry, not credentials.
+Do not export a personal macro with its token. A distributable must be scrubbed and
+newly configured by its owner.
 
-Honest latency: a full-size Samsung PNG is 2–4 MB, so on LTE the upload alone can eat the
-3-s budget (the server downscales >250 KB before the model, but only after the upload). The
-text lane stays the driving lane for rides; vision is the thorough lane — and the
-**delivery** lane — and flies on Wi-Fi.
+The historical direct-upload recipes omit GPS; later enrichment resolves trusted card
+locations/timezone where possible. That is distinct from current browser GPS validation.
+Text and vision both enter Phase 1. A screenshot input is not a synonym for Phase 2.
+Older HTTP Shortcuts/Tasker menu recipes and prices are retained only in the historical
+version referenced by the removal ledger, not asserted as current product instructions.
 
----
+## Part 4 · MacroDroid field-tested lessons (August 2026)
 
-## Part 5 · Test, then troubleshoot
+Melody’s Samsung text lane was field-tested in the August 17/18 session. The August
+intake captured the following load-bearing facts; they remain useful when rebuilding
+that specific automation, without certifying a new device/version:
 
-**Field-test protocol (G3):** in HTTP Shortcuts' *Run on Success* script add
-`showToast('server ' + r.response_time_ms + ' ms')` for the first runs and note it next to
-the felt tap-to-speech time — the difference is phone overhead (share sheet, radio wake,
-TTS), which the server bench can't see.
+1. Capture/read the **current** screen into OCR array `ocr_arr`.
+2. At runtime, **Set Variable** dictionary `req.text` from that array before outputting
+   JSON. A dictionary template alone did not resolve the magic text at output time.
+3. Use the magic-text picker’s **Standard Format** in the tested workflow. The server
+   accepts the `[0]: … [1]: …` array representation; no joining step is required.
+4. **JSON Output** must follow variable assignment. The HTTP request must follow JSON
+   output. Reversing that order sent the previous offer during the field test.
+5. Wait for the HTTP response; parse that response, show `notification`, and speak
+   `voice`. On failure say the check failed; do not speak the previous result.
 
-Same expectations as iPhone (see `SIRI_SHORTCUT_ANALYZE.md` Part 4): "Accept. dollar forty
-per mile, 6 miles." + `ACCEPT: $1.40 6.1mi`; rejects end with the reason ("too far",
-"below floor", "long pickup", "too long", "low rider rating", "rate too low"); `ACCEPT
-(FALLBACK)` = Acceptance-Rate-Protection; `| Filter Detected` / `| Verified Rider` notices;
-"No data. Decide manually." when nothing was readable.
+The tested screen-capture permission needed **Entire screen**; the single-app grant
+produced blank OCR. Samsung battery restrictions also interrupted automation. Preserve
+those diagnostic observations without assuming every empty OCR is a secure-screen block
+or promising another capture mechanism will bypass it.
 
-| Symptom | Fix |
+The historical vision variant used **Content Body: File** to send screenshot bytes,
+with `source`, device label and `shortcut_system` in query parameters and the token in
+the header. A saved-file test does not establish that the current live screenshot is
+being captured. Delivery cards need their distinct economics; Melody’s August workflow
+used screenshot evidence for them.
+
+See [the August incident/intake](../review-queue/PLAN_intake-2026-08-26-offer-analyzer-handoffs.md)
+for chronology and [the removal ledger](removals/2026-09-29-offer-analyzer-doc-reconciliation.md)
+for the exact prior recipe. No historical latency is a current service promise.
+
+## Part 5 · Test and troubleshoot
+
+While stopped, verify current offer capture, selected service, pickup/trip distinction,
+chosen rate basis, personal rules, speech, errors and history. Measure the entire
+capture-to-speech interval. Check a non-offer image and a delayed response too.
+
+| Symptom | Check |
 |---|---|
-| Notification `Missing text or image payload` (400), or a blank failure with nothing spoken | The file parameter **must be named exactly `image`** (a File parameter with another name is a server error, not a 400 — the aliases `screenshot`/`photo` only apply to base64 *string* fields) or the body type isn't form-data (a raw `image/*` body with no field names is also fine — Part 4b). Files over 5 MB now get a **413** and the phone speaks "Image too large. Decide manually." For the text lane the JSON key must be `text` (`ocr_text`/`ocr` accepted) |
-| Rules don't apply / offers missing from the web page | Token missing or misspelled — must be the header `X-Shortcut-Token` (a body field `shortcut_token`/`token` also works). Rows need a real timezone: the server takes it from the card's pickup address (first address on the card), else from your app session — if the pickup was unreadable and you have no session, that row isn't stored (`OFFER_ANALYZER.md` §10.4) |
-| Nothing spoken | HTTP Shortcuts: `speak()` needs a TTS engine (Settings → System → Languages → Text-to-speech); Tasker: check *Say* engine; MacroDroid: *Speak Text* audio stream |
-| Times out | Raise the tool's timeout to 30 s; the server answers deterministic rejects in ms and model verdicts in ~0.6–0.9 s, but caps the model call at 20 s. Re-sending is safe: an identical payload (same saved file / same text, same rules) within 60 s is recognized and the first answer is replayed (`duplicate:true`) — no second analysis, no second row (2026-08-17); a fresh screenshot is a new payload |
-| Nothing spoken/shown after several rapid runs | Probably the rate limit (429) — 20 analyses/min per phone; the 429 body has no `voice`/`notification` keys, so the *Run on Failure* script speaks the failure line; wait a moment |
-| "No data. Numbers look wrong. Decide manually." + `NO DATA: $163.04/mi implausible` | The phone's OCR misread a money figure (a dropped decimal turns `$7.50` into `$750`). The server refuses to judge impossible numbers — read the card yourself. The row shows an amber **PARSE ERROR** badge; if it keeps happening, retake with the vision lane and tell us which automation app you use (`shortcut_system`) |
-| The verdict describes the **previous** offer | MacroDroid: the Set Variable action sits after the HTTP Request — move it before JSON Output (Part 4 order) |
-| Blank OCR every time | Screen-capture consent was granted for "A single app" — re-grant for the **Entire screen** (reboot clears the wrong grant) |
-| Macro stops firing after a while | Samsung battery/sleep killed it — dontkillmyapp.com/samsung steps, then re-test |
-| "No data. Delivery offers are off in your rules." | A delivery card reached the analyzer while **Delivery** is switched off on the rules page — turn it on and set the two floors |
-| Shortcut won't run from tile/home screen (HTTP Shortcuts) | App menu → Troubleshooting → *Allow drawing over other apps*; exclude from Battery/Data Saver |
+| Previous offer analyzed | Variable assignment → JSON output → HTTP order; current file rather than an old saved screenshot. |
+| Empty OCR | Capture permission and actual current screen; app/phone restrictions need device diagnosis. |
+| Token/rules failure | Token from the same deployment; unknown supplied tokens fail closed. |
+| 413 response | Body/file exceeds 5 MiB; handle the returned manual-decision response. |
+| Speech absent | Actual parsed `voice`, phone/browser audio and visible error path. |
+| Result appears but no history row | Phase 2/storage may fail after speech, and unresolved trusted timezone prevents storage. |
 
----
+## Part 6 · Maintainer reference
 
-## Part 6 · Server contract recap (for maintainers)
-
-Identical to iPhone — `OFFER_ANALYZER.md` §4:
-
-| Item | Contract |
-|---|---|
-| Endpoint | `POST https://vectopilot.com/api/hooks/analyze-offer` (also accepts `application/x-www-form-urlencoded` and JSON) |
-| Identity | Header `X-Shortcut-Token: vp_…` (preferred) or body field `shortcut_token` |
-| Vision | multipart part named `image` (raw file), or JSON `image` (base64; data-URL prefix and whitespace tolerated), `image_type` optional; screenshots >250 KB are downscaled server-side |
-| Text | JSON/urlencoded field `text` |
-| `source` | `android_vision` / `android_text` (stored verbatim; iPhone uses `siri_vision` / `siri_text`) |
-| `shortcut_system` (optional) | which automation app sent it — `macrodroid/5.65`, `http_shortcuts/3.x`, `tasker/6.6`. JSON/form field, `X-Shortcut-System` header, or query param on the raw-body path. Diagnostics only — the token is the identity |
-| Response | `{ success, voice, notification, decision, reason, notices, response_time_ms }` — speak `voice`, show `notification` |
-| Aliases (case-insensitive, string fields only; the multipart file part must be exactly `image`; companion endpoints don't normalize) | `screenshot`/`photo`→`image` (base64 string); `ocr_text`/`ocr`→`text`; `token`/`shortcuttoken`→`shortcut_token`; `deviceid`/`device`→`device_id`; `lat`/`lattitude`→`latitude`; `lng`/`lon`/`long`→`longitude` |
-
-Not needed and not sent: GPS coordinates (the server resolves the offer's own pickup address
-in Phase 2 — timezone and coordinates come from it). Raw `image/*` body mode shipped
-2026-08-17 (Part 4b). Still on the roadmap: HTTP Shortcuts' `getDeviceId()` as a stable
-`device_id` source; a hosted import zip makes setup one tap.
+[Canonical Analyzer contract](OFFER_ANALYZER.md) covers transport, rules, decision
+provenance, storage and outcomes. [Roadmap](OFFER_ANALYZER_ROADMAP.md) separates current
+code from device gates and future native integration. Do not mark the browser launcher
+as certified cross-app automation or copy a user’s token into an example/import file.

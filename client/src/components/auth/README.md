@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-09-29 (synthetic client auth and isolated session tests)
 
 # Auth Components (`client/src/components/auth/`)
 
@@ -8,10 +8,11 @@ Authentication-related UI components for protecting routes and managing auth sta
 
 ## Files
 
-| File | LOC | Purpose |
-|------|-----|---------|
-| `ProtectedRoute.tsx` | 36 | Route guard that redirects unauthenticated users |
-| `AuthRedirect.tsx` | ~50 | Handles post-authentication redirects |
+| File | Purpose |
+|------|---------|
+| `ProtectedRoute.tsx` | Protects private routes while verifying saved sessions |
+| `AuthRedirect.tsx` | Routes the root entry after session verification |
+| `SessionCheck.tsx` | Shared loading and recoverable session-check view |
 
 ## ProtectedRoute
 
@@ -19,9 +20,10 @@ A wrapper component that protects routes from unauthorized access.
 
 **Behavior:**
 1. Shows loading spinner while checking auth status
-2. Redirects to `/auth/sign-in` if not authenticated
-3. Saves attempted location for post-login redirect
-4. Renders children if authenticated
+2. Keeps an interrupted saved-session check on a retry screen; temporary connection failures do not clear the token or saved data
+3. Redirects to `/auth/sign-in` when no authenticated session remains
+4. Saves attempted location for post-login redirect
+5. Renders children if authenticated
 
 **Usage:**
 ```tsx
@@ -40,19 +42,19 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 ## AuthRedirect
 
-Handles redirects after successful authentication.
+Handles the root route after checking authentication.
 
 **Behavior:**
-1. Checks for saved redirect location in session storage
-2. Redirects to saved location or default (`/co-pilot/strategy`)
-3. Clears saved location after redirect
+1. Waits for session verification and shares the retry screen after temporary failure
+2. Redirects an authenticated driver to `/co-pilot/strategy`
+3. Redirects a driver without an authenticated session to `/auth/sign-in`
 
 **Usage:**
 ```tsx
 import AuthRedirect from '@/components/auth/AuthRedirect';
 
-// In auth callback route
-<Route path="/auth/callback" element={<AuthRedirect />} />
+// In the root entry route
+<Route path="/" element={<AuthRedirect />} />
 ```
 
 ## Dependencies
@@ -62,6 +64,13 @@ import AuthRedirect from '@/components/auth/AuthRedirect';
 - `lucide-react` - Loading spinner icon
 
 ## Connections
+
+`AuthProvider` retries an interrupted initial verification on explicit retry,
+network recovery or foreground return. A verified mounted session does not trigger
+a new login or workflow on focus. The server retains its existing 60-minute
+inactivity window and two-hour absolute limit; the client does not extend either.
+An actual `401` still clears the rejected session. Account transitions fence old
+responses before they can change the new owner's state.
 
 - **State from:** `../../contexts/auth-context.tsx`
 - **Used by:** `../../routes.tsx`

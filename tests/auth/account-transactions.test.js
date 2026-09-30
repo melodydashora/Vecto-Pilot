@@ -2,8 +2,9 @@ import { beforeEach, expect, jest, test } from '@jest/globals';
 import { getTableName } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
-let rows, failTable, beforeUpdate, beforeHash, transactionTail, transactionActive;
+let validationResult, geocodeResult, rows, failTable, beforeUpdate, beforeHash, beforeVerify, passwordValid, transactionTail, transactionActive;
 const dialect = new PgDialect();
+const { structuredClone } = globalThis;
 
 // Evaluate the generated conjunctions against synthetic rows. This fake models
 // the database's conditional writes rather than authorizing by handler inputs.
@@ -44,8 +45,13 @@ const db = {
     driver_vehicles: { findFirst: findFirst('driver_vehicles') },
     auth_credentials: { findFirst: findFirst('auth_credentials') },
     verification_codes: { findFirst: findFirst('verification_codes') },
+    users: { findFirst: findFirst('users') },
   },
-  select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }),
+  select: () => ({ from: table => ({ where: condition => {
+    const query = { for: () => query, limit: async () =>
+      structuredClone(rows[getTableName(table)]?.filter(row => matchesCondition(row, condition)) ?? []) };
+    return query;
+  } }) }),
   insert,
   delete: () => ({ where: () => ({ returning: async () => rows.oauth_states.splice(0, 1) }) }),
   update(table) {
@@ -88,7 +94,7 @@ jest.unstable_mockModule('../../server/lib/auth/password.js', () => ({
     return 'synthetic-hash-' + password;
   },
   validatePasswordStrength: () => ({ valid: true }),
-  verifyPassword: forbidden, generateResetToken: forbidden, generateVerificationCode: forbidden,
+  verifyPassword: async () => { await beforeVerify?.(); return passwordValid; }, generateResetToken: forbidden, generateVerificationCode: forbidden,
   getResetTokenExpiry: forbidden, getVerificationCodeExpiry: forbidden,
 }));
 jest.unstable_mockModule('../../server/lib/auth/oauth/google-oauth.js', () => ({
@@ -104,24 +110,27 @@ jest.unstable_mockModule('../../server/lib/auth/sms.js', () => ({
   sendPasswordResetSMS: forbidden, isSmsConfigured: () => false,
   validatePhoneNumber: () => ({ valid: true, formatted: 'synthetic' }),
 }));
-jest.unstable_mockModule('../../server/lib/location/geocode.js', () => ({ geocodeAddress: async () => null }));
+jest.unstable_mockModule('../../server/lib/location/geocode.js', () => ({ geocodeAddress: async () => geocodeResult }));
 // main's auth.js also imports ensure-market.js (-> resolveTimezone -> logger OP); keep it out of the graph.
 jest.unstable_mockModule('../../server/lib/markets/ensure-market.js', () => ({
   ensureMarket: async ({ market_name }) => ({ already_existed: true, market_name, market_slug: 'synthetic', timezone: null }),
 }));
-jest.unstable_mockModule('../../server/lib/location/address-validation.js', () => ({ validateAddress: async () => ({ skipped: true }) }));
+jest.unstable_mockModule('../../server/lib/location/address-validation.js', () => ({ validateAddress: async () => validationResult }));
 const { default: router } = await import('../../server/api/auth/auth.js');
 const handler = path => router.stack.find(layer => layer.route?.path === path && layer.route.methods.post).route.stack.at(-1).handle;
 async function post(path, body, auth) {
   const res = { statusCode: 200, status(n) { this.statusCode = n; return this; }, json(value) { this.body = value; return this; } };
-  await handler(path)({ body, auth, protocol: 'https', get: () => 'example.test' }, res);
+  await handler(path)({ body, auth, headers: {}, protocol: 'https', get: () => 'example.test' }, res);
   return res;
 }
 beforeEach(() => {
+  validationResult = { skipped: true }; geocodeResult = null;
   rows = { users: [], driver_profiles: [], driver_vehicles: [], auth_credentials: [], verification_codes: [], oauth_states: [] };
   failTable = null;
   beforeUpdate = null;
   beforeHash = null;
+  beforeVerify = null;
+  passwordValid = true;
   transactionTail = Promise.resolve();
   transactionActive = false;
   jest.clearAllMocks();
@@ -221,6 +230,8 @@ test.each(['token', 'sms'])('only one concurrent %s reset can claim the credenti
   expect(rows.users[0]).toMatchObject({ session_id: null, current_snapshot_id: null });
   if (method === 'sms') expect(rows.verification_codes[0].used_at).toBeInstanceOf(Date);
   beforeHash = null;
+  beforeVerify = null;
+  passwordValid = true;
   expect((await post('/reset-password', { ...credential, newPassword: 'replay' })).statusCode).toBe(400);
   expect(forbidden).not.toHaveBeenCalled();
 });
@@ -257,4 +268,98 @@ test('reissuing an email token after its read prevents the old token from resett
   expect((await post('/reset-password', { ...credential, newPassword: 'new' })).body.error).toBe('INVALID_TOKEN');
   expect(rows.auth_credentials[0]).toMatchObject({ password_hash: 'old-hash', password_reset_token: 'replacement-token' });
   expect(rows.users[0].session_id).toBe('old-session');
+});
+
+function passwordLoginFixture() {
+  rows.users.push({ user_id: 'synthetic-user', session_id: 'old-session', current_snapshot_id: 'old-snapshot', current_main_run_id: 'old-run' });
+  rows.driver_profiles.push({ id: 'synthetic-profile', user_id: 'synthetic-user', email: 'test@example.test', settings_revision: 7, selected_services: ['comfort'] });
+  rows.auth_credentials.push({ user_id: 'synthetic-user', password_hash: 'old-hash', password_reset_token: 'synthetic-reset', password_reset_expires: new Date(Date.now() + 60000) });
+  rows.driver_vehicles.push(
+    { id: 'retired', driver_profile_id: 'synthetic-profile', is_primary: true, is_active: false, year: 2020 },
+    { id: 'current', driver_profile_id: 'synthetic-profile', is_primary: true, is_active: true, year: 2026 },
+  );
+}
+
+test('password login returns the same saved revision, chosen services and active vehicle as setup', async () => {
+  passwordLoginFixture();
+  const result = await post('/login', { email: 'test@example.test', password: 'old-password' });
+  expect(result.statusCode).toBe(200);
+  expect(result.body).toMatchObject({ sessionId: rows.users[0].session_id, settingsRevision: 7,
+    profile: { selectedServices: ['comfort'], settingsRevision: 7 }, vehicle: { id: 'current' } });
+  expect(rows.users[0]).toMatchObject({ current_snapshot_id: null, current_main_run_id: null });
+});
+
+test('a password reset during password verification cannot be followed by a session from the old password', async () => {
+  passwordLoginFixture();
+  let reachedVerify, releaseVerify;
+  const atVerify = new Promise(resolve => { reachedVerify = resolve; });
+  const resume = new Promise(resolve => { releaseVerify = resolve; });
+  beforeVerify = async () => { reachedVerify(); await resume; };
+  const pending = post('/login', { email: 'test@example.test', password: 'old-password' });
+  await atVerify;
+  expect((await post('/reset-password', { token: 'synthetic-reset', newPassword: 'new-password' })).statusCode).toBe(200);
+  releaseVerify();
+  const result = await pending;
+  expect(result.statusCode).toBe(401);
+  expect(result.body.error).toBe('INVALID_CREDENTIALS');
+  expect(rows.users[0].session_id).toBeNull();
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+
+test('Google login uses the same session, saved choices and active vehicle projection', async () => {
+  passwordLoginFixture();
+  rows.driver_profiles[0].google_id = 'synthetic-google-subject';
+  rows.oauth_states.push({ id: 'synthetic-state-id', state: 'synthetic-state' });
+  const result = await post('/google/exchange', { code: 'synthetic-code', state: 'synthetic-state' });
+  expect(result.statusCode).toBe(200);
+  expect(result.body).toMatchObject({ sessionId: rows.users[0].session_id, settingsRevision: 7,
+    profile: { selectedServices: ['comfort'], settingsRevision: 7 }, vehicle: { id: 'current' } });
+  expect(rows.users[0]).toMatchObject({ current_snapshot_id: null, current_main_run_id: null });
+});
+
+test('concurrent failed password checks accumulate instead of overwriting the attempt counter', async () => {
+  passwordLoginFixture(); passwordValid = false;
+  let reachedVerify, releaseVerify, arrivals = 0;
+  const atVerify = new Promise(resolve => { reachedVerify = resolve; });
+  const resume = new Promise(resolve => { releaseVerify = resolve; });
+  beforeVerify = async () => { if (++arrivals === 5) reachedVerify(); await resume; };
+  const pending = Array.from({ length: 5 }, () => post('/login', { email: 'test@example.test', password: 'wrong' }));
+  await atVerify; releaseVerify();
+  expect((await Promise.all(pending)).map(result => result.statusCode)).toEqual([401, 401, 401, 401, 401]);
+  expect(rows.auth_credentials[0].failed_login_attempts).toBe(5);
+  expect(rows.auth_credentials[0].locked_until.getTime()).toBeGreaterThan(Date.now());
+  expect(rows.users[0].session_id).toBe('old-session');
+});
+
+test('failed session creation rolls back the successful-login credential writes', async () => {
+  passwordLoginFixture(); rows.auth_credentials[0].failed_login_attempts = 3;
+  failTable = 'users';
+  const result = await post('/login', { email: 'test@example.test', password: 'old-password' });
+  expect(result.statusCode).toBe(500);
+  expect(rows.auth_credentials[0].failed_login_attempts).toBe(3);
+  expect(rows.users[0].session_id).toBe('old-session');
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+
+test('registration preserves the supplied address when validation is uncertain', async () => {
+  validationResult = { valid: false, validationStatus: 'UNCONFIRMED_ADDRESS', corrected: { address1: 'Wrong inferred place', city: 'Other city', state: 'XX', country: 'US' }, lat: 40, lng: -70 };
+  expect((await post('/register', signup)).statusCode).toBe(201);
+  expect(rows.driver_profiles[0]).toMatchObject({ address_1: signup.address1, city: signup.city, home_lat: null, home_lng: null });
+});
+test('registration accepts confirmed zero coordinates and rejects malformed geocode fallback coordinates', async () => {
+  validationResult = { valid: true, validationStatus: 'CONFIRMED', lat: 0, lng: 2 };
+  expect((await post('/register', signup)).statusCode).toBe(201);
+  expect(rows.driver_profiles[0]).toMatchObject({ home_lat: 0, home_lng: 2 });
+});
+test('registration fallback does not persist out-of-range home coordinates', async () => {
+  geocodeResult = { lat: 95, lng: 2 };
+  expect((await post('/register', signup)).statusCode).toBe(201);
+  expect(rows.driver_profiles[0]).toMatchObject({ home_lat: null, home_lng: null });
+});
+test('registration market lookup cannot replace an explicit driver choice', async () => {
+  rows.platform_data = [{ city: signup.city, platform: 'uber', market_anchor: 'Different auto market' }];
+  expect((await post('/register', signup)).statusCode).toBe(201);
+  expect(rows.driver_profiles[0].market).toBe(signup.market);
 });

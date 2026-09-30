@@ -1,214 +1,85 @@
 import express from 'express';
 import { validate, schemas } from '../../middleware/validation.js';
 import { db } from '../../db/drizzle.js';
-import { actions, snapshots, rankings, venue_catalog, venue_metrics } from '../../../shared/schema.js';
-import { desc, eq, sql } from 'drizzle-orm';
-import crypto from 'crypto'; // Ensure crypto is imported
-// 2026-01-09: Added optionalAuth to properly derive user_id from JWT
-// 2026-02-12: Upgraded to requireAuth - anonymous users no longer exist
+import { actions, snapshots, rankings, ranking_candidates } from '../../../shared/schema.js';
+import { and, eq, or, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+import { v5 as uuidv5 } from 'uuid';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
-
-// In-memory idempotency cache (5-minute TTL)
-const idempotencyCache = new Map();
-const IDEMPOTENCY_TTL = 5 * 60 * 1000; // 5 minutes
-
-function cleanExpiredKeys() {
-  const now = Date.now();
-  for (const [key, value] of idempotencyCache.entries()) {
-    if (now - value.timestamp > IDEMPOTENCY_TTL) {
-      idempotencyCache.delete(key);
-    }
-  }
+// An existing primary key is the durable idempotency constraint. Owner scoping
+// prevents two drivers' identical caller keys from sharing a receipt. No process
+// cache, cleanup timer, extra table or deployment migration is needed.
+const ACTION_NAMESPACE = 'dcf69544-1a4c-5e8c-9aae-7d559f566c94';
+const receiptFields = ['user_id', 'snapshot_id', 'ranking_id', 'action', 'block_id', 'dwell_ms', 'from_rank', 'raw'];
+class ActionError extends Error {
+  constructor(status, code) { super(code); this.status = status; this.code = code; }
 }
 
-// Clean expired keys every minute
-setInterval(cleanExpiredKeys, 60000);
-
-// POST /api/actions
-// Log user actions (clicks, dwells, views) for ML training
-// 2026-01-09: Added optionalAuth middleware to derive user_id from JWT (not request body)
-// 2026-02-12: Upgraded to requireAuth - all users must be authenticated (no anonymous access)
 router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
   try {
-    const {
-      ranking_id,
-      action,
-      block_id,
-      dwell_ms,
-      from_rank,
-      // 2026-01-09: SECURITY FIX - user_id now derived from JWT, not request body
-      // Body user_id is ignored for security (prevents spoofing)
-      raw,
-    } = req.validatedBody; // Use validatedBody
-
-    // 2026-01-09: SECURITY FIX - Always use authenticated user_id from JWT
-    // Never trust user_id from request body (auth contract violation)
-    // 2026-02-12: requireAuth guarantees userId is always present
-    const authUserId = req.auth.userId;
-
-    // Check idempotency key to prevent duplicate actions
-    const idempotencyKey = req.header('X-Idempotency-Key');
-    if (idempotencyKey) {
-      const cached = idempotencyCache.get(idempotencyKey);
-      if (cached) {
-        console.log(`⚡ Idempotent request detected - returning cached response`);
-        return res.json(cached.response);
-      }
+    const input = req.validatedBody;
+    const action = input.action ?? input.action_type;
+    if (!action || (input.action && input.action_type && input.action !== input.action_type)) {
+      throw new ActionError(400, 'action_required_or_conflicting');
     }
-
-    // Anchor to exact snapshot via ranking lookup (ensures action ↔ ranking ↔ snapshot integrity)
-    let snapshot_id = null;
-
-    if (ranking_id) {
-      // Lookup ranking to get its snapshot_id
-      const ranking = await db
-        .select({ snapshot_id: rankings.snapshot_id })
-        .from(rankings)
-        .where(eq(rankings.ranking_id, ranking_id))
+    if (!input.ranking_id) throw new ActionError(400, 'ranking_id_required');
+    const key = req.header('X-Idempotency-Key');
+    if (key !== undefined && (typeof key !== 'string' || !key.trim() || key.length > 1024)) {
+      throw new ActionError(400, 'invalid_idempotency_key');
+    }
+    const owner = req.auth.userId;
+    const actionId = key ? uuidv5(JSON.stringify([owner, key]), ACTION_NAMESPACE) : randomUUID();
+    const result = await db.transaction(async tx => {
+      const [ranking] = await tx.select({ snapshot_id: rankings.snapshot_id }).from(rankings)
+        .innerJoin(snapshots, eq(snapshots.snapshot_id, rankings.snapshot_id))
+        .where(and(eq(rankings.ranking_id, input.ranking_id), eq(rankings.user_id, owner), eq(snapshots.user_id, owner)))
         .limit(1);
+      if (!ranking) throw new ActionError(404, 'ranking_not_found');
 
-      snapshot_id = ranking[0]?.snapshot_id || null;
-
-      if (snapshot_id) {
-        console.log(`[WORKFLOW] [ACTION] Anchored to ranking snapshot: ${snapshot_id}`);
+      let candidate;
+      if (input.block_id) {
+        [candidate] = await tx.select({ venue_id: ranking_candidates.venue_id, place_id: ranking_candidates.place_id })
+          .from(ranking_candidates).where(and(eq(ranking_candidates.ranking_id, input.ranking_id), or(
+            eq(ranking_candidates.block_id, input.block_id), eq(ranking_candidates.place_id, input.block_id),
+            sql`${ranking_candidates.venue_id}::text = ${input.block_id}`,
+          ))).limit(1);
+        if (!candidate) throw new ActionError(404, 'ranking_candidate_not_found');
       }
-    }
-
-    // 2026-01-09: DATA INTEGRITY FIX - Removed global fallback to latest snapshot
-    // Global fallback was cross-contaminating action attribution across users
-    // Actions without ranking_id cannot be properly attributed and should fail
-    if (!snapshot_id) {
-      console.warn('[actions] No ranking_id provided or ranking not found, action not logged');
-      return res.status(400).json({
-        error: 'ranking_id is required',
-        message: 'Actions must be anchored to a ranking for proper attribution'
-      });
-    }
-
-    // Create action record with retry logic for replication lag
-    const action_id = crypto.randomUUID();
-    const actionData = {
-      action_id,
-      created_at: new Date(),
-      ranking_id: ranking_id || null,
-      snapshot_id,
-      // 2026-01-09: Use authenticated user_id from JWT (guaranteed by requireAuth)
-      user_id: authUserId,
-      action,
-      block_id: block_id || null,
-      dwell_ms: dwell_ms || null,
-      from_rank: from_rank || null,
-      raw: raw || null,
-    };
-
-    // Retry logic for foreign key constraint errors (replication lag)
-    const maxRetries = 8;
-    const retryDelayMs = 150; // Start with 150ms, grows exponentially
-    let lastError;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await db.insert(actions).values(actionData);
-        console.log(`[WORKFLOW] [ACTION] [DB] [actions] Logged: ${action}${block_id ? ` on ${block_id}` : ''}${dwell_ms ? ` (${dwell_ms}ms)` : ''}${attempt > 1 ? ` (retry ${attempt})` : ''}`);
-
-        // Bump venue_metrics.times_chosen for clicks (best-effort, non-blocking)
-        if (action === 'click' && block_id) {
-          try {
-            const result = await db.execute(sql`
-              UPDATE venue_metrics vm
-              SET times_chosen = vm.times_chosen + 1
-              FROM venue_catalog vc
-              WHERE (vc.venue_id = vm.venue_id) 
-                AND (vc.venue_id::text = ${block_id} OR vc.place_id = ${block_id})
-            `);
-            if (result.rowCount > 0) {
-              console.log(`Bumped times_chosen for ${block_id}`);
-            }
-          } catch (metricsErr) {
-            console.warn(`Metrics bump skipped for ${block_id}:`, metricsErr.message);
-          }
+      const record = {
+        action_id: actionId, created_at: new Date(), ranking_id: input.ranking_id,
+        snapshot_id: ranking.snapshot_id, user_id: owner, action,
+        block_id: input.block_id ?? null, dwell_ms: input.dwell_ms ?? null,
+        from_rank: input.from_rank ?? null, raw: input.raw ?? input.metadata ?? null,
+      };
+      const [inserted] = await tx.insert(actions).values(record)
+        .onConflictDoNothing({ target: actions.action_id }).returning({ action_id: actions.action_id });
+      if (!inserted) {
+        const [saved] = await tx.select().from(actions).where(eq(actions.action_id, actionId)).limit(1);
+        if (!saved || receiptFields.some(field => !isDeepStrictEqual(saved[field], record[field]))) {
+          throw new ActionError(409, 'idempotency_key_conflict');
         }
-
-        const response = { 
-          success: true, 
-          action_id,
-        };
-
-        // Cache response for idempotency
-        if (idempotencyKey) {
-          idempotencyCache.set(idempotencyKey, {
-            response,
-            timestamp: Date.now()
-          });
-        }
-
-        return res.json(response);
-      } catch (err) {
-        lastError = err;
-
-        // Check if it's a foreign key constraint error (replication lag for ranking_id or snapshot_id)
-        const isRankingFKError = err.code === '23503' && err.constraint === 'actions_ranking_id_rankings_ranking_id_fk';
-        const isSnapshotFKError = err.code === '23503' && err.constraint === 'actions_snapshot_id_snapshots_snapshot_id_fk';
-
-        if (isRankingFKError || isSnapshotFKError) {
-          if (attempt < maxRetries) {
-            // Exponential backoff with jitter: 150ms, 300ms, 600ms, 1200ms, 2400ms, 4800ms, 9600ms
-            const delay = Math.min(retryDelayMs * Math.pow(2, attempt - 1), 10000);
-            const constraint = isRankingFKError ? 'ranking_id' : 'snapshot_id';
-            console.warn(`Foreign key error on ${constraint} (replication lag), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-
-          // If all retries exhausted
-          if (isRankingFKError) {
-            // For ranking_id, log action without it
-            console.warn(`Replication lag persists after ${maxRetries} retries, logging without ranking_id`);
-            actionData.ranking_id = null;
-            try {
-              await db.insert(actions).values(actionData);
-              console.log(`[WORKFLOW] [ACTION] [DB] [actions] Logged (no ranking): ${action}${block_id ? ` on ${block_id}` : ''}`);
-
-              const response = { 
-                success: true, 
-                action_id,
-                warning: 'logged_without_ranking_id'
-              };
-
-              if (idempotencyKey) {
-                idempotencyCache.set(idempotencyKey, {
-                  response,
-                  timestamp: Date.now()
-                });
-              }
-
-              return res.json(response);
-            } catch (finalErr) {
-              lastError = finalErr;
-              break;
-            }
-          } else {
-            // For snapshot_id, we can't log without it (it's required), so fail
-            console.error(`Snapshot ${snapshot_id} not found after ${maxRetries} retries - cannot log action without snapshot`);
-            break;
-          }
-        }
-        // For other errors, break immediately
-        break;
+        return { success: true, action_id: saved.action_id };
       }
-    }
-
-    // If we get here, all retries failed
-    throw lastError;
-
-  } catch (error) {
-    console.error('Action logging error:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error.message
+      // Commit the winner's action and measured counter together. A failure rolls
+      // both back, so a retry never misses or doubles the venue increment.
+      if (action === 'click' && candidate) {
+        const venueIdentity = candidate.venue_id
+          ? sql`vc.venue_id = ${candidate.venue_id}::uuid`
+          : sql`vc.place_id = ${candidate.place_id}`;
+        await tx.execute(sql`UPDATE venue_metrics vm SET times_chosen = vm.times_chosen + 1
+          FROM venue_catalog vc WHERE vc.venue_id = vm.venue_id
+          AND ${venueIdentity}`);
+      }
+      return { success: true, action_id: actionId };
     });
+    return res.json(result);
+  } catch (error) {
+    if (error instanceof ActionError) return res.status(error.status).json({ error: error.code });
+    console.error('[actions] Action could not be persisted:', error.code || error.name);
+    return res.status(500).json({ error: 'action_persistence_failed' });
   }
 });
 

@@ -2,14 +2,15 @@
 // and strict final reconciliation before Strategy can consume the context.
 
 import { db } from '../../db/drizzle.js';
+import { assertMainRunForSnapshot, withCurrentMainRun, MainRunAdmissionError } from '../main-run-admission.js';
 import { randomUUID } from 'node:crypto';
 import { withBriefingGeneration, writeBriefingGeneration, BriefingSupersededError } from './briefing-generation.js';
+import { assertSnapshotReady } from '../location/snapshot-readiness.js';
 import { sealFailedSection, BRIEFING_FIELDS, briefingSectionIssue, briefingFailureReason, getBriefingReadiness, BriefingNotReadyError, assertBriefingReady, waitForBriefing } from './briefing-readiness.js';
 import { briefings, snapshots } from '../../../shared/schema.js';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { briefingLog, OP } from '../../logger/workflow.js';
 import { errorMarker } from './briefing-notify.js';
-import { isDailyBriefingStale } from './shared/staleness.js';
 import { dumpLastBriefingRow } from './dump-last-briefing.js';
 
 // Pipeline contracts (orchestrator's Promise.allSettled fan-out)
@@ -21,8 +22,8 @@ import { discoverHoliday } from './pipelines/holiday.js';
 import { discoverTraffic } from './pipelines/traffic.js';
 import { discoverEvents } from './pipelines/events.js';
 
-// Same-process callers share ordinary work. Explicit refresh claims a new token;
-// completion of an older promise must not remove its replacement from this Map.
+// Same-process callers share in-flight work for this owned snapshot. Preparing
+// upstream Briefing does not admit Strategy; completed source stays immutable.
 const inFlightBriefings = new Map();
 export function generateAndStoreBriefing({ snapshotId, snapshot, forceRefresh = false }) {
   if (!forceRefresh && inFlightBriefings.has(snapshotId)) return inFlightBriefings.get(snapshotId);
@@ -36,6 +37,7 @@ export function generateAndStoreBriefing({ snapshotId, snapshot, forceRefresh = 
 }
 
 async function readAfterClaim(snapshotId) {
+  await assertMainRunForSnapshot(snapshotId, { allowUpstream: true });
   // Serialize with placeholder claims, never accepting the old complete row while
   // its replacement is claiming ownership but has not yet committed.
   return db.transaction(async tx => {
@@ -54,16 +56,18 @@ async function awaitCurrentGeneration(snapshotId) {
 async function generateWithClaim({ snapshotId, snapshot, forceRefresh }) {
   // This transaction ends before any provider, cache lookup, or wait. No extra
   // pool/URL is needed: generators cannot hold one client while needing another.
-  const claim = await db.transaction(async tx => {
+  const claim = await withCurrentMainRun(snapshotId, async (tx, admission) => {
     // Preserve the existing advisory-lock namespace/key during rollout.
     const lock = await tx.execute(sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) AS acquired`);
     if (!lock.rows[0]?.acquired) return null;
     const [existing] = await tx.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-    if (!forceRefresh && existing?.status === 'pending' && existing.generation_token) return null;
-    if (!forceRefresh && getBriefingReadiness(existing, snapshotId).ready &&
-        Date.now() - new Date(existing.generated_at).getTime() < 60000) {
-      return { briefing: existing };
-    }
+    if (forceRefresh && existing) throw new MainRunAdmissionError(409, 'main_run_restart_required', 'A new Continue and fresh snapshot are required to replace this Briefing.');
+    // This is immutable replay of this exact source generation. Explicit
+    // Strategy intents consume it through their own unique snapshot identity.
+    if (getBriefingReadiness(existing, snapshotId).ready) return { briefing: existing };
+    if (admission.status === 'complete') throw new MainRunAdmissionError(409, 'main_run_restart_required', 'Continue with saved preferences to collect a fresh run.');
+    if (!forceRefresh && existing?.status === 'pending' && existing.generation_token) return { joinPending: true };
+    if (existing) throw new MainRunAdmissionError(409, 'main_run_restart_required', 'This Briefing did not complete. Continue again to collect fresh context.');
     const generationToken = randomUUID();
     const placeholder = {
       ...Object.fromEntries(BRIEFING_FIELDS.map(field => [field, null])),
@@ -74,15 +78,19 @@ async function generateWithClaim({ snapshotId, snapshot, forceRefresh }) {
       ? await tx.update(briefings).set(placeholder).where(eq(briefings.snapshot_id, snapshotId)).returning()
       : await tx.insert(briefings).values({ ...placeholder, snapshot_id: snapshotId, created_at: new Date() })
         .onConflictDoNothing({ target: briefings.snapshot_id }).returning();
-    return rows.length ? { generationToken } : null;
-  });
-  if (!claim) return awaitCurrentGeneration(snapshotId);
+    return rows.length ? { generationToken, upstream: admission.context_kind === 'upstream' } : null;
+  }, { allowUpstream: true });
+  if (!claim) throw new MainRunAdmissionError(409, 'main_run_busy', 'Another request is claiming this run. Retry after its claim completes.');
+  if (claim.joinPending) return awaitCurrentGeneration(snapshotId);
   if (claim.briefing) return { success: true, complete: true, briefing: claim.briefing, deduplicated: true };
 
-  return withBriefingGeneration(snapshotId, claim.generationToken, async () => {
+  return withBriefingGeneration(snapshotId, claim.generationToken, async signal => {
     try {
-      return await generateBriefingInternal({ snapshotId, snapshot });
+      return await generateBriefingInternal({ snapshotId, snapshot, signal });
     } catch (error) {
+      // Superseded runs retain their original evidence/status; they never join
+      // another run or publish an old failure into the historical generation.
+      if (error instanceof MainRunAdmissionError) throw error;
       if (error instanceof BriefingSupersededError) return awaitCurrentGeneration(snapshotId);
       const failure = errorMarker(error);
       const stored = await writeBriefingGeneration(snapshotId, {
@@ -94,88 +102,25 @@ async function generateWithClaim({ snapshotId, snapshot, forceRefresh }) {
       if (!stored) return awaitCurrentGeneration(snapshotId);
       return { success: false, complete: false, briefing: stored, error: briefingFailureReason(error), _generationFailed: true };
     }
-  });
+  }, { upstream: claim.upstream });
 }
 
-async function generateBriefingInternal({ snapshotId, snapshot }) {
-  // Use pre-fetched snapshot if provided, otherwise fetch from DB
-  if (!snapshot) {
-    try {
-      const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-      if (snapshotResult.length > 0) {
-        snapshot = snapshotResult[0];
-      } else {
-        briefingLog.warn(1, `Snapshot ${snapshotId} not found in DB`, OP.DB);
-        throw new Error('Snapshot not found');
-      }
-    } catch (err) {
-      briefingLog.warn(1, `Could not fetch snapshot: ${err.message}`, OP.DB);
-      throw err;
-    }
-  }
-
-  // Require valid location data - no fallbacks for global app
-  if (!snapshot.city || !snapshot.state || !snapshot.timezone) {
-    console.error(`[BRIEFING] Snapshot missing required location data (city/state/timezone)`);
-    throw new Error('Snapshot missing required location data');
-  }
+async function generateBriefingInternal({ snapshotId, snapshot, signal }) {
+  signal.throwIfAborted();
+  await assertMainRunForSnapshot(snapshotId, { allowUpstream: true });
+  // A supplied copy is only a caller convenience, never proof of the owned
+  // location. Every provider must use the same complete persisted observation.
+  const [savedSnapshot] = await db.select().from(snapshots)
+    .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+  snapshot = assertSnapshotReady(savedSnapshot, snapshotId);
 
   briefingLog.start(`${snapshot.city}, ${snapshot.state}`);
   const briefingStartMs = Date.now();
 
   const { city, state } = snapshot;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // BRIEFING CACHING STRATEGY (Updated 2026-01-05):
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ALWAYS FRESH (every request):  Weather, Traffic, News, Airport
-  // CACHED (24-hour, same city):   School Closures
-  // CACHED (from DB table):        Events
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  // Step 1: Check for cached SCHOOL CLOSURES only (city-level, 24-hour cache)
-  // News, Weather, traffic, and airport are NEVER cached - always fetched fresh
-  // JOIN briefings with snapshots to get city/state (briefings table no longer stores location)
-  let cachedDailyData = null;
-  try {
-    // Exclude current snapshotId - we want cached data from OTHER snapshots in same city
-    // Also exclude placeholder rows (NULL closures) by checking in the result
-    const existingBriefings = await db.select({
-      briefing: briefings,
-      city: snapshots.city,
-      state: snapshots.state
-    })
-      .from(briefings)
-      .innerJoin(snapshots, eq(briefings.snapshot_id, snapshots.snapshot_id))
-      .where(and(
-        eq(snapshots.city, city),
-        eq(snapshots.state, state),
-        sql`${briefings.snapshot_id} != ${snapshotId}`,  // Exclude current snapshot
-        sql`${briefings.school_closures} IS NOT NULL`  // Require school_closures
-      ))
-      .orderBy(desc(briefings.updated_at))  // DESC = newest first
-      .limit(1);
-
-    if (existingBriefings.length > 0) {
-      const existing = existingBriefings[0].briefing; // Access briefing from join result
-      // NO FALLBACK - timezone is required and validated at entry
-      const userTimezone = snapshot.timezone;
-
-      // Check if cached data actually has content (not just empty arrays)
-      const closureItems = existing.school_closures?.items || existing.school_closures || [];
-      const hasActualClosuresContent = Array.isArray(closureItems) && closureItems.length > 0;
-
-      // Only use cache if it has ACTUAL content AND is same day
-      if (!isDailyBriefingStale(existing, userTimezone) && hasActualClosuresContent) {
-        briefingLog.info(`Cache hit: closures=${closureItems.length}`, OP.CACHE);
-        cachedDailyData = {
-          school_closures: existing.school_closures
-        };
-      }
-    }
-  } catch (cacheErr) {
-    briefingLog.warn(1, `Cache lookup failed: ${cacheErr.message}`, OP.CACHE);
-  }
+  // Every admitted generation collects its own source evidence. Only work that
+  // is still in flight is shared; another snapshot's school result is not fresh.
 
   // Step 2: ALWAYS fetch fresh weather, traffic, events, airport, AND NEWS
   // 2026-01-05: News moved to fresh fetch (dual-model is fast enough)
@@ -192,12 +137,13 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // original provider result so the extraction and assembly logic below is unchanged;
   // the DB write + NOTIFY are side effects. The final atomic write at the end of
   // this function is the authoritative reconciliation (idempotent).
-  let weatherResult, trafficResult, eventsResult, airportResult, newsResult, holidayResult;
+  let weatherResult, trafficResult, eventsResult, airportResult, newsResult, holidayResult, schoolsResult;
 
   // 2026-05-02: Workstream 6 commit 4 — discoverWeather owns its writeSectionAndNotify
   // (single dual-section call) and its errorMarker .catch. Returns
   // { weather_current, weather_forecast, reason }; the final-assembly block below
   // reads from the new shape.
+  await assertMainRunForSnapshot(snapshotId, { allowUpstream: true });
   const weatherPromise = discoverWeather({ snapshot, snapshotId });
 
   // 2026-05-02: Workstream 6 commit 7 — discoverTraffic owns its writeSectionAndNotify
@@ -210,7 +156,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // the final-assembly block below reads from the new shape (eventsResult.events.items).
   // Polymorphic SSE-write preserved: array directly when items > 0, {items, reason}
   // object when empty (matches prior orchestrator behavior for column-shape compat).
-  const eventsPromise = discoverEvents({ snapshot, snapshotId });
+  const eventsPromise = discoverEvents({ snapshot, snapshotId, signal });
 
   // 2026-05-02: Workstream 6 commit 5 — discoverAirport owns its writeSectionAndNotify
   // and errorMarker .catch. Returns { airport_conditions, reason }; the final-assembly
@@ -228,6 +174,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // failure; the final-assembly block below ALSO carries the section so the
   // authoritative atomic write never depends on the lossy progressive channel.
   const holidayPromise = discoverHoliday({ snapshot, snapshotId });
+  const schoolsPromise = discoverSchools({ snapshot, snapshotId });
 
   const fetchResults = await Promise.allSettled([
     weatherPromise,
@@ -236,11 +183,13 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     airportPromise,
     newsPromise,
     holidayPromise,
+    schoolsPromise,
   ]);
+  signal.throwIfAborted();
 
   // 2026-04-05: Extract results with REASON for every outcome (NO NULLS rule).
   // Every subsystem produces either real data or an explanatory error — never bare null.
-  const subsystemNames = ['weather', 'traffic', 'events', 'airport', 'news', 'holiday'];
+  const subsystemNames = ['weather', 'traffic', 'events', 'airport', 'news', 'holiday', 'schools'];
   const failedReasons = {};
   const extractedResults = fetchResults.map((result, i) => {
     if (result.status === 'fulfilled') {
@@ -251,15 +200,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     failedReasons[subsystemNames[i]] = reason;
     return null;
   });
-  [weatherResult, trafficResult, eventsResult, airportResult, newsResult, holidayResult] = extractedResults;
-
-  // Complete every section, including schools, before final reconciliation.
-  let schoolsResult;
-  try {
-    schoolsResult = await discoverSchools({ snapshot, snapshotId, cachedClosures: cachedDailyData?.school_closures });
-  } catch (error) {
-    failedReasons.schools = error.message;
-  }
+  [weatherResult, trafficResult, eventsResult, airportResult, newsResult, holidayResult, schoolsResult] = extractedResults;
 
   const failedSection = name => errorMarker(new Error(failedReasons[name] || `${name} returned no data`));
   const listSection = value => Array.isArray(value?.items) && value.items.length > 0 ? value.items : value;
@@ -304,7 +245,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   } catch (error) {
     briefingLog.warn(1, `Failed to send Briefing notification: ${error.message}`, OP.SSE);
   }
-  dumpLastBriefingRow().catch(error => briefingLog.warn(1, `Failed to dump briefing: ${error.message}`, OP.DB));
+  dumpLastBriefingRow(snapshotId).catch(error => briefingLog.warn(1, `Failed to dump briefing: ${error.message}`, OP.DB));
 
   if (hasFailure) {
     const error = new BriefingNotReadyError(stored, snapshotId);
@@ -325,8 +266,8 @@ export async function getBriefingBySnapshotId(snapshotId) {
 }
 
 /**
- * Compatibility entry point: a section refresh invalidates the full model context.
- * Regenerate under one owner; never mutate a complete row or return stale success.
+ * Legacy section refresh cannot replace an admitted run's stored context.
+ * Callers receive a clear requirement to Continue with a fresh snapshot.
  */
 export async function refreshEventsInBriefing(briefing, snapshot) {
   return getOrGenerateBriefing(briefing.snapshot_id, snapshot, { forceRefresh: true });

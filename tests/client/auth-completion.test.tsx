@@ -15,7 +15,9 @@ jest.unstable_mockModule('@/utils/co-pilot-helpers', () => ({ closeAllSSE }));
 const { AuthProvider, useAuth } = await import('@/contexts/auth-context');
 const { GoogleCallbackPage } = await import('@/pages/auth/google/Callback');
 const { default: ProtectedRoute } = await import('@/components/auth/ProtectedRoute');
+const { default: AuthRedirect } = await import('@/components/auth/AuthRedirect');
 const { LocationProvider, useLocation } = await import('@/contexts/location-context-clean');
+const { RunSetupProvider } = await import('@/contexts/run-setup-context');
 const { queryClient: unusedClient } = await import('@/lib/queryClient');
 
 const fixture = (id: string): AuthApiResponse => ({ token: `synthetic-${id}`, user: { userId: id, email: `${id}@example.invalid` } });
@@ -83,8 +85,12 @@ describe('VP-002 shared login completion', () => {
     expect(screen.getByText('Protected strategy fixture')).toBeInTheDocument();
   });
   it('keeps new users signed out through failed terms, then completes on explicit retry', async () => {
+    const canonical = { ...fixture('new'), sessionId: 'new-session', settingsRevision: 1,
+      profile: { id: 'new-profile', userId: 'new', termsAccepted: false } };
     jest.mocked(fetch).mockResolvedValueOnce(response({ ...fixture('new'), isNewUser: true }))
-      .mockResolvedValueOnce(response({}, 500)).mockResolvedValueOnce(response({ ok: true }));
+      .mockResolvedValueOnce(response(canonical)).mockResolvedValueOnce(response({}, 500))
+      .mockResolvedValueOnce(response(canonical)).mockResolvedValueOnce(response({ ...canonical, settingsRevision: 2,
+        profile: { ...canonical.profile, termsAccepted: true } }));
     mount(true); await flush();
     expect(auth.isAuthenticated).toBe(false);
     // Existing token-before-terms policy is deliberately retained.
@@ -97,7 +103,7 @@ describe('VP-002 shared login completion', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Accept & Continue' })); await flush();
     expect(auth.user?.userId).toBe('new');
     expect(fetch).toHaveBeenLastCalledWith(API_ROUTES.AUTH.PROFILE, expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: 'Bearer synthetic-new' }), body: JSON.stringify({ termsAccepted: true }),
+      headers: expect.objectContaining({ Authorization: 'Bearer synthetic-new' }), body: JSON.stringify({ termsAccepted: true, expectedSettingsRevision: 1 }),
     }));
     await act(async () => { jest.advanceTimersByTime(1500); });
     expect(screen.getByText('Protected strategy fixture')).toBeInTheDocument();
@@ -126,6 +132,45 @@ describe('VP-002 shared login completion', () => {
 });
 
 describe('VP-006 provided cache and auth transition races', () => {
+  it('holds and clears the old account when another tab changes the token, then hydrates the new owner', async () => {
+    const client = mount();
+    act(() => auth.completeLogin(fixture('A')));
+    client.setQueryData(['private'], 'account-A');
+    const pending = deferred<Response>();
+    jest.mocked(fetch).mockReturnValue(pending.promise);
+    act(() => {
+      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'synthetic-B');
+      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEYS.AUTH_TOKEN,
+        oldValue: 'synthetic-A', newValue: 'synthetic-B', storageArea: localStorage }));
+    });
+    expect(auth.isAuthenticated).toBe(false);
+    expect(auth.user).toBeNull();
+    expect(client.getQueryData(['private'])).toBeUndefined();
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('synthetic-B');
+    await act(async () => { pending.resolve(response({ ...fixture('B'),
+      profile: { id: 'profile-B', userId: 'B' }, sessionId: 'session-B' })); });
+    expect(auth.user?.userId).toBe('B');
+    expect(auth.isAuthenticated).toBe(true);
+  });
+  it('cross-tab logout clears identity and fences a pending profile read', async () => {
+    const client = mount();
+    act(() => auth.completeLogin(fixture('A')));
+    client.setQueryData(['private'], 'account-A');
+    const pending = deferred<Response>();
+    jest.mocked(fetch).mockReturnValue(pending.promise);
+    let refreshing!: Promise<void>;
+    act(() => { refreshing = auth.refreshProfile(); });
+    act(() => {
+      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEYS.AUTH_TOKEN,
+        oldValue: 'synthetic-A', newValue: null, storageArea: localStorage }));
+    });
+    expect(auth.isAuthenticated).toBe(false);
+    expect(client.getQueryData(['private'])).toBeUndefined();
+    await act(async () => { pending.resolve(response({ ...fixture('A'), profile: { id: 'profile-A', userId: 'A' } })); await refreshing; });
+    expect(auth.user).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
+  });
   it.each(['logout', 'auth-error'])('%s clears the provided cache before server completion; late A query cannot replace B', async mode => {
     const client = mount();
     act(() => auth.completeLogin(fixture('A')));
@@ -169,15 +214,112 @@ describe('VP-006 provided cache and auth transition races', () => {
     await act(async () => { late.resolve(response(fixture('A'))); expect((await login).success).toBe(false); });
     expect(auth.isAuthenticated).toBe(false);
   });
-  it('manual GPS refresh clears the provided cache (synthetic denied GPS; no live requests)', async () => {
+  it('a signed-out location refresh preserves unrelated cached work and sends no private requests', async () => {
     let location!: ReturnType<typeof useLocation>;
     function LocationProbe() { location = useLocation(); return null; }
     const client = new QueryClient(); clients.push(client);
-    render(<QueryClientProvider client={client}><AuthProvider><LocationProvider><LocationProbe /></LocationProvider></AuthProvider></QueryClientProvider>);
+    render(<QueryClientProvider client={client}><AuthProvider><RunSetupProvider><LocationProvider><LocationProbe /></LocationProvider></RunSetupProvider></AuthProvider></QueryClientProvider>);
     client.setQueryData(['private'], 'old'); unusedClient.setQueryData(['sentinel'], 'untouched');
     await act(async () => { await location.refreshGPS(); });
-    expect(client.getQueryData(['private'])).toBeUndefined();
+    expect(client.getQueryData(['private'])).toBe('old');
     expect(unusedClient.getQueryData(['sentinel'])).toBe('untouched');
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('returning to a saved session', () => {
+  function mountSavedRoute(home = false) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    clients.push(client);
+    render(<QueryClientProvider client={client}><AuthProvider><Probe />
+      <MemoryRouter initialEntries={[home ? '/' : '/co-pilot/strategy']}><Routes>
+        <Route path="/" element={<AuthRedirect />} />
+        <Route path="/co-pilot/strategy" element={<ProtectedRoute><p>Saved Strategy fixture</p></ProtectedRoute>} />
+        <Route path="/auth/sign-in" element={<p>Sign in fixture</p>} />
+      </Routes></MemoryRouter>
+    </AuthProvider></QueryClientProvider>);
+    return client;
+  }
+  const savedIdentity = { ...fixture('A'), sessionId: 'session-A',
+    profile: { id: 'profile-A', userId: 'A' } };
+
+  it.each([false, true])('keeps a saved token during temporary verification failure and retries the same session (home=%s)', async home => {
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'synthetic-A');
+    sessionStorage.setItem(SESSION_KEYS.SNAPSHOT, 'same-snapshot');
+    localStorage.setItem(STORAGE_KEYS.PERSISTENT_STRATEGY, 'same-strategy');
+    jest.mocked(fetch).mockResolvedValueOnce(response({}, 503)).mockResolvedValueOnce(response(savedIdentity));
+    mountSavedRoute(home); await flush();
+    expect(screen.queryByText('Sign in fixture')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saved Strategy fixture')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/connection/i);
+    expect(auth.isAuthenticated).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('synthetic-A');
+    expect(sessionStorage.getItem(SESSION_KEYS.SNAPSHOT)).toBe('same-snapshot');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Try again' })); });
+    expect(screen.getByText('Saved Strategy fixture')).toBeInTheDocument();
+    expect(auth.sessionId).toBe('session-A');
+    expect(localStorage.getItem(STORAGE_KEYS.PERSISTENT_STRATEGY)).toBe('same-strategy');
+    expect(closeAllSSE).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    for (const [url, options] of jest.mocked(fetch).mock.calls) {
+      expect(url).toBe(API_ROUTES.AUTH.ME);
+      expect(options?.headers).toEqual({ Authorization: 'Bearer synthetic-A' });
+    }
+  });
+
+  it('rechecks an interrupted initial session on foreground return, without sending login or logout', async () => {
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'synthetic-A');
+    jest.mocked(fetch).mockRejectedValueOnce(new TypeError('Synthetic offline connection'))
+      .mockResolvedValueOnce(response(savedIdentity));
+    mountSavedRoute(); await flush();
+    expect(screen.queryByText('Sign in fixture')).not.toBeInTheDocument();
+    await act(async () => { window.dispatchEvent(new Event('focus')); });
+    expect(screen.getByText('Saved Strategy fixture')).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await act(async () => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('online')); });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps mounted identity and data after a quick pickup, even when a profile readback temporarily fails', async () => {
+    const client = mount();
+    act(() => auth.completeLogin(savedIdentity as AuthApiResponse));
+    sessionStorage.setItem(SESSION_KEYS.SNAPSHOT, 'same-snapshot');
+    client.setQueryData(['private'], 'same-data');
+    jest.mocked(fetch).mockResolvedValue(response({}, 503));
+    await act(async () => { jest.advanceTimersByTime(59 * 60 * 1000); });
+    await act(async () => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('online')); });
+    expect(fetch).not.toHaveBeenCalled();
+    await act(async () => { await auth.refreshProfile(); });
+    expect(auth.user?.userId).toBe('A');
+    expect(auth.isAuthenticated).toBe(true);
+    expect(auth.sessionId).toBe('session-A');
+    expect(client.getQueryData(['private'])).toBe('same-data');
+    expect(sessionStorage.getItem(SESSION_KEYS.SNAPSHOT)).toBe('same-snapshot');
+  });
+
+  it('a rejected saved session still clears its data and requires sign-in', async () => {
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'synthetic-A');
+    sessionStorage.setItem(SESSION_KEYS.SNAPSHOT, 'old-snapshot');
+    jest.mocked(fetch).mockResolvedValue(response({ error: 'session_expired' }, 401));
+    mountSavedRoute(); await flush();
+    expect(screen.getByText('Sign in fixture')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
+    expect(sessionStorage.getItem(SESSION_KEYS.SNAPSHOT)).toBeNull();
+  });
+
+  it('ignores an old retry failure after a different owner logs in', async () => {
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'synthetic-A');
+    const retry = deferred<Response>();
+    jest.mocked(fetch).mockResolvedValueOnce(response({}, 503)).mockReturnValueOnce(retry.promise);
+    const client = mountSavedRoute(); await flush();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Try again' })); });
+    act(() => auth.completeLogin({ ...fixture('B'), sessionId: 'session-B' }));
+    client.setQueryData(['private'], 'B-data');
+    await act(async () => { retry.resolve(response({ error: 'session_expired' }, 401)); });
+    expect(screen.getByText('Saved Strategy fixture')).toBeInTheDocument();
+    expect(auth.user?.userId).toBe('B');
+    expect(client.getQueryData(['private'])).toBe('B-data');
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('synthetic-B');
   });
 });

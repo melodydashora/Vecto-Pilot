@@ -131,13 +131,13 @@ GET  /api/strategy/:snapshotId   - Get strategy for snapshot
 ### hooks/
 | File | Route | Purpose |
 |------|-------|---------|
-| `analyze-offer.js` | `/api/hooks/analyze-offer` (+ `offer-history`, `offer-override`, `offer-cleanup`) | Offer Analyzer ingest from phone shortcuts — public, shortcut-token identity. Doc: `docs/architecture/OFFER_ANALYZER.md` |
+| `analyze-offer.js` | `/api/hooks/analyze-offer` (+ `offer-history`, `offer-override`, `offer-cleanup`) | Browser/phone offer capture; optional token on analyze, required on history/override/cleanup. Owner/rules contracts: `docs/architecture/OFFER_ANALYZER.md` |
 | `translate.js` | `/api/hooks/translate` | Siri translation hook (unrelated to offers) |
 
 ### offer-analyzer/
 | File | Route | Purpose |
 |------|-------|---------|
-| `index.js` | `/api/offer-analyzer/*` | Per-driver ruleset GET/PUT, shortcut token mint/rotate/label, offers + outcomes, places search (all `requireAuth`). Doc: `docs/architecture/OFFER_ANALYZER.md` §12 |
+| `index.js` | `/api/offer-analyzer/*` | Owner rules/versioned saves, token setup, offers/stats, revisioned outcomes, reversible removal and Places (all `requireAuth`). Canonical: `docs/architecture/OFFER_ANALYZER.md` §12 |
 
 ### intelligence/
 | File | Route | Purpose |

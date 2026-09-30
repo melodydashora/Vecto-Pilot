@@ -5,7 +5,6 @@
 export {
   ensureStrategyRow,
   updatePhase,
-  fallbackStrategy,
   PHASE_EXPECTED_DURATIONS
 } from './strategy-utils.js';
 
@@ -13,5 +12,5 @@ export {
 export { generateTacticalPlan } from './tactical-planner.js';
 
 // Module summary:
-// - strategy-utils.js: DB operations, phase tracking, fallbacks
+// - strategy-utils.js: DB operations and guarded phase tracking
 // - tactical-planner.js: VENUE_SCORER role - tactical guidance generation

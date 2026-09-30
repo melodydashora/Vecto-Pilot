@@ -1,186 +1,47 @@
-// 2026-01-08: Renamed from dump-last-briefing.js to output sent-to-strategist.txt
-// Shows exactly what data is sent to the strategist for verification against OpenAI logs
+// Diagnostic artifact retained from memory #218; not an exact Strategist prompt.
+// The filename is historical and ignored by Git. Every row is tied to the
+// caller's snapshot, never a global latest row belonging to another run.
 import { db } from '../../db/drizzle.js';
 import { briefings, snapshots, strategies } from '../../../shared/schema.js';
-import { desc, eq } from 'drizzle-orm';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
-import { filterInvalidEvents } from './pipelines/events.js';
+import { eq } from 'drizzle-orm';
+import { writeFile, rename, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
-/**
- * Write the last briefing + snapshot + strategy to sent-to-strategist.txt
- * Called after briefing generation to capture state for debugging
- * 2026-01-08: Renamed file and enhanced content for OpenAI log verification
- */
-export async function dumpLastBriefingRow() {
-  try {
-    // Get the most recently UPDATED briefing (populated, not placeholder)
-    const [lastBriefing] = await db.select()
-      .from(briefings)
-      .orderBy(desc(briefings.updated_at))
-      .limit(1);
+let pendingWrite = Promise.resolve();
 
-    if (!lastBriefing) {
-      console.log('[AGENT] [DUMP] No briefing rows found');
-      return;
+export function dumpLastBriefingRow(snapshotId) {
+  if (typeof snapshotId !== 'string' || !snapshotId.trim()) return Promise.resolve(false);
+  const write = pendingWrite.then(async () => {
+    const [briefing] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    if (!briefing || briefing.snapshot_id !== snapshotId) return false;
+    const [snapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const [strategy] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    if (!snapshot || snapshot.snapshot_id !== snapshotId ||
+        (strategy && strategy.snapshot_id !== snapshotId)) return false;
+    const output = JSON.stringify({
+      description: 'Saved Briefing diagnostic, not the exact Strategist prompt. Rows were read separately; strategy may still be pending.',
+      captured_at: new Date().toISOString(), snapshot_id: snapshotId,
+      snapshot, briefing, strategy: strategy || null,
+    }, null, 2) + '\n';
+    const target = join(process.cwd(), 'sent-to-strategist.txt');
+    const temporary = `${target}.${randomUUID()}.tmp`;
+    try {
+      // A complete private file replaces the old diagnostic atomically. Concurrent
+      // processes can choose the final writer, but cannot interleave file contents.
+      await writeFile(temporary, output, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+      await rename(temporary, target);
+      return true;
+    } finally {
+      await unlink(temporary).catch(() => {});
     }
-
-    // Fetch the corresponding snapshot row
-    const [snapshot] = await db.select()
-      .from(snapshots)
-      .where(eq(snapshots.snapshot_id, lastBriefing.snapshot_id))
-      .limit(1);
-
-    // Fetch the strategy row
-    const [strategy] = await db.select()
-      .from(strategies)
-      .where(eq(strategies.snapshot_id, lastBriefing.snapshot_id))
-      .limit(1);
-
-    // Get today's date in snapshot timezone for closure filtering check
-    const todayInTimezone = snapshot?.timezone
-      ? new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone })
-      : new Date().toISOString().split('T')[0];
-
-    // Count closures that would be active today
-    const activeClosures = Array.isArray(lastBriefing.school_closures)
-      ? lastBriefing.school_closures.filter(c => {
-          const start = c.closureStart || c.start_date || c.closure_date;
-          const end = c.reopeningDate || c.end_date || start;
-          return start && todayInTimezone >= start && todayInTimezone <= end;
-        })
-      : [];
-
-    // Format the output for verification against OpenAI logs
-    const output = `════════════════════════════════════════════════════════════════════════════════
-SENT TO STRATEGIST - Verification File
-════════════════════════════════════════════════════════════════════════════════
-Generated: ${snapshot?.timezone ? new Date().toLocaleString('en-US', { timeZone: snapshot.timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true, timeZoneName: 'short' }) : new Date().toISOString()}
-Snapshot ID: ${lastBriefing.snapshot_id}
-════════════════════════════════════════════════════════════════════════════════
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-snapshot_id: ${snapshot?.snapshot_id || '(not found)'}
-user_id: ${snapshot?.user_id || '(null)'}
-
-LOCATION (what strategist sees):
-  city: ${snapshot?.city || '(null)'}
-  state: ${snapshot?.state || '(null)'}
-  formatted_address: ${snapshot?.formatted_address || '(null)'}
-  lat: ${snapshot?.lat ?? '(null)'}
-  lng: ${snapshot?.lng ?? '(null)'}
-  timezone: ${snapshot?.timezone || '(null)'}
-
-TIME (what strategist sees):
-  local_iso: ${snapshot?.local_iso || '(null)'}
-  formatted_local_time: ${snapshot?.local_iso ? new Date(snapshot.local_iso).toLocaleString('en-US', { timeZone: 'UTC', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(null)'}
-  dow: ${snapshot?.dow ?? '(null)'} (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][snapshot?.dow] || 'unknown'})
-  hour: ${snapshot?.hour ?? '(null)'}
-  day_part_key: ${snapshot?.day_part_key || '(null)'}
-
-WEATHER (from snapshot):
-${snapshot?.weather ? JSON.stringify(snapshot.weather, null, 2) : '(null)'}
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-briefing_id: ${lastBriefing.id}
-snapshot_id: ${lastBriefing.snapshot_id}
-created_at (UTC): ${lastBriefing.created_at}
-created_at (local): ${snapshot?.timezone ? new Date(lastBriefing.created_at).toLocaleString('en-US', { timeZone: snapshot.timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(no timezone)'}
-updated_at (UTC): ${lastBriefing.updated_at}
-updated_at (local): ${snapshot?.timezone ? new Date(lastBriefing.updated_at).toLocaleString('en-US', { timeZone: snapshot.timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(no timezone)'}
-
-NEWS (${Array.isArray(lastBriefing.news?.items) ? lastBriefing.news.items.length : 0} items):
-${lastBriefing.news ? JSON.stringify(lastBriefing.news, null, 2) : '(null)'}
-
-WEATHER_CURRENT:
-${lastBriefing.weather_current ? JSON.stringify(lastBriefing.weather_current, null, 2) : '(null)'}
-
-WEATHER_FORECAST (${Array.isArray(lastBriefing.weather_forecast) ? lastBriefing.weather_forecast.length : 0} hours):
-${lastBriefing.weather_forecast ? JSON.stringify(lastBriefing.weather_forecast, null, 2) : '(null)'}
-
-TRAFFIC_CONDITIONS:
-${lastBriefing.traffic_conditions ? JSON.stringify(lastBriefing.traffic_conditions, null, 2) : '(null)'}
-
-EVENTS (${Array.isArray(lastBriefing.events) ? lastBriefing.events.length : 0} total):
-${lastBriefing.events ? JSON.stringify(lastBriefing.events, null, 2) : '(null)'}
-
-SCHOOL_CLOSURES (${Array.isArray(lastBriefing.school_closures) ? lastBriefing.school_closures.length : 0} total, ${activeClosures.length} active today):
-${lastBriefing.school_closures ? JSON.stringify(lastBriefing.school_closures, null, 2) : '(null)'}
-
-AIRPORT_CONDITIONS:
-${lastBriefing.airport_conditions ? JSON.stringify(lastBriefing.airport_conditions, null, 2) : '(null)'}
-
-HOLIDAY:
-${lastBriefing.holiday ? JSON.stringify(lastBriefing.holiday, null, 2) : '(null)'}
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SECTION 3: STRATEGY ROW (AI Output)                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-id: ${strategy?.id || '(not found)'}
-snapshot_id: ${strategy?.snapshot_id || '(null)'}
-status: ${strategy?.status || '(null)'}
-error_message: ${strategy?.error_message || '(none)'}
-created_at: ${strategy?.created_at || '(null)'}
-updated_at: ${strategy?.updated_at || '(null)'}
-
-STRATEGY_FOR_NOW (Immediate Strategy):
-────────────────────────────────────────────────────────────────────────────────
-${strategy?.strategy_for_now || '(null or empty)'}
-────────────────────────────────────────────────────────────────────────────────
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SECTION 4: VERIFICATION CHECKLIST                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-Data Integrity:
-  ✓ Snapshot timezone: ${snapshot?.timezone || 'MISSING!'}
-  ✓ Briefing has traffic: ${lastBriefing.traffic_conditions ? 'YES' : 'NO - strategist may fail!'}
-  ✓ Briefing has events: ${lastBriefing.events ? 'YES' : 'NO'}
-  ✓ Strategy status: ${strategy?.status || 'MISSING'}
-  ✓ Strategy has immediate: ${strategy?.strategy_for_now ? 'YES (' + strategy.strategy_for_now.length + ' chars)' : 'NO'}
-  ✓ IDs match: ${lastBriefing.snapshot_id === snapshot?.snapshot_id ? 'YES' : 'MISMATCH!'}
-
-School Closures Filter Check:
-  Today's date (${snapshot?.timezone || 'UTC'}): ${todayInTimezone}
-  Active closures (start_date <= today <= end_date): ${activeClosures.length} / ${Array.isArray(lastBriefing.school_closures) ? lastBriefing.school_closures.length : 0}
-  ${activeClosures.length > 0 ? 'Active: ' + activeClosures.map(c => c.schoolName || c.name || 'Unknown').join(', ') : '(None active today)'}
-
-Event Count:
-  Total events in briefing: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.length : 0}
-  High impact: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => e.impact === 'high').length : 0}
-  Medium impact: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => e.impact === 'medium').length : 0}
-  Low impact: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => e.impact === 'low').length : 0}
-
-TBD/Unknown Check (RAW DB data - these get filtered at read time):
-  Events with TBD in location: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.location || '')).length : 0}
-  Events with TBD in venue: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.venue || '')).length : 0}
-  Events with TBD in time: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.event_start_time || e.event_time || '')).length : 0}
-
-Events AFTER filterInvalidEvents (what LLM actually receives, tz=${snapshot?.timezone || 'UTC-fallback'}):
-  Raw events in DB: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.length : 0}
-  Filtered events (sent to LLM): ${Array.isArray(lastBriefing.events) ? filterInvalidEvents(lastBriefing.events, { timezone: snapshot?.timezone }).length : 0}
-  TBD events removed: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.length - filterInvalidEvents(lastBriefing.events, { timezone: snapshot?.timezone }).length : 0}
-
-════════════════════════════════════════════════════════════════════════════════
-END OF VERIFICATION FILE
-════════════════════════════════════════════════════════════════════════════════
-`;
-
-    const filePath = join(process.cwd(), 'sent-to-strategist.txt');
-    await writeFile(filePath, output, 'utf-8');
-    // 2026-04-28 (memory 218): the dump-file write is a side-effect artifact —
-    // its existence on disk is the signal, not a console line. Demoted to debug.
-    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
-      console.log('[AGENT] [DUMP] Written to sent-to-strategist.txt');
-    }
-  } catch (err) {
-    console.error('[AGENT] [DUMP] Failed to dump:', err.message);
-  }
+  });
+  pendingWrite = write.catch(() => {
+    console.error('[AGENT] [DUMP] Could not save Briefing diagnostic');
+    return false;
+  });
+  return pendingWrite;
 }

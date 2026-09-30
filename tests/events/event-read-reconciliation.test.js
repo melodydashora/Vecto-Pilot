@@ -3,7 +3,6 @@ import { reconcileEventLists } from '../../server/lib/events/event-read-reconcil
 
 // Load the real freshness predicate without initializing database infrastructure.
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: {} }));
-jest.unstable_mockModule('../../shared/schema.js', () => ({ strategies: {} }));
 jest.unstable_mockModule('../../server/logger/workflow.js', () => ({
   triadLog: {}, OP: {}, tagLog: jest.fn(),
 }));

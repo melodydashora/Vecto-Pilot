@@ -85,6 +85,33 @@ test('confirmed feedback updates qualified current-snapshot caches and preserves
   expect(client.getQueryData(otherSnapshotKey)).toEqual(cached);
 });
 
+test('only a confirmed receipt updates saved Strategy venues and preserves source times, owner and ranking boundaries', async () => {
+  const currentKey = [...QUERY_KEYS.BLOCKS_STRATEGY('snapshot-a'), 'driver-a', 7];
+  const otherRankingKey = [...QUERY_KEYS.BLOCKS_STRATEGY('snapshot-a'), 'driver-a', 6];
+  const otherOwnerKey = [...QUERY_KEYS.BLOCKS_STRATEGY('snapshot-a'), 'driver-b', 8];
+  const otherSnapshotKey = [...QUERY_KEYS.BLOCKS_STRATEGY('snapshot-b'), 'driver-a', 7];
+  const cached = { snapshotId: 'snapshot-a', status: 'ok', briefingStatus: 'complete', strategyFresh: true,
+    strategyUpdatedAt: '2026-09-29T20:00:10Z', snapshotCreatedAt: '2026-09-29T20:00:00Z',
+    strategy: { strategyForNow: 'Keep this completed guidance.' }, rankingId: 'ranking-a', blocks: original };
+  client.setQueryData(currentKey, cached);
+  client.setQueryData(otherRankingKey, { ...cached, rankingId: 'earlier-ranking' });
+  client.setQueryData(otherOwnerKey, cached);
+  client.setQueryData(otherSnapshotKey, { ...cached, snapshotId: 'snapshot-b' });
+  const pending = deferred();
+  (fetch as jest.Mock).mockImplementation((_url, options) => options?.method === 'POST'
+    ? pending.promise : Promise.resolve(response(initial())));
+  const h = hook(); await waitFor(() => expect(h.result.current.state?.scope_revision).toBe(0));
+  let write!: Promise<any>;
+  act(() => { write = h.result.current.submit(action); });
+  expect(client.getQueryData(currentKey)).toEqual(cached);
+  const sent = JSON.parse((fetch as jest.Mock).mock.calls.find(([, options]) => options?.method === 'POST')[1].body);
+  await act(async () => { pending.resolve(response(receipt(sent))); await write; });
+  expect(client.getQueryData(currentKey)).toEqual({ ...cached, blocks: [block('b'), block('c'), block('d')], venueFeedbackRevision: 1 });
+  expect(client.getQueryData(otherRankingKey)).toEqual({ ...cached, rankingId: 'earlier-ranking' });
+  expect(client.getQueryData(otherOwnerKey)).toEqual(cached);
+  expect(client.getQueryData(otherSnapshotKey)).toEqual({ ...cached, snapshotId: 'snapshot-b' });
+});
+
 test.each(['scope', 'action', 'replacement', 'receipt'])('a successful HTTP response with the wrong %s cannot remove a venue', async (kind) => {
   (fetch as jest.Mock).mockImplementation((_url, options) => {
     if (options?.method !== 'POST') return Promise.resolve(response(initial()));

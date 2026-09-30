@@ -47,7 +47,7 @@ export function getSnapshotReadiness(row, snapshotId, { requireStatus = true } =
   if (!validSnapshotDate(row?.created_at)) invalid.add('created_at');
   const coords = normalizeCoordinates(row?.lat, row?.lng);
   if (coords) {
-    if (coords.lat !== row.lat || coords.lng !== row.lng) invalid.add('lat/lng_precision');
+    if (typeof row.lat !== 'number' || typeof row.lng !== 'number') invalid.add('lat/lng');
     if (coordsKey(coords.lat, coords.lng) !== row.coord_key) invalid.add('coord_key');
     if (latLngToCell(coords.lat, coords.lng, 8) !== row.h3_r8) invalid.add('h3_r8');
   }

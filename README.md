@@ -40,16 +40,16 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 - **6-Decimal GPS Precision**: ~11cm accuracy for cache keys and venue matching — coordinates always from Google APIs, never AI-generated
 - **330+ Global Markets**: Pre-stored timezone and airport data for 267 US + 71 international markets, saving ~200-300ms per request
 
-### Offer Analyzer (iPhone + Android shortcuts)
-- **Per-driver rules, sliders only**: floor $/mi, optional $/min, max trip minutes, max total miles per tier; rating floor, Verified, pickup/time limits, acceptance-rate protection; avoid-places by Google `place_id`; road-safety and notice toggles — edited on the web page, applied by the server
-- **Two lanes, one ruleset**: a deterministic engine owns every numeric rule (text rejects answer in ~1 ms with no model); the vision model (`gemini-3.5-flash-lite`, live-benchmarked 2026-08-17) reads the screenshot for what only a picture shows, and the engine re-checks its numbers — **~0.7 s verdicts, spoken back** ("Accept. dollar forty per mile, 6 miles.")
-- **Honest floor**: no fabricated verdicts — a non-offer screenshot says "No data. Decide manually."
-- **Learning dataset**: every offer stored with the driver's own outcome and earnings (`offer_intelligence` + `offer_outcomes`), geocoded pickup/drop-off, and the exact ruleset hash that decided it
-- Guides: [iPhone](docs/architecture/SIRI_SHORTCUT_ANALYZE.md) · [Android](docs/architecture/ANDROID_SHORTCUT_ANALYZE.md) · [as built](docs/architecture/OFFER_ANALYZER.md) · [roadmap](docs/architecture/OFFER_ANALYZER_ROADMAP.md)
+### Offer Analyzer (browser and configured phone capture)
+- **Owner rules and selected services:** saved thresholds, applicable economic controls and service gates; vehicle eligibility is distinct from chosen work.
+- **One decision pipeline:** text/image extraction and deterministic arithmetic are reconciled with model judgment. The response supplies matching speech and provenance; unreliable evidence produces a manual-decision message.
+- **Separate evidence and outcomes:** Phase 2 enriches eligible captures in process; original speech, later model dissent and the driver's reported action remain distinct. Enrichment/storage is not guaranteed by receiving a verdict.
+- **Phone entry:** quick browser capture and a token-free Android browser launcher are in source; native automation and physical-phone certification are separate.
+- Guides: [iPhone](docs/architecture/SIRI_SHORTCUT_ANALYZE.md) · [Android](docs/architecture/ANDROID_SHORTCUT_ANALYZE.md) · [current source](docs/architecture/OFFER_ANALYZER.md) · [remaining work](docs/architecture/OFFER_ANALYZER_ROADMAP.md)
 
 ### Rideshare Coach (Voice & Text)
-- **One Coach, wellbeing first**: Gemini 3.6 Flash brain with full context awareness — location, strategy, events, market intelligence, your offer history — driver support is the main function, strategy serves it
-- **Voice**: Gemini Live is the Coach's voice (auto-starts on the tab, hands-free "hey coach" resume, transparent reconnect); GPT Realtime and classic TTS remain selectable. The voice model is the *mouth*; the backend brain answers the hard questions
+- **One Coach, wellbeing first**: the registry-selected brain reads saved location/briefing/strategy evidence, current owner rules/services, active primary vehicle and bounded offer history. Source/error/provenance markers distinguish known data from missing or historical evidence.
+- **Voice**: the active GPT live session delegates substantive questions to the same Coach brain. Legacy voice routes remain in source; they are not interchangeable full-context paths.
 - **Cross-Session Memory + learning loop**: preferences, vehicle, past strategies, driver-contributed zone intelligence, and verbatim voice turns captured for learning
 - **Action System**: Coach can write notes, deactivate irrelevant events/news, and contribute zone intelligence — all stored in the database. The Coach never analyzes live offers (that's the Offer Analyzer's lane)
 
@@ -96,7 +96,7 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 │                    EXTERNAL AI & API SERVICES                      │
 │  • Anthropic Claude Opus 4.8  — Strategic + tactical reasoning    │
 │  • OpenAI GPT-5.5             — Venue planning/parsing            │
-│  • Google Gemini 3.5 Flash-Lite / 3.5 Flash / 3.6 Flash / 3.1 Pro / Live — offer analysis, briefing, coach + voice │
+│  • Google Gemini 3.5 Flash-Lite / 3.5 Flash / 3.6 Flash / 3.1 Pro / Live — role assignments are in model-registry.js │
 │  • Google Maps Platform       — Places, Routes, Weather, AQ       │
 │  • TomTom Traffic             — Incident prioritization            │
 │  • FAA ASWS                   — Airport delay data                 │
@@ -113,9 +113,9 @@ POST /api/blocks-fast → waterfall (~35-50s)
 └── Phase 4: Deterministic event validation + venue event verification (Gemini Flash)
 ```
 
-### Model Registry (25 Roles)
+### Model Registry
 
-All AI interactions go through the adapter pattern — never direct API calls:
+Role pins live in `server/lib/ai/model-registry.js`. A common nonstreaming adapter call:
 
 ```javascript
 import { callModel } from './lib/ai/adapters/index.js';
@@ -128,10 +128,10 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 | Briefing | 7 roles (traffic, news, events, fallback, schools, airport, holiday) | Gemini 3.5 Flash |
 | Strategy | 3 roles (core, context, tactical) | Claude Opus 4.8 / Gemini Flash |
 | Venue | 4 roles (scorer, filter, traffic, event verifier) | GPT-5.5 / Claude Haiku / Gemini Flash |
-| Coach | 3 roles (brain, Gemini Live voice, GPT Realtime voice) | Gemini 3.6 Flash / Gemini 3.1 Flash Live / gpt-realtime |
+| Coach | Brain, active live voice and retained legacy voice roles | Current pins/contracts: `model-registry.js` and `server/api/chat/README.md` |
 | Utilities | 3 roles (research, market parser, translation) | Mixed |
 | Concierge | 2 roles (search, chat) | Gemini 3.5 Flash |
-| Offer Analyzer | 2 roles (Phase 1 sync verdict, Phase 2 async deep extraction) | Gemini 3.5 Flash-Lite / Gemini 3.1 Pro |
+| Offer Analyzer | `OFFER_ANALYZER` and `OFFER_ANALYZER_DEEP` | Current pins/settings: `model-registry.js`; no per-role model environment override |
 | Docs | 1 role (autonomous doc generation) | Gemini 3.5 Flash |
 
 ---
@@ -156,7 +156,7 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 
 **AI & APIs** (see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) for current model assignments)
 - **Anthropic**: Strategy, validation
-- **Google Gemini**: Briefing synthesis, coach, news/events
+- **Google Gemini**: Registry-assigned extraction/briefing roles; Coach brain/voice assignments are separate.
 - **OpenAI**: Venue scoring, voice
 - **Google Maps Platform**: Places, Routes, Weather, Air Quality, Geocoding, Timezone
 - **TomTom Traffic API**: Traffic incident prioritization
@@ -303,7 +303,7 @@ This codebase has **300+ README files** — most folders document their own purp
 |----------|--------------|
 | `app_rules` table (Postgres) — active product invariants | **Before ANY code change** |
 | [DB_SCHEMA.md](docs/architecture/DB_SCHEMA.md) | Working with tables or migrations |
-| [API_REFERENCE.md](docs/architecture/API_REFERENCE.md) | Adding/modifying endpoints |
+| [API routes registry](docs/api-routes-registry.md) | Adding/modifying endpoints |
 | [ai-pipeline.md](docs/architecture/ai-pipeline.md) | Modifying strategy pipeline |
 | [OFFER_ANALYZER.md](docs/architecture/OFFER_ANALYZER.md) + [ROADMAP](docs/architecture/OFFER_ANALYZER_ROADMAP.md) | Offer Analyzer as built + plan going forward |
 | [SIRI_SHORTCUT_ANALYZE.md](docs/architecture/SIRI_SHORTCUT_ANALYZE.md) / [ANDROID_SHORTCUT_ANALYZE.md](docs/architecture/ANDROID_SHORTCUT_ANALYZE.md) | Setting up a phone for offer analysis |
@@ -375,7 +375,7 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 - [x] Multi-model waterfall pipeline (Claude + Gemini + GPT)
 - [x] 23-role model registry with hedged routing and fallback
 - [x] Smart Blocks with real-time venue enrichment
-- [x] Rideshare Coach with voice and text (Gemini 3 Pro + OpenAI Realtime)
+- [x] Rideshare Coach with voice and text (current role/transport boundaries in `server/api/chat/README.md`)
 - [x] Event ETL pipeline with 5-phase processing
 - [x] Google OAuth integration
 - [x] 140+ global market support with pre-stored timezones
@@ -391,8 +391,8 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 - [x] Multi-user integrity sweep — per-user scoping of offers/coach context/hooks (2026-08)
 
 ### In Progress
-- [ ] Offer Analyzer field test on real phones (iPhone Shortcuts + Android HTTP Shortcuts) — see roadmap G1–G3
-- [ ] Coach offer-pattern intelligence (daypart / day-of-week / zone / season steering from `offer_intelligence`)
+- [ ] Offer Analyzer real-device verification for current browser/native capture paths — see roadmap G1–G3
+- [x] Coach owner-scoped recent offers and longitudinal pattern reads are implemented; current source/limits are in the Analyzer reference.
 - [ ] Uber Driver API integration (OAuth connected, data sync pending)
 - [ ] Driver earnings analytics dashboard
 

@@ -12,7 +12,7 @@
  * Created: 2026-01-05
  */
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 const ADDRESS_VALIDATION_URL = 'https://addressvalidation.googleapis.com/v1:validateAddress';
 
 /**
@@ -37,10 +37,11 @@ export const ValidationVerdict = {
  * @returns {Promise<Object>} Validation result
  */
 export async function validateAddress({ address1, address2, city, state, zipCode, country = 'US' }) {
+  const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
   if (!GOOGLE_MAPS_API_KEY) {
     console.warn('[VENUE] GOOGLE_MAPS_API_KEY not set - skipping validation');
     return {
-      valid: true, // Don't block registration if API key not set
+      valid: false, // Unavailable is not confirmed; registration decides whether to proceed
       skipped: true,
       reason: 'API key not configured'
     };
@@ -55,6 +56,7 @@ export async function validateAddress({ address1, address2, city, state, zipCode
   try {
     const response = await fetch(`${ADDRESS_VALIDATION_URL}?key=${GOOGLE_MAPS_API_KEY}`, {
       method: 'POST',
+      signal: AbortSignal.timeout(15_000),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -72,10 +74,9 @@ export async function validateAddress({ address1, address2, city, state, zipCode
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[VENUE] API error:', response.status, errorText);
+      console.error('[VENUE] Address validation API error:', response.status);
       return {
-        valid: true, // Don't block on API errors
+        valid: false, // Failed verification provides no confirmed address
         skipped: true,
         reason: `API error: ${response.status}`,
       };
@@ -86,7 +87,7 @@ export async function validateAddress({ address1, address2, city, state, zipCode
 
     if (!result) {
       return {
-        valid: true,
+        valid: false,
         skipped: true,
         reason: 'No result from API',
       };
@@ -126,8 +127,9 @@ export async function validateAddress({ address1, address2, city, state, zipCode
 
     // Get precise coordinates
     const location = geocode?.location;
-    const lat = location?.latitude ?? null;
-    const lng = location?.longitude ?? null;
+    const coordinates = normalizeCoordinates(location?.latitude, location?.longitude);
+    const lat = coordinates?.lat ?? null;
+    const lng = coordinates?.lng ?? null;
 
     // Determine validation status
     let validationStatus = ValidationVerdict.CONFIRMED;
@@ -144,7 +146,7 @@ export async function validateAddress({ address1, address2, city, state, zipCode
 
     // Check for specific component issues
     const unconfirmedComponents = [];
-    if (result.address?.addressComponents) {
+    if (Array.isArray(result.address?.addressComponents)) {
       for (const comp of result.address.addressComponents) {
         if (comp.confirmationLevel === 'UNCONFIRMED_BUT_PLAUSIBLE' ||
             comp.confirmationLevel === 'UNCONFIRMED_AND_SUSPICIOUS') {
@@ -153,14 +155,16 @@ export async function validateAddress({ address1, address2, city, state, zipCode
       }
     }
 
+    const hasUnconfirmedComponents = verdict?.hasUnconfirmedComponents === true || unconfirmedComponents.length > 0;
+    if (addressComplete && hasUnconfirmedComponents) validationStatus = ValidationVerdict.UNCONFIRMED_COMPONENTS;
     if (unconfirmedComponents.length > 0) {
       warnings.push(`Unconfirmed: ${unconfirmedComponents.join(', ')}`);
     }
 
-    console.log(`[VENUE] ${validationStatus}: ${formattedAddress || address1}`);
+    console.log(`[VENUE] Address validation: ${validationStatus}`);
 
     return {
-      valid: addressComplete || hasInferredComponents, // Allow inferred but valid addresses
+      valid: addressComplete && !hasUnconfirmedComponents,
       validationStatus,
       warnings,
 
@@ -179,12 +183,12 @@ export async function validateAddress({ address1, address2, city, state, zipCode
       uspsData: result.uspsData || null,
 
       // Metadata
-      geocodePrecision: geocode?.placeType || null, // ROOFTOP, RANGE_INTERPOLATED, etc.
+      geocodePrecision: verdict?.geocodeGranularity || null,
     };
   } catch (err) {
     console.error('[VENUE] Exception:', err.message);
     return {
-      valid: true, // Don't block on errors
+      valid: false, // Failed verification provides no confirmed address
       skipped: true,
       reason: err.message,
     };
@@ -200,7 +204,7 @@ export async function validateAddress({ address1, address2, city, state, zipCode
 export async function isAddressDeliverable(address) {
   const result = await validateAddress(address);
 
-  if (result.skipped) return true; // Don't block if validation unavailable
+  if (result.skipped || !result.valid) return false; // Unknown is not verified deliverability
 
   // Check USPS deliverability for US addresses
   if (result.uspsData) {

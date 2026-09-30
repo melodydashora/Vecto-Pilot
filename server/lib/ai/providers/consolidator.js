@@ -6,13 +6,16 @@
 import crypto from 'crypto';
 import { fromZonedTime } from 'date-fns-tz';
 import { getLocalDateString } from '../../../../shared/dayparts.js';
+import { normalizeCoordinates } from '../../../../shared/coordinates.js';
 import { normalizeTime } from '../../events/pipeline/normalizeEvent.js';
 import { db } from '../../../db/drizzle.js';
 import { assertBriefingReady } from '../../briefing/briefing-readiness.js';
 import { assertSnapshotReady } from '../../location/snapshot-readiness.js';
 import { strategyMatchesBriefing, StrategySourceChangedError } from '../../strategy/strategy-source.js';
-import { readStrategySource, writeStrategySource } from '../../strategy/strategy-source-store.js';
-import { formatDriverEconomics, formatDriverServicePreferences } from '../../driver-preferences.js';
+import { readStrategySource, writeStrategySource, claimStrategySource } from '../../strategy/strategy-source-store.js';
+import { filterFreshNews } from '../../strategy/strategy-utils.js';
+import { assertMainRunForSnapshot, MainRunAdmissionError } from '../../main-run-admission.js';
+import { formatDriverEconomics, formatDriverServicePreferences, mainDriverContext } from '../../driver-preferences.js';
 // 2026-04-11: Added driver_profiles for STRATEGIST_ENRICHMENT_PLAN (driver preferences,
 // home base, vehicle class derivation, EV detection). See
 // server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md for the design rationale.
@@ -165,14 +168,14 @@ async function filterDeactivatedNews(newsData, userId) {
  * @param {Object} snapshot - Full snapshot row from DB
  * @param {Object} briefing - Briefing data { traffic, events, weather, weather_forecast, news, school_closures, airport }
  */
-async function generateImmediateStrategy({ snapshot, briefing }) {
+async function generateImmediateStrategy({ snapshot, briefing, configuration }) {
 
   // 2026-02-17: Use snapshot directly — it has everything resolved from GlobalHeader
   const localTime = formatLocalTime(snapshot);
 
   try {
     // Read saved preferences; unavailable fields stay unknown in the prompt.
-    const prefs = await loadDriverPreferences(snapshot.user_id);
+    const prefs = await loadDriverPreferences(snapshot.user_id, configuration);
 
     // 2026-04-11: Event distance annotation + NEAR/FAR bucketing via the
     // venue_lat / venue_lng already present in briefing.events (from the
@@ -205,7 +208,7 @@ async function generateImmediateStrategy({ snapshot, briefing }) {
 
 === DRIVER CONTEXT ===
 Current position: ${driverAddress}
-Coords: ${parseFloat(snapshot.lat).toFixed(6)},${parseFloat(snapshot.lng).toFixed(6)}
+Coords: ${snapshot.lat},${snapshot.lng}
 ${homeBaseLine || ''}
 City: ${snapshot.city}, ${snapshot.state}
 Timezone: ${snapshot.timezone}
@@ -214,6 +217,12 @@ ${briefing?.holiday?.is_holiday === true && !briefing.holiday._generationFailed 
 
 === DRIVER PREFERENCES ===
 ${driverPrefBlock}
+
+=== CONFIRMED RUN CONFIGURATION ===
+${JSON.stringify(mainDriverContext(configuration))}
+Use only the explicitly selected services; eligibility is capability, not today's selection.
+If selected_services is null, the driver's service choice is unspecified. Keep guidance
+service-neutral; do not activate or infer a service from vehicle eligibility.
 
 === EARNINGS CONTEXT ===
 ${earningsBlock}
@@ -269,6 +278,7 @@ PRINCIPLES:
 
     // 2026-02-26: Uses STRATEGY_TACTICAL role via callModel adapter (Claude Opus)
     // Both prompt layers require economic claims to have supplied evidence.
+    await assertMainRunForSnapshot(snapshot.snapshot_id);
     const response = await callModel('STRATEGY_TACTICAL', {
       system: `You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. Use the supplied traffic, events, weather, airport conditions, news, and recorded driver preferences. A missing preference or price is unknown. Every recommendation must be actionable, specific, and supported by that evidence.
 
@@ -289,7 +299,7 @@ You understand demand patterns: events create surge at END times (exit crowds), 
       return { strategy: '' };
     }
 
-    const strategy = response.output || '';
+    const strategy = typeof response.output === 'string' ? response.output.trim() : '';
 
     if (strategy) {
       aiLog.done(1, `[STRATEGY_TACTICAL] Immediate strategy (${strategy.length} chars)`, OP.AI);
@@ -398,9 +408,16 @@ export function filterEventsToTimeWindow(events, timezone) {
 
   // Compute today's date in driver's timezone for date-gating.
   // 2026-09-13: timezone is required (throws) — no server-clock/UTC fallback.
-  const todayLocal = getLocalDateString(new Date(), timezone);
+  getLocalDateString(new Date(), timezone); // validate required snapshot timezone
 
   return events.filter(event => {
+    const eventTimezone = Object.hasOwn(event, 'timezone') ? event.timezone : timezone;
+    const absoluteStart = event.start_time_iso || event.event_start || event.start_time;
+    const hasAbsoluteStart = typeof absoluteStart === 'string' && /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(absoluteStart);
+    if (!eventTimezone && !hasAbsoluteStart) return false;
+    let todayLocal;
+    try { todayLocal = getLocalDateString(new Date(), eventTimezone || timezone); } catch { return false; }
+
     // HARD GATE — 2026-08-11 (todo #29): end-date aware. The previous gate compared
     // event_start_date to today only, which dropped ACTIVE multi-day events (prod
     // 2026-08-06: "Suffs" started 08-04, still running — exactly the surge intel the
@@ -427,10 +444,12 @@ export function filterEventsToTimeWindow(events, timezone) {
     // 2026-09-13: Date/time columns are local wall-clock values, never server
     // time. Use the existing IANA conversion dependency, including DST offsets.
     let parsed;
-    if (startDate && event.event_start_time) {
+    if (hasAbsoluteStart) {
+      parsed = new Date(absoluteStart);
+    } else if (startDate && event.event_start_time) {
       const time = normalizeTime(event.event_start_time);
       if (!time) return false;
-      parsed = fromZonedTime(`${startDate}T${time}:00`, timezone);
+      parsed = fromZonedTime(`${startDate}T${time}:00`, eventTimezone);
     } else {
       const eventStart = event.event_start || event.start_time || event.time;
       if (!eventStart) return true; // Retain the established date-only gate behavior.
@@ -438,11 +457,11 @@ export function filterEventsToTimeWindow(events, timezone) {
       if (/T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)) {
         parsed = new Date(text); // Explicit offset already identifies the instant.
       } else if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
-        parsed = fromZonedTime(text, timezone);
+        parsed = fromZonedTime(text, eventTimezone);
       } else {
         const time = normalizeTime(text);
         if (!startDate || !time) return false;
-        parsed = fromZonedTime(`${startDate}T${time}:00`, timezone);
+        parsed = fromZonedTime(`${startDate}T${time}:00`, eventTimezone);
       }
     }
     if (isNaN(parsed.getTime())) return false;
@@ -456,9 +475,9 @@ export function filterEventsToTimeWindow(events, timezone) {
 
 /**
  * 2026-01-08: FIX - Optimize event data for LLM payload
- * Strip redundant fields, standardize coordinates to 6 decimals
+ * Strip redundant fields, preserve supplied coordinate precision
  * Remove: source, provider (redundant), full address (have coords)
- * Keep: name, venue, time, category, coords (6 decimal), venue_status
+ * Keep: name, venue, time, category, coords, venue_status
  * @param {Array} events - Array of event objects
  * @param {Map} venueStatusMap - Optional map of venueName -> { isOpen, reason }
  * @returns {Array} Optimized events for LLM
@@ -519,15 +538,13 @@ function optimizeEventsForLLM(events, venueStatusMap = null) {
   if (!events || !Array.isArray(events)) return [];
 
   return events.map(event => {
-    // Standardize coordinates to 6 decimals (lat/longitude come from briefing normalization)
-    const lat = event.latitude ? parseFloat(event.latitude).toFixed(6) : null;
-    const lng = event.longitude ? parseFloat(event.longitude).toFixed(6) : null;
+    const coords = normalizeCoordinates(event.latitude, event.longitude);
 
     // Look up venue open/closed status if we have a map
     const venueName = event.venue_name || event.venue;
     let venueStatus = null;
     if (venueStatusMap && venueName) {
-      venueStatus = venueStatusMap.get(venueName.toLowerCase());
+      venueStatus = venueStatusMap.get(event.venue_id);
     }
 
     // 2026-01-14: FIX - Use correct field names from pipelines/weather.js (lines 991-1006)
@@ -542,8 +559,8 @@ function optimizeEventsForLLM(events, venueStatusMap = null) {
       end: formatTime12h(event.event_end_time),
       // Use event_type (normalized category from briefing-service)
       type: event.event_type || event.category,
-      // Only include coords if we have them (6 decimal precision)
-      ...(lat && lng ? { coords: `${lat},${lng}` } : {}),
+      // Preserve finite supplied coordinates, including zero.
+      ...(coords ? { coords: `${coords.lat},${coords.lng}` } : {}),
       // Include distance if available
       ...(event.distance_mi ? { distance: `${event.distance_mi}mi` } : {}),
       // 2026-01-08: Include venue open/closed status from venue_catalog.hours_full_week
@@ -622,13 +639,7 @@ async function formatEventsForLLM(events, timezone) {
     return 'No significant events in the next 6 hours';
   }
 
-  // Extract venue names for batch lookup
-  const venueNames = strategyWorthy
-    .map(e => e.venue_name || e.venue)
-    .filter(Boolean);
-
-  // 2026-01-08: Batch lookup venue hours from venue_catalog
-  const venueStatusMap = await batchLookupVenueHours(venueNames, timezone);
+  const venueStatusMap = await batchLookupVenueHours(strategyWorthy);
 
   // Optimize and format (now includes venue open/closed status)
   const optimized = optimizeEventsForLLM(strategyWorthy, venueStatusMap);
@@ -812,7 +823,7 @@ const savedNumber = (value, min = 0, max = Infinity) => {
  * Null represents unavailable data. Eligibility and willingness remain separate.
  */
 // 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)
-export async function loadDriverPreferences(userId) {
+export async function loadDriverPreferences(userId, configuration) {
   const prefs = {
     vehicle_class: DRIVER_PREF_DEFAULTS.vehicle_class,
     fuel_economy_mpg: DRIVER_PREF_DEFAULTS.fuel_economy_mpg,
@@ -836,8 +847,9 @@ export async function loadDriverPreferences(userId) {
   try {
     // First try: full SELECT (assumes migration has run).
     // On PG error 42703 ("column does not exist"), fall back to the safe column set.
-    let row = null;
-    try {
+    let row = configuration?.profile || null;
+    if (configuration) prefs.migration_applied = true;
+    else try {
       const rows = await db.select().from(driver_profiles)
         .where(eq(driver_profiles.user_id, userId))
         .limit(1);
@@ -940,13 +952,14 @@ export function buildEarningsContextSection(prefs) {
  * populated (caller omits the line entirely). Missing home information is unknown.
  */
 function buildHomeBaseLine(snapshot, prefs) {
-  if (prefs.home_lat == null || prefs.home_lng == null) return null;
+  const home = normalizeCoordinates(prefs.home_lat, prefs.home_lng);
+  if (!home) return null;
   const distFromHome = haversineMiles(snapshot.lat, snapshot.lng, prefs.home_lat, prefs.home_lng);
   const distDisplay = Number.isFinite(distFromHome)
     ? ` — ${distFromHome.toFixed(1)} mi from current position`
     : '';
   const homeAddress = prefs.home_formatted_address
-    || `${Number(prefs.home_lat).toFixed(6)}, ${Number(prefs.home_lng).toFixed(6)}`;
+    || `${home.lat}, ${home.lng}`;
   return `Home base: ${homeAddress}${distDisplay}`;
 }
 
@@ -1059,25 +1072,10 @@ async function formatEventsForStrategist(events, snapshot, limit = 15) {
     return 'No relevant events in the next 6 hours';
   }
 
-  // 2026-04-16 (H-2 fix): Belt-and-suspenders date gate — drop any event whose
-  // event_start_date doesn't match today in the driver's timezone. Catches events
-  // that Gemini stored with wrong dates (e.g., Dallas Pulse Apr 17 stored as Apr 16).
-  const todayLocal = snapshot.timezone
-    ? new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone })
-    : new Date().toISOString().split('T')[0];
-  const dateGated = relevant.filter(e => {
-    const d = e.event_start_date || e.event_date || e.date;
-    if (d && d !== todayLocal) {
-      aiLog.info(`[strategist-date-gate] Dropping "${e.title}" — stored date ${d} != today ${todayLocal}`);
-      return false;
-    }
-    return true;
-  });
-  if (dateGated.length === 0) {
-    return 'No relevant events in the next 6 hours';
-  }
-
-  const worthy = filterStrategyWorthyEvents(dateGated);
+  // filterEventsToTimeWindow already applies the end-date-aware span gate.
+  // Rechecking start_date === today here discarded valid multi-day events after
+  // they had passed both canonical validation and the Strategy time window.
+  const worthy = filterStrategyWorthyEvents(relevant);
   if (worthy.length === 0) {
     return 'No significant events in the next 6 hours';
   }
@@ -1085,9 +1083,8 @@ async function formatEventsForStrategist(events, snapshot, limit = 15) {
   const { near, far, unknown } = annotateAndBucketEvents(worthy, snapshot.lat, snapshot.lng);
   const prioritized = [...near, ...far, ...unknown].slice(0, limit);
 
-  // Batch-look-up venue hours for open/closed flag (existing behavior)
-  const venueNames = prioritized.map(e => e.venue_name || e.venue).filter(Boolean);
-  const venueStatusMap = await batchLookupVenueHours(venueNames, snapshot.timezone);
+  // Exact saved venue identity and venue-local hours; no name-only or paid lookup.
+  const venueStatusMap = await batchLookupVenueHours(prioritized);
 
   const lines = prioritized.map(e => {
     const bucket = !Number.isFinite(e.distance_mi)
@@ -1106,8 +1103,7 @@ async function formatEventsForStrategist(events, snapshot, limit = 15) {
     const capacity = '';
     const venue = e.venue_name || e.venue || 'Unknown venue';
 
-    const venueKey = venue.toLowerCase();
-    const venueStatus = venueStatusMap.get(venueKey);
+    const venueStatus = venueStatusMap.get(e.venue_id);
     const openFlag = venueStatus?.isOpen === false ? ' [CLOSED NOW]' : '';
 
     return `${bucket} ${e.title} — ${venue} — ${start}-${end} — ${category}${impact}${capacity}${openFlag}`;
@@ -1255,60 +1251,38 @@ function formatWeatherForStrategist(weatherCurrent, weatherForecast, timezone) {
 // END STRATEGIST ENRICHMENT HELPERS
 // ============================================================================
 
-async function batchLookupVenueHours(venueNames, timezone) {
+async function batchLookupVenueHours(events) {
   const venueStatusMap = new Map();
-
-  if (!venueNames || venueNames.length === 0 || !timezone) {
-    return venueStatusMap;
-  }
-
-  // Dedupe venue names (case-insensitive)
-  const uniqueNames = [...new Set(venueNames.map(n => n?.toLowerCase()).filter(Boolean))];
-
-  if (uniqueNames.length === 0) {
-    return venueStatusMap;
-  }
+  const venueIds = [...new Set((events || []).map(event => event.venue_id)
+    .filter(id => typeof id === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)))];
+  if (!venueIds.length) return venueStatusMap;
 
   try {
-    // Query venue_catalog for matching venues (case-insensitive match)
-    const venues = await db
-      .select({
-        venue_name: venue_catalog.venue_name,
-        hours_full_week: venue_catalog.hours_full_week,
-        business_hours: venue_catalog.business_hours,
-        last_known_status: venue_catalog.last_known_status
-      })
-      .from(venue_catalog)
-      .where(
-        sql`LOWER(${venue_catalog.venue_name}) IN (${sql.join(uniqueNames.map(n => sql`${n}`), sql`, `)})`
-      )
-      .limit(100);
+    const venues = await db.select({
+      venue_id: venue_catalog.venue_id,
+      timezone: venue_catalog.timezone,
+      hours_full_week: venue_catalog.hours_full_week,
+      business_hours: venue_catalog.business_hours,
+      last_known_status: venue_catalog.last_known_status,
+    }).from(venue_catalog).where(inArray(venue_catalog.venue_id, venueIds)).limit(venueIds.length);
 
-    // Process each venue's hours
     for (const venue of venues) {
-      const hoursData = venue.hours_full_week || venue.business_hours;
-
-      // Skip if permanently closed
+      if (!venueIds.includes(venue.venue_id)) continue;
       if (venue.last_known_status === 'permanently_closed') {
-        venueStatusMap.set(venue.venue_name.toLowerCase(), {
-          isOpen: false,
-          reason: 'Permanently closed'
-        });
+        venueStatusMap.set(venue.venue_id, { isOpen: false, reason: 'Permanently closed' });
         continue;
       }
-
-      // Use isOpenNow() if we have structured hours
-      if (hoursData && typeof hoursData === 'object') {
-        const status = isOpenNow(hoursData, timezone);
-        venueStatusMap.set(venue.venue_name.toLowerCase(), status);
-      }
+      // A driver's timezone cannot establish whether another venue is open.
+      // A malformed saved timezone affects only this venue, not the entire batch.
+      if (!venue.timezone) continue;
+      try { new Intl.DateTimeFormat('en-US', { timeZone: venue.timezone }); } catch { continue; }
+      const hours = venue.hours_full_week || venue.business_hours;
+      if (hours && typeof hours === 'object') venueStatusMap.set(venue.venue_id, isOpenNow(hours, venue.timezone));
     }
-
-    triadLog.phase(3, `[venue-hours] Looked up ${venues.length}/${uniqueNames.length} venues`);
+    triadLog.phase(3, `[venue-hours] Looked up ${venues.length}/${venueIds.length} saved venues`);
   } catch (error) {
     triadLog.warn(`[venue-hours] Batch lookup failed: ${error.message}`);
   }
-
   return venueStatusMap;
 }
 
@@ -1328,6 +1302,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
   triadLog.phase(3, `Strategist: Starting immediate strategy`);
 
   try {
+    const admission = await assertMainRunForSnapshot(snapshotId);
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
     let snapshot = options.snapshot;
     if (!snapshot) {
@@ -1363,9 +1338,17 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       return { ok: true, skipped: true, reason: 'already_exists' };
     }
 
+    await claimStrategySource(snapshotId, briefingToken);
+
     // Parse ALL briefing data (not just traffic/events - include news, closures, and airport too)
     const rawNews = parseJsonField(briefingRow.news);
-    const filteredNews = await filterDeactivatedNews(rawNews, snapshot.user_id);
+    const availableNews = await filterDeactivatedNews(rawNews, snapshot.user_id);
+    // Stored/reused briefings need the same freshness guard as the visible
+    // Briefing and collector; model instructions alone cannot reject bad dates.
+    const filteredNews = filterFreshNews(
+      Array.isArray(availableNews) ? availableNews : availableNews?.items,
+      new Date(), snapshot.timezone
+    );
 
     // 2026-01-09: Apply canonical validation at READ time for legacy briefings
     // 2026-06-11: pass snapshot.timezone — Rule 13 (reached by these rows) now requires it.
@@ -1391,7 +1374,8 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     triadLog.phase(3, `Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);
 
     // Call STRATEGY_TACTICAL role with snapshot + briefing (NO minstrategy)
-    const result = await generateImmediateStrategy({ snapshot, briefing });
+    await assertMainRunForSnapshot(snapshotId);
+    const result = await generateImmediateStrategy({ snapshot, briefing, configuration: admission.configuration });
 
     if (!result.strategy) {
       throw new Error('STRATEGY_TACTICAL role returned empty strategy');
@@ -1426,7 +1410,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     triadLog.error(3, `Immediate strategy failed after ${totalDuration}ms`, error);
 
     // Write error to DB (error_code is INTEGER, use error_message for details)
-    if (!(error instanceof StrategySourceChangedError)) {
+    if (!(error instanceof StrategySourceChangedError) && !(error instanceof MainRunAdmissionError)) {
       await writeStrategySource(snapshotId, briefingToken, {
         status: 'error',
         error_message: `immediate_failed: ${error.message}`.slice(0, 500),

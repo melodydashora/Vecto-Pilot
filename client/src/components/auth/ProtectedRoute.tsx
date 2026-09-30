@@ -3,26 +3,19 @@
 
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/auth-context';
-import { Loader2 } from 'lucide-react';
+import SessionCheck from './SessionCheck';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, sessionCheckError, refreshProfile } = useAuth();
   const location = useLocation();
 
   // Show loading spinner while checking auth status
-  if (isLoading) {
-    return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
-          <p className="text-slate-400">Loading...</p>
-        </div>
-      </div>
-    );
+  if (isLoading || (!isAuthenticated && sessionCheckError)) {
+    return <SessionCheck error={isLoading ? null : sessionCheckError} onRetry={refreshProfile} />;
   }
 
   // Redirect to sign in if not authenticated

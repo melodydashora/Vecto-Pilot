@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { RouterProvider } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/auth-context';
+import { RunSetupProvider } from '@/contexts/run-setup-context';
 import { LocationProvider } from '@/contexts/location-context-clean';
 import { CoPilotProvider } from '@/contexts/co-pilot-context';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -29,12 +30,14 @@ function App() {
     <ErrorBoundary fallback={<SafeScaffold />}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <RunSetupProvider>
           <LocationProvider>
             {/* CoPilotProvider wraps router so it persists across route changes */}
             <CoPilotProvider allowPartialCoach={pathname === '/co-pilot/coach'}>
               <RouterProvider router={router} />
             </CoPilotProvider>
           </LocationProvider>
+          </RunSetupProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

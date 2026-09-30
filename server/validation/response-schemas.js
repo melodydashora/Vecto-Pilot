@@ -62,8 +62,8 @@ export const VenueSchema = z.object({
   type: z.enum(['bar', 'nightclub', 'wine_bar', 'lounge']),
   address: z.string(),
   phone: z.string().nullable(),
-  expenseLevel: z.string(),    // '$$', '$$$', '$$$$'
-  expenseRank: z.number(),     // 1-4
+  expenseLevel: z.string().nullable(),    // '$$', '$$$', '$$$$'
+  expenseRank: z.number().nullable(),     // 1-4
   // 2026-01-09: is_open can be null when hours unavailable
   isOpen: z.boolean().nullable(),
   opensInMinutes: z.number().nullable(),
@@ -71,8 +71,8 @@ export const VenueSchema = z.object({
   hoursToday: z.string().nullable(),
   closingSoon: z.boolean(),
   minutesUntilClose: z.number().nullable(),
-  crowdLevel: z.enum(['low', 'medium', 'high']),
-  ridesharePotential: z.enum(['low', 'medium', 'high']),
+  crowdLevel: z.enum(['low', 'medium', 'high']).nullable(),
+  ridesharePotential: z.enum(['low', 'medium', 'high']).nullable(),
   rating: z.number().nullable(),
   lat: z.number(),
   lng: z.number(),

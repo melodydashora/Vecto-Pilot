@@ -21,6 +21,7 @@ import { DEFAULT_RULESET, migrateRuleset } from './rules-engine.js';
 import { validateRuleset } from './ruleset-schema.js';
 import { initialRulesetFromProfile } from './profile-ruleset.js';
 import { hashRuleset } from './ruleset-hash.js';
+import { normalizeSelectedServices } from '../../../shared/driver-services.js';
 
 // Pure identity helpers live in ruleset-hash.js (no DB import — testable without
 // a pool); re-exported here so API consumers keep a single import site.
@@ -38,12 +39,14 @@ const invalidatedAt = new Map(); // userId → epoch ms
 /**
  * Resolve the ruleset for an incoming analyze-offer request.
  * @param {string|null|undefined} token - X-Shortcut-Token header / shortcut_token field
- * @returns {Promise<{ruleset: object, userId: string|null, version: number|null, hash: string|null}>}
+ * @returns {Promise<{ruleset: object|null, userId: string|null, version: number|null, hash: string|null, selectedServices: string[]|null, selectionVerified: boolean, status: string}>}
  *   No token → defaults with null identity (legacy behavior, zero change).
  *   Invalid token or unreadable rules → null rules, with an explicit status.
+ *   Service selection is profile context, not part of the persisted rules hash.
+ *   Null remains an explicitly unverified legacy selection; it is never inferred.
  */
 export async function resolveRuleset(token) {
-  const defaults = { ruleset: DEFAULT_RULESET, userId: null, version: null, hash: null, status: 'anonymous_defaults' };
+  const defaults = { ruleset: DEFAULT_RULESET, userId: null, version: null, hash: null, status: 'anonymous_defaults', selectedServices: null, selectionVerified: false };
   if (!token || typeof token !== 'string') return defaults;
 
   const cached = cache.get(token);
@@ -52,7 +55,7 @@ export async function resolveRuleset(token) {
   const readStartedAt = Date.now();
   try {
     const result = await db.execute(sql`
-      SELECT dp.user_id, dp.pref_shared, dp.max_deadhead_mi, r.config, r.version, r.config_hash
+      SELECT dp.user_id, dp.pref_shared, dp.max_deadhead_mi, dp.selected_services, r.config, r.version, r.config_hash
       FROM driver_profiles dp
       LEFT JOIN offer_rulesets r ON r.user_id = dp.user_id
       WHERE dp.shortcut_token = ${token}
@@ -65,7 +68,7 @@ export async function resolveRuleset(token) {
       // NOT cached: unknown tokens are unbounded attacker input — caching them
       // would let a scanner grow the map; a real driver's token resolves next try.
       console.warn('[ruleset-store] Unknown shortcut token — personal rules unavailable');
-      return { ruleset: null, userId: null, version: null, hash: null, status: 'invalid_token' };
+      return { ruleset: null, userId: null, version: null, hash: null, status: 'invalid_token', selectedServices: null, selectionVerified: false };
     } else if (row.version == null && row.config == null) {
       const { config } = initialRulesetFromProfile(row);
       value = { ruleset: config, userId: row.user_id, version: null, hash: hashRuleset(config), status: 'profile_defaults' };
@@ -82,6 +85,8 @@ export async function resolveRuleset(token) {
         status: 'saved',
       };
     }
+    value.selectedServices = normalizeSelectedServices(row.selected_services);
+    value.selectionVerified = value.selectedServices !== null;
     if ((invalidatedAt.get(value.userId) ?? -1) >= readStartedAt) {
       // Saved while this read was in flight — serve it (it is what the DB said when we
       // asked) but do not cache it; the next request reads the fresh row.
@@ -96,7 +101,7 @@ export async function resolveRuleset(token) {
     return value;
   } catch (err) {
     console.error(`[ruleset-store] Personal rules could not be verified (${err.message})`);
-    return { ruleset: null, userId: null, version: null, hash: null, status: 'rules_unavailable' };
+    return { ruleset: null, userId: null, version: null, hash: null, status: 'rules_unavailable', selectedServices: null, selectionVerified: false };
   }
 }
 

@@ -27,7 +27,7 @@ import { GoogleGenAI } from '@google/genai';
  * @returns {Promise<{token: string, expires_at: string, new_session_expires_at: string}>}
  * @throws {Error} descriptive failure — missing key, mint rejection. No fallback.
  */
-export async function mintGeminiLiveToken({ model }) {
+export async function mintGeminiLiveToken({ model, signal }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY not configured — cannot mint Gemini Live token');
@@ -39,14 +39,15 @@ export async function mintGeminiLiveToken({ model }) {
   // Same workaround as gemini-adapter.js: the SDK prioritizes GOOGLE_API_KEY
   // from env over the constructor apiKey. Hide it for the constructor call,
   // restore immediately for other services (Maps etc).
+  signal?.throwIfAborted();
   const conflictingKey = process.env.GOOGLE_API_KEY;
-  if (conflictingKey) {
-    delete process.env.GOOGLE_API_KEY;
-  }
   const apiVersion = process.env.GEMINI_LIVE_API_VERSION || 'v1alpha';
-  const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion } });
-  if (conflictingKey) {
-    process.env.GOOGLE_API_KEY = conflictingKey;
+  let ai;
+  try {
+    if (conflictingKey) delete process.env.GOOGLE_API_KEY;
+    ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion } });
+  } finally {
+    if (conflictingKey) process.env.GOOGLE_API_KEY = conflictingKey;
   }
 
   const now = Date.now();
@@ -55,6 +56,7 @@ export async function mintGeminiLiveToken({ model }) {
 
   const token = await ai.authTokens.create({
     config: {
+      abortSignal: signal,
       uses: 1,
       expireTime,
       newSessionExpireTime,
@@ -66,7 +68,8 @@ export async function mintGeminiLiveToken({ model }) {
     },
   });
 
-  if (!token?.name) {
+  signal?.throwIfAborted();
+  if (typeof token?.name !== 'string' || !token.name.trim()) {
     throw new Error(`Gemini authTokens.create returned no token name (apiVersion=${apiVersion})`);
   }
 

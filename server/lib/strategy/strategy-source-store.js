@@ -1,24 +1,39 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/drizzle.js';
+import { withCurrentMainRun, MainRunAdmissionError } from '../main-run-admission.js';
 import { briefings, strategies } from '../../../shared/schema.js';
 import { getBriefingReadiness } from '../briefing/briefing-readiness.js';
 import { strategyMatchesBriefing, StrategySourceChangedError } from './strategy-source.js';
 
 // A single SQL statement reads one committed pair. Separate reads could combine
 // an old Strategy with a new Briefing while another transaction completes.
-export async function readStrategySource(snapshotId) {
-  const [pair] = await db.select({ strategy: strategies, briefing: briefings })
+export async function readStrategySource(snapshotId, tx = db) {
+  const [pair] = await tx.select({ strategy: strategies, briefing: briefings })
     .from(strategies).leftJoin(briefings, eq(briefings.snapshot_id, strategies.snapshot_id))
     .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
   if (pair) return pair;
-  const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+  const [briefing] = await tx.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
   return { strategy: null, briefing: briefing ?? null };
 }
 
-export async function assertCurrentStrategySource(snapshotId) {
-  const pair = await readStrategySource(snapshotId);
+export async function assertCurrentStrategySource(snapshotId, tx = db) {
+  const pair = await readStrategySource(snapshotId, tx);
   if (!pair.strategy?.strategy_for_now || !strategyMatchesBriefing(pair.strategy, pair.briefing, snapshotId)) throw new StrategySourceChangedError();
   return pair;
+}
+
+// Claim only the model stage, in a short transaction. The active run's job
+// prevents duplicate waterfalls; this also covers diagnostic/direct callers.
+export async function claimStrategySource(snapshotId, generationToken) {
+  return withCurrentMainRun(snapshotId, async tx => {
+    const [briefing] = await tx.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).for('update').limit(1);
+    if (briefing?.generation_token !== generationToken || !getBriefingReadiness(briefing, snapshotId).ready) throw new StrategySourceChangedError();
+    const [claimed] = await tx.update(strategies).set({ status: 'running', updated_at: new Date() })
+      .where(and(eq(strategies.snapshot_id, snapshotId), eq(strategies.status, 'pending'), isNull(strategies.strategy_for_now))).returning();
+    if (!claimed) throw new MainRunAdmissionError(409, 'main_run_busy', 'This Strategy stage has already been claimed.');
+    return claimed;
+  });
 }
 
 // Lock only for the final DB write, never during a model request. Refresh updates
@@ -26,7 +41,7 @@ export async function assertCurrentStrategySource(snapshotId) {
 // and Strategy persistence. Obsolete success AND failure leave the row intact.
 export async function writeStrategySource(snapshotId, generationToken, updates) {
   if (!generationToken) return null;
-  return db.transaction(async tx => {
+  return withCurrentMainRun(snapshotId, async tx => {
     const [briefing] = await tx.select().from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId)).for('update').limit(1);
     if (briefing?.generation_token !== generationToken || !getBriefingReadiness(briefing, snapshotId).ready) return null;

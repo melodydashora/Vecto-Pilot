@@ -19,12 +19,17 @@ jest.unstable_mockModule('../../server/middleware/require-snapshot-ownership.js'
 const updatePhase = jest.fn();
 jest.unstable_mockModule('../../server/lib/strategy/strategy-utils.js', () => ({ PHASE_EXPECTED_DURATIONS: {}, updatePhase }));
 jest.unstable_mockModule('../../server/validation/transformers.js', () => ({ toApiBlock: value => value }));
+// Persisted feedback ownership/ledger SQL has its own actual SQL regression.
+// This suite isolates the existing Strategy/Briefing source boundary.
+const applyVenueFeedbackExclusions = jest.fn(async (_db, { blocks }) => ({ blocks }));
+class VenueFeedbackError extends Error {}
+jest.unstable_mockModule('../../server/lib/venue/venue-feedback.js', () => ({ applyVenueFeedbackExclusions, VenueFeedbackError }));
 const { router } = await import('../../server/api/strategy/content-blocks.js');
 const handler = router.stack.find(layer => layer.route?.path === '/strategy/:snapshotId').route.stack.at(-1).handle;
 const poll = async () => {
   let result;
   const response = { json: body => { result = body; }, status: () => response };
-  await handler({ params: { snapshotId: 'test-snapshot' }, snapshot }, response);
+  await handler({ params: { snapshotId: 'test-snapshot' }, snapshot, auth: { userId: 'fixture-owner' } }, response);
   return result;
 };
 beforeEach(() => {

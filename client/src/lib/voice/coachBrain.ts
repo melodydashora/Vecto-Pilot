@@ -13,6 +13,8 @@ import type { ThreadTurn } from './types';
 
 export interface CoachBrainParams {
   userId: string;
+  /** Live sessions retain the credential that owns their transcript and actions. */
+  authToken?: string | null;
   snapshotId?: string;
   /** Minimal snapshot fields the chat endpoint's timezone gate expects. */
   snapshot?: {
@@ -59,18 +61,21 @@ const BRAIN_TIMEOUT_MS = 180_000;
  * session degrades loudly, never silently.
  */
 export async function askCoachBrain(
-  { userId, snapshotId, snapshot, conversationId, threadHistory, signal, answerOnly = false, onActionsResult, onBrainAnswer }: CoachBrainParams,
+  { userId, authToken, snapshotId, snapshot, conversationId, threadHistory, signal, answerOnly = false, onActionsResult, onBrainAnswer }: CoachBrainParams,
   question: string
 ): Promise<string> {
-  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  const token = authToken === undefined ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : authToken;
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), answerOnly ? 30000 : BRAIN_TIMEOUT_MS);
   // External abort (session teardown) chains into the fetch controller.
   // Manual chaining instead of AbortSignal.any — wider browser support.
   if (signal?.aborted) controller.abort();
-  signal?.addEventListener('abort', () => controller.abort(), { once: true });
+  const onAbort = () => controller.abort();
+  signal?.addEventListener('abort', onAbort, { once: true });
+  const assertActive = () => { if (controller.signal.aborted) throw new DOMException('Coach request canceled', 'AbortError'); };
 
   try {
+    assertActive();
     const res = await fetch(API_ROUTES.CHAT.SEND, {
       method: 'POST',
       headers: {
@@ -96,6 +101,7 @@ export async function askCoachBrain(
       signal: controller.signal,
     });
 
+    assertActive();
     if (!res.ok) {
       const raw = await res.text();
       let msg = `coach backend HTTP ${res.status}`;
@@ -109,12 +115,14 @@ export async function askCoachBrain(
     let full = '';
     let completion: DonePayloadMeta | undefined;
     for await (const msg of readCoachEvents(res.body)) {
+      assertActive();
       if (msg.delta) full += msg.delta;
       if (msg.done) {
         completion = msg;
         if (msg.actions_result || msg.persistence_error) onActionsResult?.(msg);
       }
     }
+    assertActive();
     const display = confirmedCoachReply(full, completion);
     if (display) onBrainAnswer?.(display);
 
@@ -122,6 +130,7 @@ export async function askCoachBrain(
     if (!cleaned) throw new Error('coach backend returned an empty answer');
     return cleaned;
   } finally {
+    signal?.removeEventListener('abort', onAbort);
     window.clearTimeout(timer);
   }
 }

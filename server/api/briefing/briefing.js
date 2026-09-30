@@ -1,65 +1,25 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 // 2026-04-04: FIX C-2 — Added fetchTrafficConditions (was missing, causing ReferenceError on /traffic/realtime)
-import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing } from '../../lib/briefing/briefing-aggregator.js';
+import { getBriefingBySnapshotId } from '../../lib/briefing/briefing-aggregator.js';
 import { filterInvalidEvents } from '../../lib/briefing/pipelines/events.js';
+import { readMarketEvents, eventInSnapshotMarket, toBriefingEvent, eventOverlapsDisplayDays } from '../../lib/events/market-event-reader.js';
 import { reconcileEventLists } from '../../lib/events/event-read-reconciliation.js';
 import { fetchWeatherConditions } from '../../lib/briefing/pipelines/weather.js';
+import { briefingSectionIssue, briefingFailureReason, getBriefingReadiness } from '../../lib/briefing/briefing-readiness.js';
+import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { fetchTrafficConditions } from '../../lib/briefing/pipelines/traffic.js';
-import { fetchRideshareNews } from '../../lib/briefing/pipelines/news.js';
 import { db } from '../../db/drizzle.js';
-import { snapshots, discovered_events, news_deactivations, briefings, market_cities, venue_catalog } from '../../../shared/schema.js';
-import { eq, desc, and, gte, lte, ilike, not, or, sql } from 'drizzle-orm';
+import { snapshots, discovered_events, news_deactivations } from '../../../shared/schema.js';
+import { eq, desc, and } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
 import { isOperator } from '../../middleware/require-operator.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
-import { filterFreshEvents, filterFreshNews } from '../../lib/strategy/strategy-utils.js';
+import { filterFreshEvents, filterFreshNews, getEventStartTime, getEventEndTime } from '../../lib/strategy/strategy-utils.js';
 // 2026-04-28: Added chainLog import to fix the broken `briefingLog ?? console.error`
 // expression at the market-events catch handler below — see edit at line ~466.
 import { chainLog, matrixLog } from '../../logger/workflow.js';
-
-// 2026-04-05: Self-healing for zombie placeholder rows.
-// When a briefing generation crashes (e.g., RC-1 db.execute destructuring bug), the
-// placeholder row stays in the DB with NULL fields forever. GET endpoints detect this
-// stale state and trigger background regeneration so the next client retry gets real data.
-// Threshold: 2 minutes — anything newer might still be actively generating.
-const ZOMBIE_THRESHOLD_MS = 2 * 60 * 1000;
-// Track in-flight zombie recoveries to avoid duplicate triggers
-const zombieRecoveryInFlight = new Set();
-
-function triggerZombieRecoveryIfNeeded(briefing, snapshot) {
-  if (!briefing || !snapshot) return;
-  const snapshotId = snapshot.snapshot_id;
-
-  // Already recovering this snapshot
-  if (zombieRecoveryInFlight.has(snapshotId)) return;
-
-  // Check if row is stale (old updated_at + NULL fields = zombie)
-  const ageMs = Date.now() - new Date(briefing.updated_at).getTime();
-  if (ageMs < ZOMBIE_THRESHOLD_MS) return; // Still fresh — might be generating
-
-  // Check if key fields are NULL (zombie) or error-marked
-  const hasTraffic = briefing.traffic_conditions && !briefing.traffic_conditions._generationFailed;
-  const hasNews = briefing.news && !briefing.news._generationFailed;
-  const hasAirport = briefing.airport_conditions && !briefing.airport_conditions._generationFailed;
-
-  if (hasTraffic && hasNews && hasAirport) return; // Data exists — not a zombie
-
-  // Trigger background regeneration
-  console.log(`[BRIEFING] Zombie recovery: triggering regeneration for ${snapshotId.slice(0, 8)} (age: ${Math.round(ageMs / 1000)}s)`);
-  zombieRecoveryInFlight.add(snapshotId);
-  generateAndStoreBriefing({ snapshotId, snapshot })
-    .then((result) => {
-      console.log(`[BRIEFING] Zombie recovery complete for ${snapshotId.slice(0, 8)}: success=${result?.success}`);
-    })
-    .catch((err) => {
-      console.error(`[BRIEFING] Zombie recovery failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
-    })
-    .finally(() => {
-      zombieRecoveryInFlight.delete(snapshotId);
-    });
-}
 
 /**
  * Normalize a news title for hash matching
@@ -112,106 +72,48 @@ async function getDeactivatedNewsHashes(userId) {
 
 const router = Router();
 
-/**
- * Parse event time string (e.g., "7:00 PM", "19:00", "7pm") into a Date object
- * @param {string} timeStr - Time string in various formats
- * @param {string} dateStr - Date string (YYYY-MM-DD)
- * @param {string} timezone - IANA timezone (e.g., 'America/Chicago')
- * @returns {Date|null} - Date object in UTC, or null if parsing fails
- */
-function parseEventTime(timeStr, dateStr, timezone) {
-  if (!timeStr || !dateStr) return null;
-
-  try {
-    // Normalize time string
-    let normalized = timeStr.trim().toUpperCase();
-
-    // Handle 12-hour format (7:00 PM, 7pm, 7:30 am)
-    const match12h = normalized.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/);
-    if (match12h) {
-      let hours = parseInt(match12h[1], 10);
-      const minutes = parseInt(match12h[2] || '0', 10);
-      const period = match12h[3];
-
-      if (period === 'PM' && hours !== 12) hours += 12;
-      if (period === 'AM' && hours === 12) hours = 0;
-
-      // Create date string for parsing
-      const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-      const dateTimeStr = `${dateStr}T${timeFormatted}`;
-
-      // Parse in the venue's timezone
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: timezone,
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-      });
-
-      // Create Date in venue timezone and convert to UTC
-      const localDate = new Date(dateTimeStr);
-      // Adjust for timezone offset
-      const tzOffset = getTimezoneOffset(dateTimeStr, timezone);
-      return new Date(localDate.getTime() + tzOffset);
-    }
-
-    // Handle 24-hour format (19:00, 07:30)
-    const match24h = normalized.match(/^(\d{1,2}):(\d{2})$/);
-    if (match24h) {
-      const hours = parseInt(match24h[1], 10);
-      const minutes = parseInt(match24h[2], 10);
-      const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-      const dateTimeStr = `${dateStr}T${timeFormatted}`;
-      const localDate = new Date(dateTimeStr);
-      const tzOffset = getTimezoneOffset(dateTimeStr, timezone);
-      return new Date(localDate.getTime() + tzOffset);
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+// Every saved reader uses the same section contract as final reconciliation.
+function savedSectionState(briefing, fields) {
+  const issues = fields.flatMap(field => {
+    const issue = briefingSectionIssue(field, briefing?.[field]);
+    return issue ? [{ field, issue }] : [];
+  });
+  const failed = issues.length > 0 && (briefing?.status === 'error' || briefing?.status === 'complete' ||
+    issues.some(({ field }) => briefing?.[field] != null && !briefing[field]._pending));
+  return { issues, failed, pending: issues.length > 0 && !failed };
 }
 
-/**
- * Get timezone offset in milliseconds for a given datetime and timezone
- */
-function getTimezoneOffset(dateTimeStr, timezone) {
-  const date = new Date(dateTimeStr);
-  const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
-  const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-  return utcDate - tzDate;
+const weatherSectionState = briefing => savedSectionState(briefing, ['weather_current', 'weather_forecast']);
+
+function sendUnavailableSection(res, briefing, field) {
+  const { issues, failed, pending } = savedSectionState(briefing, [field]);
+  if (!issues.length) return false;
+  res.status(failed ? 503 : 202).json({ success: false, _pending: pending, _generationFailed: failed,
+    error: failed ? 'briefing_section_unavailable' : 'briefing_section_pending',
+    reason: issues[0].issue, ...(failed && { retry: 'setup' }) });
+  return true;
 }
 
-/**
- * Check if an event is currently active (happening now)
- * @param {Object} event - Event object with event_start_date, event_start_time, event_end_time, event_end_date
- * @param {Date} now - Current time
- * @param {string} timezone - IANA timezone for the event
- * @returns {boolean} - True if event is currently happening
- */
+// Legacy whole-Briefing readers must not flatten failed sections into successful
+// empty lists. Progressive consumers use /snapshot/:snapshotId instead.
+function sendIncompleteBriefing(res, briefing, snapshotId) {
+  const readiness = getBriefingReadiness(briefing, snapshotId);
+  if (readiness.ready) return false;
+  res.status(readiness.failed ? 503 : 202).json({
+    success: false, snapshot_id: snapshotId,
+    _pending: !readiness.failed, _generationFailed: readiness.failed,
+    error: readiness.failed ? 'briefing_unavailable' : 'briefing_pending',
+    issues: readiness.issues, ...(readiness.failed && { retry: 'setup' }),
+  });
+  return true;
+}
+
+// Reuse the Strategist's timezone-aware event interval. Missing or malformed
+// times cannot imply that an event is happening all day.
 function isEventActiveNow(event, now, timezone) {
-  // Get today's date in the event's timezone
-  const today = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD format
-
-  // 2026-01-10: Use symmetric field names (support both old and new during migration)
-  const eventStartDate = event.event_start_date || event.event_date;
-  const eventEndDate = event.event_end_date || eventStartDate;
-
-  if (!eventStartDate) return false;
-  if (today < eventStartDate || today > eventEndDate) return false;
-
-  // Parse start and end times
-  const eventStartTime = event.event_start_time || event.event_time;
-  const startTime = parseEventTime(eventStartTime || '00:00', eventStartDate, timezone);
-  const endTime = parseEventTime(event.event_end_time || '23:59', eventEndDate, timezone);
-
-  // If we couldn't parse times, check if date matches (assume all-day event)
-  if (!startTime || !endTime) {
-    return today >= eventStartDate && today <= eventEndDate;
-  }
-
-  // Check if current time is within the event duration
-  return now >= startTime && now <= endTime;
+  const start = getEventStartTime(event, timezone);
+  const end = getEventEndTime(event, timezone);
+  return !!start && !!end && now >= start && now <= end;
 }
 
 router.get('/current', requireAuth, async (req, res) => {
@@ -232,6 +134,8 @@ router.get('/current', requireAuth, async (req, res) => {
     if (!briefing) {
       return res.status(404).json({ error: 'Briefing not yet generated - try again in a moment' });
     }
+
+    if (sendIncompleteBriefing(res, briefing, snapshot.snapshot_id)) return;
 
     // Filter stale events from briefing data (2026-01-05)
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
@@ -300,6 +204,8 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
       return res.status(404).json({ error: 'Briefing not found or not yet generated' });
     }
 
+    if (sendIncompleteBriefing(res, briefing, snapshotId)) return;
+
     // Filter stale events from briefing data (2026-01-05)
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
     // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
@@ -356,11 +262,8 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
 // active TODAY (today within [start, end], in the snapshot's timezone). Past + future
 // are dropped — the venue was already persisted to venue_catalog at discovery time, so
 // dropping the event from the view loses nothing of value.
-function eventActiveToday(e, today) {
-  const start = e.event_start_date || e.event_end_date;
-  const end = e.event_end_date || e.event_start_date;
-  // YYYY-MM-DD strings compare lexically === chronologically.
-  return !!(start && end && start <= today && end >= today);
+function eventActiveToday(e, today, timezone) {
+  return eventOverlapsDisplayDays(e, today, today, timezone) === true;
 }
 
 router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
@@ -380,17 +283,17 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
 
     // Per-section generation-failure detection — mirrors each individual endpoint's
     // sentinel handling so the aggregate response has the same guarantees.
-    const sectionFailed = (v) => !!(v && typeof v === 'object' && v._generationFailed);
+    const sectionState = field => savedSectionState(briefing, [field]);
 
     // Filter stale events from briefing data (2026-01-05)
     const rawLocalEvents = Array.isArray(briefing.events)
       ? briefing.events
       : (briefing.events?.items || []);
-    const localEventsFailed = sectionFailed(briefing.events);
+    const localEventsFailed = sectionState('events').failed;
     let freshEvents = localEventsFailed ? [] : rawLocalEvents;
 
     // Filter stale news - only today's news with valid publication dates (2026-01-05)
-    const newsFailed = sectionFailed(briefing.news);
+    const newsFailed = sectionState('news').failed;
     const rawNewsItems = Array.isArray(briefing.news) ? briefing.news : (briefing.news?.items || []);
     const freshNews = newsFailed ? [] : filterFreshNews(rawNewsItems, new Date(), tz3);
 
@@ -398,109 +301,28 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
     // the driver's metro. Ported from /events/:snapshotId so the aggregate endpoint
     // returns the same events data the per-section endpoint did.
     const today = new Date().toLocaleDateString('en-CA', { timeZone: tz3 });
-    const endDateObj = new Date();
-    endDateObj.setDate(endDateObj.getDate() + 7);
-    const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: tz3 });
+
 
     // Reconcile before freshness filtering so conflicting source end times survive
     // while any original report is still visible. This never modifies stored rows.
 
-    let marketEvents = [];
-    let marketName = null;
+    let marketEvents = [], marketName = null, marketStatus = 'complete', unresolvedMarketEvents = 0;
     try {
-      const stateCondition = req.snapshot.state.length === 2
-        ? eq(market_cities.state_abbr, req.snapshot.state.toUpperCase())
-        : ilike(market_cities.state, req.snapshot.state);
-      const [marketMapping] = await db
-        .select()
-        .from(market_cities)
-        .where(and(ilike(market_cities.city, req.snapshot.city), stateCondition))
-        .limit(1);
-      if (marketMapping) {
-        marketName = marketMapping.market_name;
-        const otherMarketCities = await db
-          .select({ city: market_cities.city, state: market_cities.state })
-          .from(market_cities)
-          .where(and(
-            eq(market_cities.market_name, marketMapping.market_name),
-            not(ilike(market_cities.city, req.snapshot.city))
-          ));
-        if (otherMarketCities.length > 0) {
-          const cityConditions = otherMarketCities.map(c =>
-            and(ilike(discovered_events.city, c.city), ilike(discovered_events.state, c.state))
-          );
-          const rawMarketEvents = await db.select({
-            id: discovered_events.id,
-            venue_id: discovered_events.venue_id,
-            title: discovered_events.title,
-            venue_name: discovered_events.venue_name,
-            address: discovered_events.address,
-            city: discovered_events.city,
-            state: discovered_events.state,
-            event_start_date: discovered_events.event_start_date,
-            event_end_date: discovered_events.event_end_date,
-            event_start_time: discovered_events.event_start_time,
-            event_end_time: discovered_events.event_end_time,
-            category: discovered_events.category,
-            expected_attendance: discovered_events.expected_attendance,
-            venue_lat: venue_catalog.lat,
-            venue_lng: venue_catalog.lng,
-          })
-            .from(discovered_events)
-            .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
-            .where(and(
-              or(...cityConditions),
-              or(
-                eq(discovered_events.expected_attendance, 'high'),
-                sql`${discovered_events.category} IN ('sports', 'concert', 'festival')`
-              ),
-              gte(discovered_events.event_start_date, today),
-              lte(discovered_events.event_start_date, endDate),
-              eq(discovered_events.is_active, true)
-            ))
-            .orderBy(discovered_events.event_start_date)
-            .limit(20);
-          marketEvents = rawMarketEvents.map(e => ({
-            id: e.id,
-            venue_id: e.venue_id,
-            title: e.title,
-            summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
-            impact: 'high',
-            source: 'discovered',
-            event_type: e.category,
-            subtype: e.category,
-            event_start_date: e.event_start_date,
-            event_end_date: e.event_end_date,
-            event_start_time: e.event_start_time,
-            event_end_time: e.event_end_time,
-            address: e.address,
-            venue: e.venue_name,
-            location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
-            latitude: e.venue_lat,
-            longitude: e.venue_lng,
-            city: e.city,
-          }));
-        }
-      }
-    } catch (marketErr) {
-      // 2026-04-28: Replaced broken `briefingLog ?? console.error(...)` expression.
-      // Two bugs in the previous line: (1) `briefingLog` was never imported in this
-      // file, so the `??` left-operand threw ReferenceError inside the catch and
-      // propagated to the outer 500 handler, masking the actual marketErr; (2) the
-      // `??` operator short-circuits on truthy values — even if briefingLog had been
-      // imported, console.error would never have fired as a fallback. Replaced with
-      // chainLog so this emit goes through the workflow logger control plane (per
-      // the canonical chain template, claude_memory #229).
-      chainLog(
-        { parent: 'BRIEFING', sub: 'EVENTS', callTypes: ['DB'], table: 'market_events', callName: 'lookup' },
-        `Market events lookup failed (non-fatal): ${marketErr.message}`
-      );
+      const saved = await readMarketEvents(req.snapshot, { today, highValueOtherCities: true, limit: 20 });
+      marketName = saved.marketName;
+      marketEvents = saved.rows.map(toBriefingEvent);
+      unresolvedMarketEvents = saved.unresolvedCount;
+      if (unresolvedMarketEvents) marketStatus = 'partial';
+    } catch (error) {
+      marketStatus = 'unavailable';
+      chainLog({ parent: 'BRIEFING', sub: 'EVENTS', callTypes: ['DB'], table: 'market_events', callName: 'lookup' },
+        'Additional market events are unavailable');
     }
 
     const eventReadTime = new Date();
     const freshEventReports = new Set(filterFreshEvents([...freshEvents, ...marketEvents], eventReadTime, tz3));
     ({ local: freshEvents, market: marketEvents } = reconcileEventLists(freshEvents, marketEvents, {
-      isVisible: event => eventActiveToday(event, today) && freshEventReports.has(event),
+      isVisible: event => eventActiveToday(event, today, tz3) && freshEventReports.has(event),
     }));
 
     // 2026-07-06 (Melody, todo #24): every section carries THREE distinct states
@@ -512,19 +334,20 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
     // Pending sections must NOT fabricate "No X for this area" reasons — that
     // masked in-flight generation as a verified answer (the "No nearby
     // airports found in Dallas" screenshot).
+    const weatherState = weatherSectionState(briefing);
     res.json({
       snapshot_id: req.snapshot.snapshot_id,
       briefing: {
         weather: {
           current: briefing.weather_current,
           forecast: briefing.weather_forecast,
-          _pending: briefing.weather_current == null,
-          _generationFailed: sectionFailed(briefing.weather_current),
+          _pending: weatherState.pending,
+          _generationFailed: weatherState.failed,
         },
         traffic: {
           ...(briefing.traffic_conditions || {}),
-          _pending: briefing.traffic_conditions == null,
-          _generationFailed: sectionFailed(briefing.traffic_conditions),
+          _pending: sectionState('traffic_conditions').pending,
+          _generationFailed: sectionState('traffic_conditions').failed,
         },
         news: {
           items: freshNews,
@@ -533,19 +356,21 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
             : briefing.news == null
               ? null // pending — no fabricated emptiness
               : (briefing.news?.reason || (freshNews.length === 0 ? 'No rideshare news for this area' : null)),
-          _pending: briefing.news == null,
+          _pending: sectionState('news').pending,
           _generationFailed: newsFailed,
         },
         events: {
           items: freshEvents,
           marketEvents,
           market_name: marketName,
+          market_status: marketStatus,
+          unresolved_market_events: unresolvedMarketEvents,
           reason: localEventsFailed
             ? (briefing.events?.error || 'Events generation failed')
             : briefing.events == null
               ? null // pending — no fabricated emptiness
               : (briefing.events?.reason || (freshEvents.length === 0 ? 'No events found for this location' : null)),
-          _pending: briefing.events == null,
+          _pending: sectionState('events').pending,
           _generationFailed: localEventsFailed,
         },
         school_closures: {
@@ -553,21 +378,21 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
             ? briefing.school_closures
             : (briefing.school_closures?.items || []),
           reason: briefing.school_closures?.reason || null,
-          _pending: briefing.school_closures == null,
-          _generationFailed: sectionFailed(briefing.school_closures),
+          _pending: sectionState('school_closures').pending,
+          _generationFailed: sectionState('school_closures').failed,
         },
         airport_conditions: {
           ...(briefing.airport_conditions || {}),
-          _pending: briefing.airport_conditions == null,
-          _generationFailed: sectionFailed(briefing.airport_conditions),
+          _pending: sectionState('airport_conditions').pending,
+          _generationFailed: sectionState('airport_conditions').failed,
         },
         // 2026-07-06: holiday section (moved from snapshots — pipelines/holiday.js).
         // Success: { holiday, is_holiday, detectedAt }; failure: errorMarker.
         // GlobalHeader reads this for the amber holiday display.
         holiday: {
           ...(briefing.holiday || {}),
-          _pending: briefing.holiday == null,
-          _generationFailed: sectionFailed(briefing.holiday),
+          _pending: sectionState('holiday').pending,
+          _generationFailed: sectionState('holiday').failed,
         },
       },
       created_at: briefing.created_at,
@@ -580,65 +405,9 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
   }
 });
 
-router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) => {
-  try {
-    const latestSnapshot = await db.select()
-      .from(snapshots)
-      .where(eq(snapshots.user_id, req.auth.userId))
-      .orderBy(desc(snapshots.created_at))
-      .limit(1);
-
-    if (latestSnapshot.length === 0) {
-      return res.status(404).json({ error: 'No snapshot found' });
-    }
-
-    const snapshot = latestSnapshot[0];
-    const result = await generateAndStoreBriefing({
-      snapshotId: snapshot.snapshot_id,
-      snapshot
-    });
-
-    if (result.success) {
-      // Filter stale events from refreshed briefing data (2026-01-05)
-      // 2026-01-05: Pass snapshot timezone for proper local time parsing
-      // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
-      if (!snapshot.timezone) {
-        console.error('[BRIEFING] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
-        return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
-      }
-      const tz4 = snapshot.timezone;
-      const freshEvents = filterFreshEvents(
-        Array.isArray(result.briefing.events) ? result.briefing.events : result.briefing.events?.items || [],
-        new Date(),
-        tz4
-      );
-
-      // Filter stale news - only today's news with valid publication dates (2026-01-05)
-      const newsItems = Array.isArray(result.briefing.news) ? result.briefing.news : result.briefing.news?.items || [];
-      const freshNews = filterFreshNews(newsItems, new Date(), tz4);
-
-      res.json({
-        success: true,
-        refreshed: true,
-        briefing: {
-          news: freshNews,
-          weather: {
-            current: result.briefing.weather_current,
-            forecast: result.briefing.weather_forecast
-          },
-          traffic: result.briefing.traffic_conditions,
-          events: freshEvents,
-          school_closures: result.briefing.school_closures,
-          airport_conditions: result.briefing.airport_conditions
-        }
-      });
-    } else {
-      res.status(500).json({ success: false, error: result.error });
-    }
-  } catch (error) {
-    console.error('[BRIEFING] Error refreshing briefing:', error);
-    res.status(500).json({ error: error.message });
-  }
+router.post('/refresh', expensiveEndpointLimiter, requireAuth, (_req, res) => {
+  res.status(409).json({ success: false, error: 'main_run_restart_required', retry: 'setup',
+    message: 'Review saved setup and choose Continue with saved preferences to collect a fresh Briefing.' });
 });
 
 // 2026-04-04: FIX C-2 — fetchTrafficConditions expects { snapshot } shape, not flat params.
@@ -675,68 +444,42 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
   try {
     const { lat, lng, country } = req.query;
 
-    if (!Number.isFinite(parseFloat(lat)) || !Number.isFinite(parseFloat(lng))) {
-      return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
-    }
+    const coords = normalizeCoordinates(lat, lng);
+    if (!coords) return res.status(400).json({ error: 'Valid lat and lng are required' });
 
     const weather = await fetchWeatherConditions({
       snapshot: {
-        lat: parseFloat(lat),
-        lng: parseFloat(lng),
-        country: country || 'US'
+        ...coords,
+        country
       }
     });
 
     res.json({ success: true, weather });
   } catch (error) {
     console.error('[BRIEFING] Error fetching realtime weather:', error);
-    res.status(500).json({ error: error.message });
+    res.status(503).json({ success: false, error: 'weather_unavailable', message: briefingFailureReason(error) });
   }
 });
 
 router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    // LESSON LEARNED (Dec 2025): Weather should read from cached briefing data first,
-    // just like traffic/news/airport endpoints do. This prevents excessive API calls
-    // and ensures consistent behavior across all briefing endpoints.
+    // MAIN owns collection. An ordinary read cannot race that generation with an
+    // untracked raw fetch or replace a failure with a second, unsaved observation.
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
-
-    // If we have cached weather in briefings table, return it
-    if (briefing?.weather_current) {
-      console.log(`[BRIEFING] Weather: returning cached data for ${req.snapshot.snapshot_id.slice(0, 8)}`);
-      return res.json({
-        success: true,
-        weather: {
-          current: briefing.weather_current,
-          forecast: briefing.weather_forecast || []
-        },
-        timestamp: new Date().toISOString()
+    const { issues, failed } = weatherSectionState(briefing);
+    if (issues.length) {
+      return res.status(failed ? 503 : 202).json({ success: false,
+        _pending: !failed, _generationFailed: failed,
+        error: failed ? 'weather_unavailable' : 'weather_pending',
+        message: issues.map(({ field, issue }) => `${field}: ${issue}`).join(' '),
+        ...(failed && { retry: 'setup' }),
       });
     }
-
-    // No cached weather - fetch fresh (this should be rare, only on first request)
-    console.log(`[BRIEFING] ⚡ Weather: no cached data, fetching fresh for ${req.snapshot.snapshot_id.slice(0, 8)}`);
-    const freshWeather = await fetchWeatherConditions({ snapshot: req.snapshot });
-
-    const weatherResponse = freshWeather ? {
-      current: {
-        tempF: freshWeather.tempF ?? null,
-        conditions: freshWeather.conditions || null,
-        humidity: freshWeather.humidity || null,
-        windDirection: freshWeather.windDirection || null,
-        isDaytime: freshWeather.isDaytime !== undefined ? freshWeather.isDaytime : null
-      },
-      forecast: freshWeather.forecast || []
-    } : { current: null, forecast: [] };
-
-    res.json({
-      success: true,
-      weather: weatherResponse,
-      timestamp: new Date().toISOString()
-    });
+    return res.json({ success: true, weather: { current: briefing.weather_current, forecast: briefing.weather_forecast },
+      timestamp: new Date().toISOString() });
   } catch (error) {
     console.error('[BRIEFING] Error fetching weather:', error);
-    res.status(500).json({ error: error.message });
+    res.status(503).json({ success: false, _generationFailed: true, error: 'weather_unavailable', message: briefingFailureReason(error) });
   }
 });
 
@@ -745,30 +488,7 @@ router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async 
     // FETCH-ONCE: Just read cached data from DB - no refresh, no regeneration
     // Traffic is generated once during pipeline and stays until new snapshot
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
-
-    // 2026-04-05: Self-heal zombie placeholder rows (NULL fields from crashed generation)
-    triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
-
-    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
-    if (!briefing?.traffic_conditions) {
-      return res.status(200).json({
-        success: true,
-        _coverageEmpty: true,
-        reason: 'no_traffic_events',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // 2026-04-05: Detect error marker from failed generation — tell client to stop polling
-    if (briefing.traffic_conditions._generationFailed) {
-      return res.status(200).json({
-        success: false,
-        _generationFailed: true,
-        error: briefing.traffic_conditions.error || 'Briefing generation failed',
-        traffic: null,
-        timestamp: new Date().toISOString()
-      });
-    }
+    if (sendUnavailableSection(res, briefing, 'traffic_conditions')) return;
 
     res.json({
       success: true,
@@ -790,30 +510,7 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
   try {
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
-
-    // 2026-04-05: Self-heal zombie placeholder rows
-    triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
-
-    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
-    if (!briefing?.news) {
-      return res.status(200).json({
-        success: true,
-        _coverageEmpty: true,
-        reason: 'no_rideshare_news',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // 2026-04-05: Detect error marker from failed generation
-    if (briefing.news._generationFailed) {
-      return res.status(200).json({
-        success: false,
-        _generationFailed: true,
-        error: briefing.news.error || 'Briefing generation failed',
-        news: null,
-        timestamp: new Date().toISOString()
-      });
-    }
+    if (sendUnavailableSection(res, briefing, 'news')) return;
 
     // Filter out deactivated news items for this user
     const userId = req.auth?.userId;
@@ -884,28 +581,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     const snapshot = req.snapshot;
     const { filter } = req.query; // ?filter=active for currently happening events
 
-    // 2026-04-18: FIX — check if events generation failed on this briefing. Previously
-    // this endpoint queried discovered_events directly and returned success:true,
-    // events:[] even when the briefing row's events JSONB was {_generationFailed: true}.
-    // That made isEventsLoading() stay true forever client-side (infinite briefing spinner).
-    // Now we surface the sentinel so the client honors its _generationFailed branch.
-    const [briefingRow] = await db
-      .select({ events: briefings.events })
-      .from(briefings)
-      .where(eq(briefings.snapshot_id, snapshot.snapshot_id))
-      .limit(1);
-    if (briefingRow?.events?._generationFailed) {
-      return res.status(200).json({
-        success: false,
-        _generationFailed: true,
-        error: briefingRow.events.error || 'Events generation failed',
-        events: [],
-        marketEvents: [],
-        market_name: null,
-        reason: 'Events generation failed — check server logs',
-        timestamp: new Date().toISOString(),
-      });
-    }
+    const briefingRow = await getBriefingBySnapshotId(snapshot.snapshot_id);
+    if (sendUnavailableSection(res, briefingRow, 'events')) return;
 
     // 2026-01-14: FIX - Use snapshot timezone to calculate "today" (not UTC)
     // At 8:20 PM CST on Jan 14, UTC is already Jan 15 - this was causing 0 events to return
@@ -932,69 +609,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       location: 'briefing.js:events'
     }, `GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
 
-    // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-    const events = await db.select({
-      event: discovered_events,
-      venue: venue_catalog
-    })
-      .from(discovered_events)
-      .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
-      // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
-      // venue's actual city from Google Places API (e.g., "Fort Worth", "Arlington"), so
-      // filtering by snapshot city ("Dallas") would miss metro events outside the driver's city.
-      // 2026-04-28: FIX — multi-day-inclusive predicate. Was forward-only on
-      // event_start_date (`gte/lte` both keyed on start), silently excluding multi-day
-      // events that started before today (e.g. day 2 of a 4-day festival was dropped
-      // from the map even though Path A's planner saw it). Now: any event whose
-      // [start, end] window overlaps the [today, endDate] window. Mirrors the Path A
-      // fix landed at briefing-service.js:1551-1559 in commit 5cecd113. Active-only
-      // filter still gates already-ended events because deactivatePastEvents() runs
-      // upstream in the briefing pipeline.
-      // 2026-05-30: TODAY-ONLY. Events are re-discovered on every request, so the view
-      // only ever needs what is active TODAY (today within [start, end]). This drops past
-      // (end < today) AND future (start > today) rows, eliminating stale-event clutter.
-      // `today` is in the snapshot's timezone (computed above). Venues were already
-      // persisted to venue_catalog during discovery, so dropping past events loses nothing.
-      .where(and(
-        eq(discovered_events.state, snapshot.state),
-        lte(discovered_events.event_start_date, today),
-        gte(discovered_events.event_end_date, today),
-        eq(discovered_events.is_active, true)
-      ))
-      .orderBy(discovered_events.event_start_date)
-      .limit(50);
-
-    // Map to briefing events format
-    let allEvents = events.map(({ event: e, venue: v }) => {
-      // Prefer verified venue data if available
-      const venueName = v?.venue_name || e.venue_name;
-      const address = v?.formatted_address || v?.address || e.address;
-      const lat = v?.lat || e.lat;
-      const lng = v?.lng || e.lng;
-      const capacity = v?.capacity_estimate ? `Capacity: ${v.capacity_estimate.toLocaleString()}` : null;
-
-      return {
-        id: e.id,
-        title: e.title,
-        summary: [e.title, venueName, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
-        impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
-        // 2026-04-04: FIX H-8 — source_model column was removed from schema (2026-01-14)
-        source: v?.source ? `Venue: ${v.source}` : 'discovered',
-        event_type: e.category,
-        subtype: e.category, // For EventsComponent category grouping
-        event_start_date: e.event_start_date,
-        event_end_date: e.event_end_date, // For multi-day events (e.g., holiday lights Dec 1 - Jan 4)
-        event_start_time: e.event_start_time,
-        event_end_time: e.event_end_time,
-        address: address,
-        venue: venueName,
-        venue_id: e.venue_id, // Include link for UI
-        location: venueName ? `${venueName}, ${address || ''}`.trim() : address,
-        latitude: lat,
-        longitude: lng,
-        capacity_info: capacity
-      };
-    });
+    const savedMarket = await readMarketEvents(snapshot, { today, limit: 50 });
+    let allEvents = savedMarket.rows.map(toBriefingEvent);
 
     // CRITICAL: Filter stale events and events without date info (2026-01-05)
     // This catches events with incorrect dates (e.g., Christmas events with January dates)
@@ -1011,122 +627,15 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
 
     // 2026-01-08: Fetch high-value events from the user's market (beyond local city)
     // This shows major events (stadiums, arenas, conventions) from across the market
+    // The shared reader already includes the full metro (including cross-state
+    // mappings), so there is no second overlapping query in this compatibility view.
     let marketEvents = [];
-    let marketName = null;
-
-    try {
-      // 1. Look up user's market from market_cities
-      // Handle both "TX" and "Texas" state formats
-      const stateCondition = snapshot.state.length === 2
-        ? eq(market_cities.state_abbr, snapshot.state.toUpperCase())
-        : ilike(market_cities.state, snapshot.state);
-
-      const [marketMapping] = await db
-        .select()
-        .from(market_cities)
-        .where(and(
-          ilike(market_cities.city, snapshot.city),
-          stateCondition
-        ))
-        .limit(1);
-
-      if (marketMapping) {
-        marketName = marketMapping.market_name;
-
-        // 2. Get all cities in the market (excluding user's current city)
-        const otherMarketCities = await db
-          .select({ city: market_cities.city, state: market_cities.state })
-          .from(market_cities)
-          .where(and(
-            eq(market_cities.market_name, marketMapping.market_name),
-            not(ilike(market_cities.city, snapshot.city))
-          ));
-
-        if (otherMarketCities.length > 0) {
-          // 3. Query high-value events from market cities
-          // Build OR conditions for each city in the market
-          const cityConditions = otherMarketCities.map(c =>
-            and(
-              ilike(discovered_events.city, c.city),
-              ilike(discovered_events.state, c.state)
-            )
-          );
-
-          // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-          // 2026-04-04: FIX H-7 — Left join venue_catalog for coordinates.
-          // lat/lng columns were dropped from discovered_events (migration 20260110).
-          // Coordinates now come from venue_catalog via venue_id FK.
-          const rawMarketEvents = await db.select({
-            id: discovered_events.id,
-            venue_id: discovered_events.venue_id,
-            title: discovered_events.title,
-            venue_name: discovered_events.venue_name,
-            address: discovered_events.address,
-            city: discovered_events.city,
-            state: discovered_events.state,
-            event_start_date: discovered_events.event_start_date,
-            event_end_date: discovered_events.event_end_date,
-            event_start_time: discovered_events.event_start_time,
-            event_end_time: discovered_events.event_end_time,
-            category: discovered_events.category,
-            expected_attendance: discovered_events.expected_attendance,
-            venue_lat: venue_catalog.lat,
-            venue_lng: venue_catalog.lng,
-          })
-            .from(discovered_events)
-            .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
-            .where(and(
-              or(...cityConditions),
-              or(
-                eq(discovered_events.expected_attendance, 'high'), // High-value events
-                // 2026-02-10: Include major categories regardless of attendance tag (fixes "Dallas Open" visibility)
-                // Aligns with Strategy Generator logic (isLargeEvent) which considers all sports/concerts as market-wide
-                sql`${discovered_events.category} IN ('sports', 'concert', 'festival')`
-              ),
-              gte(discovered_events.event_start_date, today),
-              lte(discovered_events.event_start_date, endDate),
-              eq(discovered_events.is_active, true)
-            ))
-            .orderBy(discovered_events.event_start_date)
-            .limit(20);
-
-          // Map to same format as local events
-          marketEvents = rawMarketEvents.map(e => ({
-            id: e.id,
-            venue_id: e.venue_id,
-            title: e.title,
-            summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
-            impact: 'high', // All market events are high-value by definition
-            // 2026-04-04: FIX H-8 — source_model column removed from schema
-            source: 'discovered',
-            event_type: e.category,
-            subtype: e.category,
-            event_start_date: e.event_start_date,
-            event_end_date: e.event_end_date,
-            event_start_time: e.event_start_time,
-            event_end_time: e.event_end_time,
-            address: e.address,
-            venue: e.venue_name,
-            location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
-            latitude: e.venue_lat,
-            longitude: e.venue_lng,
-            city: e.city // Include city for UI display
-          }));
-
-          if (marketEvents.length > 0) {
-            console.log(`[BRIEFING] Market events: ${marketEvents.length} high-value events from ${marketName} market (${otherMarketCities.length} cities)`);
-          }
-        }
-      }
-    } catch (marketError) {
-      // Graceful degradation: if market lookup fails, just return local events
-      console.error('[BRIEFING] Market events lookup failed (non-blocking):', marketError.message);
-    }
+    const marketName = savedMarket.marketName;
 
     const eventReadTime = new Date();
     const freshEventReports = new Set(filterFreshEvents([...allEvents, ...marketEvents], eventReadTime, snapshotTz));
     ({ local: allEvents, market: marketEvents } = reconcileEventLists(allEvents, marketEvents, {
-      isVisible: (event, scope) => eventActiveToday(event, today) &&
+      isVisible: (event, scope) => eventActiveToday(event, today, snapshotTz) &&
         freshEventReports.has(event) &&
         (scope !== 'local' || filter !== 'active' || isEventActiveNow(event, eventReadTime, snapshotTz)),
     }));
@@ -1136,18 +645,16 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       events: allEvents,
       marketEvents: marketEvents,
       market_name: marketName,
+      unresolved_events: savedMarket.unresolvedCount,
       reason: allEvents.length === 0 ? (filter === 'active' ? 'No events happening right now' : 'No events found for this location') : null,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BRIEFING] Error fetching events:', error);
-    res.json({
-      success: true,
-      events: [],
-      marketEvents: [],
-      market_name: null,
-      reason: error.message,
-      timestamp: new Date().toISOString()
+    res.status(503).json({ success: false, _generationFailed: true,
+      error: 'events_unavailable', reason: briefingFailureReason(error),
+      events: [], marketEvents: [], market_name: null,
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -1156,27 +663,7 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
   try {
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
-
-    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
-    if (!briefing?.school_closures) {
-      return res.status(200).json({
-        success: true,
-        _coverageEmpty: true,
-        reason: 'no_school_closures',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // 2026-04-05: Detect error marker from failed generation
-    if (briefing.school_closures._generationFailed) {
-      return res.status(200).json({
-        success: false,
-        _generationFailed: true,
-        error: briefing.school_closures.error || 'Briefing generation failed',
-        school_closures: null,
-        timestamp: new Date().toISOString()
-      });
-    }
+    if (sendUnavailableSection(res, briefing, 'school_closures')) return;
 
     // Handle both array format and {items: [], reason: string} format
     let closures = [];
@@ -1211,30 +698,7 @@ router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async 
   try {
     // FETCH-ONCE: Just read cached airport data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
-
-    // 2026-04-05: Self-heal zombie placeholder rows
-    triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
-
-    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
-    if (!briefing?.airport_conditions) {
-      return res.status(200).json({
-        success: true,
-        _coverageEmpty: true,
-        reason: 'no_airport_events',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // 2026-04-05: Detect error marker from failed generation
-    if (briefing.airport_conditions._generationFailed) {
-      return res.status(200).json({
-        success: false,
-        _generationFailed: true,
-        error: briefing.airport_conditions.error || 'Briefing generation failed',
-        airport_conditions: null,
-        timestamp: new Date().toISOString()
-      });
-    }
+    if (sendUnavailableSection(res, briefing, 'airport_conditions')) return;
 
     res.json({
       success: true,
@@ -1331,7 +795,7 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
     // 2026-04-04: FIX H-1 — Market authorization check.
     // Previously any authenticated user could deactivate ANY event in the system.
     // Now verify the user's most recent snapshot is in the same city/state as the event.
-    const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state })
+    const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state, country: snapshots.country })
       .from(snapshots)
       .where(eq(snapshots.user_id, req.auth.userId))
       .orderBy(desc(snapshots.created_at))
@@ -1342,7 +806,7 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
     if (!userSnapshot && !isOperator(req.auth)) {
       return res.status(403).json({ error: 'A current snapshot in the event market is required to moderate events' });
     }
-    if (userSnapshot && event.city && userSnapshot.city?.toLowerCase() !== event.city?.toLowerCase()) {
+    if (!isOperator(req.auth) && !(await eventInSnapshotMarket(eventId, userSnapshot))) {
       return res.status(403).json({ error: 'You can only deactivate events in your market area' });
     }
 
@@ -1402,7 +866,7 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
     }
 
     // 2026-04-04: FIX H-1 — Market authorization check (same as deactivate)
-    const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state })
+    const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state, country: snapshots.country })
       .from(snapshots)
       .where(eq(snapshots.user_id, req.auth.userId))
       .orderBy(desc(snapshots.created_at))
@@ -1413,7 +877,7 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
     if (!userSnapshot && !isOperator(req.auth)) {
       return res.status(403).json({ error: 'A current snapshot in the event market is required to moderate events' });
     }
-    if (userSnapshot && event.city && userSnapshot.city?.toLowerCase() !== event.city?.toLowerCase()) {
+    if (!isOperator(req.auth) && !(await eventInSnapshotMarket(eventId, userSnapshot))) {
       return res.status(403).json({ error: 'You can only reactivate events in your market area' });
     }
 
@@ -1465,18 +929,8 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
 
     console.log(`[BRIEFING] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate}, tz=${userTimezone})`);
 
-    // 2026-01-10: Use symmetric field names (event_start_date)
-    // 2026-04-10: FIX — Query by state (metro-wide), same as /events endpoint above
-    const events = await db.select()
-      .from(discovered_events)
-      .where(and(
-        eq(discovered_events.state, snapshot.state),
-        gte(discovered_events.event_start_date, today),
-        lte(discovered_events.event_start_date, endDate),
-        eq(discovered_events.is_active, true)
-      ))
-      .orderBy(discovered_events.event_start_date)
-      .limit(100);
+    const saved = await readMarketEvents(snapshot, { today, endDate, limit: 100 });
+    const events = saved.rows.map(({ event }) => event);
 
     res.json({
       ok: true,
@@ -1484,6 +938,7 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
       location: { city: snapshot.city, state: snapshot.state },
       date_range: { start: today, end: endDate },
       count: events.length,
+      unresolved_events: saved.unresolvedCount,
       events
     });
   } catch (error) {

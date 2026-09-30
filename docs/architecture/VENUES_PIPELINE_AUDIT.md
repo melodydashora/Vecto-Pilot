@@ -1,228 +1,74 @@
-# Venue Pipeline: Line-Numbered E2E Audit
+# Strategy Venues verification receipt — September 29, 2026
 
-## 0. Canonical architecture
+The canonical live trace is [VENUES.md](VENUES.md). This receipt replaces the older line-number inventory, which incorrectly described duplicate address/Places reads and an inactive event verifier as required stages. Historical decisions remain in the linked event alignment plan and Git history; this file does not redefine the architecture.
 
-| File | Lines | Function / area | Status | Audit note |
-|---|---:|---|---|---|
-| `docs/architecture/VENUES.md` | `L1-L24` | canonical venue architecture doc | canonical doc | Names this doc as the canonical reference for venue discovery, scoring, ranking, Google Places integration, UI behavior, current gaps, and hardening work. |
-| `server/lib/venue/README.md` | `L1-L54` | venue architecture source-of-truth design | canonical doctrine | States `venue_catalog` is the single source of truth for venue data; `discovered_events` carries event metadata and links by FK, but does not own coordinates. |
-| `server/lib/venue/README.md` | `L188-L235` | two venue systems | important separation | Distinguishes the Strategy-tab VENUES pipeline from Bar Tab discovery. Do not merge these mentally unless product explicitly decides to unify them. |
-| `docs/architecture/VENUES.md` | `L28-L68` | Smart Blocks pipeline diagram | canonical flow | Defines the e2e flow: `generateEnhancedSmartBlocks` → `VENUE_SCORER` → `enrichVenues` → `matchVenuesToEvents` → `verifyVenueEventsBatch` → `promoteToVenueCatalog` → rankings/candidates. |
+Scope: the Strategy Venues Pipeline, its Places/Routes adapters, shared catalog identity boundaries, saved block mapping, independent Bars/Lounges discovery and their tests. Base checkout was `main` at `6e983906`, with existing concurrent uncommitted work preserved. No provider requests, account changes, live database mutations, live migrations, deployment or model-pin changes were performed by this pass. The later colocated-identity follow-through authored a migration and executed it only in isolated PGlite tests.
 
-## 1. Route trigger / waterfall entrypoint
+## Root causes and source fixes
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/api/strategy/blocks-fast.js` | `L1-L31` | file header / pipeline | active | Declares `/api/blocks-fast` as the fast tactical path and lists the waterfall: briefing → strategy → VENUE_SCORER → Google APIs → VENUE_EVENT_VERIFIER. |
-| `blocks-fast.js` | `L42-L50` | imports `runBriefing`, `runImmediateStrategy`, `generateEnhancedSmartBlocks` | active | This is the orchestration bridge from briefing/strategy into venue generation. |
-| `blocks-fast.js` | `L139-L248` | `ensureSmartBlocksExist()` | active | Single helper replacing duplicate generation call sites; checks existing rankings, locks/claims generation, fetches strategy/briefing/snapshot. |
-| `blocks-fast.js` | `L249-L282` | call `generateEnhancedSmartBlocks(...)` | active | Calls venue generation outside the short advisory-lock transaction. Passes `strategy_for_now`, briefing row, snapshot, `user_id`, and phase emitter. |
-| `blocks-fast.js` | `L302-L359` | `mapCandidatesToBlocks()` | active | Converts `ranking_candidates` rows to API blocks through the canonical transformer after resolving addresses. |
-| `blocks-fast.js` | `L365-L386` | `filterAndSortBlocks()` | active | Final API-side venue filtering: max 25 miles, sort by `valuePerMin DESC`, then distance ascending. |
+| Finding | Repaired source | Regression evidence |
+|---|---|---|
+| Failed matrix cells and missing measurements became zero-mile/zero-minute recommendations; indices were not validated. | [routes-api.js](../../server/lib/external/routes-api.js) checks status, condition, indices and required metrics; preserves fractional/zero measurements and unknown traffic delay. | [routes-contract.test.js](../../tests/venue/routes-contract.test.js) |
+| Concurrent identical routes duplicated work; singleton cache ignored departure options. | Exact coordinates/options in cache key, shared in-flight operations, bounded provider requests and cancellation. | Same route contract suite |
+| Enrichment routed to one resolved identity, then fuzzy-searched another and independently geocoded its address. | [venue-enrichment.js](../../server/lib/venue/venue-enrichment.js) reuses current Text Search evidence or refreshes exact-ID Details before routing. Coordinate-only Places cache/Nearby fallback removed from this path. | [enrichment-contract.test.js](../../tests/venue/enrichment-contract.test.js) |
+| Planner accepted invalid/no-ID/closed/remote catalog coordinates; district mismatch could select another branch; fallback used the wrong name field and only state scope. | [tactical-planner.js](../../server/lib/strategy/tactical-planner.js) validates identity/coordinates/country/distance, city-scopes fallback, reads `venue_name`, deduplicates place IDs and validates replacements. | [planner-resolution.test.js](../../tests/venue/planner-resolution.test.js) |
+| Planner timeout aborted an unused controller. | Same planner forwards the deadline signal to model/Places work and rejects late results. | Same planner suite |
+| Parsed country used long display name or fabricated US; catalog update could retain the driver's locality instead of the venue's. | [venue-utils.js](../../server/lib/venue/venue-utils.js), [venue-cache.js](../../server/lib/venue/venue-cache.js), [events.js](../../server/lib/briefing/pipelines/events.js), promotion in orchestrator. Provider ISO-2/locality and Places timezone flow through. | [country-propagation.test.js](../../tests/venue/country-propagation.test.js), [catalog-identity.test.js](../../tests/venue/catalog-identity.test.js), enrichment/publish tests |
+| Explicit place-ID misses fell through to another business; coordinate uniqueness excluded distinct colocated places; address-cache writes selected by ID OR coordinate. | [venue-cache.js](../../server/lib/venue/venue-cache.js) uses unique provider-ID insert arbitration and unambiguous name/location reads. [Address resolver](../../server/lib/venue/venue-address-resolver.js) delegates to that writer. [Catalog migration](../../migrations/20260929_venue_catalog_colocated_identity.sql) changes only venue-coordinate uniqueness to a nonunique lookup index. | [catalog-colocation-sql.test.js](../../tests/venue/catalog-colocation-sql.test.js), catalog identity suite |
+| Two repairs of an unidentified stub could overwrite each other's provider identity; read/modify/write promotion could erase concurrent enrichment. | Conditional identity promotion returns the canonical provider row on a race; role/type/status merges execute atomically in SQL. Unidentified stubs deduplicate within an exact-evidence transaction, and late Details writes require both catalog and provider IDs. | Same PGlite suite, including a controlled two-response repair race |
+| Optional catalog backfill denied non-ChIJ IDs and repeated event links launched duplicate unbounded Details calls. | All nonempty provider IDs are accepted; pending work is shared for the exact catalog/provider pair through persistence. A 15-second fetch/body deadline aborts and rejects late work; settlement releases the entry for fresh retries. | [catalog-enrichment-lifecycle.test.js](../../tests/venue/catalog-enrichment-lifecycle.test.js) |
+| Event matching discarded dates; a duplicate start-clock check lost overnight/multi-day relevance. | [event-matcher.js](../../server/lib/venue/event-matcher.js) preserves IDs/dates; [orchestrator](../../server/lib/venue/enhanced-smart-blocks.js) uses canonical IANA-aware start/end helpers and validates legacy saved events. | [smart-blocks-evidence.test.js](../../tests/venue/smart-blocks-evidence.test.js), [event integrity regressions](../../tests/events/integrity-regressions.test.js) |
+| “Verifier” had no schema-populated input and always returned an empty evidence set. | Unused `server/lib/venue/venue-event-verifier.js` and its only call removed. Saved matched event evidence feeds cards through `ranking_candidates.venue_events`, without another model call or confidence guess. Later actual-SQL coverage exposed and removed the nonexistent `rankings.extras` insert property. | Smart Blocks evidence suite |
+| Saved reads re-resolved every address and public transformation defaulted absent route metrics to zero. | [blocks-fast.js](../../server/api/strategy/blocks-fast.js) maps persisted identity/address only; [transformers.js](../../server/validation/transformers.js) preserves unknown metrics. Zero-distance sort remains zero. | [block-transform.test.js](../../tests/venue/block-transform.test.js), saved-mapper case in [briefing-cached-route.test.js](../../tests/briefing/briefing-cached-route.test.js) |
 
-## 2. Smart Blocks orchestrator
+The Bars follow-through repaired its separate provider/cache/router/UI boundary:
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/venue/enhanced-smart-blocks.js` | `L1-L20` | file header / pipeline | active | Declares the main VENUES pipeline: input strategy/briefing/snapshot, VENUE_SCORER, Routes, Places, catalog promotion, rankings/candidates. |
-| `enhanced-smart-blocks.js` | `L22-L31` | imports `rankings`, `ranking_candidates`, `discovered_events`, `venue_catalog`, `strategies` | active | Pulls all persistence tables required by Smart Blocks, event context, catalog promotion, and cache metrics. |
-| `enhanced-smart-blocks.js` | `L33-L72` | `isEventTimeRelevant()` | active event badge filter | Filters matched venue events for badge display: starts within next 2h or started within last 4h. |
-| `enhanced-smart-blocks.js` | `L75-L88` | imports planner/enrichment/verifier/matcher/cache | active | Pulls `generateTacticalPlan`, `enrichVenues`, `verifyVenueEventsBatch`, `matchVenuesToEvents`, `upsertVenue`, and `isPlannerGradeVenue`. |
-| `enhanced-smart-blocks.js` | `L91-L121` | `haversineMiles()` | active helper | Distance annotator used for event context / NEAR-FAR bucketing. |
-| `enhanced-smart-blocks.js` | `L128-L293` | `fetchTodayDiscoveredEventsWithVenue()` | active event-context source | Fetches today’s active `discovered_events`, joins `venue_catalog`, gates planner-grade venues, annotates distance, sorts closest-first. This is event-context input to the venue pipeline, not a separate venue generator. |
-| `enhanced-smart-blocks.js` | `L305-L361` | `promoteToVenueCatalog()` | active catalog bridge | Promotes Google-verified Smart Blocks venues into `venue_catalog`; only promotes if `placeVerified`, `placeId`, and usable address exist. |
-| `enhanced-smart-blocks.js` | `L379-L600` | `generateEnhancedSmartBlocks()` | active orchestrator | Main execution path: fetch events, filter briefing, call planner, enrich venues, match events, verify events, write ranking/candidates. |
+| Finding | Repaired source | Evidence |
+|---|---|---|
+| Missing prices/crowd became plausible defaults; driver timezone/period array order changed venue status; closed businesses could become staging. | [venue-intelligence.js](../../server/lib/venue/venue-intelligence.js) keeps unknown values, uses current provider observations and venue-local hours, excludes business closures, preserves zero countdowns. | [bars-pipeline.test.js](../../tests/venue/bars-pipeline.test.js) |
+| Cache failures triggered paid fallback; old hours appeared fresh after unrelated catalog writes; detached backfills/concurrent requests raced. | Explicit provider-hours freshness receipt, shared concurrent discovery, canonical awaited identity persistence. No failure-to-empty conversion. | Same service suite |
+| Invalid classifier output became verified venues; sibling routes dropped timezone or accepted invalid GPS/radius. | Strict P/S/X classification and [route inputs](../../server/api/venue/venue-intelligence.js); model failure remains unavailable. | [bars-route.test.js](../../tests/venue/bars-route.test.js) |
+| Tab duplicated the query and discarded valid open observations; compact cards invented price from a heuristic grade. | One [useBarsQuery](../../client/src/hooks/useBarsQuery.ts), null-capable contracts, truthful [BarsMainTab](../../client/src/components/BarsMainTab.tsx), [BarsDataGrid](../../client/src/components/BarsDataGrid.tsx) and map countdown. | [bars-query.test.tsx](../../tests/client/bars-query.test.tsx), [bars-truth.test.tsx](../../tests/client/bars-truth.test.tsx) |
+| Shared Text Search rounded Google coordinates to catalog-key precision. | [venue-address-resolver.js](../../server/lib/venue/venue-address-resolver.js) retains normalized provider precision and rejects unusable coordinates. | [address-resolver-coordinates.test.js](../../tests/venue/address-resolver-coordinates.test.js) |
 
-## 3. Event-context intake inside VENUES
+The admitted-run/Strategy generation-token checks previously added by the waterfall review remain around both dispatch and final publication. Offer Analyzer integration remains held; [tactical-pickup-preferences.test.js](../../tests/strategy/tactical-pickup-preferences.test.js) verifies admitted vehicle/services without treating a pickup-distance preference as a home radius.
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `enhanced-smart-blocks.js` | `L128-L180` | function comments for `fetchTodayDiscoveredEventsWithVenue()` | active contract | States the helper replaces the old matcher DB query, fixes city-scoped event loss, and joins `venue_catalog` so prompt/matcher use canonical venue identity. |
-| `enhanced-smart-blocks.js` | `L188-L236` | DB select and `discovered_events` ⋈ `venue_catalog` join | active | Selects event fields plus `vc_*` catalog fields, including `vc_place_id`, canonical address/city/state/coords/timezone. |
-| `enhanced-smart-blocks.js` | `L237-L244` | active-today predicate | active | Uses multi-day inclusive predicate: `start <= today`, `end >= today`, and `is_active = true`. |
-| `enhanced-smart-blocks.js` | `L257-L275` | planner-grade classification | active hardening | Buckets rows into `planner-ready`, `re-resolve-needed`, or `orphan` using `isPlannerGradeVenue()`. |
-| `enhanced-smart-blocks.js` | `L277-L291` | distance annotation / metro-context filter | active | Keeps planner-ready events within 60-mile metro context, counts near ≤15mi vs far surge-intel events, and sorts closest-first. |
+## Observed checks
 
-## 4. VENUE_SCORER tactical planner
+Meaningful failing-before-fix runs: Routes 11 failures; planner resolution 10 failures; catalog identity 3 failures/1 pass; saved block transform 9 failures. Final combined run:
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/strategy/tactical-planner.js` | `L1-L31` | file header | active | States VENUE_SCORER now emits venue names/district/staging/tips; coordinates are resolved post-LLM via Google Places, not trusted from AI. |
-| `tactical-planner.js` | `L34-L51` | imports `searchPlaceByText`, `lookupVenue`, driver preference helpers | active | Pulls post-LLM Places resolver and catalog cache; imports driver preferences. |
-| `tactical-planner.js` | `L55-L78` | `VenueRecommendationSchema`, `GPT5ResponseSchema` | active schema | LLM response schema excludes lat/lng and requires venue name, staging name, district, category, tips, timing. |
-| `tactical-planner.js` | `L83-L169` | `resolveVenueWithCache()` | active catalog-first resolver | Checks `venue_catalog` before paid Places API; only calls Places on cache miss or closed/stale-like status. |
-| `tactical-planner.js` | `L181-L213` | `generateTacticalPlan()` setup | active | Requires strategy and snapshot; initializes cache metrics; loads driver preferences. |
-| `tactical-planner.js` | `L236-L335` | developer prompt | active prompt contract | Hard-codes the 15-mile rule, no AI coordinates, venue names only, events as NEAR candidate or FAR surge-flow intelligence. |
-| `tactical-planner.js` | `L337-L393` | user prompt / event-intel instructions | active prompt contract | Tells model events are intelligence, not a venue list; all recommendations must be within 15 miles; near events may be direct candidates; far events are not destinations. |
-| `tactical-planner.js` | `L395-L433` | event debug logging | active telemetry | Logs near/far/unbucketed event counts and samples reaching VENUE_SCORER. |
-| `tactical-planner.js` | `L435-L482` | `callModel('VENUE_SCORER')`, parse, validate | active AI call | Dispatches VENUE_SCORER, parses JSON, validates schema. |
-| `tactical-planner.js` | `L484-L560` | post-LLM venue resolution loop | active resolution chain | Resolves each LLM venue name through catalog-first cache / Places text search / fallback chain; attaches Google lat/lng/place identity. |
+```sh
+NODE_OPTIONS=--experimental-vm-modules npx jest --runInBand \
+  tests/venue tests/briefing/briefing-cached-route.test.js \
+  tests/events/integrity-regressions.test.js \
+  tests/strategy/tactical-pickup-preferences.test.js --silent
+```
 
-## 5. Google enrichment: Places, Routes, hours, closure
+**11 suites, 118 tests passed at the Stage 5 freeze**, before the independent Bars suites were added. A prior combined compatibility run including Strategy source-fence tests and Concierge pipeline tests passed 11 suites / 115 tests. These totals overlap and must not be added together. Source ESLint passed for the modified adapter/planner/catalog/orchestrator/transformer/route files; `git diff --check` passed.
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/venue/venue-enrichment.js` | `L1-L15` | file header | active | Separates AI reasoning from factual lookup: Places API, Routes API, address/business status. |
-| `venue-enrichment.js` | `L45-L244` | `enrichVenues()` | active | Enriches planner venues with batch Route Matrix, address resolution, Places details, hours/open status, route distance, and filters permanently closed venues. |
-| `venue-enrichment.js` | `L74-L112` | batch Routes Matrix | active | Uses `getRouteMatrix()` for all candidate destinations, then falls back to individual route calls if batch fails. |
-| `venue-enrichment.js` | `L115-L126` | `resolveVenueAddressesBatch()` | active | Batch address resolver reduces per-venue geocoding calls. |
-| `venue-enrichment.js` | `L144-L158` | `getPlaceDetailsWithFallback(...)` | active | Uses coordinate search with district/text fallback to verify venue identity. |
-| `venue-enrichment.js` | `L170-L173` | permanently closed filter | active safety | Drops `CLOSED_PERMANENTLY` venues before recommendation persistence. |
-| `venue-enrichment.js` | `L184-L215` | enriched venue object | active output shape | Adds `placeId`, `businessStatus`, `isOpen`, `businessHours`, route metrics, Street View URL, verification flag. |
-| `venue-enrichment.js` | `L333-L466` | `getPlaceDetails()` | active Places Nearby/cache path | Uses memory cache, DB cache, Places SearchNearby, canonical hours parsing, retries, and `places_cache`. |
-| `venue-enrichment.js` | `L541-L632` | `searchPlaceByText()` | active fallback | Text-search fallback using `venue name + district + city + state`, returns place ID, address, hours, Google coords. |
-| `venue-enrichment.js` | `L642-L686` | `getPlaceDetailsWithFallback()` | active | Coordinate search first; if name similarity is low, try text search; mark unverified if both fail. |
+Bars failing-before-fix runs reproduced 12 failures/1 pass in the service and 11 route failures. The subsequent four-suite backend run passed 34 tests, including cache freshness and shared resolver precision. Two client suites passed six tests, including actual shared prefetch/tab requests and cancellation. Scoped source ESLint passed.
 
-## 6. Venue address resolver
+Provider contracts used current official [Google API references](google-cloud-apis.md). Network/provider mocks and isolated test databases establish contract behavior, not live key entitlement, quota headroom, deployed schema state or real-world recommendation quality.
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/venue/venue-address-resolver.js` | `L1-L55` | module setup / API config | active | Batch geocoding and address resolution layer for venue addresses. |
-| `venue-address-resolver.js` | `L80-L145` | `resolveVenueAddress()` | active | Resolves a venue coordinate/name into address and optionally upserts stub `venue_catalog` rows. |
-| `venue-address-resolver.js` | `L154-L184` | `resolveVenueAddressesBatch()` | active | Resolves multiple venue addresses in chunks of 5. |
-| `venue-address-resolver.js` | `L194-L257` | `searchPlaceWithTextSearch()` | active shared Places text search | Used by event venue resolution and cached venue re-resolution; supports 50m precise lookup or 50km event-discovery bias. |
+The colocated catalog follow-through first reproduced 12 failing SQL/identity cases and separately reproduced the delayed address-repair race. The expanded catalog suite passes 19 cases, including repair into an existing provider ID and late Details identity binding. It executes the new migration twice, proves the old coordinate constraint rejected a second establishment, and verifies provider-ID and `coords_cache` uniqueness remain enforced. Other cases cover named/unnamed ambiguity, known-country scope, zero/full-precision coordinates, atomic enrichment, unidentified stubs and batch output preservation. PGlite serializes its one connection; advisory-lock calls are recorded but not executed. This is actual data/migration SQL coverage and controlled asynchronous race coverage, not a multi-connection PostgreSQL load test.
 
-## 7. Venue catalog/cache
+The optional Details lifecycle follow-through reproduced five failures/one pass before repair. Final integrated venue/Concierge/shared-event verification passed **20 suites / 194 tests**. A subsequent focused seven-case lifecycle run additionally checks that callers arriving during persistence share the pending write. The focused and integrated totals overlap. Tests cover success/failure release, fresh retry, pair isolation, non-ChIJ backfill, fetch/body deadlines and ignored-abort late responses. Scoped source ESLint and diff checks passed. No live provider or app database call was used.
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/venue/venue-cache.js` | `L1-L28` | imports/schema/logger/validators | active | Venue cache owns CRUD against `venue_catalog`; imports `discovered_events` for FK linking and address validation/re-resolution. |
-| `venue-cache.js` | `L35-L59` | `isPlannerGradeVenue()` | active gate | Requires `place_id`, `formatted_address`, `city`, `state`, `lat`, `lng`, `timezone`. |
-| `venue-cache.js` | `L72-L123` | `lookupVenue()` | active | Lookup order: exact `place_id`, normalized name + city/state, then coord key. |
-| `venue-cache.js` | `L132-L172` | `lookupVenueFuzzy()` | fallback / duplicate-risk | State-only fuzzy match. Useful as fallback, but should not become primary truth because false-positive venue links are dangerous. |
-| `venue-cache.js` | `L205-L338` | `insertVenue()` | active | Inserts into `venue_catalog`; uses `coord_key` conflict update and place-id collision fallback. |
-| `venue-cache.js` | `L352-L430` | `upsertVenue()` | active | Best-write-wins merge: venue types merge, `is_bar` / `is_event_venue` OR logic, record status max logic. |
-| `venue-cache.js` | `L454-L461` | `linkEventToVenue()` | active event bridge | Updates `discovered_events.venue_id` to link event metadata to canonical venue. |
-| `venue-cache.js` | `L473-L492` | `getEventsForVenue()` | duplicate-read risk | Uses event start-date range only; should not replace Smart Blocks’ active-today joined event source without lifecycle alignment. |
-| `venue-cache.js` | `L511-L632` | `findOrCreateVenue()` | active event-ingestion bridge | Used when events discover venues. Place-id first, coord key, fuzzy fallback, then insert; creates event venues in catalog. |
-| `venue-cache.js` | `L650-L737` | `maybeReResolveAddress()` | active quality gate | Re-resolves bad cached venue addresses through Places (NEW) API and updates catalog if a better address is found. |
+## Shared event-write follow-through
 
-## 8. Event matching into venue candidates
+[cleanup-events.js](../../server/lib/briefing/cleanup-events.js) now serializes venue overlap checks and inserts, uses monotonic SQL span union, and reconciles venue tags in that transaction. [Briefing](../../server/lib/briefing/pipelines/events.js), [Concierge](../../server/lib/concierge/concierge-service.js) and [Coach ADD_EVENT](../../server/lib/ai/rideshare-coach-dal.js) preserve existing first-show hashes while assigning stable variants to different saved schedules. The raw and semantic dedup boundaries preserve explicit clock differences. Discovery does not override manual/unattributed removal; attributed automatic expiry is distinct.
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/venue/event-matcher.js` | `L1-L37` | module header | active / already deduped | Header says the old internal DB query was removed; caller passes pre-fetched `todayEvents`. |
-| `event-matcher.js` | `L65-L90` | `normalizeName()`, `venueNamesMatch()` | fallback helper | Name fallback only after strong identity keys. |
-| `event-matcher.js` | `L104-L113` | `toEventMatch()` | active output shape | Converts event row to `venue_events[]` shape for ranking candidates. |
-| `event-matcher.js` | `L138-L201` | `matchVenuesToEvents()` | active | Match order: `place_id` → `venue_id` → substantial name fallback. |
-| `enhanced-smart-blocks.js` | `L480-L485` | call `matchVenuesToEvents(enrichedVenues, todayEvents)` | active | Same event set from `fetchTodayDiscoveredEventsWithVenue()` feeds matcher; no duplicate DB query. |
+[cleanupEvents.test.js](../../tests/cleanupEvents.test.js) checks interleaved lock placement, ambiguous schedule preservation and monotonic updates. [shared-writer-sql.test.js](../../tests/events/shared-writer-sql.test.js) executes stored SQL in PGlite for performance variants, span union, rollback and deactivation behavior. PGlite serializes one connection and omits advisory-lock execution; this is not live PostgreSQL concurrency evidence. [Coach writer tests](../../tests/coach/event-writer.test.js) cover invalid/overnight/future schedule handling and action validation. **Final writer run: eight suites / 127 tests passed**, with scoped source ESLint and diff checks passing. No data migration or live catalog repair was run for these writer changes.
 
-## 9. Venue event verifier
+## MAIN and planner event-read follow-through
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/venue/venue-event-verifier.js` | `L1-L9` | module header/imports | active | Uses `callModel` with `VENUE_EVENT_VERIFIER`; per-event logs demoted to debug. |
-| `venue-event-verifier.js` | `L20-L66` | `verifyVenueEvent()` | active AI verifier | Verifies a venue event and assesses rideshare demand impact. |
-| `venue-event-verifier.js` | `L78-L121` | `verifyVenueEventsBatch()` | active | Verifies event-bearing venues in chunks of 3. |
-| `venue-event-verifier.js` | `L130-L154` | `extractVerifiedEvents()` | active | Keeps verified events with confidence ≥70 and high/medium impact. |
+[events.js](../../server/lib/briefing/pipelines/events.js) and [enhanced-smart-blocks.js](../../server/lib/venue/enhanced-smart-blocks.js) now reuse the canonical [market-event-reader.js](../../server/lib/events/market-event-reader.js), replacing two independent state/date-only queries. Country/metro selection and absolute venue-local time overlap precede limits; planner distance sorting retains the 60-mile context/15-mile destination contract. MAIN defers calendar-only exclusions until verified venue resolution, rejects missing country/mismatched saved IDs, and preserves unknown attendance. The saved Briefing, planner prompt, event matcher and candidate evidence retain dates/timezone/absolute instants.
 
-## 10. Rankings and candidate persistence
+[main-collector-market.test.js](../../tests/events/main-collector-market.test.js) first failed **five of five** collector cases, then passed after repair. Its added actual planner SQL test separately failed because the duplicate reader dropped a cross-state next-calendar-day event. That test also exposed a mocked false assurance: `rankings.extras` was never in the schema. The unused property/construction was removed; the regression verifies actual saved `ranking_candidates.venue_events`, which is the existing consumer contract. Google/model results are mocked; catalog/events/rankings/candidates use isolated PGlite SQL. This includes collector → saved Briefing JSON → real Strategist freshness filtering, and planner → actual candidate storage. No live provider or application database calls are part of these tests. Final combined collector/planner/writer-consumer check: **nine suites / 112 tests passed**, plus scoped source ESLint and diff checks. The later cancellation follow-through reproduced five failing cases (provider signal absent, caller cancellation ignored, unbounded Places/geocode, already-aborted work starting), then passed **three affected suites / 30 tests** with transport signal forwarding, late-result guards and timer cleanup.
 
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `enhanced-smart-blocks.js` | `L502-L521` | insert `rankings` | active | Creates ranking session metadata; records model role and degraded-events path. |
-| `enhanced-smart-blocks.js` | `L524-L527` | call `promoteToVenueCatalog()` | active | Catalog promotion occurs before candidate insert so candidate rows can carry `venue_id`. |
-| `enhanced-smart-blocks.js` | `L530-L599` | build `ranking_candidates` values | active | Computes distance/value metrics, time-relevant matched events, event badges, candidate features, place/venue IDs. |
-| `enhanced-smart-blocks.js` | `L601-L615` | insert candidates/update ranking total | active | Persists candidate rows and total timing. |
-| `shared/schema.js` | `~L1100-L1165` | `ranking_candidates` schema | active DB schema | Candidate table has `venue_id`, `place_id`, distance/value metrics, tactical tips, staging data, `business_hours`, and `venue_events`. |
+## Explicit limits and independent work
 
-## 11. API transform / response surface
-
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/validation/transformers.js` | `L1-L18` | transformer module header | canonical output layer | Defines DB snake_case → API camelCase → client shape as the single source of truth. |
-| `transformers.js` | `L70-L105` | `toApiVenue()` | active Bar Tab transform | Converts bar/venue discovery objects to API venue format. |
-| `transformers.js` | `L160-L236` | `toApiBlock()` event fields | active Smart Blocks transform | Resolves `hasEvent`, `eventBadge`, `eventSummary`, `businessHours`, `closedReasoning`, distance/value fields, and venue IDs for client. |
-| `blocks-fast.js` | `L302-L359` | `mapCandidatesToBlocks()` | active API bridge | Batch resolves candidate addresses, filters Plus Codes, and calls `toApiBlock()`. |
-| `blocks-fast.js` | `L447-L492` | GET `/api/blocks-fast` result path | active read path | Ensures blocks exist, reads candidates, transforms/filter/sorts, returns `{ blocks, rankingId, briefing, audit }`. |
-
-## 12. Bar Tab / nearby venue discovery pipeline
-
-This is a **separate pipeline** from Smart Blocks. It shares `venue_catalog`, Google Places, and some hours logic, but it is not strategy-aware. The architecture requirements explicitly call this divergence out: Smart Blocks uses VENUE_SCORER + strategy context, while Bars/Lounges uses `venue-intelligence.js` with VENUE_FILTER and no strategy context. 
-
-| File | Lines | Function / call | Status | Audit note |
-|---|---:|---|---|---|
-| `server/lib/venue/venue-intelligence.js` | `L42-L120` | `calculateOpenStatus()` | active but audit-sensitive | Calculates open/closed/closing-soon; architecture docs previously flagged duplicate weekday parsing concerns. |
-| `venue-intelligence.js` | `L143-L170` | `EXCLUDED_VENUES`, `isExcludedVenue()` | active filter | Hardcoded exclusions for fast food, coffee, gas, grocery, etc. |
-| `venue-intelligence.js` | `L182-L276` | `classifyAndFilterVenues()` | active AI filter | Calls `VENUE_FILTER` to classify P/S/X and drop X-tier venues. |
-| `venue-intelligence.js` | `L348-L520` | `discoverNearbyVenues()` cache-first path | active Bar Tab utility | Checks `venue_catalog` by venue types, filters by radius and hours, backfills missing hours, then returns cached venues if enough have usable hours. |
-| `venue-intelligence.js` | `L560-L690` | Google Places `searchNearby` fallback | active Bar Tab utility | Calls Places SearchNearby for bar/nightclub/wine bar types, maps price/rating/hours/location into venue objects. |
-| `docs/architecture/ARCHITECTURE_REQUIREMENTS.md` | `L150-L185` | strategic venue selection contract | unresolved product decision | Says Bars tab is currently a nearby-venues utility, not the Smart Blocks strategic scoring pipeline. |
-
-## 13. Duplicate / overlap audit targets
-
-### A. Smart Blocks vs Bar Tab must remain separated unless intentionally unified
-- Smart Blocks = strategy-aware VENUE_SCORER pipeline.
-- Bar Tab = nearby bars/lounges utility unless product chooses unification.
-- Do not let Bar Tab sorting rules override Smart Blocks tactical ranking.
-
-### B. Coordinates must come from Google/catalog, not model output
-- VENUE_SCORER emits venue names/district/tips, not coordinates.
-- Coordinates are populated by Google Places / catalog resolver.
-- Any numeric lat/lng from LLM should not be trusted as final location truth.
-
-### C. Catalog-first cache must not become fuzzy-first
-- Smart Blocks resolution uses exact `lookupVenue()` first.
-- Fuzzy lookup remains fallback for event-discovery/legacy style use, not primary Smart Blocks location truth.
-
-### D. Enrichment and catalog promotion are separate stages
-- `enrichVenues()` verifies/fetches factual Google details and route metrics.
-- `promoteToVenueCatalog()` persists only verified venues with placeId and address.
-- Do not write unverified/failed enrichment directly as verified catalog identity.
-
-### E. Event matching must not re-query the DB
-- `todayEvents` is fetched once by Smart Blocks.
-- Matcher receives the pre-fetched event set.
-- No internal city-scoped matcher query should return.
-
-### F. Candidate-to-client transform should remain single source of truth
-- API shape should come through `toApiBlock()`.
-- Do not duplicate field mapping in route handlers or client components.
-
-## 14. Main red flags / hardening backlog
-
-1. **Driver preference scoring is only partially integrated.**
-   `tactical-planner.js` imports and injects driver preference text, but the architecture docs still warn that `user_id` must become a real scoring/filtering input, not just attribution. 
-2. **Bar Tab and Smart Blocks are divergent.**
-   This may be okay, but it must be product-labeled correctly: Bar Tab currently answers “nearby bars/lounges,” not “highest earning strategic venue.” 
-3. **Venue value scoring is still heuristic.**
-   Current value math is distance/drive-time based; `VENUES.md` flags no surge multiplier, airport queue premium, offer intelligence, venue popularity, or catalog cleanup. 
-4. **Venue catalog cleanup / freshness is still TODO.**
-   `VENUES.md` lists venue freshness TTL and catalog cleanup as hardening work. 
-5. **Places/cache/hours logic crosses multiple files.**
-   Hours are evaluated in both `venue-enrichment.js` and `venue-intelligence.js`; the canonical hours module should remain the source of truth and duplicate weekday parsing should not creep back in. The architecture requirements explicitly call out weekday parsing and hours-trust contracts. 
-
-## 15. One-line canonical venue flow
-
-POST /api/blocks-fast → ensureSmartBlocksExist → generateEnhancedSmartBlocks → fetch live event context from discovered_events + venue_catalog → filter briefing for planner → generateTacticalPlan via VENUE_SCORER → resolve venue names through venue_catalog/Places → enrichVenues via Routes + Places + hours → match venues to events by place_id/venue_id/name → verify venue events → promote verified venues to venue_catalog → insert rankings + ranking_candidates → transform candidates to API blocks.
-
-## 16. Naming Conventions Doctrine
-
-The following canonical nomenclature **must** be adhered to across all documentation, commits, and ReAct loops to prevent architectural drift between data storage and pipeline execution.
-
-### Canonical naming correction
-
-The Strategy Page venue recommendation flow shall be referred to as the **Strategy Venues Pipeline**.
-The term **Venue Catalog Pipeline** shall not be used for Strategy Page venue generation.
-`venue_catalog` is not the Strategy Page generator. It is the canonical venue identity and enrichment store that exists before, during, and after Strategy Page venue generation.
-
-Correct separation:
-- `venue_catalog` = canonical venue inventory / identity / enrichment layer
-- Strategy Page `GET venues` / `blocks-fast` = recommendation pipeline
-- Bar Tab venue discovery = separate nearby-bars utility pipeline
-- `discovered_events` = event working set linked to canonical venues through `venue_id`
-
-### 1. Venue Catalog
-The persistent canonical table containing venue identity, coordinates, address, place ID, hours, quality fields, enrichment status, event-host flags, bar flags, and market metadata.
-
-### 2. Strategy Venues Pipeline
-The Strategy Page recommendation flow that uses snapshot, strategy, briefing, event context, `venue_catalog`, Google Places, Google Routes, and VENUE_SCORER to produce `rankings` and `ranking_candidates`.
-
-### 3. Bar Tab Discovery Pipeline
-The separate nearby-bars/lounges discovery surface powered by `venue-intelligence.js`. This may read/write `venue_catalog`, but it is not the Strategy Page recommendation pipeline.
-
-### 4. Event Catalog Pipeline
-The event workflow that discovers, validates, deduplicates, enriches, and stores events in `discovered_events`, linking event rows to canonical venues through `venue_id`.
-
-### 5. Venue Enrichment Layer
-The Google Places / Routes / hours / address resolution layer used by Strategy Venues and other venue flows to turn candidate venue names or coordinates into factual venue details.
+- The colocated-identity migration is authored and locally tested, **not applied to the app database**. Drain old catalog writers before migration and start the matching new code afterward; the old coordinate-conflict writer is incompatible with the migrated schema. See [rollout details](VENUES.md#identity-hours-and-google-contracts). No historical row cleanup or identity reassignment was performed.
+- Rank/value metrics still use the preexisting static distance/drive-time heuristic. They do not establish future ride earnings or profit.
+- Model tips/staging names are advice; provider coordinates belong to the venue, not a guaranteed safe parking spot.
+- Independent Concierge, Coach, feedback and manual event-sync paths have separate triggers and evidence. Bars coverage is recorded above. Their status is tracked in [the ordered review](audits/PIPELINE_REVIEW_2026-09-29.md); MAIN test success must not be generalized to them.

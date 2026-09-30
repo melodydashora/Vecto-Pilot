@@ -225,10 +225,13 @@ export function normalizeEvent(rawEvent, context = {}) {
   const event_start_time = normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time);
   const event_end_time = normalizeTime(rawEvent.event_end_time || rawEvent.end_time);
 
-  // 2026-02-26: Pass through place_id from Gemini (Google Places ID for venue linking).
-  // "unknown" or empty means Gemini couldn't resolve it — geocoding will still work as fallback.
-  const rawPlaceId = (rawEvent.place_id || '').trim();
-  const place_id = rawPlaceId.startsWith('ChIJ') ? rawPlaceId : null;
+  // Preserve bounded opaque provider-ID hints without assuming a Google prefix.
+  // This is untrusted model input; MAIN/Concierge still resolve provider identity.
+  const rawPlaceId = typeof rawEvent.place_id === 'string' ? rawEvent.place_id.trim() : '';
+  const place_id = rawPlaceId && rawPlaceId.length <= 255 &&
+    !/^(unknown|n\/a|null|none)$/i.test(rawPlaceId) &&
+    !Array.from(rawPlaceId).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127)
+    ? rawPlaceId : null;
 
   return {
     // Title - prefer 'title', fallback to 'name'

@@ -67,6 +67,8 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { requestRef.current?.abort(); requestRef.current = null; }, [token, lat, lng, timezone]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -75,12 +77,16 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
 
   // 2026-04-02: Streaming implementation — tokens appear in real time via SSE
   const sendQuestion = async (question: string) => {
-    if (!question.trim() || isLoading || !timezone) return;
+    if (!question.trim() || requestRef.current || !timezone) return;
     if (questionCount >= MAX_QUESTIONS_PER_SESSION) {
       setError('Question limit reached. Refresh the page to ask more.');
       return;
     }
 
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const current = () => requestRef.current === controller && !controller.signal.aborted;
+    const deadline = window.setTimeout(() => controller.abort(), 90000);
     const userMessage: ChatMessage = { role: 'user', content: question.trim() };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -96,6 +102,7 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
       const response = await fetch(API_ROUTES.CONCIERGE.PUBLIC_ASK_STREAM(token), {
         method: 'POST',
         credentials: 'omit',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: question.trim(),
@@ -108,6 +115,7 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         }),
       });
 
+      if (!current()) return;
       if (!response.ok || !response.body) {
         setMessages(prev => {
           const updated = [...prev];
@@ -121,50 +129,39 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
-
-          try {
-            const data = JSON.parse(jsonStr);
-
-            if (data.done) break;
-
-            if (data.error) {
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[assistantIdx] = { role: 'assistant', content: data.error };
-                return updated;
-              });
-              break;
-            }
-
-            if (data.delta) {
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[assistantIdx] = {
-                  role: 'assistant',
-                  content: (updated[assistantIdx]?.content || '') + data.delta,
-                };
-                return updated;
-              });
-            }
-          } catch {
-            // Skip unparseable chunks
+      let finished = false;
+      const consume = (line: string) => {
+        if (finished || !line.startsWith('data:')) return;
+        const json = line.slice(5).trim();
+        if (!json) return;
+        const data = JSON.parse(json);
+        if (data.error) throw new Error(String(data.error));
+        if (data.done) { finished = true; return; }
+        if (typeof data.delta === 'string' && data.delta) setMessages(prev => {
+          const updated = [...prev];
+          updated[assistantIdx] = { role: 'assistant', content: (updated[assistantIdx]?.content || '') + data.delta };
+          return updated;
+        });
+      };
+      try {
+        while (!finished) {
+          const { done, value } = await reader.read();
+          if (!current()) return;
+          if (done) {
+            buffer += decoder.decode();
+            if (buffer.trim()) consume(buffer);
+            if (!finished) throw new Error('The answer ended before it was complete.');
+            break;
           }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n'); buffer = lines.pop() || '';
+          for (const line of lines) consume(line);
         }
-      }
-    } catch {
+      } finally { await reader.cancel(); }
+
+    } catch (caught) {
+      if (requestRef.current !== controller) return;
+      setError(controller.signal.aborted ? 'The answer timed out. Please try again.' : caught instanceof Error ? caught.message : 'The answer could not be completed.');
       setMessages(prev => {
         const updated = [...prev];
         if (updated[assistantIdx]) {
@@ -176,8 +173,12 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         return updated;
       });
     } finally {
-      setIsLoading(false);
-      inputRef.current?.focus();
+      window.clearTimeout(deadline);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setIsLoading(false);
+        inputRef.current?.focus();
+      }
     }
   };
 

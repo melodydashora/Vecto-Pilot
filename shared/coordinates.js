@@ -1,11 +1,13 @@
 // One coordinate boundary for browser GPS, API input, persistence and cache keys.
-// Six decimal places describe representation, not the sensor's measured accuracy.
+// Preserve the sensor's supplied precision; six-decimal keys are a separate lookup format.
 export const GPS_MAX_AGE_MS = 30_000;
 export const GPS_MAX_ACCURACY_METERS = 100;
 
 function coordinateNumber(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value !== 'string' || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value.trim())) return null;
+  // URLSearchParams serializes tiny numeric GPS readings with an exponent.
+  // Accept a complete finite decimal representation, never a numeric prefix.
+  if (typeof value !== 'string' || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -14,7 +16,7 @@ export function normalizeCoordinates(latitude, longitude) {
   const lat = coordinateNumber(latitude);
   const lng = coordinateNumber(longitude);
   if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+  return { lat: Object.is(lat, -0) ? 0 : lat, lng: Object.is(lng, -0) ? 0 : lng };
 }
 
 /** Validate a browser position before it can start the location waterfall. */

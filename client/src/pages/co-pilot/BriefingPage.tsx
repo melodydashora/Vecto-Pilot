@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 
 function BriefingPage() {
-  const { lastSnapshotId, timezone, briefingData } = useCoPilot();
+  const { contextSnapshotId, timezone, briefingData } = useCoPilot();
   const { isLoading } = briefingData;
 
   if (briefingData.isRetryExhausted) {
@@ -28,7 +28,7 @@ function BriefingPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">
       <BriefingTab
-        snapshotId={lastSnapshotId || undefined}
+        snapshotId={contextSnapshotId || undefined}
         timezone={timezone}
         weatherData={briefingData.weatherData}
         trafficData={briefingData.trafficData}

@@ -16,7 +16,7 @@
  *
  * SOLUTION: Two-phase dedup:
  *   Phase 1 — Title containment: If normalized title A contains B (or vice versa),
- *             AND same date + same/close start time → group as duplicates.
+ *             AND equal known date/start/end schedule → group as duplicates.
  *   Phase 2 — Venue plausibility: When choosing which duplicate to keep, prefer
  *             specific venues over large stadiums/arenas (comedy at Globe Life = wrong).
  *
@@ -218,25 +218,16 @@ export function titlesMatch(titleA, titleB) {
  *
  * @param {Object} eventA
  * @param {Object} eventB
- * @param {number} [timeThresholdMinutes=120] - Max time difference to consider "same slot"
  * @returns {boolean}
  */
-function sameTimeSlot(eventA, eventB, timeThresholdMinutes = 120) {
-  // Must be same date
-  const dateA = eventA.event_start_date;
-  const dateB = eventB.event_start_date;
-  if (!dateA || !dateB || dateA !== dateB) return false;
-
-  // If both have start times, check proximity
-  const minA = timeToMinutes(eventA.event_start_time);
-  const minB = timeToMinutes(eventB.event_start_time);
-
-  if (minA != null && minB != null) {
-    return Math.abs(minA - minB) <= timeThresholdMinutes;
-  }
-
-  // If one or both are missing time, same date is enough (conservative — prefer false positive)
-  return true;
+function sameTimeSlot(eventA, eventB) {
+  if (!eventA.event_start_date || eventA.event_start_date !== eventB.event_start_date ||
+      eventA.event_end_date !== eventB.event_end_date) return false;
+  const startA = timeToMinutes(eventA.event_start_time), startB = timeToMinutes(eventB.event_start_time);
+  const endA = timeToMinutes(eventA.event_end_time), endB = timeToMinutes(eventB.event_end_time);
+  // Different stated schedules are source variants or separate performances.
+  // A two-hour proximity guess must not erase matinees, support acts or late shows.
+  return startA != null && startA === startB && endA != null && endA === endB;
 }
 
 /**
@@ -287,12 +278,11 @@ function scoreEventPreference(event) {
  *
  * @param {Array<Object>} events - Array of events (normalized or raw)
  * @param {Object} [options]
- * @param {number} [options.timeThresholdMinutes=120] - Max time gap for same-slot
  * @param {boolean} [options.log=true] - Whether to log dedup actions
  * @returns {{ deduplicated: Array<Object>, removed: Array<Object>, mergeLog: string[] }}
  */
 export function deduplicateEventsSemantic(events, options = {}) {
-  const { timeThresholdMinutes = 120, log = true } = options;
+  const { log = true } = options;
   const mergeLog = [];
 
   if (!events || events.length === 0) {
@@ -316,7 +306,7 @@ export function deduplicateEventsSemantic(events, options = {}) {
     for (let j = i + 1; j < events.length; j++) {
       if (assigned.has(j)) continue;
 
-      if (sameTimeSlot(events[i], events[j], timeThresholdMinutes) &&
+      if (sameTimeSlot(events[i], events[j]) &&
           titlesMatch(events[i].title, events[j].title)) {
         group.push(events[j]);
         assigned.add(j);

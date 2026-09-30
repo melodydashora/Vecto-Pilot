@@ -9,7 +9,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { createAnonymousToken, validateAnonymousToken, parseConciergeCoordinates } from '../../lib/concierge/anonymous-token.js';
 import { getTimezoneForCoords } from '../../lib/location/geocode.js';
-import { coordsKey } from '../../lib/location/coords-key.js';
+import { createSnapshotEnvironment } from '../../lib/location/snapshot-environment.js';
 import {
   searchNearby,
   askConcierge,
@@ -32,23 +32,54 @@ async function validateShareToken(req, res, next) {
 }
 
 const timezoneCache = new Map();
+const timezoneRequests = new Map();
+const TIMEZONE_CACHE_MS = 15 * 60_000;
+// The parsing/transport is shared; public failures do not trip MAIN's breakers.
+const conciergeEnvironment = createSnapshotEnvironment();
+function requestScope(req, res) {
+  const controller = new AbortController();
+  const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+  req.once('aborted', disconnected);
+  res.once('close', disconnected);
+  if (req.aborted || res.destroyed) controller.abort();
+  const deadline = setTimeout(() => controller.abort(), 90_000);
+  return { controller, dispose() {
+    clearTimeout(deadline);
+    req.off('aborted', disconnected); res.off('close', disconnected);
+  } };
+}
 async function resolveContext(req, res, next) {
+  let coords;
   try {
     const input = req.method === 'GET' ? req.query : req.body;
-    const coords = parseConciergeCoordinates(input?.lat, input?.lng);
-    const key = coordsKey(coords.lat, coords.lng);
-    let timezone = timezoneCache.get(key);
+    coords = parseConciergeCoordinates(input?.lat, input?.lng);
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Valid GPS coordinates are required' });
+  }
+  try {
+    const key = JSON.stringify([coords.lat, coords.lng]);
+    const cached = timezoneCache.get(key);
+    let timezone = cached && Date.now() - cached.resolvedAt < TIMEZONE_CACHE_MS ? cached.timezone : null;
     if (!timezone) {
-      timezone = await getTimezoneForCoords(coords.lat, coords.lng, { signal: AbortSignal.timeout(8000) });
-      if (!timezone) return res.status(502).json({ ok: false, error: 'Could not resolve your local timezone. Try location again.' });
+      let pending = timezoneRequests.get(key);
+      if (!pending) {
+        pending = getTimezoneForCoords(coords.lat, coords.lng, { signal: AbortSignal.timeout(8000) });
+        timezoneRequests.set(key, pending);
+      }
+      try { timezone = await pending; }
+      finally { if (timezoneRequests.get(key) === pending) timezoneRequests.delete(key); }
+      if (!timezone) throw new Error('Timezone unavailable');
       new Intl.DateTimeFormat('en', { timeZone: timezone }).format();
       if (timezoneCache.size >= 200) timezoneCache.delete(timezoneCache.keys().next().value);
-      timezoneCache.set(key, timezone);
+      timezoneCache.set(key, { timezone, resolvedAt: Date.now() });
     }
+    // Shared timezone work may outlive this guest. Do not start a downstream
+    // provider request after the HTTP response has already been abandoned.
+    if (req.aborted || res.destroyed) return;
     req.conciergeContext = { ...coords, timezone };
     next();
   } catch {
-    res.status(400).json({ ok: false, error: 'Valid GPS coordinates and local timezone are required' });
+    if (!req.aborted && !res.destroyed) res.status(502).json({ ok: false, error: 'Could not resolve your local timezone. Try location again.' });
   }
 }
 
@@ -107,60 +138,16 @@ router.get('/p/:token/weather', weatherLimiter, validateShareToken, resolveConte
   try {
     const { lat, lng } = req.conciergeContext;
 
-    const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-    if (!GOOGLE_MAPS_API_KEY) {
-      return res.json({ available: false, error: 'API key not configured' });
-    }
-
-    // Fetch current weather from Google Weather API
-    const weatherRes = await fetch(
-      `https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`,
-      { headers: { 'X-Goog-Api-Client': 'gl-node/' } }
-    );
-
-    let weather = null;
-    if (weatherRes.ok) {
-      const data = await weatherRes.json();
-      const tempC = data.temperature?.degrees ?? data.temperature;
-      const tempF = tempC != null ? Math.round((tempC * 9 / 5) + 32) : null;
-      weather = {
-        available: true,
-        temperature: tempF,
-        tempF,
-        conditions: data.weatherCondition?.description?.text || 'Unknown',
-        humidity: data.relativeHumidity?.value ?? data.relativeHumidity,
-      };
-    }
-
-    // Fetch air quality
-    const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
-    let airQuality = null;
-    if (GOOGLEAQ_API_KEY) {
-      try {
-        const aqRes = await fetch(
-          `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${GOOGLEAQ_API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ location: { latitude: lat, longitude: lng } }),
-          }
-        );
-        if (aqRes.ok) {
-          const aqData = await aqRes.json();
-          const usIndex = aqData.indexes?.find(i => i.code === 'uaqi' || i.code === 'us_aqi');
-          if (usIndex) {
-            airQuality = {
-              aqi: usIndex.aqi,
-              category: usIndex.category,
-            };
-          }
-        }
-      } catch {
-        // AQI is optional — don't fail the whole request
-      }
-    }
-
-    res.json({ weather, airQuality });
+    const scope = 'concierge:' + req.params.token;
+    const [weather, air] = await Promise.allSettled([
+      conciergeEnvironment.weather(lat, lng, { scope }), conciergeEnvironment.air(lat, lng, { scope }),
+    ]);
+    const errors = {};
+    if (weather.status === 'rejected') errors.weather = 'Current weather is unavailable';
+    if (air.status === 'rejected') errors.airQuality = 'Current air quality is unavailable';
+    res.json({ available: weather.status === 'fulfilled' || air.status === 'fulfilled',
+      weather: weather.status === 'fulfilled' ? weather.value : null,
+      airQuality: air.status === 'fulfilled' ? air.value : null, errors });
   } catch (err) {
     console.error('[CONCIERGE] Weather error:', err.message);
     res.status(500).json({ error: 'weather-fetch-failed' });
@@ -174,6 +161,7 @@ router.get('/p/:token/weather', weatherLimiter, validateShareToken, resolveConte
  * Returns: { ok, venues: [...], events: [...], filter, source: 'db'|'gemini'|'db+gemini' }
  */
 router.post('/p/:token/explore', exploreLimiter, validateShareToken, resolveContext, async (req, res) => {
+  const scope = requestScope(req, res);
   try {
     const { filter } = req.body;
     const { lat, lng, timezone } = req.conciergeContext;
@@ -187,13 +175,15 @@ router.post('/p/:token/explore', exploreLimiter, validateShareToken, resolveCont
       lng: Number(lng),
       filter: filter || 'all',
       timezone,
+      signal: scope.controller.signal,
     });
 
+    scope.controller.signal.throwIfAborted();
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('[CONCIERGE] Explore error:', err.message);
-    res.status(500).json({ ok: false, error: 'Search failed. Please try again.' });
-  }
+    if (!res.destroyed && !res.writableEnded) res.status(500).json({ ok: false, error: 'Search failed. Please try again.' });
+  } finally { scope.dispose(); }
 });
 
 // ============================================================================
@@ -214,6 +204,7 @@ const askLimiter = rateLimit({
  * Returns: { ok, answer }
  */
 router.post('/p/:token/ask', askLimiter, validateShareToken, resolveContext, async (req, res) => {
+  const scope = requestScope(req, res);
   try {
     const { question, venueContext, eventContext } = req.body;
     const { lat, lng, timezone } = req.conciergeContext;
@@ -237,13 +228,15 @@ router.post('/p/:token/ask', askLimiter, validateShareToken, resolveContext, asy
       timezone,
       venueContext: safeVenue,
       eventContext: safeEvent,
+      signal: scope.controller.signal,
     });
 
+    scope.controller.signal.throwIfAborted();
     res.json(result);
   } catch (err) {
     console.error('[CONCIERGE] Ask error:', err.message);
-    res.status(500).json({ ok: false, error: 'Failed to process question. Please try again.' });
-  }
+    if (!res.destroyed && !res.writableEnded) res.status(500).json({ ok: false, error: 'Failed to process question. Please try again.' });
+  } finally { scope.dispose(); }
 });
 
 // ============================================================================
@@ -276,6 +269,8 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, resolveConte
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Connection', 'keep-alive');
 
+  const { controller, dispose } = requestScope(req, res);
+  let reader;
   try {
     console.log('[CONCIERGE] Streaming local assistance with verified location context');
     const startTime = Date.now();
@@ -296,59 +291,55 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, resolveConte
     const response = await callModelStream('CONCIERGE_CHAT', {
       system,
       messageHistory: [{ role: 'user', parts: [{ text: safeQuestion }] }],
+      signal: controller.signal,
     });
 
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       console.error(`[CONCIERGE] Stream API error: ${response.status}`);
       res.write(`data: ${JSON.stringify({ error: 'AI service unavailable' })}\n\n`);
       return res.end();
     }
 
-    const reader = response.body.getReader();
+    controller.signal.throwIfAborted();
+    reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let totalText = '';
-
+    const consume = line => {
+      if (!line.startsWith('data:')) return;
+      const json = line.slice(5).trim();
+      if (!json || json === '[DONE]') return;
+      let data;
+      try { data = JSON.parse(json); } catch { throw new Error('Malformed upstream stream'); }
+      if (data.error) throw new Error('Concierge provider stream failed');
+      const text = (data.candidates?.[0]?.content?.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('');
+      if (text) { totalText += text; res.write(`data: ${JSON.stringify({ delta: text })}\n\n`); }
+    };
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-
+      controller.signal.throwIfAborted();
+      if (done) { buffer += decoder.decode(); if (buffer.trim()) consume(buffer); break; }
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr || jsonStr === '[DONE]') continue;
-
-          try {
-            const data = JSON.parse(jsonStr);
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              totalText += text;
-              res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
-            }
-          } catch {
-            // Skip unparseable chunks
-          }
-        }
-      }
+      const lines = buffer.split('\n'); buffer = lines.pop() || '';
+      for (const line of lines) consume(line);
     }
 
     const elapsed = Date.now() - startTime;
     console.log(`[CONCIERGE] Stream complete in ${elapsed}ms (${totalText.length} chars)`);
 
-    if (!totalText) {
-      res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
-    }
+    if (!totalText.trim()) throw new Error('Concierge returned no answer');
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err) {
     console.error('[CONCIERGE] Stream error:', err.message);
-    res.write(`data: ${JSON.stringify({ error: 'Something went wrong. Please try again.' })}\n\n`);
-    res.end();
+    if (!res.destroyed && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: 'The answer could not be completed. Please try again.' })}\n\n`);
+      res.end();
+    }
+  } finally {
+    dispose();
+    if (reader) await reader.cancel().catch(() => {});
   }
 });
 

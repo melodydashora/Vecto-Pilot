@@ -1,0 +1,6 @@
+# Publish excludes development tooling and recovery state, while keeping them
+# in the workspace. App source, assets, dependencies and migrations still ship.
+.config/
+.cache/
+.local/
+.worktrees/

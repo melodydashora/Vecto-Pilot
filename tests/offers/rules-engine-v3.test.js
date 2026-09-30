@@ -221,11 +221,11 @@ describe('prompt rendering with v3 rules enabled', () => {
     const p = buildPhase1Prompt('standard', rs);
     expect(p).toContain('REJECT if pickup_mi>3 or pickup_min>8.');
     expect(p).toContain('REJECT if total_min>20 unless $/mi>=2.00 and $/min>=1.00.');
-    expect(p).toContain('ACCEPT with "fallback":true if $/mi>=1.00.');
+    expect(p).toContain('ACCEPT with "fallback":true if total_$/mi>=1.00 (price / pickup-plus-trip miles, regardless of basis).');
     expect(p).toContain('REJECT if trip heads toward Fort Worth and ride_mi>=8.');
     expect(p).toContain('REJECT if destination is in or within ~6mi of Denton.');
     expect(p).toContain('REJECT if destination is north of US-380.');
-    expect(p).toContain('"pickup_miles":0');
+    expect(p).toContain('"pickup_miles":null');
     expect(p).toContain('"fallback":false');
     expect(p).toContain('"notices":[]');
     expect(p).toContain('rating visible and <4.9');
@@ -238,7 +238,7 @@ describe('prompt rendering with v3 rules enabled', () => {
     expect(p).toContain('XL');
     expect(p).toContain('"product":""');
     // ARP must render AFTER tier sections (first-match-wins ordering).
-    const arpIdx = p.indexOf('$/mi>=1.00: ACCEPT with "fallback":true');
+    const arpIdx = p.indexOf('total_$/mi>=1.00: ACCEPT with "fallback":true');
     const xlIdx = p.indexOf('XL (');
     expect(arpIdx).toBeGreaterThan(xlIdx);
     expect(arpIdx).toBeGreaterThan(-1);
@@ -440,5 +440,21 @@ describe('v3.1 sliders: tier max_total_miles + single derived rung', () => {
   test('migrateRuleset carries max_total_miles and defaults it to null', () => {
     expect(sliders.tiers.standard.max_total_miles).toBe(12);
     expect(migrateRuleset({}).tiers.standard.max_total_miles).toBeNull();
+  });
+});
+
+describe('acceptance-rate protection keeps its total-mile denominator', () => {
+  it('cannot rescue a trip-only high rate when pickup-plus-trip pay fails the protection floor', () => {
+    const rules = migrateRuleset(null);
+    rules.basis = 'active_time';
+    rules.global.acceptance_rate_protection = { min_per_total_mile: 1 };
+    rules.tiers.standard = { floor_per_mile: 10, floor_per_minute: null, max_total_miles: null,
+      accept_ladder: [{ min_per_mile: 10, max_total_min: 20 }] };
+    const raw = { price: 10, total_miles: 20, total_minutes: 30, pickup_miles: 18, pickup_minutes: 20,
+      ride_miles: 2, ride_minutes: 10 };
+    expect(evaluateDeterministic('standard', raw, rules)).toMatchObject({ decision: 'REJECT', perMile: 5 });
+    expect(evaluateDeterministic('standard', { ...raw, price: 20 }, rules)).toMatchObject({ decision: 'ACCEPT' });
+    rules.tiers.standard.accept_ladder = [];
+    expect(evaluateDeterministic('standard', { ...raw, price: 20 }, rules)).toMatchObject({ decision: 'ACCEPT', fallback: true });
   });
 });

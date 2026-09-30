@@ -7,7 +7,7 @@ import { QUERY_KEYS } from '@/constants/apiRoutes';
 jest.unstable_mockModule('@/utils/co-pilot-helpers',()=>({getAuthHeader:()=>({Authorization:'Bearer synthetic'}),subscribeBriefingReady:()=>()=>{}}));
 const { useBriefingQueries } = await import('@/hooks/useBriefingQueries');
 const clients: QueryClient[]=[];
-const pending = () => ({snapshot_id:'fixture',briefing:{weather:{current:null,_pending:true},traffic:{_pending:true},news:{items:[],_pending:true},events:{items:[],marketEvents:[],_pending:true},school_closures:{items:[],_pending:true},airport_conditions:{_pending:true}}});
+const pending = () => ({snapshot_id:'fixture',briefing:{weather:{current:null,_pending:true},traffic:{_pending:true},news:{items:[],_pending:true},events:{items:[],marketEvents:[],_pending:true},school_closures:{items:[],_pending:true},airport_conditions:{_pending:true},holiday:{_pending:true}}});
 const complete = () => { const value=pending(); Object.values(value.briefing).forEach(section=>{section._pending=false;});return value; };
 function response(body:unknown,status=200) {return {ok:status>=200&&status<300,status,json:async()=>body} as Response;}
 async function tick(ms=0) {await act(async()=>{await jest.advanceTimersByTimeAsync(ms);});}
@@ -37,7 +37,7 @@ describe('briefing retry lifecycle without SSE',()=>{
   const ownershipError=jest.fn();
   window.addEventListener('snapshot-ownership-error',ownershipError);
   try {
-   jest.mocked(fetch).mockResolvedValueOnce(response({error:'snapshot_not_found'},404)).mockResolvedValue(response(complete()));
+   jest.mocked(fetch).mockResolvedValueOnce(response({error:'snapshot_not_found'},404)).mockResolvedValue(response({...complete(),snapshot_id:'replacement'}));
    const {rerender,result}=mount();await tick();
    expect(ownershipError).toHaveBeenCalledTimes(1);
    await tick(30000);expect(fetch).toHaveBeenCalledTimes(1);
@@ -58,4 +58,32 @@ describe('briefing retry lifecycle without SSE',()=>{
    expect(result.current.isLoading.events).toBe(false);
   } finally {window.removeEventListener('snapshot-ownership-error',ownershipError);}
  });
+});
+
+const deferred = () => { let resolve!: (value: unknown) => void; const promise = new Promise<unknown>(r => { resolve = r; }); return { promise, resolve }; };
+it.each([401,404])('a late %s JSON body cannot invalidate a newer sign-in',async status=>{
+ const body = deferred();
+ const authError=jest.fn(), ownershipError=jest.fn();
+ window.addEventListener('vecto-auth-error',authError); window.addEventListener('snapshot-ownership-error',ownershipError);
+ try {
+  jest.mocked(fetch).mockResolvedValue({ok:false,status,json:()=>body.promise} as Response);
+  mount(); await tick();
+  localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN,'new-session');
+  await act(async()=>{body.resolve({error:status===401?'unauthorized':'snapshot_not_found'});}); await tick();
+  expect(authError).not.toHaveBeenCalled(); expect(ownershipError).not.toHaveBeenCalled();
+ } finally { window.removeEventListener('vecto-auth-error',authError); window.removeEventListener('snapshot-ownership-error',ownershipError); }
+});
+it('a successful body for a different snapshot never becomes the requested briefing',async()=>{
+ jest.mocked(fetch).mockResolvedValue(response({...complete(),snapshot_id:'another-driver-snapshot'}));
+ const {client}=mount(); await tick();
+ const stored=client.getQueryData<any>(QUERY_KEYS.BRIEFING_AGGREGATE('fixture'));
+ expect(stored?.snapshot_id).toBe('fixture'); expect(stored?._error).toBe(502);
+ expect(stored?.briefing.weather).toBeUndefined();
+});
+it('polling waits for Holiday after the other six sections have settled',async()=>{
+ const partial=complete(); partial.briefing.holiday._pending=true;
+ jest.mocked(fetch).mockResolvedValueOnce(response(partial)).mockResolvedValue(response(complete()));
+ mount(); await tick(); await tick(4000);
+ expect(fetch).toHaveBeenCalledTimes(2);
+ await tick(60000); expect(fetch).toHaveBeenCalledTimes(2);
 });

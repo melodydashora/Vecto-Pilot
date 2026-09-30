@@ -1,7 +1,7 @@
 # LLM-REQUESTS.md — Every AI/LLM API Call Path
 
 > **Canonical reference** for every path in the codebase that results in an LLM/AI API call. For each: auth middleware, mid-request auth expiry behavior, API key location, and model used.
-> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
+> Last updated: 2026-04-10 · offer-analyzer/Coach boundaries refreshed 2026-09-29 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ---
 
@@ -134,10 +134,9 @@ Provides cross-provider fallback:
 
 #### Offer Analysis
 
-| Role | Model | Features | Purpose |
-|------|-------|----------|---------|
-| `OFFER_ANALYZER` | gemini-3.5-flash (pinned; never `*-latest`) | vision, thinkingLevel=MINIMAL, maxTokens 1024 | Phase 1: sync verdict (<3s target; deterministic fast lane answers rejects in ms) |
-| `OFFER_ANALYZER_DEEP` | gemini-3.1-pro-preview (pinned) | vision, thinkingLevel=LOW | Phase 2: async enrichment |
+`OFFER_ANALYZER` and `OFFER_ANALYZER_DEEP` use pinned role configurations from
+`model-registry.js`. See [the Analyzer source reference](OFFER_ANALYZER.md) for
+reconciliation, selected services, deadline cancellation and enrichment limits.
 
 ### Override Env Vars
 
@@ -158,28 +157,17 @@ are descriptive; the registry is authoritative.
 
 ### Flow
 
-```
-Client sends: { message, snapshotId, conversationHistory }
-  │
-  ├─ 1. requireAuth middleware validates token + session
-  ├─ 2. Load complete context via Coach DAL (see Section 11)
-  ├─ 3. Build system prompt with:
-  │     ├─ Snapshot (location, weather, time, timezone)
-  │     ├─ Strategy (ranked venues, pro tips)
-  │     ├─ Briefing (events, traffic, news)
-  │     ├─ User notes (previous coach observations)
-  │     ├─ Market intelligence
-  │     ├─ Zone intelligence (crowd-sourced)
-  │     └─ Session history (last 10 sessions)
-  │
-  ├─ 4. callModelStream('AI_COACH', { system, messageHistory })
-  │     └─ Routes to Gemini 3.1 Pro Preview (streaming)
-  │     └─ Features: Google Search + Vision + OCR
-  │
-  ├─ 5. Stream response to client via SSE chunks
-  ├─ 6. parseActions(response) — extract action tags
-  └─ 7. executeActions() — save notes, deactivate events, etc.
-```
+Authenticated chat verifies supplied snapshot ownership, loads the saved source context
+through `rideshare-coach-dal.js`, then calls the registry-selected `AI_COACH` path.
+The Responses adapter verifies output completion. Source JSON includes full bounded
+offer history and current owner `offer_rules`, `driver_profile`/selected services and
+active primary vehicle; it does not read architecture docs as runtime rules.
+Existing timezone/snapshot requirements remain. Active live voice delegates substantive
+questions to this brain; its bootstrap is not the complete context.
+
+Legacy model-emitted offer mutation tags are detected but return not-saved errors.
+Historical reads and driver outcome/override controls remain. See
+[Coach API](../../server/api/chat/README.md) and [Analyzer §15](OFFER_ANALYZER.md#15-coach-integration).
 
 ### Mid-Request Auth Expiry
 
@@ -302,31 +290,20 @@ N/A — Concierge uses share tokens, not user JWT. Share tokens don't expire (th
 
 ## 7. Offer Analysis (device shortcuts → Offer Analyzer)
 
-> Canonical doc: `docs/architecture/OFFER_ANALYZER.md` (as built) — this section is a summary.
+`POST /api/hooks/analyze-offer` accepts browser/tokened phone capture or anonymous
+input. Owner token resolution supplies rules/services; supplied invalid personal rules
+fail closed. Phase1 normalizes extraction, applies deterministic arithmetic and service
+gates, reconciles model judgment and returns matching speech/provenance. Both text
+and vision enter Phase1; not every branch calls a model.
 
-### Phase 1: synchronous verdict (<3 s target)
+Eligible Phase2 work continues in process using the same request evidence/config.
+Deep extraction never replaces the original spoken decision. Trusted location/timezone
+resolution and successful storage are required for a row; no durable queue is claimed.
+Deadline signals propagate through router/adapter requests and prevent retry after
+abort, without proving provider billing stopped.
 
-**Route:** `POST /api/hooks/analyze-offer`
-**File:** `server/api/hooks/analyze-offer.js` (`callModel('OFFER_ANALYZER', …)` at `:390`)
-**Auth:** token-optional identity — header `X-Shortcut-Token` (per-user, unguessable) resolves the driver + their ruleset; no token → default rules, anonymous row. Read/mutate hook endpoints are token-required.
-**Rate limit:** `offerHookLimiter` 20/min per IP+token/device (`server/middleware/rate-limit.js`).
-
-```
-Shortcut sends: JSON { text } and/or multipart { image (File) } + source + device_id, header X-Shortcut-Token
-  │
-  ├─ 1. normalize body keys (alias table) → regex pre-parse (<1 ms) → resolve per-driver ruleset (15 s cache)
-  ├─ 2. share tier → instant REJECT (no model)
-  ├─ 3. FAST LANE: text + full pre-parse + engine REJECT → answer in ~3-5 ms (no model)
-  ├─ 4. otherwise callModel('OFFER_ANALYZER', { system: prompt rendered FROM the ruleset, user, images }) — 20 s race
-  │     └─ parse JSON → else deterministic rules engine (always answers; NO DATA when nothing parsed)
-  └─ 5. Return { success, voice, notification, decision, reason, notices, response_time_ms }
-```
-
-### Phase 2: deep analysis (async, after the response)
-
-**Model:** `OFFER_ANALYZER_DEEP` → gemini-3.1-pro-preview (thinkingLevel=LOW), 45 s race, same ruleset-rendered prompt
-**Purpose:** full extraction (addresses, flags), `location_analysis`, confidence; stored decision = what was spoken
-**Storage:** `offer_intelligence` (+ geocode/geo-audit UPDATE), `pg_notify('offer_analyzed')` → SSE `/events/offers` (per user)
+Canonical details: [Analyzer §§4–10](OFFER_ANALYZER.md). Model pins/settings are in
+`server/lib/ai/model-registry.js`, not an environment override table or historical bench.
 
 ---
 

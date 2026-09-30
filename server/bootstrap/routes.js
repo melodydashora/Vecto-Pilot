@@ -86,6 +86,7 @@ export async function mountRoutes(app, server) {
 
     // Strategy (server/api/strategy/)
     { path: '/api/blocks-fast', module: './server/api/strategy/blocks-fast.js', desc: 'Blocks Fast' },
+    { path: '/api/main-runs', module: './server/api/strategy/main-runs.js', desc: 'Explicit saved-setup admission' },
     { path: '/api/blocks', module: './server/api/strategy/content-blocks.js', desc: 'Content Blocks' },
     // Tactical Plan BEFORE /api/strategy (specific-before-general): strategy.js
     // has a GET /:snapshotId param catch-all that would swallow any future GET

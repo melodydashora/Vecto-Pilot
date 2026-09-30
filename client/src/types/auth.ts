@@ -22,6 +22,7 @@ export interface DriverProfile {
   country: string;
   market: string;
   ridesharePlatforms: string[];
+  selectedServices?: string[] | null;
 
   // Existing canonical profile preferences. Null is unknown; zero stays explicit.
   fuelEconomyMpg?: number | null;
@@ -92,12 +93,14 @@ export interface DriverVehicle {
 }
 
 export interface AuthState {
+  sessionId?: string | null;
   user: User | null;
   profile: DriverProfile | null;
   vehicle: DriverVehicle | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  sessionCheckError?: string | null;
 }
 
 export interface LoginCredentials {
@@ -186,6 +189,8 @@ export interface VehicleModel {
 }
 
 export interface AuthApiResponse {
+  settingsRevision?: number;
+  sessionId?: string;
   token?: string;
   user?: User;
   profile?: DriverProfile;

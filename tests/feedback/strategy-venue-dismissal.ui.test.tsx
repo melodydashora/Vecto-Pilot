@@ -16,14 +16,16 @@ import { useToast } from '@/hooks/useToast';
 let mockAuth = { user: { userId: 'driver-a' }, token: 'synthetic-a' };
 let mockScope = { snapshotId: 'snapshot-a', rankingId: 'ranking-a' };
 const mockRefreshBlocks = jest.fn();
+const mockRememberMap = jest.fn();
 const mockCoords = { latitude: 41, longitude: -87 };
+jest.mock('@/contexts/run-setup-context', () => ({ useRunSetup: () => ({ run: { runId: 'synthetic-run' }, preferencesConfirmed: true, canContinue: true, starting: false, error: null, reviewSetup: jest.fn(), continueWithSavedPreferences: jest.fn() }) }));
 jest.mock('@/contexts/auth-context', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/contexts/location-context-clean', () => ({ useLocation: () => ({ refreshGPS: jest.fn(), isLoading: false }) }));
 jest.mock('@/contexts/co-pilot-context', () => ({ useCoPilot: () => {
   const { useQuery } = require('@tanstack/react-query');
   const { data } = useQuery({ queryKey: ['/api/blocks-fast', mockScope.snapshotId], enabled: false,
     queryFn: () => { throw new Error('Page test must not regenerate blocks'); } });
-  return { coords: mockCoords, lastSnapshotId: mockScope.snapshotId, strategyData: { status: 'ok' },
+  return { historicalMap: null, rememberMap: mockRememberMap, coords: mockCoords, lastSnapshotId: mockScope.snapshotId, strategyData: { status: 'ok' },
     immediateStrategy: 'Synthetic current strategy', isStrategyFetching: false, snapshotData: null,
     blocks: data?.blocks || [], blocksData: data, isBlocksLoading: false, blocksError: null,
     barsData: null, refetchBlocks: mockRefreshBlocks, enrichmentProgress: 100, strategyProgress: 100,

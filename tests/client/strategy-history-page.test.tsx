@@ -3,7 +3,7 @@
 // covered separately in previous-strategy.test.tsx. No DB, app or provider calls.
 import React from 'react';
 import { jest, beforeEach, afterEach, describe, it, test, expect } from '@jest/globals';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/jest-globals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -12,9 +12,14 @@ const mockMap = jest.fn((_props: unknown) => <div data-testid="current-map-fixtu
 const mockLogAction = jest.fn();
 const mockRefreshBlocks = jest.fn();
 const mockRefreshGPS = jest.fn();
+const mockContinueStrategy = jest.fn(async (_snapshotId: string) => true);
+const mockReviewSetup = jest.fn();
+let mockSetup: Record<string, any>;
+let mockLocation: Record<string, any>;
 let mockState: Record<string, any>;
+jest.unstable_mockModule('@/contexts/run-setup-context', () => ({ useRunSetup: () => mockSetup }));
 jest.unstable_mockModule('@/contexts/auth-context', () => ({ useAuth: () => mockAuth }));
-jest.unstable_mockModule('@/contexts/location-context-clean', () => ({ useLocation: () => ({ refreshGPS: mockRefreshGPS, isLoading: false }) }));
+jest.unstable_mockModule('@/contexts/location-context-clean', () => ({ useLocation: () => mockLocation }));
 jest.unstable_mockModule('@/contexts/co-pilot-context', () => ({ useCoPilot: () => mockState }));
 jest.unstable_mockModule('@/components/strategy/StrategyMap', () => ({ __esModule: true, default: (props: unknown) => mockMap(props) }));
 jest.unstable_mockModule('@/components/BarsDataGrid', () => ({ __esModule: true, default: () => <div data-testid="current-grid-fixture" /> }));
@@ -38,10 +43,14 @@ let client: QueryClient;
 const originalFetch = globalThis.fetch;
 function Page() { return <QueryClientProvider client={client}><StrategyPage /></QueryClientProvider>; }
 beforeEach(() => {
+  mockLocation = { refreshGPS: mockRefreshGPS, isLoading: false, contextReady: true, lastSnapshotId: 'source-b' };
+  mockSetup = { run: { runId: 'synthetic-run', sourceSnapshotId: 'source-b' }, preferencesConfirmed: true, canContinue: true, starting: false, error: null, reviewSetup: mockReviewSetup, continueWithSavedPreferences: mockContinueStrategy };
+  mockContinueStrategy.mockClear(); mockReviewSetup.mockClear();
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   mockState = {
     coords: { latitude: 41, longitude: -87 }, lastSnapshotId: 'snapshot-b',
     strategyData: { status: 'pending' }, immediateStrategy: '', previousStrategy: { ...history },
+    historicalMap: null, rememberMap: jest.fn(),
     isStrategyFetching: true, snapshotData: null, blocks: [], blocksData: undefined,
     isBlocksLoading: false, blocksError: null, barsData: null, refetchBlocks: mockRefreshBlocks,
     enrichmentProgress: 15, strategyProgress: 12, enrichmentPhase: 'analyzing', pipelinePhase: 'analyzing',
@@ -147,4 +156,76 @@ test('legacy home-radius flags cannot mark current nearby venues as outside a dr
     expect(screen.getByTestId(`block-${index}`)).not.toHaveClass('bg-amber-50/30');
   }
   expect(within(cards).queryByText(/from home|Beyond range/)).not.toBeInTheDocument();
+});
+
+
+test('Strategy Refresh consumes prepared context without collecting another location', async () => {
+  render(<Page />);
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Refresh Strategy' })); });
+  expect(mockContinueStrategy).toHaveBeenCalledWith('source-b');
+  expect(mockRefreshGPS).not.toHaveBeenCalled();
+});
+
+test('Strategy Continue opens the preference choice when no choice has been confirmed', async () => {
+  mockSetup.preferencesConfirmed = false;
+  mockSetup.run = null;
+  mockState.previousStrategy = null;
+  render(<Page />);
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue Strategy' })); });
+  expect(mockReviewSetup).toHaveBeenCalledTimes(1);
+  expect(mockContinueStrategy).not.toHaveBeenCalled();
+  expect(screen.getByTestId('strategy-ready-card')).toBeVisible();
+  expect(screen.queryByTestId('strategy-pending-card')).not.toBeInTheDocument();
+});
+
+test('pending context disables Strategy start while other saved guidance stays visible', () => {
+  mockLocation.contextReady = false; mockLocation.isLoading = true;
+  render(<Page />);
+  expect(screen.getByRole('button', { name: 'Refresh Strategy' })).toBeDisabled();
+  expect(screen.getByTestId('previous-strategy-card')).toHaveTextContent(history.text);
+  expect(mockContinueStrategy).not.toHaveBeenCalled();
+});
+
+test('failed replacement keeps previous venues and map until a completed replacement arrives', async () => {
+  mockState.strategyData = { status: 'failed' };
+  mockState.strategyError = 'This Strategy refresh failed.';
+  mockState.previousBlocksData = { blocks: [{ name: 'Earlier venue', address: 'Earlier address', placeId: 'earlier-place' }] };
+  mockState.historicalMap = { sourceSnapshotId: 'snapshot-a', props: { driverLat: 42, driverLng: -88,
+    venues: [{ id: 'earlier-place', name: 'Earlier venue', lat: 42, lng: -88 }], bars: [], events: [] } };
+  const view = render(<Page />);
+  const venues = screen.getByTestId('previous-strategy-venues');
+  expect(venues).toHaveTextContent('Earlier venue');
+  expect(venues).toHaveTextContent('Earlier address');
+  expect(venues.querySelector('button,a,[data-place-id]')).toBeNull();
+  expect(mockMap.mock.calls.at(-1)?.[0]).toMatchObject({ driverLat: 42, driverLng: -88, snapshotId: 'snapshot-a' });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry Strategy' })); });
+  expect(mockContinueStrategy).toHaveBeenCalledWith('source-b');
+  expect(screen.getByTestId('previous-strategy-venues')).toHaveTextContent('Earlier venue');
+  mockState = { ...mockState, strategyError: null, strategyData: { status: 'ok' }, previousBlocksData: null,
+    previousStrategy: { ...history, sourceSnapshotId: 'snapshot-b', text: 'Completed new guidance' },
+    immediateStrategy: 'Completed new guidance', historicalMap: null };
+  view.rerender(<Page />);
+  expect(screen.getByTestId('immediate-strategy-card')).toHaveTextContent('Completed new guidance');
+  expect(screen.queryByTestId('previous-strategy-venues')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('previous-strategy-card')).not.toBeInTheDocument();
+});
+
+
+test('a pending replacement venue ranking retains the completed previous map until its venues arrive', () => {
+  mockState.strategyData = { status: 'pending_blocks' };
+  mockState.immediateStrategy = 'New guidance; venues still preparing.';
+  mockState.isBlocksLoading = true;
+  mockState.previousBlocksData = { blocks: [{ name: 'Earlier venue', address: 'Earlier address', placeId: 'earlier-place' }] };
+  mockState.historicalMap = { sourceSnapshotId: 'snapshot-a', props: { driverLat: 42, driverLng: -88,
+    venues: [{ id: 'earlier-place', name: 'Earlier venue', lat: 42, lng: -88 }], bars: [], events: [] } };
+  const view = render(<Page />);
+  expect(screen.getByTestId('previous-strategy-venues')).toHaveTextContent('Earlier venue');
+  expect(mockMap.mock.calls.at(-1)?.[0]).toMatchObject({ driverLat: 42, driverLng: -88, snapshotId: 'snapshot-a' });
+  mockState = { ...mockState, strategyData: { status: 'ok' }, isBlocksLoading: false, previousBlocksData: null,
+    previousStrategy: { ...history, sourceSnapshotId: 'snapshot-b', text: mockState.immediateStrategy },
+    blocks: [{ name: 'Replacement venue', placeId: 'replacement-place', coordinates: { lat: 41.1, lng: -87.1 } }] };
+  view.rerender(<Page />);
+  expect(screen.queryByTestId('previous-strategy-venues')).not.toBeInTheDocument();
+  expect(mockMap.mock.calls.at(-1)?.[0]).toMatchObject({ driverLat: 41, driverLng: -87, snapshotId: 'snapshot-b',
+    venues: [{ id: 'replacement-place', name: 'Replacement venue', lat: 41.1, lng: -87.1 }] });
 });

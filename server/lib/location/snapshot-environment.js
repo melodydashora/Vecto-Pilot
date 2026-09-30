@@ -3,12 +3,23 @@ import { coordsKey } from './coords-key.js';
 import { makeCircuit } from '../../util/circuit.js';
 import { SNAPSHOT_OBSERVATION_MAX_AGE_MS } from './snapshot-readiness.js';
 
-// Server-only results shared by the header GETs and snapshot enrichment. Entries
-// expire after one minute; failures are never cached or replaced by stale values.
-const CACHE_MS = 60_000;
-const CACHE_LIMIT = 256;
+// Only concurrent requests for the same run and exact coordinates share work.
+// A later attempt calls the providers again, including after a previous success.
 const text = value => typeof value === 'string' && value.trim().length > 0;
-const measuredAt = value => text(value) && Number.isFinite(Date.parse(value)) ? value : undefined;
+// Provider observations are instants: a zoneless wall time or calendar date
+// cannot prove freshness. Keep the supplied offset and fractional precision.
+const observationInstant = /^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/i;
+const measuredAt = value => {
+  if (typeof value !== 'string') return undefined;
+  const match = observationInstant.exec(value);
+  if (!match || !Number.isFinite(Date.parse(value))) return undefined;
+  // Date.parse normalizes some impossible dates (e.g. February 30). Provider
+  // evidence must name a real date instead of rolling into another month.
+  const [year, month, day] = match.slice(1, 4).map(Number);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  return day >= 1 && day <= daysInMonth ? value : undefined;
+};
 const fahrenheit = value => {
   const degrees = typeof value === 'number' ? value : value?.degrees;
   if (!Number.isFinite(degrees)) return undefined;
@@ -18,19 +29,16 @@ const fahrenheit = value => {
 };
 
 export function createSnapshotEnvironment({ fetchImpl = (...args) => fetch(...args), now = () => Date.now(), env = process.env } = {}) {
-  const cache = new Map();
   const inFlight = new Map();
   const weatherCircuit = makeCircuit({ name: 'snapshot-weather', failureThreshold: 3, resetAfterMs: 30_000, timeoutMs: 5_000 });
   const airCircuit = makeCircuit({ name: 'snapshot-air', failureThreshold: 3, resetAfterMs: 30_000, timeoutMs: 3_000 });
 
-  async function load(section, rawLat, rawLng) {
+  async function load(section, rawLat, rawLng, { scope } = {}) {
     const coords = normalizeCoordinates(rawLat, rawLng);
     if (!coords) throw new Error('Snapshot environment requires valid coordinates');
     const coordKey = coordsKey(coords.lat, coords.lng);
-    const key = `${section}:${coordKey}`;
-    const existing = cache.get(key);
-    if (existing && now() >= existing.fetchedMs && now() - existing.fetchedMs < CACHE_MS) return structuredClone(existing.value);
-    cache.delete(key);
+    // An admitted run never inherits another run's successful measurements.
+    const key = `${scope ?? 'unscoped'}:${section}:${coords.lat}:${coords.lng}`;
     if (inFlight.has(key)) return structuredClone(await inFlight.get(key));
 
     const pending = (async () => {
@@ -82,8 +90,6 @@ export function createSnapshotEnvironment({ fetchImpl = (...args) => fetch(...ar
       if (observationMs > fetchedMs + 5_000 || fetchedMs - observationMs > SNAPSHOT_OBSERVATION_MAX_AGE_MS[section]) {
         throw new Error(`Snapshot ${section} observation is stale or future-dated`);
       }
-      cache.set(key, { fetchedMs, value });
-      while (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value);
       return value;
     })();
     inFlight.set(key, pending);
@@ -91,10 +97,10 @@ export function createSnapshotEnvironment({ fetchImpl = (...args) => fetch(...ar
     finally { if (inFlight.get(key) === pending) inFlight.delete(key); }
   }
   return {
-    weather: (lat, lng) => load('weather', lat, lng),
-    air: (lat, lng) => load('air', lat, lng),
-    async both(lat, lng) {
-      const [weather, air] = await Promise.all([load('weather', lat, lng), load('air', lat, lng)]);
+    weather: (lat, lng, options) => load('weather', lat, lng, options),
+    air: (lat, lng, options) => load('air', lat, lng, options),
+    async both(lat, lng, options) {
+      const [weather, air] = await Promise.all([load('weather', lat, lng, options), load('air', lat, lng, options)]);
       return { weather, air };
     },
   };

@@ -49,7 +49,8 @@ const compile = cond => dialect.sqlToQuery(cond);
 const HERE = { lat: 32.78, lng: -96.8 };
 const eventRow = (overrides) => ({
   id: 1, title: 'Fixture show', venue_name: 'Fixture Hall', address: '1 Main St', city: 'Dallas',
-  state: 'TX', lat: HERE.lat + 0.005, lng: HERE.lng, event_start_date: '2026-09-11',
+  state: 'TX', lat: HERE.lat + 0.005, lng: HERE.lng, event_start_date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }),
+  venue_timezone: 'America/Chicago',
   event_start_time: '19:00', event_end_time: '22:00', category: 'concert', expected_attendance: 500,
   ...overrides,
 });
@@ -81,10 +82,14 @@ describe('queryNearbyEvents predicate (via searchNearby, DB-first path)', () => 
     expect(where.sql).not.toContain('undefined');
     // Bound parameters are the ±10-mile bounding box around the caller, in order.
     const latDelta = 10 / 69.0;
-    const lngDelta = 10 / (69.0 * Math.cos(HERE.lat * Math.PI / 180));
     expect(where.params).toEqual(expect.arrayContaining([
-      HERE.lat - latDelta, HERE.lat + latDelta, HERE.lng - lngDelta, HERE.lng + lngDelta,
+      HERE.lat - latDelta, HERE.lat + latDelta,
     ]));
+    // Longitude bounds enclose nearby points on both sides; detailed spherical,
+    // dateline and polar membership is executed in geography.test.js.
+    const lngBounds = where.params.filter(value => typeof value === 'number' && value < -90);
+    expect(lngBounds[0]).toBeLessThan(HERE.lng - 0.1);
+    expect(lngBounds[1]).toBeGreaterThan(HERE.lng + 0.1);
 
     expect(result.source).toBe('db');
     expect(result.events).toHaveLength(3);

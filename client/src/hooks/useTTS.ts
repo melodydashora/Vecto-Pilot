@@ -53,6 +53,7 @@ function speakWithBrowserTTS(text: string, language?: string, playbackRate: numb
 export function useTTS(): UseTTSReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
   // 2026-04-27: Tracks the in-flight speak()'s Promise resolver so stop() can release
   // awaiters when playback is interrupted. Without this, useStreamingReadAloud's drain
   // worker hangs forever on a chunk whose audio.onended never fires (because audio.src
@@ -76,8 +77,14 @@ export function useTTS(): UseTTSReturn {
     }
     // Stop OpenAI TTS audio element
     if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
     }
     // Stop browser TTS if active
     if (window.speechSynthesis) {
@@ -170,6 +177,7 @@ export function useTTS(): UseTTSReturn {
           }
           console.log(`[TTS] Received ${audioBlob.size} bytes`);
           const audioUrl = URL.createObjectURL(audioBlob);
+          audioUrlRef.current = audioUrl;
 
           if (!audioRef.current) {
             audioRef.current = new Audio();
@@ -183,12 +191,14 @@ export function useTTS(): UseTTSReturn {
           audio.playbackRate = playbackRate;
 
           audio.onended = () => {
+            if (generationRef.current !== gen) { finish(); return; }
             setIsSpeaking(false);
             URL.revokeObjectURL(audioUrl);
             finish();
           };
 
           audio.onerror = () => {
+            if (generationRef.current !== gen) { finish(); return; }
             URL.revokeObjectURL(audioUrl);
             // 2026-04-13: Audio element failed (iOS autoplay restriction) — fall back to browser TTS
             console.log('[TTS] Audio element failed, falling back to browser speechSynthesis');
@@ -198,7 +208,7 @@ export function useTTS(): UseTTSReturn {
               const checkInterval = setInterval(() => {
                 if (!window.speechSynthesis.speaking || generationRef.current !== gen) {
                   clearInterval(checkInterval);
-                  setIsSpeaking(false);
+                  if (generationRef.current === gen) setIsSpeaking(false);
                   finish();
                 }
               }, 200);
@@ -229,7 +239,7 @@ export function useTTS(): UseTTSReturn {
             const checkInterval = setInterval(() => {
               if (!window.speechSynthesis.speaking || generationRef.current !== gen) {
                 clearInterval(checkInterval);
-                setIsSpeaking(false);
+                if (generationRef.current === gen) setIsSpeaking(false);
                 finish();
               }
             }, 200);

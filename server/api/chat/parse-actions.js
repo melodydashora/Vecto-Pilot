@@ -27,9 +27,9 @@ export function parseActions(responseText) {
     coachMemos: [],         // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
     marketIntel: [],        // 2026-03-18: C-3 — market-wide intelligence from driver conversations
     venueIntel: [],         // 2026-03-18: C-3 — staging spots, GPS dead zones, venue intel
-    offerDecisions: [],     // 2026-05-05: New offer decisions to log (coach_offer_decisions)
-    offerDecisionUpdates: [],// 2026-05-05: Lifecycle/verdict updates on existing decisions
-    offerIntelBackfills: [] // 2026-05-05: Ground-truth backfills onto offer_intelligence
+    offerDecisions: [],      // Retired tags: detected only to report an explicit not-saved result.
+    offerDecisionUpdates: [],
+    offerIntelBackfills: []
   };
 
   let cleanedText = responseText;
@@ -59,7 +59,7 @@ export function parseActions(responseText) {
           else if (actionType === 'ZONE_INTEL') actions.zoneIntel.push(actionData);
           else if (actionType === 'MARKET_INTEL') actions.marketIntel.push(actionData);
           else if (actionType === 'SAVE_VENUE_INTEL') actions.venueIntel.push(actionData);
-          // 2026-05-05: Offer decision pipeline
+          // Retired offer writes are rejected by executeActions.
           else if (actionType === 'LOG_OFFER_DECISION') actions.offerDecisions.push(actionData);
           else if (actionType === 'UPDATE_OFFER_DECISION') actions.offerDecisionUpdates.push(actionData);
           else if (actionType === 'BACKFILL_OFFER_INTEL') actions.offerIntelBackfills.push(actionData);
@@ -89,7 +89,7 @@ export function parseActions(responseText) {
     { prefix: 'ZONE_INTEL', key: 'zoneIntel' },
     { prefix: 'MARKET_INTEL', key: 'marketIntel' },
     { prefix: 'SAVE_VENUE_INTEL', key: 'venueIntel' },
-    // 2026-05-05: Offer decision pipeline (legacy regex form)
+    // Retired offer writes (legacy inline form): detect, never execute.
     { prefix: 'LOG_OFFER_DECISION', key: 'offerDecisions' },
     { prefix: 'UPDATE_OFFER_DECISION', key: 'offerDecisionUpdates' },
     { prefix: 'BACKFILL_OFFER_INTEL', key: 'offerIntelBackfills' }

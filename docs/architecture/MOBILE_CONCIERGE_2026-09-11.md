@@ -27,6 +27,12 @@ stored profiles, driver share tokens, and prior candidate work are preserved.
 
 ## Quick offer entry
 
+> Historical September 11 implementation receipt. Current Analyzer capture contracts,
+> service/rule provenance and remaining device limits are maintained in
+> [the canonical Analyzer reference](OFFER_ANALYZER.md) and
+> [Android](ANDROID_SHORTCUT_ANALYZE.md)/[iPhone](SIRI_SHORTCUT_ANALYZE.md) guides.
+> The source review below does not certify current deployment or a native phone import.
+
 - `/co-pilot/analyze` uses the signed-in account's shortcut token and the existing
   offer hook. Selecting a screenshot requests a fresh precise GPS fix, sends the
   screenshot with six-decimal coordinate fields, and speaks the server response.

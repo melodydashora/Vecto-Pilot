@@ -32,8 +32,17 @@ const router = Router();
  * Response: { ok, token, expires_at, new_session_expires_at, model, context }
  */
 router.post('/token', requireAuth, async (req, res) => {
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+  const onClose = () => { if (!res.writableEnded) controller.abort(); };
+  res.on('close', onClose);
+  res.setHeader('Cache-Control', 'no-store');
   try {
-    const { snapshotId, userId } = req.body;
+    const { snapshotId, userId } = req.body || {};
+
+    if ([snapshotId, userId].some(value => value != null && (typeof value !== 'string' || !value.trim()))) {
+      return res.status(400).json({ ok: false, error: 'Invalid voice context identifiers' });
+    }
 
     if (!snapshotId && !userId) {
       return res.status(400).json({ error: 'snapshotId or userId required' });
@@ -61,17 +70,18 @@ router.post('/token', requireAuth, async (req, res) => {
     // bootstrap is provider-agnostic.
     let context = {
       snapshot_id: snapshotId,
-      user_id: userId,
+      user_id: req.auth.userId,
       city: 'your location',
       dayPart: 'current time',
     };
 
     if (snapshotId) {
       try {
-        const fullContext = await rideshareCoachDAL.getCompleteContext(snapshotId);
+        const fullContext = await rideshareCoachDAL.getCompleteContext(snapshotId, null, req.auth.userId);
         if (fullContext?.snapshot) {
           context = {
             snapshot_id: snapshotId,
+            user_id: req.auth.userId,
             city: fullContext.snapshot.city || 'your location',
             state: fullContext.snapshot.state,
             weather: fullContext.snapshot.weather,
@@ -100,7 +110,9 @@ router.post('/token', requireAuth, async (req, res) => {
     const learned = await buildLearnedDigest(req.auth?.userId);
     if (learned) context.learned = learned;
 
-    const minted = await mintGeminiLiveToken({ model: roleConfig.model });
+    signal.throwIfAborted();
+    const minted = await mintGeminiLiveToken({ model: roleConfig.model, signal });
+    signal.throwIfAborted();
     console.log('[COACH] [GEMINI-LIVE] ephemeral token minted', {
       has_token: !!minted.token,
       expires_at: minted.expires_at,
@@ -126,11 +138,15 @@ router.post('/token', requireAuth, async (req, res) => {
       context,
     });
   } catch (err) {
+    if (res.destroyed) return;
+    if (signal.aborted) return res.status(controller.signal.aborted ? 499 : 504).json({ ok: false, error: 'Voice connection canceled or timed out' });
     console.error('[COACH] [GEMINI-LIVE] token generation failed:', err.message);
     res.status(500).json({
       ok: false,
       error: err.message || 'Token generation failed',
     });
+  } finally {
+    res.off('close', onClose);
   }
 });
 

@@ -10,6 +10,15 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 import type { AuthApiResponse } from '@/types/auth';
 
 const mockToast = jest.fn();
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => ({ ...jest.requireActual('react-router-dom') as object, useNavigate: () => mockNavigate }));
+const mockFinishSave = jest.fn(async () => true);
+jest.mock('@/contexts/run-setup-context', () => ({ useRunSetup: () => {
+  const { useAuth } = jest.requireActual('@/contexts/auth-context') as typeof import('@/contexts/auth-context');
+  const auth = useAuth();
+  return { setup: auth.profile ? { profile: auth.profile, vehicle: auth.vehicle, settingsRevision: auth.profile.settingsRevision } : null,
+    getEditorDraft: () => null, setEditorDraft: () => {}, draftResetVersion: 0, loading: false, beginSave: () => () => {}, finishSave: mockFinishSave };
+} }));
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ toast: mockToast }) }));
 jest.mock('@/components/settings/UberSettingsSection', () => ({ UberSettingsSection: () => <div>Connection fixture</div> }));
 jest.mock('@/constants/featureFlags', () => ({ COACH_STREAMING_TTS_ENABLED: true,
@@ -18,11 +27,11 @@ import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import SettingsPage from '@/pages/co-pilot/SettingsPage';
 
 function account(id = 'alice', token = `synthetic-${id}`): AuthApiResponse {
-  return { token, user: { userId: id, email: `${id}@example.invalid` },
+  return { token, sessionId: `session-${id}`, settingsRevision: 1, user: { userId: id, email: `${id}@example.invalid` },
     profile: { id: `profile-${id}`, userId: id, firstName: id, lastName: 'Driver', nickname: `${id} saved`,
       email: `${id}@example.invalid`, phone: '5555555555', address1: '1 Synthetic Lane', city: 'Synthetic City',
       stateTerritory: 'TX', country: 'US', market: 'Synthetic Market', ridesharePlatforms: ['uber', 'private', 'legacy-service'],
-      eligEconomy: false, eligXl: false, eligXxl: false, eligComfort: false, eligLuxurySedan: false, eligLuxurySuv: false,
+      settingsRevision: 1, selectedServices: ['economy'], eligEconomy: true, eligXl: false, eligXxl: false, eligComfort: false, eligLuxurySedan: false, eligLuxurySuv: false,
       attrElectric: false, attrGreen: false, attrWav: false, attrSki: false, attrCarSeat: false,
       prefPetFriendly: false, prefTeen: false, prefAssist: false, prefShared: false,
       marketingOptIn: false, termsAccepted: true, emailVerified: true, phoneVerified: false, profileComplete: true },
@@ -59,7 +68,7 @@ async function mount(completeLogin = true) {
 }
 async function save(nickname: string) {
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: nickname } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await act(async () => { await Promise.resolve(); });
 }
 async function remount() {
@@ -74,13 +83,14 @@ async function settle(index: number, status = 200, commit = true) {
   pending.resolved = true; activeWrites -= 1;
   if (commit && status === 200) {
     const payload = JSON.parse(pending.init.body as string);
-    durable = { ...durable, profile: { ...durable.profile!, nickname: payload.nickname } };
+    const settingsRevision = (durable.settingsRevision || 1) + 1;
+    durable = { ...durable, settingsRevision, profile: { ...durable.profile!, settingsRevision, nickname: payload.nickname } };
   }
-  await act(async () => { pending.reply.resolve(response(status === 200 ? { ok: true } : { error: 'Synthetic rejection' }, status)); });
+  await act(async () => { pending.reply.resolve(response(status === 200 ? { ...durable, ok: true } : { error: 'Synthetic rejection' }, status)); });
 }
 beforeEach(() => {
   writes.length = 0; reads.length = 0; unexpected.length = 0; activeWrites = 0; maxActiveWrites = 0; holdReads = false;
-  durable = account(); mockToast.mockClear(); localStorage.clear(); sessionStorage.clear();
+  durable = account(); mockToast.mockClear(); mockNavigate.mockClear(); mockFinishSave.mockClear(); localStorage.clear(); sessionStorage.clear();
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   globalThis.structuredClone = value => JSON.parse(JSON.stringify(value));
   globalThis.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -160,25 +170,26 @@ test('same-user token rollover keeps a pending write admitted once and ignores i
   expect(maxActiveWrites).toBe(1);
 });
 
-test('admission spans canonical readback and an old same-user 401 cannot expire the replacement session', async () => {
-  await mount(); holdReads = true; await save('Old save');
+test('admission spans canonical response parsing and old same-user completion cannot alter the replacement session', async () => {
+  await mount(); await save('Old save');
   await waitFor(() => expect(writes).toHaveLength(1));
-  await settle(0);
-  await waitFor(() => expect(reads).toHaveLength(1));
+  const parsed = deferred<AuthApiResponse>();
+  writes[0].resolved = true; activeWrites -= 1;
+  await act(async () => { writes[0].reply.resolve({ ...response({}), json: () => parsed.promise }); });
   durable = { ...durable, token: 'synthetic-alice-refreshed' };
   act(() => auth.completeLogin(durable));
-  await remount(); await save('After readback');
+  await remount(); await save('After canonical response');
   await waitFor(() => expect(mockToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Error' })));
   expect(writes).toHaveLength(1);
-  holdReads = false;
-  await act(async () => { reads[0].reply.resolve(response({ error: 'Old session expired' }, 401)); });
+  await act(async () => { parsed.resolve(account()); });
   expect(auth.isAuthenticated).toBe(true);
   expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('synthetic-alice-refreshed');
-  expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('After readback');
-  await save('After readback');
+  expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('After canonical response');
+  await save('After canonical response');
   await waitFor(() => expect(writes).toHaveLength(2));
   await settle(1);
-  expect(auth.profile?.nickname).toBe('After readback');
+  expect(auth.profile?.nickname).toBe('After canonical response');
+  expect(reads).toHaveLength(0);
 });
 
 test('a different owner may save while old completion cannot release the new owner’s pending admission', async () => {
@@ -202,21 +213,24 @@ test('a different owner may save while old completion cannot release the new own
   expect(durable.profile?.nickname).toBe('Bob next');
 });
 
-test('current readback 401 still expires the current session and its admission is released', async () => {
-  await mount(); holdReads = true; await save('Current save');
+test('a rejected current PUT ends sign-in and releases mutation admission for the next login', async () => {
+  await mount(); await save('Current save');
   await waitFor(() => expect(writes).toHaveLength(1));
-  await settle(0);
-  await waitFor(() => expect(reads).toHaveLength(1));
-  await act(async () => { reads[0].reply.resolve(response({ error: 'Current session expired' }, 401)); });
+  await settle(0, 401, false);
+  expect(mockFinishSave).not.toHaveBeenCalled();
   expect(auth.isAuthenticated).toBe(false);
+  expect(screen.getByTestId('current-user')).toHaveTextContent('signed-out');
   expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
-  holdReads = false;
+  expect(screen.queryByRole('textbox', { name: 'Nickname' })).not.toBeInTheDocument();
+  expect(screen.getByText('Please sign in to access your settings.')).toBeInTheDocument();
   durable = { ...durable, token: 'synthetic-alice-relogin' };
   act(() => auth.completeLogin(durable));
   await save('After sign-in');
   await waitFor(() => expect(writes).toHaveLength(2));
   await settle(1);
   expect(auth.profile?.nickname).toBe('After sign-in');
+  expect(auth.isAuthenticated).toBe(true);
+  expect(maxActiveWrites).toBe(1);
 });
 
 test('a failed PUT releases admission and preserves the draft for an explicit retry', async () => {
@@ -232,21 +246,21 @@ test('a failed PUT releases admission and preserves the draft for an explicit re
   expect(maxActiveWrites).toBe(1);
 });
 
-test.each(['503', 'malformed JSON', 'different owner', 'inconsistent owner', 'missing profile', 'different vehicle owner'])('successful PUT with %s readback retains sign-in and the newer draft with a truthful verification message', async outcome => {
+test.each(['503', 'malformed JSON', 'different owner', 'inconsistent owner', 'missing profile', 'different vehicle owner', 'missing revision'])('PUT with %s canonical response preserves sign-in/draft and stays held', async outcome => {
   jest.spyOn(console, 'error').mockImplementation(() => {});
-  await mount(); holdReads = true; await save('Submitted save');
+  await mount(); await save('Submitted save');
   await waitFor(() => expect(writes).toHaveLength(1));
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: 'Newer unsaved draft' } });
-  await settle(0);
-  await waitFor(() => expect(reads).toHaveLength(1));
-  let failedReadback: Response;
-  if (outcome === '503') failedReadback = response({ error: 'Synthetic unavailable' }, 503);
-  else if (outcome === 'malformed JSON') failedReadback = { ...response({}), json: async () => { throw new SyntaxError('Synthetic invalid JSON'); } };
-  else if (outcome === 'different owner') failedReadback = response(account('bob'));
-  else if (outcome === 'inconsistent owner') failedReadback = response({ ...account(), profile: account('bob').profile });
-  else if (outcome === 'different vehicle owner') failedReadback = response({ ...account(), vehicle: account('bob').vehicle });
-  else failedReadback = response({ user: account().user });
-  await act(async () => { reads[0].reply.resolve(failedReadback); });
+  let failedResponse: Response;
+  if (outcome === '503') failedResponse = response({ error: 'Synthetic unavailable' }, 503);
+  else if (outcome === 'malformed JSON') failedResponse = { ...response({}), json: async () => { throw new SyntaxError('Synthetic invalid JSON'); } };
+  else if (outcome === 'different owner') failedResponse = response(account('bob'));
+  else if (outcome === 'inconsistent owner') failedResponse = response({ ...account(), user: account('bob').user });
+  else if (outcome === 'different vehicle owner') failedResponse = response({ ...account(), vehicle: account('bob').vehicle });
+  else if (outcome === 'missing revision') failedResponse = response({ ...account(), settingsRevision: undefined });
+  else failedResponse = response({ user: account().user });
+  writes[0].resolved = true; activeWrites -= 1;
+  await act(async () => { writes[0].reply.resolve(failedResponse); });
 
   expect(auth.isAuthenticated).toBe(true);
   expect(auth.user?.userId).toBe('alice');
@@ -254,9 +268,11 @@ test.each(['503', 'malformed JSON', 'different owner', 'inconsistent owner', 'mi
   expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('synthetic-alice');
   expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('Newer unsaved draft');
   expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument();
-  expect(mockToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Settings saved',
-    description: expect.stringContaining('latest saved values could not be reloaded') }));
-  expect(durable.profile?.nickname).toBe('Submitted save');
+  expect(mockToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Error' }));
+  expect(auth.profile?.nickname).toBe('alice saved');
+  expect(mockFinishSave).not.toHaveBeenCalled();
+  expect(reads).toHaveLength(0);
+  expect(mockNavigate).not.toHaveBeenCalled();
 });
 
 test.each(['valid', 'inconsistent owner', '503'])('initial profile bootstrap handles %s without publishing an unverified identity', async outcome => {

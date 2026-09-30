@@ -2,7 +2,7 @@
 // 2026-05-15: Slide content + per-kind renderers for the public /welcome iPad kiosk.
 // All slides are full-viewport (h-screen w-screen) and designed for landscape iPad.
 
-import { useState, type FC, type ReactNode } from 'react';
+import { useState, useRef, useEffect, type FC, type ReactNode } from 'react';
 import {
   Coffee, Wind, Plug, Zap, HeartPulse, Car, Star, ShieldCheck, BadgeCheck,
   TrendingDown, Quote, Snowflake,
@@ -614,27 +614,41 @@ export const SlideStarsMilitary: FC = () => (
 // 2026-05-15: Calls POST /api/welcome-ai/icebreaker and /ask (public, server-side
 // proxy — GEMINI_API_KEY never leaves the server). 3-attempt exponential backoff
 // on 5xx + network errors. Inputs capped at 500 chars.
+function waitForWelcomeRetry(delay: number, signal: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    const finish = () => { window.clearTimeout(timer); signal.removeEventListener('abort', finish); resolve(); };
+    const timer = window.setTimeout(finish, delay);
+    signal.addEventListener('abort', finish, { once: true });
+    if (signal.aborted) finish();
+  });
+}
+
 async function fetchWelcomeAI(
   path: '/api/welcome-ai/icebreaker' | '/api/welcome-ai/ask',
+  signal: AbortSignal,
   body?: object,
 ): Promise<{ ok: boolean; text?: string; error?: string }> {
   for (let attempt = 0; attempt < 3; attempt++) {
+    if (signal.aborted) return { ok: false };
     try {
       const r = await fetch(path, {
+        signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await r.json().catch(() => ({}));
+      if (signal.aborted) return { ok: false };
       if (r.ok && data?.ok) return { ok: true, text: String(data.text || '') };
       if (r.status >= 500 && attempt < 2) {
-        await new Promise(res => window.setTimeout(res, (2 ** attempt) * 500));
+        await waitForWelcomeRetry((2 ** attempt) * 500, signal);
         continue;
       }
       return { ok: false, error: data?.error || `HTTP ${r.status}` };
     } catch {
+      if (signal.aborted) return { ok: false };
       if (attempt < 2) {
-        await new Promise(res => window.setTimeout(res, (2 ** attempt) * 500));
+        await waitForWelcomeRetry((2 ** attempt) * 500, signal);
         continue;
       }
       return { ok: false, error: 'Network error — check your connection.' };
@@ -653,9 +667,21 @@ export const SlideAICoPilot: FC = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
+  const iceRequest = useRef<AbortController | null>(null);
+  const chatRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    iceRequest.current?.abort(); chatRequest.current?.abort();
+    iceRequest.current = null; chatRequest.current = null;
+  }, []);
+
   const onIcebreaker = async () => {
+    if (iceRequest.current) return;
+    const controller = new AbortController();
+    iceRequest.current = controller;
     setIceLoading(true); setIceError(null); setIceText(null);
-    const r = await fetchWelcomeAI('/api/welcome-ai/icebreaker');
+    const r = await fetchWelcomeAI('/api/welcome-ai/icebreaker', controller.signal);
+    if (controller.signal.aborted || iceRequest.current !== controller) return;
+    iceRequest.current = null;
     if (r.ok && r.text) setIceText(r.text);
     else setIceError(r.error || 'Unknown error');
     setIceLoading(false);
@@ -663,9 +689,13 @@ export const SlideAICoPilot: FC = () => {
 
   const onAsk = async () => {
     const q = chatInput.trim();
-    if (!q) return;
+    if (!q || chatRequest.current) return;
+    const controller = new AbortController();
+    chatRequest.current = controller;
     setChatLoading(true); setChatError(null); setChatText(null);
-    const r = await fetchWelcomeAI('/api/welcome-ai/ask', { question: q });
+    const r = await fetchWelcomeAI('/api/welcome-ai/ask', controller.signal, { question: q });
+    if (controller.signal.aborted || chatRequest.current !== controller) return;
+    chatRequest.current = null;
     if (r.ok && r.text) setChatText(r.text);
     else setChatError(r.error || 'Unknown error');
     setChatLoading(false);

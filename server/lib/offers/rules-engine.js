@@ -10,7 +10,7 @@
 //   1. the English Phase-1 prompt (PHASE1_PROMPTS in analyze-offer.js), and
 //   2. the deterministic JS fallback ladder (analyze-offer.js).
 // This module makes ONE config object the source: it RENDERS the prompts AND
-// DRIVES the deterministic evaluator, so the lanes can never drift.
+// DRIVES the deterministic evaluator; the hook adjudicates every model reply in code.
 //
 // TWO ENFORCEMENT LANES (v3):
 //   - Vision-judgment rules (signal exists only in the screenshot: road types,
@@ -24,15 +24,18 @@
 // PARITY: DEFAULT_RULESET reproduces the *decisions* of the legacy JS fallback
 // exactly (proven by tests/offers/rules-engine-parity.test.js across a dense
 // grid of per_mile × minutes × rating), and buildPhase1Prompt(tier, DEFAULT_RULESET)
-// is BYTE-IDENTICAL to the legacy prompts (pinned in the same test). Every v3
-// field is render-inert and decision-inert at its default value.
+// preserves the default ride numeric ladder. Extraction contracts are tested
+// separately. Optional pickup/time/split-tier/avoid rules are inert by default;
+// delivery and extraction sanity have their own active default rules.
 //
 // Determinism doctrine (CLAUDE.md): integer minute cutoffs are stored inclusive
 // (minutes are integers), e.g. legacy "<30 min" === max_total_min: 29. Avoid-place
 // identity is Google place_id with 6-decimal coords — never name matching, never
 // hardcoded locations (all places are user-entered data).
 
-import { classifyTier as classifyTierByProduct, PREMIUM_PRODUCTS } from './parse-offer-text.js';
+import { PREMIUM_PRODUCTS } from './parse-offer-text.js';
+import { offerRateTier } from '../../../shared/driver-services.js';
+export { DEFAULT_COMFORT_PRODUCTS, DEFAULT_XL_PRODUCTS } from '../../../shared/driver-services.js';
 import { haversineDistanceMiles, bearingDegrees, bearingDiffDegrees } from '../location/geo.js';
 
 export const RULESET_SCHEMA_VERSION = 3;
@@ -50,8 +53,8 @@ const round2 = (n) => Math.round(n * 100) / 100;
  * Below floor_per_mile → REJECT. No rung matches → REJECT
  * ("too far" when total_min > 40, else "low") — mirrors legacy exactly.
  *
- * v3 additions are ALL inert here (null/false/[]): they exist so per-driver
- * configs can enable them, and so the editor UI has a complete shape to render.
+ * Optional ride gates are inert here (null/false/[]): per-driver configs enable
+ * them. Delivery and numeric sanity rules below have active defaults.
  */
 export const DEFAULT_RULESET = {
   schema_version: RULESET_SCHEMA_VERSION,
@@ -160,7 +163,8 @@ export const DEFAULT_RULESET = {
 
   // Geo-scoped overrides. Each scope, when enabled, shallow-overrides `basis`,
   // `global`, and per-tier fields. Scope is resolved by the CALLER and passed
-  // into the engine; all disabled by default → base rules apply.
+  // into the engine; all disabled by default → base rules apply. The current offer
+  // hook passes no scope, so these reserved fields remain inactive there.
   geo: {
     home_city:  { enabled: false, overrides: {} },
     other_city: { enabled: false, overrides: {} },
@@ -180,6 +184,7 @@ export const DEFAULT_RULESET = {
 
   // v3: home-base deadhead policy. Home coordinates come from the driver's
   // profile (driver_profiles.home_lat/home_lng — set at signup), NEVER from here.
+  // Reserved/inert: no active hook consumer or editor control implements this policy.
   // { deadhead_only: true, mention_threshold_min: 20 } (spec: Home Logic)
   home: null,
 };
@@ -199,8 +204,6 @@ deepFreeze(DEFAULT_RULESET);
  * Default premium split when comfort/xl tiers are enabled but tier_products is
  * not customized. Canonical product names from parse-offer-text.js.
  */
-export const DEFAULT_COMFORT_PRODUCTS = ['Comfort'];
-export const DEFAULT_XL_PRODUCTS = ['UberXL', 'UberXL Exclusive', 'Lyft XL', 'VIP', 'Black', 'Lyft Lux', 'Lyft Black'];
 
 /**
  * Upgrade any stored config (v1/v2/v3-partial) to the full v3 shape.
@@ -253,20 +256,7 @@ export function migrateRuleset(config) {
  * @returns {"share"|"standard"|"premium"|"comfort"|"xl"|"delivery"}
  */
 export function classifyTier(productType, ruleset = DEFAULT_RULESET) {
-  // The vision model writes this string itself ("delivery", "Delivery Exclusive") — match
-  // it case-insensitively here, unlike the parser's own canonical output (review 2026-08-26).
-  if (typeof productType === 'string' && /^\s*delivery\b/i.test(productType)) return 'delivery';
-  const base = classifyTierByProduct(productType);
-  if (base !== 'premium') return base;
-
-  const tiers = ruleset?.tiers || {};
-  const custom = ruleset?.tier_products;
-  const inXl = custom ? (custom.xl || []).includes(productType) : DEFAULT_XL_PRODUCTS.includes(productType);
-  const inComfort = custom ? (custom.comfort || []).includes(productType) : DEFAULT_COMFORT_PRODUCTS.includes(productType);
-
-  if (tiers.xl && inXl) return 'xl';
-  if (tiers.comfort && inComfort) return 'comfort';
-  return 'premium';
+  return offerRateTier(productType, ruleset);
 }
 
 /**
@@ -376,7 +366,8 @@ export function checkSanity(raw, ruleset = DEFAULT_RULESET) {
   const problems = [];
 
   // A negative money field is never "not read" — it is a broken extraction.
-  for (const [label, v] of [['price', price], ['miles', miles], ['minutes', minutes]]) {
+  for (const [label, v] of [['price', price], ['miles', miles], ['minutes', minutes],
+    ...['pickup_miles', 'pickup_minutes', 'ride_miles', 'ride_minutes'].map(key => [key, toFiniteNumber(raw?.[key])])]) {
     if (v != null && v < 0) problems.push(`${label} ${v} is negative`);
   }
 
@@ -566,7 +557,8 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
   // v3: Acceptance Rate Protection — the ladder (and possibly the floors)
   // failed, but total pay-per-mile clears the ARP line and no un-rescuable
   // gate fired above (spec: ACCEPT (FALLBACK)).
-  if (arp != null && perMile >= arp) {
+  const totalPerMile = deriveEffectiveMetrics(raw, 'full_ride').perMile;
+  if (arp != null && totalPerMile != null && totalPerMile >= arp) {
     return { decision: 'ACCEPT', reasonKind: 'accept_fallback', fallback: true, perMile, perMinute, totalMin };
   }
 
@@ -623,13 +615,12 @@ function renderRuleLines(tierName, eff, ruleset, { tierRulesOnly = false } = {})
   // Spec semantics: when ARP is enabled the floors defer to it (a floor miss can
   // still ACCEPT (FALLBACK)), so their REJECT lines would contradict first-match-
   // wins reading — they're subsumed by the ARP line + terminal REJECT. With ARP
-  // null (default) they render exactly where the byte pins expect them.
+  // null (default) they retain the established prompt gate order.
   const arpEnabled = g.acceptance_rate_protection?.min_per_total_mile != null;
   if (!arpEnabled) {
     rules.push(`REJECT if $/mi<${fmt(t.floor_per_mile)}.`);
     if (t.floor_per_minute != null) rules.push(`REJECT if $/min<${fmt(t.floor_per_minute)}.`);
   }
-  if (t.max_total_miles != null) rules.push(`REJECT if total_miles>${Number(t.max_total_miles)}.`);
 
   if (!tierRulesOnly && g.time_limit?.max_total_minutes != null) {
     const u = g.time_limit.unless;
@@ -639,15 +630,17 @@ function renderRuleLines(tierName, eff, ruleset, { tierRulesOnly = false } = {})
           u.min_per_minute != null ? `$/min>=${fmt(u.min_per_minute)}` : null,
         ].filter(Boolean).join(' and ')}`
       : '';
-    rules.push(`REJECT if total_min>${g.time_limit.max_total_minutes}${unless}.`);
+    rules.push(`REJECT if ${eff.basis === 'active_time' ? 'ride_min' : 'total_min'}>${g.time_limit.max_total_minutes}${unless}.`);
   }
 
+  if (t.max_total_miles != null) rules.push(`REJECT if ${eff.basis === 'active_time' ? 'ride_miles' : 'total_miles'}>${Number(t.max_total_miles)}.`);
+
   for (const rung of t.accept_ladder || []) {
-    rules.push(`ACCEPT if ${renderRung(rung)}.`);
+    rules.push(`ACCEPT if ${renderRung(rung).replaceAll('total_min', eff.basis === 'active_time' ? 'ride_min' : 'total_min')}.`);
   }
 
   if (!tierRulesOnly && g.acceptance_rate_protection?.min_per_total_mile != null) {
-    rules.push(`ACCEPT with "fallback":true if $/mi>=${fmt(g.acceptance_rate_protection.min_per_total_mile)}.`);
+    rules.push(`ACCEPT with "fallback":true if total_$/mi>=${fmt(g.acceptance_rate_protection.min_per_total_mile)} (price / pickup-plus-trip miles, regardless of basis).`);
   }
 
   rules.push('REJECT.');
@@ -697,7 +690,7 @@ function renderAvoidRule(a) {
       // 2026-08-17 (verifier: corridor_deg was the ONE editor control that never
       // reached Phase 1 — Phase-2 geo audit only): a non-default corridor is now
       // rendered so the model's "heads toward" judgment is as wide/narrow as the
-      // driver set it; the default (30) keeps the pinned render byte-identical.
+      // driver set it; the default corridor is 30 degrees.
       const corridor = a.corridor_deg != null && Number(a.corridor_deg) !== 30
         ? ` (within about ${Number(a.corridor_deg)} degrees of the direction to it)`
         : '';
@@ -721,7 +714,7 @@ function renderGuidanceLines(eff) {
 
 /**
  * Extra JSON template fields required by enabled v3 rules. Empty at defaults
- * (template byte-parity). Notices values the model may emit are fixed strings
+ * (the extraction contract is always present). Notices values the model may emit are fixed strings
  * so the caller can map them to the spec's Required Notifications verbatim.
  */
 export const NOTICE_LABELS = {
@@ -733,7 +726,6 @@ export const NOTICE_LABELS = {
 function templateExtras(eff) {
   const g = eff.global || {};
   let extras = '';
-  if (g.pickup_limits) extras += ',"pickup_miles":0,"pickup_minutes":0';
   if (g.acceptance_rate_protection?.min_per_total_mile != null) extras += ',"fallback":false';
   if (g.notices && Object.values(g.notices).some(Boolean)) extras += ',"notices":[]';
   return extras;
@@ -752,10 +744,14 @@ function noticesLine(eff) {
 /**
  * Render the Phase-1 system prompt for a KNOWN tier (text path — tier comes
  * from the OCR pre-parse). Generated from the SAME rules the evaluator uses.
- * BYTE-IDENTICAL to the legacy prompts at DEFAULT_RULESET (pinned in tests).
+ * Numeric ladders remain shared with the evaluator; extraction fields support server adjudication.
  *
  * @param {"share"|"standard"|"premium"|"comfort"|"xl"} tier
  */
+function phase1ExtractionContract() {
+  return 'Extract pickup and trip miles/minutes separately. total_miles and total_minutes always include both legs, even when the decision basis is active time. Missing/unreadable fields are null, never invented zero. rating is the visible rider rating or null. Identify the product. If no offer or any field required by an enabled numeric gate cannot be read (including the rider rating when its floor is above zero), decision is "NO DATA". judgment_reject: for a non-numeric REJECT name the observed gate ("avoid:<configured label>", "safety", "verified_missing", "stops", "round_trip", "share"); otherwise "". Evaluate enabled judgment gates before accepting; the server recomputes arithmetic.';
+}
+
 export function buildPhase1Prompt(tier, ruleset = DEFAULT_RULESET, context = {}) {
   if (tier === 'delivery') {
     // v3.2: the text lane decides deliveries deterministically (no judgment rule applies),
@@ -812,7 +808,7 @@ REJECT. Share rides always rejected.
     ? 'reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.'
     : 'reason: terse. "$1.21 13.7mi" or "$1.05 18mi low". No sentences.';
 
-  const jsonTemplate = `{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0${templateExtras(eff)},"decision":"REJECT","reason":"$0.00 0.0mi"}`;
+  const jsonTemplate = `{"price":null,"total_miles":null,"total_minutes":null,"pickup_miles":null,"pickup_minutes":null,"ride_miles":null,"ride_minutes":null,"product":"","rating":null${templateExtras(eff)},"judgment_reject":"","decision":"NO DATA","reason":"no data"}`;
 
   return `Raw JSON only. No markdown/backticks.
 
@@ -822,6 +818,7 @@ ${tierLine}Rules (first match wins):
 ${numbered}
 ${extraBlock}
 ${reasonHint}
+${phase1ExtractionContract()}
 
 ${jsonTemplate}`;
 }
@@ -830,9 +827,8 @@ ${jsonTemplate}`;
  * Render the Phase-1 system prompt for the VISION path (image with no OCR
  * pre-parse → product/tier unknown before the model looks). Renders global
  * gates once, then each enabled tier's floors/ladder, and asks the model to
- * classify the product first. NEW in v3 — not covered by the legacy byte pins
- * (the endpoint previously sent the standard-tier prompt for all vision
- * requests, silently judging premium offers by standard floors).
+ * classify the product first. Before v3 the endpoint sent the standard-tier prompt
+ * for all vision requests, silently judging premium offers by standard floors.
  */
 export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {}) {
   const eff = resolveScopedRuleset(ruleset, context);
@@ -850,12 +846,12 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   // offers were shown a cap they don't have. Each tier section renders its own.
   const globalRules = renderRuleLines('standard', eff, ruleset).filter((r) =>
     !r.startsWith('REJECT if $/mi<') && !r.startsWith('REJECT if $/min<')
-    && !r.startsWith('REJECT if total_miles>')
+    && !r.startsWith('REJECT if total_miles>') && !r.startsWith('REJECT if ride_miles>')
     && !r.startsWith('ACCEPT') && r !== 'REJECT.');
   const numberedGlobal = globalRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
   const arp = eff.global?.acceptance_rate_protection?.min_per_total_mile;
   const arpLine = arp != null
-    ? `No tier rule matched but $/mi>=${fmt(arp)}: ACCEPT with "fallback":true.\n`
+    ? `No tier rule matched but total_$/mi>=${fmt(arp)}: ACCEPT with "fallback":true (price / pickup-plus-trip miles, regardless of basis).\n`
     : '';
 
   // Headers reflect ACTUAL routing under this ruleset: enabling comfort/xl pulls
@@ -900,7 +896,7 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   // extracts (arithmetic authority — the model's own $/mi wobbled across the floor on
   // live cards). judgment_reject lets the server tell a judgment REJECT (avoid area,
   // road safety, missing Verified, stops, round trip) from an arithmetic one.
-  const jsonTemplate = `{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"product":"","rating":0${templateExtras(eff)}${deliveryTemplate},"judgment_reject":"","decision":"REJECT","reason":"$0.00 0.0mi"}`;
+  const jsonTemplate = `{"price":null,"total_miles":null,"total_minutes":null,"pickup_miles":null,"pickup_minutes":null,"ride_miles":null,"ride_minutes":null,"product":"","rating":null${templateExtras(eff)}${deliveryTemplate},"judgment_reject":"","decision":"NO DATA","reason":"no data"}`;
 
   const shareLine = ruleset.share?.auto_reject !== false
     ? 'Share/pool rides (Uber Share, Lyft Shared): REJECT always.'
@@ -920,8 +916,7 @@ ${tierSections}
 ${deliverySection}
 ${arpLine}No tier rule matched: REJECT.
 ${extraBlock}
-rating: the rider rating if shown, else 0.
-judgment_reject: if you REJECT for a non-numeric reason (avoid area, road safety, Verified missing, multiple stops, round trip, share), name it (e.g. "avoid:Denton", "safety", "verified_missing", "stops", "round_trip", "share"); otherwise "".
+${phase1ExtractionContract()}
 reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.
 
 ${jsonTemplate}`;
@@ -948,12 +943,12 @@ export function buildPhase2Prompt(ruleset = DEFAULT_RULESET, context = {}) {
 
   const globalLines = renderRuleLines('standard', eff, ruleset)
     .filter((r) => !r.startsWith('REJECT if $/mi<') && !r.startsWith('REJECT if $/min<')
-      && !r.startsWith('REJECT if total_miles>') // per-tier line (see buildPhase1VisionPrompt)
+      && !r.startsWith('REJECT if total_miles>') && !r.startsWith('REJECT if ride_miles>') // per-tier line (see buildPhase1VisionPrompt)
       && !r.startsWith('ACCEPT') && r !== 'REJECT.')
     .map((r, i) => `  ${i + 1}. ${r}`);
   const arpMile = eff.global?.acceptance_rate_protection?.min_per_total_mile;
   const arpGeneral = arpMile != null
-    ? `\n  - No tier rule matched but $/mi>=${fmt(arpMile)} and no other gate fired: ACCEPT (mark "fallback").`
+    ? `\n  - No tier rule matched but total_$/mi>=${fmt(arpMile)} (price / pickup-plus-trip miles, regardless of basis) and no other gate fired: ACCEPT (mark "fallback").`
     : '';
 
   const guidance = renderGuidanceLines(eff);
@@ -977,7 +972,7 @@ Provide DEEP analysis with FULL extraction of everything visible. Return ONLY va
     "road_flags": string[]|null,
     "offer_kind": "ride"|"delivery", "tip_included": boolean|null
   },
-  "decision": "ACCEPT"|"REJECT",
+  "decision": "ACCEPT"|"REJECT"|"NO DATA",
   "reasoning": "2-3 sentences: location quality, return-trip viability, economic assessment",
   "confidence": 0-100,
   "location_analysis": {
@@ -1011,7 +1006,7 @@ function renderRung(rung) {
   // conjunctively, and a UI-built rung can legally mix inclusive/exclusive
   // bounds (adversarial review 2026-07-03: the old else-if chain silently
   // dropped one bound of a mixed pair, breaking the no-drift invariant).
-  // The inclusive lo-hi pair keeps the legacy "total_min L-H" form (byte pins).
+  // The inclusive lo-hi pair keeps the established "total_min L-H" form.
   if (lo != null && hi != null && loX == null && hiX == null) {
     parts.push(`total_min ${lo}-${hi}`);
   } else {

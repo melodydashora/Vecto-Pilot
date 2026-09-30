@@ -8,6 +8,7 @@ import { useForm, type Resolver, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
+import { useRunSetup } from '@/contexts/run-setup-context';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +23,7 @@ import { useToast } from '@/hooks/useToast';
 import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase } from 'lucide-react';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import type { MarketOption, DriverProfile, DriverVehicle } from '@/types/auth';
-import { mergeSettingsDraft, sameSettingsValue, settingsSectionForField, SETTINGS_PLATFORMS, type SettingsSection, type ServiceSection } from '@/lib/settings-draft';
+import { mergeSettingsDraft, sameSettingsValue, settingsSectionForField, SETTINGS_PLATFORMS, SELECTABLE_SERVICES, type SettingsSection, type ServiceSection } from '@/lib/settings-draft';
 
 // Validation schema for settings form
 const settingsSchema = z.object({
@@ -51,6 +52,7 @@ const settingsSchema = z.object({
 
   // Rideshare Platforms
   ridesharePlatforms: z.array(z.string()).min(1, 'Select at least one platform'),
+  selectedServices: z.array(z.string()).min(1, 'Choose the services you want to offer for this setup'),
 
   // Vehicle Class (base tier)
   eligEconomy: z.boolean().optional(),
@@ -98,6 +100,7 @@ function profileSettingsValues(profile: DriverProfile, vehicle?: DriverVehicle |
     vehicleModel: vehicle?.model || '',
     seatbelts: vehicle?.seatbelts || 4,
     ridesharePlatforms: profile.ridesharePlatforms || ['uber'],
+    selectedServices: profile.selectedServices ?? [],
     // Vehicle Class
     eligEconomy: profile.eligEconomy ?? true,
     eligXl: profile.eligXl || false,
@@ -126,7 +129,7 @@ interface DropdownOption {
 }
 
 export default function SettingsPage() {
-  const { user, profile, isLoading } = useAuth();
+  const { user, token, profile, isLoading } = useAuth();
   if (isLoading || (user && (!profile || profile.userId !== user.userId))) {
     return <div role="status" className="flex items-center justify-center p-8">Loading your settings…</div>;
   }
@@ -134,12 +137,18 @@ export default function SettingsPage() {
     return <div className="container max-w-2xl mx-auto px-4 py-8"><Alert><AlertDescription>Please sign in to access your settings.</AlertDescription></Alert></div>;
   }
   // A different authenticated account gets a new form before any private draft can render.
-  return <SettingsEditor key={user.userId} />;
+  return <SettingsEditor key={`${user.userId}:${token}`} />;
 }
 
 function SettingsEditor() {
+  const runSetup = useRunSetup();
+  const restoredDraft = useRef(runSetup.getEditorDraft<{ values: SettingsFormData; baseline: SettingsFormData; customMarket: string }>('preferences'));
+  const lastDraftReset = useRef(runSetup.draftResetVersion);
   const navigate = useNavigate();
-  const { profile, vehicle, isLoading: authLoading, updateProfile } = useAuth();
+  const { profile: authProfile, vehicle: authVehicle, isLoading: authLoading, updateProfile } = useAuth();
+  // Form values and their compare-and-swap revision share one confirmed read.
+  const profile = runSetup.setup?.profile ?? authProfile;
+  const vehicle = runSetup.setup ? runSetup.setup.vehicle : authVehicle;
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [section, setSection] = useState<SettingsSection>('profile');
@@ -162,7 +171,9 @@ function SettingsEditor() {
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
 
   // 2026-02-13: Custom market name when "Other" is selected
-  const [customMarket, setCustomMarket] = useState('');
+  const [customMarket, setCustomMarket] = useState(restoredDraft.current?.customMarket ?? '');
+  const customMarketValue = useRef(customMarket);
+  customMarketValue.current = customMarket;
 
   const form = useForm<SettingsFormData>({
     // Cast: react-hook-form@7.71 added a 4th generic; @hookform/resolvers@5.2.2's
@@ -188,6 +199,7 @@ function SettingsEditor() {
       vehicleModel: '',
       seatbelts: 4,
       ridesharePlatforms: ['uber'],
+      selectedServices: [],
       // Vehicle Class
       eligEconomy: true,
       eligXl: false,
@@ -219,7 +231,9 @@ function SettingsEditor() {
   const isOtherMarket = watchMarket === '__OTHER__';
 
   const applyBaseline = (incoming: SettingsFormData, previous = baselineRef.current) => {
-    const draft = previous ? mergeSettingsDraft(previous, form.getValues(), incoming) : incoming;
+    const draft = previous ? mergeSettingsDraft(previous, form.getValues(), incoming)
+      : restoredDraft.current ? mergeSettingsDraft(restoredDraft.current.baseline, restoredDraft.current.values, incoming) : incoming;
+    restoredDraft.current = null;
     baselineRef.current = incoming;
     form.reset(incoming, { keepErrors: true, keepTouched: true });
     for (const key of Object.keys(draft) as (keyof SettingsFormData)[]) {
@@ -228,6 +242,29 @@ function SettingsEditor() {
       }
     }
   };
+
+  useEffect(() => {
+    const rememberDraft = () => {
+      if (!baselineRef.current) return;
+      const values = form.getValues();
+      runSetup.setEditorDraft('preferences', sameSettingsValue(values, baselineRef.current) &&
+        !(values.market === '__OTHER__' && customMarketValue.current)
+        ? null : { values, baseline: baselineRef.current, customMarket: customMarketValue.current });
+    };
+    const subscription = form.watch(rememberDraft);
+    rememberDraft();
+    return () => subscription.unsubscribe();
+  }, [form, runSetup.setEditorDraft, customMarket]);
+
+  useEffect(() => {
+    if (lastDraftReset.current === runSetup.draftResetVersion) return;
+    lastDraftReset.current = runSetup.draftResetVersion;
+    restoredDraft.current = null;
+    customMarketValue.current = '';
+    setCustomMarket('');
+    if (runSetup.setup?.profile) baselineRef.current = profileSettingsValues(runSetup.setup.profile, runSetup.setup.vehicle);
+    if (baselineRef.current) form.reset(baselineRef.current);
+  }, [form, runSetup.draftResetVersion]);
 
   // Load profile data into form when profile is available
   useEffect(() => {
@@ -363,6 +400,15 @@ function SettingsEditor() {
 
   const onSubmit = async (data: SettingsFormData) => {
     if (saveRef.current) return;
+    if (!runSetup.setup || runSetup.loading) {
+      setValidationMessage('Wait for your saved setup to be confirmed before saving.');
+      return;
+    }
+    const settingsRevision = runSetup.setup.settingsRevision;
+    if (typeof settingsRevision !== 'number' || !Number.isInteger(settingsRevision)) {
+      setValidationMessage('Your saved profile could not be confirmed. Reload your preferences before saving.');
+      return;
+    }
     if (data.market === '__OTHER__' && !customMarket.trim()) {
       setCustomMarketError('Please enter your market name');
       setValidationMessage('Please review the highlighted field in Location.');
@@ -371,6 +417,7 @@ function SettingsEditor() {
       return;
     }
     const request = { submitted: structuredClone(data), incoming: null as SettingsFormData | null };
+    const releaseSave = runSetup.beginSave();
     let confirmedSave = false;
     saveRef.current = request;
     setIsSaving(true);
@@ -432,6 +479,7 @@ function SettingsEditor() {
         country: data.country,
         market: finalMarket,
         ridesharePlatforms: data.ridesharePlatforms,
+        selectedServices: data.selectedServices,
         // Vehicle Class
         eligEconomy: data.eligEconomy,
         eligXl: data.eligXl,
@@ -458,7 +506,7 @@ function SettingsEditor() {
           model: data.vehicleModel,
           seatbelts: data.seatbelts,
         },
-      } as any);
+      } as any, settingsRevision);
 
       if (!activeRef.current) return;
       if (result.success) {
@@ -479,6 +527,8 @@ function SettingsEditor() {
             ? `${saveMessage} The latest saved values could not be reloaded.`
             : saveMessage,
         });
+        // The shared review popup opens over this editor, preserving any newer typing.
+        await runSetup.finishSave();
       } else {
         toast({
           title: "Error",
@@ -494,6 +544,7 @@ function SettingsEditor() {
         variant: "destructive",
       });
     } finally {
+      releaseSave();
       // A failed request does not confirm its payload. Still adopt any background
       // refresh against the previous saved baseline, retaining the user's draft.
       if (activeRef.current && !confirmedSave && request.incoming) applyBaseline(request.incoming);
@@ -1070,6 +1121,16 @@ function SettingsEditor() {
             <UberSettingsSection />
           </TabsContent>
           <TabsContent value="services" forceMount hidden={section !== 'services'}>
+          <Card className="mb-4 bg-white border-gray-200 shadow-sm">
+            <CardHeader><CardTitle>Services for this setup</CardTitle><CardDescription>Choose the services you want to offer. This selection does not grant platform or vehicle eligibility.</CardDescription></CardHeader>
+            <CardContent><FormField control={form.control} name="selectedServices" render={({ field }) => <FormItem>
+              <div className="grid gap-3 sm:grid-cols-2">{SELECTABLE_SERVICES.map(service => <label key={service.id} className="flex min-h-11 items-center gap-2">
+                <Checkbox checked={field.value.includes(service.id)} onCheckedChange={checked => field.onChange(checked
+                  ? [...field.value, service.id] : field.value.filter(value => value !== service.id))} />
+                <span>Offer {service.label}</span>
+              </label>)}</div><FormMessage />
+            </FormItem>} /></CardContent>
+          </Card>
           {/* Rideshare Platforms Section */}
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardHeader className="pb-4">
@@ -1218,6 +1279,9 @@ function SettingsEditor() {
           </TabsContent>
           </Tabs>
 
+          <Button type="button" variant="outline" className="w-full mb-3" disabled={isSaving}
+            onClick={() => navigate('/co-pilot/offer-analyzer')}>Offer Analyzer</Button>
+
           {/* Save Button */}
           <div className="sticky bottom-20 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent pt-4">
             <Button
@@ -1233,7 +1297,7 @@ function SettingsEditor() {
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  Save Changes
+                  Save and review
                 </>
               )}
             </Button>

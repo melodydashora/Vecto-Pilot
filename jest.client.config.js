@@ -1,5 +1,7 @@
 export default {
   testEnvironment: 'jsdom',
+  // Keep cached repositories and recovery copies out of the module index.
+  modulePathIgnorePatterns: ['<rootDir>/\\.(?:cache|config|local|worktrees)/'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       useESM: true,

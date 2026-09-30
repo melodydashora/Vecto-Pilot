@@ -119,13 +119,17 @@ export const GoogleCallbackPage: React.FC = () => {
     setIsAccepting(true);
     setErrorMsg('');
     try {
+      const currentResponse = await fetch(API_ROUTES.AUTH.ME, { headers: { Authorization: `Bearer ${authToken}` }, cache: 'no-store' });
+      const current: AuthApiResponse = await currentResponse.json();
+      if (!currentResponse.ok || current.user?.userId !== pendingAuth.user?.userId || !Number.isInteger(current.settingsRevision) ||
+          localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== authToken) throw new Error('Could not confirm the current sign-in.');
       const response = await fetch(API_ROUTES.AUTH.PROFILE, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ termsAccepted: true }),
+        body: JSON.stringify({ termsAccepted: true, expectedSettingsRevision: current.settingsRevision }),
       });
 
       if (!response.ok) {
@@ -135,8 +139,12 @@ export const GoogleCallbackPage: React.FC = () => {
       if (localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== authToken) {
         throw new Error('Sign-in session changed');
       }
-      completeLogin({ ...pendingAuth, profile: pendingAuth.profile
-        ? { ...pendingAuth.profile, termsAccepted: true } : undefined });
+      const canonical: AuthApiResponse = await response.json();
+      if (canonical.user?.userId !== pendingAuth.user?.userId || canonical.profile?.userId !== pendingAuth.user?.userId ||
+          canonical.profile?.termsAccepted !== true || canonical.sessionId !== current.sessionId || !Number.isInteger(canonical.settingsRevision)) {
+        throw new Error('Terms acceptance was not confirmed.');
+      }
+      completeLogin({ ...pendingAuth, ...canonical, token: authToken });
       setStatus('success');
     } catch (err) {
       console.error('[google-auth] Terms acceptance error:', err);

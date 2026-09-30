@@ -99,3 +99,41 @@ describe('Coach hook owns every voice resource for its session', () => {
     expect(recognizers[1].stop).not.toHaveBeenCalled();
   });
 });
+
+
+describe('Live Coach account ownership', () => {
+  test('account replacement ends the old voice and never sends its fragments using the new token', async () => {
+    const { STORAGE_KEYS } = await import('@/constants/storageKeys');
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'alice-token');
+    const aliceFinal = jest.fn(); const bobFinal = jest.fn();
+    const { result, rerender } = renderHook(({ userId, snapshotId, onVoiceTurnFinal }) => useVoiceSession({ userId, snapshotId, onVoiceTurnFinal }), { initialProps: { userId: 'alice', snapshotId: 'alice-snap', onVoiceTurnFinal: aliceFinal } });
+    let connecting!: Promise<void>;
+    act(() => { connecting = result.current.start(); });
+    await act(async () => { sessions[0].connected(); await connecting; });
+    act(() => sessions[0].opts.events.onUserTurnFinal('Alice synthetic turn'));
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'bob-token');
+    rerender({ userId: 'bob', snapshotId: 'bob-snap', onVoiceTurnFinal: bobFinal });
+    expect(sessions[0].stop).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('idle');
+    act(() => sessions[0].opts.events.onUserTurnFinal('Old late words'));
+    expect(bobFinal).not.toHaveBeenCalled();
+    for (const [, options] of (global.fetch as jest.MockedFunction<typeof fetch>).mock.calls) {
+      const body = JSON.parse(options!.body as string);
+      expect((options!.headers as Record<string, string>).Authorization).toBe('Bearer alice-token');
+      expect(body.snapshotId).toBe('alice-snap');
+    }
+  });
+  test('unmount after token replacement does not flush old fragments as the new account', async () => {
+    const { STORAGE_KEYS } = await import('@/constants/storageKeys');
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'alice-token');
+    const { result, unmount } = renderHook(() => useVoiceSession({ userId: 'alice', snapshotId: 'alice-snap' }));
+    let connecting!: Promise<void>;
+    act(() => { connecting = result.current.start(); });
+    await act(async () => { sessions[0].connected(); await connecting; });
+    act(() => sessions[0].opts.events.onUserTurnFinal('Alice synthetic turn'));
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'bob-token');
+    unmount();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(((global.fetch as jest.MockedFunction<typeof fetch>).mock.calls[0][1]!.headers as Record<string, string>).Authorization).toBe('Bearer alice-token');
+  });
+});

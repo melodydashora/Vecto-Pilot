@@ -235,3 +235,6 @@ __pycache__/
 /briefing-last-row.txt
 /*-local-command-caveat*.txt
 /client/src/pages/co-pilot/strategy_page.txt
+
+# Atomic private Briefing diagnostics
+sent-to-strategist.txt.*.tmp

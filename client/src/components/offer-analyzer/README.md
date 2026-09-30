@@ -1,7 +1,15 @@
 # Offer Analyzer components
 
-`OfferAnalyzerPage.tsx` owns the existing rules form. SetupCard and the six rules
-cards keep their current responsibilities and explicit Save Rules flow.
+`OfferAnalyzerPage.tsx` owns the rules form and explicit Save Rules flow.
+Current source reference: [Offer Analyzer](../../../../docs/architecture/OFFER_ANALYZER.md).
+
+- `RateTargetsCard.tsx`: shows economic groups applicable to confirmed selected
+  services using `shared/driver-services.js`, the same routing used by evaluation.
+  Service identity differs from vehicle eligibility and economic tier. Legacy null
+  selection is visibly unverified; hidden cards do not delete saved thresholds.
+- `SetupCard.tsx`: opens the signed-in browser quick analyzer and produces a
+  token-free Android browser launcher; existing native iPhone automation remains
+  separately labeled legacy. A browser launcher still needs screenshot selection.
 
 - `OffersCard.tsx`: latest 25 analyzed offers across all dates; driver-scoped query
   and SSE/focus refresh. Failed background refreshes retain cached rows and open
@@ -21,12 +29,11 @@ cards keep their current responsibilities and explicit Save Rules flow.
   token for the same driver hides the old result before effect cleanup; delayed
   responses cannot restore it.
 
-This UI requires the recovered September 10 outcome revision/Other migration,
-canonical POST/conflict response, and complete-period stats endpoint. Backend
-integration and rollout must accompany it; see the September 11 frontend handoff
-in `docs/coordination/2026-09-11-offer-faa-frontend-handoff.md`. The older main API
-does not provide these contracts. Offered pay is never implicitly submitted by a
-dropdown change, and a successful status without a complete saved row is an error.
+The current source includes outcome revision/Other handling, canonical saved/conflict
+responses, reversible removal and complete-period stats. Deployment/migration state is
+not established by this README. The [September frontend handoff](../../../../docs/coordination/2026-09-11-offer-faa-frontend-handoff.md)
+is historical evidence. Offered pay is never implicitly submitted by a dropdown change,
+and a successful status without a complete saved row is an error.
 
 Synthetic DOM tests exercise the real feature components while substituting the
 Radix select and chart rendering primitives. The September 11 browser receipt

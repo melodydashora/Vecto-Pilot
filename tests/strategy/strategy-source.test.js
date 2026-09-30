@@ -1,3 +1,4 @@
+import { setTimeout } from 'node:timers';
 import { jest, test, expect, beforeAll, beforeEach, afterAll } from '@jest/globals';
 import { createRequire } from 'node:module';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -8,15 +9,18 @@ import { completeBriefing } from '../fixtures/complete-briefing.js';
 import { completeSnapshot } from '../fixtures/complete-snapshot.js';
 import { strategyMatchesBriefing } from '../../server/lib/strategy/strategy-source.js';
 import { getCoachContextProgress } from '../../server/lib/ai/coach-context-progress.js';
+import { mainRunBoundary } from '../fixtures/main-run-boundary.js';
 
 const { PGlite } = createRequire(import.meta.url)('@electric-sql/pglite');
 let pg, actualDb;
 const db = new Proxy({}, { get: (_target, name) => actualDb[name].bind(actualDb) });
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
+const admission = mainRunBoundary(db);
+jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => admission.exports);
 const model = jest.fn();
 const log = new Proxy({}, { get: () => jest.fn() });
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: model }));
-jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ triadLog: log, aiLog: log, dbLog: log, eventsLog: log, venuesLog: log, matrixLog: log, briefingLog: log, OP: {} }));
+jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ triadLog: log, aiLog: log, dbLog: log, eventsLog: log, venuesLog: log, matrixLog: log, briefingLog: log, OP: {}, tagLog: jest.fn() }));
 const { writeStrategySource, readStrategySource, mergeVenueCacheMetrics } = await import('../../server/lib/strategy/strategy-source-store.js');
 const { runImmediateStrategy } = await import('../../server/lib/ai/providers/consolidator.js');
 const snapshotId = '11111111-1111-4111-8111-111111111111';
@@ -41,10 +45,11 @@ beforeAll(async () => {
     created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());`);
 }, 30000);
 beforeEach(async () => {
+  admission.state.allowed = true;
   await pg.exec('TRUNCATE strategies, briefings, snapshots'); model.mockReset();
   await actualDb.insert(snapshots).values(completeSnapshot({ snapshot_id: snapshotId, createdAt: new Date().toISOString() }));
   await actualDb.insert(briefings).values(completeBriefing(snapshotId, { generation_token: tokenA, generated_at: new Date(Date.now() - 1000) }));
-  await actualDb.insert(strategies).values({ snapshot_id: snapshotId, status: 'running', strategy_for_now: null, venue_cache_metrics: { hits: 2, misses: 1 } });
+  await actualDb.insert(strategies).values({ snapshot_id: snapshotId, status: 'pending', strategy_for_now: null, venue_cache_metrics: { hits: 2, misses: 1 } });
 });
 afterAll(async () => { await pg?.close(); });
 
@@ -54,6 +59,47 @@ test('real SQL saves an exact source receipt while preserving cache counters', a
   const pair = await readStrategySource(snapshotId);
   expect(strategyMatchesBriefing(pair.strategy, pair.briefing, snapshotId)).toBe(true);
   expect(getCoachContextProgress({ ...pair }).strategy.state).toBe('complete');
+});
+
+test('superseded run cannot write Strategy success, failure or dispatch a model', async () => {
+  const before = (await readStrategySource(snapshotId)).strategy;
+  admission.state.allowed = false;
+  for (const updates of [{ status: 'ok', strategy_for_now: 'Obsolete result' }, { status: 'error' }]) {
+    await expect(writeStrategySource(snapshotId, tokenA, updates)).rejects.toMatchObject({ code: 'main_run_superseded' });
+  }
+  await expect(runImmediateStrategy(snapshotId)).rejects.toMatchObject({ code: 'main_run_superseded' });
+  expect(model).not.toHaveBeenCalled();
+  expect((await readStrategySource(snapshotId)).strategy).toEqual(before);
+});
+
+test('two direct callers cannot dispatch the same admitted Strategy stage twice', async () => {
+  let release;
+  model.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+  const first = runImmediateStrategy(snapshotId);
+  const deadline = Date.now() + 4000;
+  while (!model.mock.calls.length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+  expect(model).toHaveBeenCalledTimes(1);
+  await expect(runImmediateStrategy(snapshotId)).rejects.toMatchObject({ code: 'main_run_busy' });
+  expect(model).toHaveBeenCalledTimes(1);
+  release({ ok: true, output: 'The one admitted result' });
+  await expect(first).resolves.toMatchObject({ ok: true });
+  expect((await readStrategySource(snapshotId)).strategy.strategy_for_now).toBe('The one admitted result');
+});
+
+test.each(['success', 'failure'])('settings save during model request fences late %s and preserves existing state', async outcome => {
+  let release, reject;
+  const pending = new Promise((resolve, fail) => { release = resolve; reject = fail; });
+  model.mockReturnValueOnce(pending);
+  const run = runImmediateStrategy(snapshotId).then(value => ({ value }), error => ({ error }));
+  const deadline = Date.now() + 4000;
+  while (!model.mock.calls.length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+  expect(model).toHaveBeenCalledTimes(1);
+  const before = (await readStrategySource(snapshotId)).strategy;
+  admission.state.allowed = false;
+  if (outcome === 'success') release({ ok: true, output: 'Obsolete answer' });
+  else reject(new Error('Provider failed after preferences changed'));
+  expect((await run).error).toMatchObject({ code: 'main_run_superseded' });
+  expect((await readStrategySource(snapshotId)).strategy).toEqual(before);
 });
 
 test('a refreshed Briefing rejects late old success and failure without touching the Strategy row', async () => {
@@ -112,4 +158,13 @@ test.each(['success', 'failure'])('actual Consolidator late %s cannot overwrite 
   const settled = await oldCall;
   expect(settled.error).toBeDefined();
   expect((await readStrategySource(snapshotId)).strategy).toEqual(newer);
+});
+
+test.each(['   \n  ', { text: 'Uncontracted object' }, ['Uncontracted array']])('invalid model output %p cannot become a saved successful Strategy', async output => {
+  model.mockResolvedValue({ ok: true, output });
+  await expect(runImmediateStrategy(snapshotId)).rejects.toThrow();
+  const { strategy } = await readStrategySource(snapshotId);
+  expect(strategy.strategy_for_now).toBeNull();
+  expect(strategy.status).toBe('error');
+  expect(strategy.venue_cache_metrics).not.toHaveProperty('strategy_source');
 });

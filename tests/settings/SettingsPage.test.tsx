@@ -8,6 +8,12 @@ const mockToast = jest.fn();
 const mockUpdateProfile = jest.fn();
 let mockAuth: { user: { userId: string }; profile: DriverProfile; vehicle: DriverVehicle; isLoading: boolean; updateProfile: typeof mockUpdateProfile };
 jest.mock('@/contexts/auth-context', () => ({ useAuth: () => mockAuth }));
+const mockFinishSave = jest.fn(async () => true);
+const mockBeginSave = jest.fn(() => () => {});
+jest.mock('@/contexts/run-setup-context', () => ({ useRunSetup: () => ({
+  setup: { settingsRevision: 1, profile: mockAuth.profile, vehicle: mockAuth.vehicle },
+  getEditorDraft: () => null, setEditorDraft: () => {}, draftResetVersion: 0, loading: false, beginSave: mockBeginSave, finishSave: mockFinishSave,
+}) }));
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ toast: mockToast }) }));
 jest.mock('@/utils/co-pilot-helpers', () => ({ getAuthHeader: () => ({}) }));
 jest.mock('@/components/settings/UberSettingsSection', () => ({ UberSettingsSection: () => <div>Existing connection controls</div> }));
@@ -20,7 +26,7 @@ function account(id = 'alice') {
       id: `profile-${id}`, userId: id, firstName: id, lastName: 'Driver', nickname: `${id} saved`,
       email: `${id}@example.test`, phone: '5555555555', address1: '1 Test Lane', address2: '', city: 'Dallas',
       stateTerritory: 'TX', zipCode: '75001', country: 'US', market: 'Dallas',
-      ridesharePlatforms: ['uber', 'private', 'legacy-service'], eligEconomy: true, eligXl: false,
+      selectedServices: ['economy'], ridesharePlatforms: ['uber', 'private', 'legacy-service'], eligEconomy: true, eligXl: false,
       eligXxl: false, eligComfort: false, eligLuxurySedan: false, eligLuxurySuv: false,
       attrElectric: false, attrGreen: false, attrWav: false, attrSki: false, attrCarSeat: false,
       prefPetFriendly: false, prefTeen: false, prefAssist: false, prefShared: false,
@@ -61,7 +67,7 @@ test('economic values load and save zero separately from a cleared unknown value
   expect(screen.getByRole('spinbutton', { name: 'Daily earnings goal' })).toHaveValue(0);
   expect(screen.getByRole('spinbutton', { name: 'Maximum empty pickup distance (miles)' })).toHaveValue(0);
   fireEvent.change(screen.getByRole('spinbutton', { name: 'Fuel economy (mpg)' }), { target: { value: '' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledTimes(1));
   expect(mockUpdateProfile.mock.calls[0][0]).toMatchObject({ fuelEconomyMpg: null, earningsGoalDaily: 0, shiftHoursTarget: 7.5, maxDeadheadMi: 0 });
   expect(screen.queryByRole('tab', { name: 'Connections' })).not.toBeInTheDocument();
@@ -90,7 +96,7 @@ test('one form preserves private/unknown IDs and false vehicle flags across acce
   tab('Services');
   tab('Ridehail');
   expect(screen.getByRole('checkbox', { name: 'Economy' })).not.toBeChecked();
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledTimes(1));
   expect(mockUpdateProfile.mock.calls[0][0]).toMatchObject({
     ridesharePlatforms: ['uber', 'private', 'legacy-service'], eligEconomy: false,
@@ -116,7 +122,7 @@ test('a delayed save adopts canonical values but retains an edit reverted to its
   mockUpdateProfile.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
   const view = mount();
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: 'Submitted' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledTimes(1));
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: 'alice saved' } });
   mockAuth = { ...mockAuth, profile: { ...mockAuth.profile, nickname: 'Submitted', phone: '+15555555555' } };
@@ -137,14 +143,14 @@ test.each(['failure', 'exception'])('a save %s merges a held background refresh 
   mockUpdateProfile.mockImplementationOnce(() => new Promise((resolve, reject) => { finish = resolve; fail = reject; }));
   const view = mount();
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: 'Keep this' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledTimes(1));
   mockAuth = { ...mockAuth, profile: { ...mockAuth.profile, phone: '5552223333' } };
   view.redraw();
   await act(async () => { if (outcome === 'failure') finish({ success: false, error: 'Offline' }); else fail(new Error('Offline')); });
   expect(screen.getByRole('textbox', { name: 'Nickname' })).toHaveValue('Keep this');
   expect(screen.getByRole('textbox', { name: 'Phone Number' })).toHaveValue('5552223333');
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledTimes(2));
   expect(mockUpdateProfile.mock.calls[1][0]).toMatchObject({ nickname: 'Keep this', phone: '5552223333' });
 });
@@ -154,7 +160,7 @@ test('account replacement clears private draft immediately and ignores the old s
   mockUpdateProfile.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
   const view = mount();
   fireEvent.change(screen.getByRole('textbox', { name: 'Nickname' }), { target: { value: 'Private Alice draft' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledTimes(1));
   mockAuth = account('bob');
   view.redraw();
@@ -177,7 +183,7 @@ test('validation reveals and focuses an invalid field in a hidden section', asyn
   tab('Location');
   fireEvent.change(screen.getByRole('textbox', { name: 'Base Address' }), { target: { value: '' } });
   tab('Services');
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(screen.getByRole('tab', { name: 'Location' })).toHaveAttribute('aria-selected', 'true'));
   expect(screen.getByRole('textbox', { name: 'Base Address' })).toHaveFocus();
   expect(screen.getByText('Address is required')).toBeVisible();
@@ -199,7 +205,7 @@ test('validation reveals Location and focuses its invalid market Select trigger'
   tab('Location');
   await screen.findByRole('combobox', { name: 'Market' });
   tab('Services');
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'Market' })).toHaveFocus());
   expect(mockUpdateProfile).not.toHaveBeenCalled();
 });
@@ -210,7 +216,7 @@ test('an empty custom market reveals its labeled field from another section', as
   tab('Location');
   await screen.findByRole('textbox', { name: 'Custom market name' });
   tab('Services');
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(screen.getByRole('textbox', { name: 'Custom market name' })).toHaveFocus());
   expect(screen.getByText('Please enter your market name')).toBeVisible();
   expect(mockUpdateProfile).not.toHaveBeenCalled();
@@ -224,7 +230,7 @@ test('custom market creation locks that dependent name while other pending edits
   tab('Location');
   const customName = await screen.findByRole('textbox', { name: 'Custom market name' });
   fireEvent.change(customName, { target: { value: 'Market A' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save and review' }));
   await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledTimes(1));
   expect(customName).toBeDisabled();
   expect(screen.getByRole('combobox', { name: 'Market' })).toBeDisabled();

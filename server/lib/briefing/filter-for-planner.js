@@ -80,7 +80,7 @@ function filterClosuresToToday(closures, today) {
  * Filter briefing data for venue planner consumption
  *
  * Reduces token usage by:
- * - Passing through pre-fetched state-scoped events (the only event source path)
+ * - Passing through pre-fetched country/metro events (the only event source path)
  * - Summarizing traffic (briefing + top issues + avoid areas)
  * - Including only essential weather info
  * - Filtering school closures to today
@@ -100,7 +100,7 @@ function filterClosuresToToday(closures, today) {
  *
  * @param {Object} briefing - Full briefing row from database
  * @param {Object} snapshot - Snapshot with location context
- * @param {Array} todayEvents - REQUIRED. Pre-fetched state-scoped events with
+ * @param {Array} todayEvents - REQUIRED. Pre-fetched country/metro events with
  *   venue_catalog join. Expected shape: array of objects with discovered_events
  *   fields + vc_* prefixed venue_catalog fields. Throws TypeError if not an array.
  * @returns {Object} Filtered briefing for venue planner
@@ -125,7 +125,7 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents) {
   if (!Array.isArray(todayEvents)) {
     throw new TypeError(
       `filterBriefingForPlanner: todayEvents must be an array (got ${typeof todayEvents}). ` +
-      `Live callers pre-fetch state-scoped events via fetchTodayDiscoveredEventsWithVenue ` +
+      `Live callers pre-fetch country/metro events via fetchTodayDiscoveredEventsWithVenue ` +
       `before calling this function. The legacy fallback was deleted on 2026-04-28; see ` +
       `docs/review-queue/PLAN_pr-review-master-fixes-2026-04-28.md §13-P1.`
     );
@@ -135,13 +135,13 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents) {
   const userCity = snapshot.city || '';
   const userState = snapshot.state || '';
 
-  // 2026-04-11: Pre-fetched state-scoped events flow through without further
+  // 2026-04-11: Pre-fetched country/metro events flow through without further
   // filtering — the DB query already applied state + active + multi-day window.
   // 2026-04-28: This is now the ONLY path; the legacy else branch that handled
   // !Array.isArray(todayEvents) was deleted, replaced by the throw above.
   const filteredEvents = todayEvents;
   if (filteredEvents.length > 0) {
-    console.log(`[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] caller pre-fetched events at state scope, passing through to planner without further filtering: ${filteredEvents.length} events`);
+    console.log(`[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] caller pre-fetched events at country/metro scope, passing through to planner without further filtering: ${filteredEvents.length} events`);
   }
 
   // Extract traffic summary - only essential fields
@@ -219,7 +219,9 @@ export function formatBriefingForPrompt(filteredBriefing) {
 
     const formatEvent = (e) => {
       const startTime = e.event_start_time || e.time || '';
-      const endTime = e.event_end_time ? ` - ${e.event_end_time}` : '';
+      const endTime = e.event_end_time ? ` – ${e.event_end_date || e.event_start_date || ''} ${e.event_end_time}` : '';
+      const venueTimezone = e.timezone || e.vc_timezone;
+      const zone = venueTimezone ? ` (${venueTimezone})` : '';
       // Prefer venue_catalog canonical name/address when joined, else discovered_events fields
       const venueName = e.vc_venue_name || e.venue_name || e.venue || '';
       const address = e.vc_address || e.vc_formatted_address || e.address || '';
@@ -240,7 +242,7 @@ export function formatBriefingForPrompt(filteredBriefing) {
         `- ${e.title}${category}${attendance}${distance}`,
         `  Venue: ${venueName}${coords}`,
         address ? `  Address: ${address}` : null,
-        `  Time: ${startTime}${endTime}`
+        `  Time: ${e.event_start_date || ''} ${startTime}${endTime}${zone}`
       ].filter(Boolean).join('\n');
     };
 

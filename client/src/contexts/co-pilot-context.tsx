@@ -5,19 +5,24 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useAuth } from '@/contexts/auth-context';
+import { useRunSetup } from '@/contexts/run-setup-context';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase, PreviousStrategy } from '@/types/co-pilot';
-import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, subscribePhaseChange } from '@/utils/co-pilot-helpers';
+import { subscribeStrategyReady, subscribeBlocksReady, subscribePhaseChange } from '@/utils/co-pilot-helpers';
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
 import { useBriefingQueries } from '@/hooks/useBriefingQueries';
 import { useBarsQuery, type BarsData } from '@/hooks/useBarsQuery';
 // 2026-01-09: P1-6 - Centralized storage keys (prevents magic string bugs)
 // 2026-01-15: Added API_ROUTES and QUERY_KEYS for endpoint/cache consistency
-import { STORAGE_KEYS, SESSION_KEYS } from '@/constants';
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Critical error component for unrecoverable states
 import CriticalError, { type CriticalErrorType } from '@/components/CriticalError';
-import { PreviousStrategyCard } from '@/components/strategy/PreviousStrategyCard';
 import { hasStrategySourceTimes } from '@/lib/strategy-source-time';
+import type StrategyMap from '@/components/strategy/StrategyMap';
+
+export interface HistoricalStrategyMap {
+  sourceSnapshotId: string;
+  props: React.ComponentProps<typeof StrategyMap>;
+}
 
 // 2026-09-11: Unique only within this running module; no token in cache keys/storage.
 let nextStrategySession = 0;
@@ -30,18 +35,23 @@ interface CoPilotContextValue {
   timezone: string | null;
   isLocationResolved: boolean;
 
-  // 2026-01-15: FAIL HARD - Critical error state
-  // When set, the dashboard should be unmounted and CriticalError shown
+  // Authentication failures block the dashboard. Data failures stay local to
+  // Strategy so navigation and the last completed guidance remain available.
   criticalError: { type: CriticalErrorType; message?: string; details?: string } | null;
   setCriticalError: (error: { type: CriticalErrorType; message?: string; details?: string } | null) => void;
 
   // Snapshot lifecycle
   lastSnapshotId: string | null;
+  contextSnapshotId: string | null;
 
   // Strategy
   strategyData: StrategyData | null;
   immediateStrategy: string | null;
   previousStrategy: PreviousStrategy | null;
+  previousBlocksData: BlocksResponse | null;
+  strategyError: string | null;
+  historicalMap: HistoricalStrategyMap | null;
+  rememberMap: (map: HistoricalStrategyMap) => void;
   isStrategyFetching: boolean;
   snapshotData: any;
 
@@ -78,7 +88,10 @@ export function useCoPilot() {
   return context;
 }
 
-export function CoPilotProvider({ children, allowPartialCoach = false }: { children: React.ReactNode; allowPartialCoach?: boolean }) {
+export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoach = false }: { children: React.ReactNode; allowPartialCoach?: boolean }) {
+  const { run, setup } = useRunSetup();
+  const runRef = useRef(run);
+  runRef.current = run;
   const locationContext = useLocationContext();
   const queryClient = useQueryClient();
   // 2026-04-05: Gate all queries on auth state — stop polling after logout
@@ -92,12 +105,21 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
   const [completedStrategy, setCompletedStrategy] = useState<{
     scope: NonNullable<typeof authScope>; record: PreviousStrategy;
   } | null>(null);
+  const completedStrategyRef = useRef(completedStrategy);
+  completedStrategyRef.current = completedStrategy;
   // Render-time comparison closes the frame before auth cleanup effects run.
   const previousStrategy = authScope && completedStrategy?.scope === authScope
     ? completedStrategy.record : null;
+  const [mapHistory, setMapHistory] = useState<{ scope: typeof authScope; map: HistoricalStrategyMap } | null>(null);
+  const historicalMap = authScope && mapHistory?.scope === authScope ? mapHistory.map : null;
+  const rememberMap = React.useCallback((map: HistoricalStrategyMap) => {
+    const scope = authScopeRef.current;
+    if (!scope) return;
+    setMapHistory(previous => previous?.scope === scope && JSON.stringify(previous.map) === JSON.stringify(map)
+      ? previous : { scope, map });
+  }, []);
 
-  // 2026-01-15: FAIL HARD - Critical error state
-  // When set, the entire dashboard unmounts and CriticalError is shown
+  // Retain scoped failure details for Strategy; only auth failures unmount it.
   const [criticalErrorState, setCriticalErrorState] = useState<{
     scope: typeof authScope; error: CoPilotContextValue['criticalError'];
   } | null>(null);
@@ -107,14 +129,18 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     setCriticalErrorState(error ? { scope: authScopeRef.current, error } : null);
   }, []);
 
-  // Snapshot state
-  const [snapshotState, setSnapshotState] = useState<{
-    id: string | null; scope: typeof authScope;
+  // An admitted snapshot is the downstream identity. Newly captured upstream
+  // context may refresh Briefing/Bars without replacing the driver's Strategy.
+  const lastSnapshotId = authScope && run?.snapshotId ? run.snapshotId : null;
+  const contextSnapshotId = authScope ? locationContext.lastSnapshotId : null;
+  const [completedVenues, setCompletedVenues] = useState<{
+    scope: NonNullable<typeof authScope>; snapshotId: string; data: BlocksResponse;
   } | null>(null);
-  const lastSnapshotId = authScope && snapshotState?.scope === authScope ? snapshotState.id : null;
-  const setLastSnapshotId = React.useCallback((id: string | null) => {
-    setSnapshotState({ id, scope: authScopeRef.current });
-  }, []);
+  const [generationFailure, setGenerationFailure] = useState<{
+    scope: typeof authScope; runId: string; message: string;
+  } | null>(null);
+  const strategyError = authScope && generationFailure?.scope === authScope && generationFailure.runId === run?.runId
+    ? generationFailure.message : criticalError?.details ?? criticalError?.message ?? null;
 
   // Enriched reasonings for closed venues
   const [enrichedReasonings, _setEnrichedReasonings] = useState<Map<string, string>>(new Map());
@@ -129,325 +155,69 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
   // 2026-04-10: AbortController for in-flight waterfall POST — aborted on logout (Window 3 race fix)
   const waterfallAbortRef = useRef<AbortController | null>(null);
 
-  // 2026-01-07: Flag to prevent race condition during manual refresh
-  // When refresh clicked, we clear lastSnapshotId, but locationContext still has old value
-  // Without this flag, useEffect would immediately restore the old snapshotId
-  const manualRefreshInProgressRef = useRef<boolean>(false);
+  useEffect(() => {
+    waterfallAbortRef.current?.abort();
+    setGenerationFailure(null);
+    setCriticalError(null);
+  }, [run?.runId, setCriticalError]);
 
-  // 2026-04-14: Phase 4 — Snapshot hard-fail block. Set to the failed snapshotId when
-  // server returns 503 (snapshot_incomplete after MAX retries). Cleared when a NEW
-  // snapshot_id arrives or the user triggers manual refresh. Prevents endless retries
-  // against a snapshot we already know to be unrecoverable.
-  const snapshotHardFailRef = useRef<string | null>(null);
-
-  // 2026-04-05: Clear snapshot on logout so all queries stop (refetchInterval included)
-  // Without this, strategy query keeps polling with refetchInterval: 3000 after logout
-  // because lastSnapshotId is still set and `enabled` is true.
   const prevAuthRef = useRef(authScope);
   useEffect(() => {
     if (prevAuthRef.current !== authScope) {
-      // 2026-09-11: Includes direct account switches and same-account reauthentication.
-      console.log('[CoPilotContext] Auth scope changed — clearing snapshot and stopping queries');
-      setLastSnapshotId(null);
       setCriticalError(null);
-      // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
-      // refactor but the setter call sites were missed, causing a ReferenceError
-      // that the (now instrumented) ErrorBoundary surfaced. localStorage cleanup
-      // for the persistent-strategy slot still happens via STORAGE_KEYS.
       setCompletedStrategy(null);
-      manualRefreshInProgressRef.current = false;
-      snapshotHardFailRef.current = null;
+      setCompletedVenues(null);
+      setMapHistory(null);
+      setGenerationFailure(null);
       waterfallTriggeredRef.current.clear();
-      // 2026-04-10: Abort any in-flight waterfall POST (Window 3 race fix)
-      if (waterfallAbortRef.current) {
-        waterfallAbortRef.current.abort();
-        waterfallAbortRef.current = null;
-      }
+      waterfallAbortRef.current?.abort();
+      waterfallAbortRef.current = null;
     }
     prevAuthRef.current = authScope;
-  }, [authScope, setLastSnapshotId]);
+    return () => { waterfallAbortRef.current?.abort(); };
+  }, [authScope, setCriticalError]);
 
   // Get coords from location context
   const gpsCoords = locationContext?.currentCoords;
   const overrideCoords = locationContext?.overrideCoords;
   const coords = overrideCoords || gpsCoords;
 
-  // 2026-01-06: P3-D - Check if this is a resume (skip blocks-fast regeneration)
-  // Resume mode is set by LocationContext when restoring from sessionStorage
-  const checkAndClearResumeMode = (): boolean => {
-    const reason = sessionStorage.getItem(SESSION_KEYS.RESUME_REASON);
-    if (reason === 'resume') {
-      sessionStorage.removeItem(SESSION_KEYS.RESUME_REASON);
-      return true;
-    }
-    return false;
-  };
-
-  // Fallback: If location context has a snapshot ID and we don't, use it
+  // Admission hydration and location events are read-only. Only a confirmed
+  // explicit action emits this event and starts Strategy plus venue generation.
   useEffect(() => {
-    const contextSnapshotId = locationContext?.lastSnapshotId;
-
-    // 2026-01-07: Skip if manual refresh in progress - we just cleared lastSnapshotId
-    // and we're waiting for location-context to create a NEW snapshot
-    if (manualRefreshInProgressRef.current) {
-      console.log("⏳ CoPilotContext: Manual refresh in progress - ignoring old snapshotId from context");
-      return;
-    }
-
-    // 2026-04-10: FIX — Never sync snapshot when logged out (zombie snapshot fix).
-    // After logout, LocationContext may briefly still hold the old snapshotId
-    // (before its own auth-drop cleanup runs). Without this guard, the sync
-    // restores the dead snapshot 1ms after the auth-drop effect clears it.
-    if (!authScope) return;
-
-    if (contextSnapshotId && !lastSnapshotId) {
-      // 2026-01-10: CONSOLIDATED - This useEffect only syncs state
-      // The vecto-snapshot-saved event listener (below) is the SINGLE source of waterfall triggers
-      // This prevents race conditions from having two code paths trigger the same POST
-      console.log("🔄 CoPilotContext: Syncing snapshot from context:", contextSnapshotId.slice(0, 8));
-      setLastSnapshotId(contextSnapshotId);
-
-      // 2026-01-06: P3-D - Mark resume mode in dedup set (waterfall skipped by event handler)
-      if (checkAndClearResumeMode()) {
-        console.log("📦 CoPilotContext: RESUME MODE - marking in dedup set");
-        waterfallTriggeredRef.current.add(contextSnapshotId);
-      }
-      // NOTE: Waterfall is triggered by vecto-snapshot-saved event, not here
-    }
-  }, [locationContext?.lastSnapshotId, lastSnapshotId, authScope, setLastSnapshotId]);
-
-  // 2026-01-07: Listen for manual refresh to immediately clear strategy state
-  // Location context dispatches 'vecto-strategy-cleared' when user clicks refresh button
-  // This ensures UI shows loading state immediately, not stale strategy
-  useEffect(() => {
-    const handleStrategyClear = () => {
-      console.log('[CoPilotContext] 🔄 Manual refresh detected - clearing ALL state for fresh regeneration');
-
-      // 2026-01-07: CRITICAL - Set flag BEFORE clearing state to prevent race condition
-      // This flag tells the useEffect at line 122 to NOT restore the old snapshotId
-      manualRefreshInProgressRef.current = true;
-
-      // Clear localStorage
-      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-
-      setCriticalError(null);
-
-      // Clear React state - MUST clear lastSnapshotId so new snapshot triggers waterfall
-      // 2026-04-27: setPersistentStrategy removed — see auth-lost cleanup above for why.
-      // Completed text stays separate from current snapshot data during regeneration.
-      setLastSnapshotId(null);  // CRITICAL: Clear snapshot ID so new one triggers waterfall
-
-      // Clear deduplication set so new snapshot can trigger waterfall
-      // Log for debugging - this should show empty set
-      console.log('[CoPilotContext] 🔄 Clearing waterfallTriggeredRef, had:', Array.from(waterfallTriggeredRef.current));
-      waterfallTriggeredRef.current.clear();
-
-      // 2026-04-14: Phase 4 — Manual refresh is a user action that resets the hard-fail block.
-      if (snapshotHardFailRef.current) {
-        console.log('[CoPilotContext] 🔄 Clearing snapshot hard-fail block on manual refresh:', snapshotHardFailRef.current.slice(0, 8));
-        snapshotHardFailRef.current = null;
-      }
-
-      // Reset previous snapshot ref so change detection works
-      prevSnapshotIdRef.current = null;
-
-      // Reset react-query cache (using centralized query keys)
-      queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(null) });
-      queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_FAST(null) });
-
-      console.log('[CoPilotContext] ✅ State cleared, manualRefreshInProgressRef=true - waiting for new snapshot');
-    };
-
-    window.addEventListener('vecto-strategy-cleared', handleStrategyClear);
-    return () => window.removeEventListener('vecto-strategy-cleared', handleStrategyClear);
-  }, [queryClient, setLastSnapshotId]);
-
-  // Listen for snapshot-saved event (PRIMARY trigger - fires when new snapshot is created)
-  // 2026-01-06: P3-D - Event now includes reason: 'init' | 'manual_refresh' | 'resume'
-  useEffect(() => {
-    const handleSnapshotSaved = async (e: any) => {
-      if (!authScopeRef.current) return;
-      const snapshotId = e.detail?.snapshotId;
-      const reason = e.detail?.reason;
-
-      if (snapshotId) {
-        console.log("🎯 CoPilotContext: Snapshot ready (via event):", snapshotId.slice(0, 8), "reason:", reason);
-
-        // 2026-04-14: Phase 4 — Hard-fail guard. If this exact snapshotId already hard-failed,
-        // refuse to retrigger until user acts (manual refresh) or a different snapshot arrives.
-        if (snapshotHardFailRef.current === snapshotId) {
-          console.warn("[CoPilotContext] Snapshot already hard-failed — ignoring event until refresh:", snapshotId.slice(0, 8));
-          return;
+    const handleStart = async (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      const admitted = runRef.current;
+      const scope = authScopeRef.current;
+      if (!scope || !admitted || detail?.runId !== admitted.runId || detail?.snapshotId !== admitted.snapshotId) return;
+      const snapshotId = admitted.snapshotId;
+      if (!snapshotId || waterfallTriggeredRef.current.has(snapshotId)) return;
+      waterfallTriggeredRef.current.add(snapshotId);
+      waterfallAbortRef.current?.abort();
+      const controller = new AbortController();
+      waterfallAbortRef.current = controller;
+      const current = () => !controller.signal.aborted && authScopeRef.current === scope && runRef.current?.runId === admitted.runId;
+      try {
+        const response = await fetch(API_ROUTES.BLOCKS.FAST, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${scope.token}` },
+          body: JSON.stringify({ snapshotId, runId: admitted.runId }), signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!current()) return;
+        if (!response.ok) {
+          setGenerationFailure({ scope, runId: admitted.runId,
+            message: body.message || 'Strategy could not be refreshed. Your previous strategy is still available.' });
         }
-        if (snapshotHardFailRef.current && snapshotHardFailRef.current !== snapshotId) {
-          console.log("[CoPilotContext] New snapshot after hard-fail — clearing block:", snapshotHardFailRef.current.slice(0, 8), "→", snapshotId.slice(0, 8));
-          snapshotHardFailRef.current = null;
-        }
-
-        // 2026-01-07: Clear the manual refresh flag - new snapshot has arrived
-        // This allows the system to accept this snapshot and trigger waterfall
-        if (manualRefreshInProgressRef.current) {
-          console.log("✅ CoPilotContext: Manual refresh complete - new snapshot received");
-          manualRefreshInProgressRef.current = false;
-        }
-
-        setLastSnapshotId(snapshotId);
-
-        // 2026-01-06: P3-D - Skip blocks-fast for resume events
-        if (reason === 'resume') {
-          console.log("📦 CoPilotContext: RESUME event - skipping blocks-fast waterfall");
-          waterfallTriggeredRef.current.add(snapshotId);
-          return;
-        }
-
-        // DEDUPLICATION: Skip if already triggered for this snapshot
-        if (waterfallTriggeredRef.current.has(snapshotId)) {
-          console.log("⏭️ CoPilotContext: Skipping duplicate waterfall (already triggered via useEffect):", snapshotId.slice(0, 8));
-          return;
-        }
-        waterfallTriggeredRef.current.add(snapshotId);
-
-        try {
-          // 2026-04-10: Abort any previous in-flight waterfall POST (Window 3 race fix)
-          if (waterfallAbortRef.current) {
-            waterfallAbortRef.current.abort();
-          }
-          const controller = new AbortController();
-          waterfallAbortRef.current = controller;
-
-          // Snapshot readiness gate: 202 means enrichment in progress, retry with backoff.
-          // Memory #111: Server holds briefing until snapshot.status = 'ok'. Client retries
-          // with exponential backoff (2s, 4s, 8s, 16s, 32s) up to 5 attempts.
-          const delays = [2000, 4000, 8000, 16000, 32000];
-          let attempt = 0;
-          let response: Response | null = null;
-
-          while (attempt <= delays.length) {
-            console.log(
-              `🚀 Triggering POST /api/blocks-fast waterfall (from event)... ${snapshotId.slice(0, 8)}${attempt > 0 ? ` [retry ${attempt}/${delays.length}]` : ''}`
-            );
-            response = await fetch(API_ROUTES.BLOCKS.FAST, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                // 2026-04-14: Phase 4 — server reads this header and returns 503 once >= MAX_SNAPSHOT_RETRIES.
-                'X-Snapshot-Retry-Count': String(attempt),
-                ...getAuthHeader()
-              },
-              body: JSON.stringify({ snapshotId }),
-              signal: controller.signal,
-            });
-
-            // 2026-04-14: Phase 4 — 503 = hard fail. Server has given up; we stop and block further retries.
-            if (response.status === 503) {
-              let body: any = {};
-              try { body = await response.clone().json(); } catch { /* body not JSON — proceed with empty */ }
-              const missing: string[] = Array.isArray(body?.missingFields) ? body.missingFields : [];
-              console.error('[CoPilot] ❌ HARD FAIL: Snapshot incomplete after max retries. Missing:', missing.length ? missing : '(unknown)');
-              snapshotHardFailRef.current = snapshotId;
-              // Dispatch a window event so UI layers (header, toast, etc.) can surface "Location data incomplete — please refresh".
-              window.dispatchEvent(new CustomEvent('vecto-snapshot-hard-fail', {
-                detail: {
-                  snapshotId,
-                  missingFields: missing,
-                  message: body?.message || 'Location data incomplete — please refresh',
-                  retryCount: body?.retryCount,
-                  maxRetries: body?.maxRetries
-                }
-              }));
-              break;
-            }
-
-            if (response.status !== 202) break; // 200/error/etc — exit loop, handle below
-
-            if (attempt >= delays.length) {
-              console.warn('[CoPilot] Snapshot still pending after max retries — giving up');
-              break;
-            }
-
-            console.log(`[CoPilot] Snapshot still enriching — will retry when ready (in ${delays[attempt] / 1000}s)`);
-            await new Promise<void>((resolve, reject) => {
-              const timer = setTimeout(resolve, delays[attempt]);
-              controller.signal.addEventListener('abort', () => {
-                clearTimeout(timer);
-                reject(new DOMException('Aborted', 'AbortError'));
-              }, { once: true });
-            });
-            attempt++;
-          }
-
-          if (response && !response.ok && response.status !== 503) {
-            const body = await response.clone().json().catch(() => ({}));
-            // Ignore a late failure after refresh/logout moved to a new snapshot.
-            if (body.error === 'briefing_failed' && !controller.signal.aborted &&
-                prevSnapshotIdRef.current === snapshotId) {
-              setCriticalError({
-                type: 'briefing_failed',
-                details: body.message || 'Briefing generation failed. Please retry.',
-              });
-            }
-          }
-          if (response?.ok) {
-            console.log("✅ Waterfall complete");
-          } else if (response?.status === 503) {
-            console.error("[CoPilot] Waterfall aborted — snapshot hard-failed. Awaiting manual refresh or new snapshot.");
-          } else if (response?.status === 202) {
-            console.warn("[CoPilot] Waterfall still pending after retries — user may need to refresh");
-          }
-        } catch (err: any) {
-          if (err.name === 'AbortError') {
-            console.log("[CoPilotContext] Waterfall POST aborted (logout or new snapshot)");
-            return;
-          }
-          console.error("❌ Waterfall error:", err);
-        }
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(snapshotId), type: 'active' });
+      } catch (error) {
+        if (!current()) return;
+        setGenerationFailure({ scope, runId: admitted.runId,
+          message: error instanceof Error ? error.message : 'Strategy refresh was not confirmed. Please retry.' });
       }
     };
-    window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-    return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-  }, []);
-
-  // Track previous snapshot ID to detect actual changes
-  const prevSnapshotIdRef = useRef<string | null>(null);
-
-  // Clear strategy when snapshot ID changes
-  // 2026-01-06: REVISED per P3-A audit fix
-  // REMOVED first-mount clearing - this was causing regeneration on app resume
-  //
-  // The "49-min-old strategy" problem is now solved differently:
-  // - useStrategyPolling.ts restores strategy ONLY if stored snapshotId matches current
-  // - If snapshot changes, strategy is cleared (below)
-  // - Manual refresh clears via location-context-clean.tsx (forceNewSnapshot)
-  // - Logout clears via auth-context.tsx
-  //
-  // LESSON LEARNED: A 10-minute-old strategy is FINE if the snapshot hasn't changed.
-  // The snapshot represents the driver's position+time context. Same snapshot = same context.
-  useEffect(() => {
-    // Skip if no snapshot yet
-    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
-
-    // On first mount, just track the snapshot - don't clear
-    // 2026-01-06: REMOVED clearing here per P3-A audit
-    if (prevSnapshotIdRef.current === null) {
-      console.log('🔄 [CoPilotContext] First mount - tracking snapshot:', lastSnapshotId.slice(0, 8));
-      prevSnapshotIdRef.current = lastSnapshotId;
-      return;
-    }
-
-    // Clear if snapshot changed (different location/time context)
-    if (prevSnapshotIdRef.current !== lastSnapshotId) {
-      console.log(`🔄 [CoPilotContext] Snapshot changed from ${prevSnapshotIdRef.current?.slice(0, 8)} to ${lastSnapshotId.slice(0, 8)}, clearing old strategy`);
-      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-      // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
-      // refactor; localStorage cleanup above is sufficient.
-      // Completed text stays separate from current snapshot data during regeneration.
-      queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(null) });
-    }
-
-    prevSnapshotIdRef.current = lastSnapshotId;
-  }, [lastSnapshotId, queryClient]);
+    window.addEventListener('vecto-strategy-started', handleStart);
+    return () => window.removeEventListener('vecto-strategy-started', handleStart);
+  }, [queryClient]);
 
   // Subscribe to SSE strategy_ready events
   // LESSON LEARNED (Dec 2025): Use refetchQueries instead of invalidateQueries!
@@ -474,7 +244,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     // 2026-04-18 (F2): Pass lastSnapshotId for the initial-state handshake.
     const unsubscribe = subscribeBlocksReady(lastSnapshotId, (data) => {
       if (data.snapshot_id === lastSnapshotId) {
-        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_FAST(lastSnapshotId), type: 'active' });
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), type: 'active' });
       }
     });
 
@@ -487,7 +257,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
-    const unsubscribe = subscribePhaseChange((data) => {
+    const unsubscribe = subscribePhaseChange(lastSnapshotId, (data) => {
       if (data.snapshot_id === lastSnapshotId) {
         // Use refetchQueries to get fresh phase/timing data without clearing cache (prevents flash)
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), type: 'active' });
@@ -555,17 +325,27 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
 
   // Fetch strategy
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
-  const { data: strategyResponse, isFetching: isStrategyFetching } = useQuery({
+  const { data: strategyResponse, isFetching: isStrategyFetching, error: strategyQueryError, refetch: refetchBlocks } = useQuery({
     queryKey: [...QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), authScope?.ownerId, authScope?.revision],
     queryFn: async ({ signal }) => {
       if (!authScope || !lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
       const response = await fetch(API_ROUTES.BLOCKS.STRATEGY(lastSnapshotId), {
         headers: { Authorization: `Bearer ${authScope.token}` }, signal,
       });
-      if (!response.ok || signal.aborted || authScopeRef.current !== authScope) return null;
+      if (signal.aborted || authScopeRef.current !== authScope) return null;
+      if (!response.ok) throw new Error('Your saved Strategy could not be loaded. Please retry.');
       const data = await response.json();
       if (signal.aborted || authScopeRef.current !== authScope) return null;
-      return { ...data, _snapshotId: lastSnapshotId, _sessionRevision: authScope.revision };
+      const choices = queryClient.getQueryData<{
+        snapshotId?: string; rankingId?: string; blocks?: SmartBlock[]; venueFeedbackRevision?: number;
+      }>([...QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), authScope.ownerId, authScope.revision]);
+      const confirmedChoices = choices?.snapshotId === data.snapshotId && choices?.rankingId === data.rankingId &&
+        (choices?.venueFeedbackRevision ?? 0) > 0;
+      const serverRevision = Number.isInteger(data.scope_revision) ? data.scope_revision : null;
+      const keepConfirmedChoices = confirmedChoices && (serverRevision === null || serverRevision < choices!.venueFeedbackRevision!);
+      return { ...data, ...(keepConfirmedChoices ? { blocks: choices!.blocks, venueFeedbackRevision: choices!.venueFeedbackRevision }
+        : serverRevision !== null ? { venueFeedbackRevision: serverRevision } : {}),
+        _snapshotId: lastSnapshotId, _sessionRevision: authScope.revision };
     },
     // 2026-04-05: Gate on isAuthenticated — this is the 3-second poller that spams after logout
     enabled: !!authScope && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
@@ -586,7 +366,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
   const responseMatches = !!authScope && !!lastSnapshotId &&
     strategyResponse?._sessionRevision === authScope.revision &&
     strategyResponse?._snapshotId === lastSnapshotId && strategyResponse?.snapshotId === lastSnapshotId;
-  const strategyReady = !!locationContext?.isLocationResolved && responseMatches && hasStrategySourceTimes(strategyResponse) && strategyResponse?.briefingStatus === 'complete' &&
+  const strategyReady = responseMatches && hasStrategySourceTimes(strategyResponse) && strategyResponse?.briefingStatus === 'complete' &&
     strategyResponse?.strategyFresh !== false &&
     (strategyResponse?.status === 'ok' || strategyResponse?.status === 'pending_blocks');
   const immediateStrategy = strategyReady && typeof strategyResponse?.strategy?.strategyForNow === 'string' &&
@@ -598,13 +378,17 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     : null, [responseMatches, strategyReady, strategyResponse]);
 
   useEffect(() => {
+    if (strategyReady && strategyData?.status === 'ok') {
+      setGenerationFailure(null);
+      setCriticalError(null);
+    }
     if (strategyData?.status === 'error') {
       setCriticalError({
         type: strategyData.error === 'briefing_failed' ? 'briefing_failed' : 'unknown',
         details: strategyData.message || 'Strategy generation failed. Please retry.',
       });
     }
-  }, [strategyData]);
+  }, [strategyReady, strategyData]);
 
   useEffect(() => {
     if (!authScope || !lastSnapshotId || !immediateStrategy || strategyData?.status !== 'ok') return;
@@ -634,122 +418,93 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     });
   }, [authScope, lastSnapshotId, immediateStrategy, strategyData?.status, strategyData?.strategyUpdatedAt, strategyData?.snapshotCreatedAt, snapshotData?.city, snapshotData?.timezone]);
 
-  // Fetch blocks
-  // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
-  const { data: blocksResponse, isLoading: isBlocksLoading, error: blocksError, refetch: refetchBlocks } = useQuery<BlocksResponse>({
-    queryKey: [...QUERY_KEYS.BLOCKS_FAST(lastSnapshotId), authScope?.ownerId, authScope?.revision],
-    queryFn: async () => {
-      if (!coords) throw new Error('No GPS coordinates');
+  // Polling returns the saved ranking. GET blocks-fast can generate missing
+  // venues, so it must not be called by remount, focus or background polling.
+  const blocksData: BlocksResponse | null = useMemo(() => {
+    if (!strategyReady || !strategyResponse) return null;
+    const savedBlocks = Array.isArray(strategyResponse.blocks) ? strategyResponse.blocks : [];
+    if (savedBlocks.length && !strategyResponse.rankingId) return null;
+    return {
+      now: strategyResponse.strategyUpdatedAt,
+      timezone: snapshotData?.timezone ?? null,
+      strategy: immediateStrategy ?? undefined,
+      blocks: savedBlocks,
+      rankingId: strategyResponse.rankingId,
+      isBlocksGenerating: strategyResponse.status === 'pending_blocks',
+    };
+  }, [strategyReady, strategyResponse, snapshotData?.timezone, immediateStrategy]);
+  const blocksError = useMemo(() => strategyQueryError ?? (strategyReady && strategyResponse?.blocks?.length && !strategyResponse.rankingId
+    ? Object.assign(new Error('Saved venues are missing their ranking identifier.'), { code: 'RANKING_ID_MISSING' }) : null),
+  [strategyQueryError, strategyReady, strategyResponse]);
+  const isBlocksLoading = !!lastSnapshotId && !strategyError && strategyResponse?.status !== 'error' &&
+    (!strategyReady || strategyResponse?.status === 'pending_blocks');
+  useEffect(() => {
+    if (!authScope || !lastSnapshotId || strategyData?.status !== 'ok' || !blocksData || blocksError) return;
+    setCompletedVenues(previous => previous?.scope === authScope && previous.snapshotId === lastSnapshotId &&
+      JSON.stringify(previous.data) === JSON.stringify(blocksData) ? previous : { scope: authScope, snapshotId: lastSnapshotId, data: blocksData });
+  }, [authScope, lastSnapshotId, strategyData?.status, blocksData, blocksError]);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 230000);
-
+  // A mobile browser can remount while a replacement is still pending. The
+  // server identifies prior completed work in this live session; read it back
+  // without recapturing location or giving it current generation authority.
+  const priorRun = setup?.previousRun;
+  const currentCompleteRef = useRef(false);
+  currentCompleteRef.current = strategyReady && strategyData?.status === 'ok';
+  useEffect(() => {
+    if (!authScope || !priorRun?.snapshotId || priorRun.sessionId !== setup?.sessionId ||
+        priorRun.snapshotId === lastSnapshotId || currentCompleteRef.current || completedStrategy?.scope === authScope) return;
+    const scope = authScope;
+    const snapshotId = priorRun.snapshotId;
+    const currentRunId = run?.runId ?? null;
+    const controller = new AbortController();
+    const current = () => !controller.signal.aborted && authScopeRef.current === scope &&
+      (runRef.current?.runId ?? null) === currentRunId && !currentCompleteRef.current &&
+      completedStrategyRef.current?.scope !== scope;
+    const restore = async () => {
       try {
-        const response = await fetch(API_ROUTES.BLOCKS.FAST_WITH_QUERY(lastSnapshotId!), {
-          method: 'GET',
-          signal: controller.signal,
-          headers: { 'X-Snapshot-Id': lastSnapshotId || '', Authorization: `Bearer ${authScope!.token}` }
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok && response.status !== 202) {
-          const errorText = await response.text();
-          throw new Error(`Failed to fetch blocks: ${errorText}`);
-        }
-
-        const data = await response.json();
-        const isGenerating = data.status === 'pending_blocks' || data.reason === 'blocks_generating';
-
-        // 2026-01-15: FAIL HARD - Validate ranking_id exists when blocks are returned
-        // ranking_id is required to link votes, strategy, and blocks
-        if (data.blocks && data.blocks.length > 0 && !data.rankingId) {
-          const error = new Error('CRITICAL: Blocks returned without ranking_id - feedback system broken');
-          (error as any).code = 'RANKING_ID_MISSING';
-          throw error;
-        }
-
-        // 2026-01-06: P4-C fix - use real timezone from LocationContext (GPS-derived)
-        // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
-        // 2026-02-13: Removed dead `data.timezone` — blocks-fast.js never returns timezone.
-        // LocationContext.timeZone is the single source of truth (derived from GPS position).
-        // 2026-01-10: D-027 - Server now returns camelCase (single contract)
-        return {
-          now: data.generatedAt || new Date().toISOString(),
-          timezone: locationContext?.timeZone || null,
-          strategy: data.strategy?.strategyForNow || data.briefing?.strategyForNow,
-          pathTaken: data.pathTaken,
-          refined: data.refined,
-          timing: data.timing,
-          isBlocksGenerating: isGenerating,
-          // 2026-01-09: P1-5 FIX - Removed fallbacks, using canonical camelCase only
-          // Server now returns consistent camelCase - no need to accept multiple spellings
-          blocks: data.blocks?.map((v: any) => ({
-            name: v.name,
-            address: v.address,
-            category: v.category,
-            placeId: v.placeId,
-            coordinates: { lat: v.coordinates?.lat, lng: v.coordinates?.lng },
-            estimatedDistanceMiles: Number(v.estimatedDistanceMiles ?? 0),
-            driveTimeMinutes: Number(v.driveTimeMinutes ?? 0),
-            distanceSource: v.distanceSource ?? "routes_api",
-            estimatedEarningsPerRide: v.estimatedEarningsPerRide ?? null,
-            valuePerMin: v.valuePerMin ?? null,
-            valueGrade: v.valueGrade ?? null,
-            notWorth: !!v.notWorth,
-            surge: v.surge ?? null,
-            estimatedWaitTime: v.estimatedWaitTime,
-            demandLevel: v.demandLevel,
-            businessHours: v.businessHours,
-            isOpen: v.isOpen,
-            businessStatus: v.businessStatus,
-            // 2026-01-14: Server uses toApiBlock (camelCase) - no snake_case fallback needed
-            closedVenueReasoning: v.closedVenueReasoning,
-            stagingArea: v.stagingArea,
-            proTips: v.proTips ?? [],
-            streetViewUrl: v.streetViewUrl,
-            hasEvent: v.hasEvent ?? false,
-            eventBadge: v.eventBadge ?? null,
-            // 2026-04-14: Issue X — Preserve fields from toApiBlock() that were previously dropped
-            venueId: v.venueId ?? null,
-            eventSummary: v.eventSummary ?? null,
-            // 2026-04-16: Driver preference scoring — four-hop contract (Decision #16)
-            beyondDeadhead: !!v.beyondDeadhead,
-            distanceFromHomeMi: v.distanceFromHomeMi ?? null
-          })) || [],
-          rankingId: data.rankingId,
-          metadata: {
-            totalBlocks: data.blocks?.length || 0,
-            processingTimeMs: data.elapsed_ms || 0,
-            modelRoute: data.model_route,
-            validation: data.validation
-          }
-        } as BlocksResponse;
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          throw new Error('Request timed out');
-        }
-        throw err;
-      }
-    },
-    // 2026-09-11: Historical text never enables current venue generation/actions.
-    enabled: !!coords && !!lastSnapshotId && strategyReady,
-    refetchInterval: (query) => {
-      const blocks = query.state.data?.blocks;
-      if (blocks && blocks.length > 0) return false;
-      return 15000;
-    },
-    retry: (failureCount, error: any) => {
-      if (error?.message?.includes('timeout')) return false;
-      if (error?.message?.includes('NOT_FOUND')) return false;
-      // 2026-01-15: FAIL HARD - Don't retry on missing ranking_id (data integrity bug)
-      if (error?.code === 'RANKING_ID_MISSING') return false;
-      return failureCount < 6;
-    },
-  });
-
-  // Hide cached same-snapshot venues immediately when Briefing loses readiness.
-  const blocksData = strategyReady ? blocksResponse : null;
+        const options = { headers: { Authorization: `Bearer ${scope.token}` }, signal: controller.signal, cache: 'no-store' as const };
+        const [strategyResponse, snapshotResponse] = await Promise.all([
+          fetch(API_ROUTES.BLOCKS.STRATEGY(snapshotId), options),
+          fetch(API_ROUTES.SNAPSHOT.GET(snapshotId), options),
+        ]);
+        if (!current() || !strategyResponse.ok || !snapshotResponse.ok) return;
+        const [history, snapshot] = await Promise.all([strategyResponse.json(), snapshotResponse.json()]);
+        if (!current() || history.snapshotId !== snapshotId || snapshot.snapshot_id !== snapshotId ||
+            history.status !== 'ok' || history.briefingStatus !== 'complete' || history.strategyFresh === false ||
+            !hasStrategySourceTimes(history) || snapshot.status !== 'ok' ||
+            typeof history.strategy?.strategyForNow !== 'string' || !history.strategy.strategyForNow.trim() ||
+            !Number.isFinite(snapshot.lat) || Math.abs(snapshot.lat) > 90 || !Number.isFinite(snapshot.lng) || Math.abs(snapshot.lng) > 180 ||
+            typeof snapshot.city !== 'string' || !snapshot.city || typeof snapshot.timezone !== 'string' || !snapshot.timezone ||
+            Date.parse(snapshot.created_at) !== Date.parse(history.snapshotCreatedAt) || !Array.isArray(history.blocks) ||
+            (history.blocks.length && !history.rankingId) || history.blocks.some((block: SmartBlock) =>
+              typeof block.name !== 'string' || !Number.isFinite(block.coordinates?.lat) || Math.abs(block.coordinates.lat) > 90 ||
+              !Number.isFinite(block.coordinates?.lng) || Math.abs(block.coordinates.lng) > 180)) return;
+        setCompletedStrategy(previous => previous?.scope === scope ? previous : { scope, record: {
+          ownerId: scope.ownerId, sourceSnapshotId: snapshotId, text: history.strategy.strategyForNow,
+          // This is the new read receipt, never the source's generation time.
+          receivedAt: new Date().toISOString(), sourceUpdatedAt: history.strategyUpdatedAt,
+          snapshotCreatedAt: history.snapshotCreatedAt, city: snapshot.city, timezone: snapshot.timezone,
+        } });
+        setCompletedVenues(previous => previous?.scope === scope ? previous : { scope, snapshotId, data: {
+          now: history.strategyUpdatedAt, timezone: snapshot.timezone, strategy: history.strategy.strategyForNow,
+          blocks: history.blocks, rankingId: history.rankingId, isBlocksGenerating: false,
+        } });
+        setMapHistory(previous => previous?.scope === scope ? previous : { scope, map: { sourceSnapshotId: snapshotId, props: {
+          driverLat: snapshot.lat, driverLng: snapshot.lng,
+          venues: history.blocks.map((block: SmartBlock, index: number) => ({
+            id: block.placeId || `${index}`, name: block.name, lat: block.coordinates.lat, lng: block.coordinates.lng,
+            distance_miles: block.estimatedDistanceMiles, drive_time_min: block.driveTimeMinutes,
+            est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? undefined,
+            rank: index + 1, value_grade: block.valueGrade,
+          })), bars: [], events: [], incidents: [], snapshotId, timezone: snapshot.timezone, isLoading: false,
+        } } });
+      } catch { /* A failed history read never restarts the waterfall. */ }
+    };
+    void restore();
+    return () => controller.abort();
+  }, [authScope, priorRun?.snapshotId, priorRun?.sessionId, setup?.sessionId, lastSnapshotId, run?.runId, completedStrategy?.scope]);
+  const previousBlocksData = authScope && completedVenues?.scope === authScope &&
+    (!strategyReady || completedVenues.snapshotId !== lastSnapshotId) ? completedVenues.data : null;
 
   // 2026-01-15: FAIL HARD - Detect blocks errors and trigger critical error
   useEffect(() => {
@@ -815,8 +570,8 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     isLoading: briefingIsLoading,
     isUnavailable: briefingIsUnavailable
   } = useBriefingQueries({
-    snapshotId: lastSnapshotId,
-    snapshotStatus: snapshotData?.status,
+    snapshotId: contextSnapshotId,
+    snapshotStatus: locationContext?.isLocationResolved ? 'ok' : 'pending',
     pipelinePhase,
     // 2026-04-19: M3 fix — gate the briefing query on the same isAuthenticated
     // signal that strategy/blocks/bars use. Eliminates the post-logout window
@@ -831,8 +586,8 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     isBarsLoading,
     refetchBars
   } = useBarsQuery({
-    latitude: coords?.latitude || null,
-    longitude: coords?.longitude || null,
+    latitude: coords?.latitude ?? null,
+    longitude: coords?.longitude ?? null,
     city: locationContext?.city || null,
     state: locationContext?.state || null,
     timezone: locationContext?.timeZone || null,
@@ -846,7 +601,6 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
   const handleClearError = React.useCallback(async () => {
     setCriticalError(null);
     // Also clear related state to allow fresh retry
-    setLastSnapshotId(null);
     queryClient.resetQueries({ queryKey: QUERY_KEYS.SNAPSHOT(lastSnapshotId) });
     if (criticalError?.type === 'briefing_failed') {
       try {
@@ -872,11 +626,16 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
 
     // Snapshot
     lastSnapshotId,
+    contextSnapshotId,
 
     // Strategy
     strategyData: strategyData as StrategyData | null,
     immediateStrategy,
     previousStrategy,
+    previousBlocksData,
+    strategyError,
+    historicalMap,
+    rememberMap,
     isStrategyFetching,
     snapshotData,
 
@@ -925,9 +684,14 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     criticalError,
     // setCriticalError is stable (useState setter), no need in deps
     lastSnapshotId,
+    contextSnapshotId,
     strategyData,
     immediateStrategy,
     previousStrategy,
+    previousBlocksData,
+    strategyError,
+    historicalMap,
+    rememberMap,
     isStrategyFetching,
     snapshotData,
     blocks,
@@ -955,9 +719,9 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
     // refetchBlocks and refetchBars are EXCLUDED - they're stable refs from useQuery
   ]);
 
-  // 2026-01-15: FAIL HARD - Render CriticalError modal when in error state
-  // This completely blocks the dashboard UI - no partial rendering allowed
-  if (criticalError && (!allowPartialCoach || criticalError.type === 'auth_failed')) {
+  // A failed refresh preserves the dashboard and its completed Strategy.
+  // Authentication failure remains a separate blocking boundary.
+  if (criticalError?.type === 'auth_failed') {
     return (
       <CoPilotContext.Provider value={value}>
         <CriticalError
@@ -965,14 +729,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
           message={criticalError.message}
           details={criticalError.details}
           onRetry={handleClearError}
-        >
-          {previousStrategy && criticalError.type !== 'auth_failed' && (
-            <PreviousStrategyCard strategy={previousStrategy} waiting={false} />
-          )}
-          {criticalError.type !== 'auth_failed' && authScope && (
-            <a href="/co-pilot/coach" className="mt-4 inline-block rounded-md bg-white px-4 py-3 font-medium text-slate-900">Open Coach</a>
-          )}
-        </CriticalError>
+        />
       </CoPilotContext.Provider>
     );
   }

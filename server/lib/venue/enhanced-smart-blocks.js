@@ -24,59 +24,32 @@
 
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
+import { assertMainRunForSnapshot, withCurrentMainRun, MainRunAdmissionError } from '../main-run-admission.js';
 import { mergeVenueCacheMetrics, assertCurrentStrategySource } from '../strategy/strategy-source-store.js';
 import { StrategySourceChangedError } from '../strategy/strategy-source.js';
 // 2026-04-11: Added discovered_events + venue_catalog for fetchTodayDiscoveredEventsWithVenue —
 // the Smart Blocks pipeline now fetches today's events at the top of the try block
 // and passes them to both filterBriefingForPlanner and matchVenuesToEvents.
-import { rankings, ranking_candidates, discovered_events, venue_catalog, strategies } from '../../../shared/schema.js';
+import { rankings, ranking_candidates, strategies } from '../../../shared/schema.js';
 
-// 2026-01-14: Time-sensitive event badge filtering
-// Only show event badges for events that are time-relevant (within 2h future or 4h past start)
-// 2026-01-31: Removed hardcoded timezone fallback - timezone is required per NO FALLBACKS rule
-// 2026-04-14: Issue M — Added 12-hour AM/PM parsing support for robustness.
-//   Canonical pipeline (normalizeEvent.js) stores HH:MM 24-hour format in discovered_events,
-//   but briefings.events JSONB may contain raw Gemini output like "7:00 PM".
-//   Handled formats: "19:00", "7:00 PM", "7 PM", "07:00", "7:30 AM"
-function isEventTimeRelevant(eventStartTime, snapshotTimezone) {
-  if (!eventStartTime) return false;
-  // 2026-01-31: NO FALLBACKS - timezone is required for global app
-  if (!snapshotTimezone) return false;
-
-  // Get current time in snapshot's timezone
-  const now = new Date();
-  const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: snapshotTimezone }));
-  const currentMinutes = nowInTimezone.getHours() * 60 + nowInTimezone.getMinutes();
-
-  // 2026-04-14: Parse event start time — supports both 24h "HH:MM" and 12h "H:MM AM/PM"
-  const trimmed = eventStartTime.trim().toUpperCase();
-  const match = trimmed.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/);
-  if (!match) return false;
-
-  let hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2] || '0', 10);
-  const period = match[3] || '';
-
-  // Convert 12-hour to 24-hour
-  if (period === 'PM' && hours !== 12) hours += 12;
-  if (period === 'AM' && hours === 12) hours = 0;
-
-  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23) return false;
-  const eventMinutes = hours * 60 + minutes;
-
-  // Check: starts within next 2 hours OR started within last 4 hours
-  const minutesUntilStart = eventMinutes - currentMinutes;
-  const minutesSinceStart = currentMinutes - eventMinutes;
-
-  return (minutesUntilStart >= 0 && minutesUntilStart <= 120) ||
-         (minutesSinceStart >= 0 && minutesSinceStart <= 240);
+/** Preserve the local calendar span when showing event pickup windows. */
+export function isEventTimeRelevant(event, timezone, now = new Date()) {
+  if (!timezone) return false;
+  const start = getEventStartTime(event, timezone);
+  const end = getEventEndTime(event, timezone);
+  if (!start || !end || end < start) return false;
+  const untilStart = start.getTime() - now.getTime();
+  const sinceEnd = now.getTime() - end.getTime();
+  return (untilStart >= 0 && untilStart <= 2 * 3600000) ||
+    (start <= now && end >= now) ||
+    (untilStart <= 0 && -untilStart <= 4 * 3600000) ||
+    (sinceEnd >= 0 && sinceEnd <= 3600000);
 }
 // 2026-04-28: added lte, gte for the multi-day-inclusive predicate (Step 2b)
-import { eq, and, lte, gte } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { generateTacticalPlan } from '../strategy/tactical-planner.js';
-import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.js';
+import { updatePhase, getEventStartTime, getEventEndTime } from '../strategy/strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
-import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
 import { matchVenuesToEvents, getVenueEventKey } from './event-matcher.js';
 // 2026-04-28: Step 4 — planner-grade gate predicate (spec §5.3)
 import { upsertVenue, isPlannerGradeVenue } from './venue-cache.js';
@@ -85,6 +58,8 @@ import { venuesLog } from '../../logger/workflow.js';
 import { getRoleConfig } from '../ai/model-registry.js';
 // 2026-01-31: Filter briefing data for venue planner to reduce token usage
 import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
+import { needsReadTimeValidation, validateEvent } from '../events/pipeline/validateEvent.js';
+import { readMarketEvents, toBriefingEvent } from '../events/market-event-reader.js';
 
 /**
  * 2026-04-11 (fix): Haversine distance between two lat/lng points, in miles.
@@ -116,6 +91,8 @@ function haversineMiles(lat1, lon1, lat2, lon2) {
 }
 
 /**
+ * 2026-09-29: Fetch current country/metro events through the shared reader and
+ * project verified venue-local instants before distance sorting. Historical design:
  * 2026-04-11: Fetch today's discovered events for the driver's state, joined with
  * venue_catalog so the prompt/matcher can use authoritative venue identity.
  *
@@ -155,74 +132,31 @@ function haversineMiles(lat1, lon1, lat2, lon2) {
  *   - matchVenuesToEvents — so the post-VENUE_SCORER matcher can use place_id as
  *     the primary identity key instead of fragile address string matching
  *
- * Uses a LEFT join so orphan events (null venue_id from is_active filter or
- * ON DELETE SET NULL) still surface; vc_* fields are null in that case. When
- * driver coords are provided, orphan events fall out of the result because
- * haversineMiles returns Infinity for them — we can't include an event we can't
- * locate on the map.
+ * The shared reader now requires a joined venue country/timezone; orphan rows
+ * cannot become verified event geography. Missing schedule zones report degradation.
  *
- * @param {string} state - Driver's state (2-letter code, e.g., "TX")
+ * @param {Object} snapshot - Driver country/city/state/timezone and coordinates
  * @param {string} eventDate - Today in the driver's timezone, YYYY-MM-DD format
- * @param {number|null} [driverLat] - Driver latitude for distance annotation + sort
- * @param {number|null} [driverLng] - Driver longitude for distance annotation + sort
  * @param {number} [maxDistanceMiles=60] - Metro context radius; events farther are dropped
  *   as out-of-metro noise (Austin/Houston for a DFW driver). NOT a VENUE_SCORER rule.
  * @returns {Promise<Array>} Events with discovered_events fields, vc_* venue_catalog fields,
  *   and (when driver coords provided) a `_distanceMiles` field, sorted closest-first
  */
-export async function fetchTodayDiscoveredEventsWithVenue(
-  state,
-  eventDate,
-  driverLat = null,
-  driverLng = null,
-  maxDistanceMiles = 60
-) {
-  if (!state || !eventDate) return [];
-
+export async function fetchTodayDiscoveredEventsWithVenue(snapshot, eventDate, maxDistanceMiles = 60) {
+  const { state, lat: driverLat, lng: driverLng } = snapshot || {};
   try {
-    const rows = await db.select({
-      // discovered_events fields
-      id: discovered_events.id,
-      title: discovered_events.title,
-      venue_name: discovered_events.venue_name,
-      address: discovered_events.address,
-      city: discovered_events.city,
-      state: discovered_events.state,
-      venue_id: discovered_events.venue_id,
-      event_start_date: discovered_events.event_start_date,
-      event_start_time: discovered_events.event_start_time,
-      event_end_date: discovered_events.event_end_date,
-      event_end_time: discovered_events.event_end_time,
-      category: discovered_events.category,
-      expected_attendance: discovered_events.expected_attendance,
-      is_active: discovered_events.is_active,
-      // venue_catalog joined fields (vc_ prefix, null for orphan events)
-      vc_venue_name: venue_catalog.venue_name,
-      vc_place_id: venue_catalog.place_id,
-      vc_formatted_address: venue_catalog.formatted_address,
-      vc_address: venue_catalog.address,
-      vc_city: venue_catalog.city,
-      vc_state: venue_catalog.state,
-      vc_lat: venue_catalog.lat,
-      vc_lng: venue_catalog.lng,
-      // 2026-04-16 (H-3): Venue capacity for ranking ceiling guardrail
-      vc_capacity: venue_catalog.capacity_estimate,
-      // 2026-04-28 (Step 4): timezone needed for isPlannerGradeVenue gate (spec §5.3)
-      vc_timezone: venue_catalog.timezone,
-    })
-      .from(discovered_events)
-      .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
-      // 2026-04-28: FIX — multi-day-inclusive predicate. Was exact-equality
-      // (`eq(start_date, eventDate)`), which silently excluded multi-day events that
-      // started before today (e.g. day 2 of a 4-day festival). Now: any event whose
-      // [start, end] window contains eventDate. Active-only filter still gates
-      // already-ended events because deactivatePastEvents() runs first.
-      .where(and(
-        eq(discovered_events.state, state),
-        lte(discovered_events.event_start_date, eventDate),
-        gte(discovered_events.event_end_date, eventDate),
-        eq(discovered_events.is_active, true)
-      ));
+    if (!eventDate || !snapshot?.timezone) throw new Error('Event context requires snapshot timezone/date');
+    // The same canonical scope and absolute calendar window used by Briefing.
+    // Read the market before distance sorting; no early arbitrary row limit.
+    const result = await readMarketEvents(snapshot, { today: eventDate, limit: Infinity });
+    if (result.unresolvedCount) throw new Error(`${result.unresolvedCount} saved event schedules have unresolved venue timezones`);
+    const rows = result.rows.map(({ event, venue }) => ({
+      ...toBriefingEvent({ event, venue }),
+      vc_venue_name: venue.venue_name, vc_place_id: venue.place_id,
+      vc_formatted_address: venue.formatted_address, vc_address: venue.address,
+      vc_city: venue.city, vc_state: venue.state, vc_country: venue.country,
+      vc_lat: venue.lat, vc_lng: venue.lng, vc_capacity: venue.capacity_estimate, vc_timezone: venue.timezone,
+    }));
 
     // 2026-04-11 (REVERT): Distance-annotate + sort when driver coords are provided.
     // The filter is now the "metro context radius" (default 60mi) — NOT a
@@ -272,7 +206,13 @@ export async function fetchTodayDiscoveredEventsWithVenue(
       `re-resolve-needed has place_id (recoverable via Places (NEW) API), orphan lacks place_id`
     );
 
-    const plannerReady = classified.filter(r => r._bucket === 'planner-ready');
+    const plannerReady = classified.filter(row => {
+      if (row._bucket !== 'planner-ready') return false;
+      if (!needsReadTimeValidation(row.schema_version)) return true;
+      const validation = validateEvent(row, { timezone: row.vc_timezone });
+      // The reader already checked absolute overlap with the viewer's day.
+      return validation.valid || ['starts_in_future', 'ended_before_today'].includes(validation.reason);
+    });
 
     if (driverLat != null && driverLng != null) {
       const annotated = plannerReady.map(row => ({
@@ -320,7 +260,7 @@ export async function fetchTodayDiscoveredEventsWithVenue(
  * @param {Object} snapshot - Snapshot context (city, state for upsertVenue)
  * @returns {Promise<Map<string, string>>} Map of stable venue identity (getVenueEventKey) -> venue_id (UUID)
  */
-async function promoteToVenueCatalog(enrichedVenues, snapshot) {
+async function promoteToVenueCatalog(enrichedVenues) {
   // 2026-04-02: FIX - Also require a valid address to avoid NOT NULL constraint violations.
   // Address can be null when geocode/Places (NEW) API fails to resolve during enrichment.
   const promotable = enrichedVenues.filter(v =>
@@ -340,14 +280,18 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
       upsertVenue(
         {
           venueName: v.name,
-          city: snapshot.city,
-          state: snapshot.state,
+          city: v.city,
+          state: v.state,
+          country: v.country,
+          timezone: v.timezone,
           lat: v.lat,
           lng: v.lng,
           placeId: v.placeId,
           address: v.address,
           formattedAddress: v.address,
-          hours: v.businessHours,
+          hours: v.hoursFullWeek,
+          hoursFullWeek: v.hoursFullWeek,
+          hoursSource: v.hoursFullWeek ? 'google_places' : null,
           category: v.category || 'venue',
           source: 'smart_blocks_promotion',
         },
@@ -397,6 +341,8 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
 // Future: thread driver preferences (max deadhead, home base, vehicle class) into venue scoring.
 // The strategist layer was enriched with driver prefs (2026-04-11) but the venue layer was not.
 export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrategy, briefing, snapshot, user_id, phaseEmitter }) {
+  const admission = await assertMainRunForSnapshot(snapshotId);
+  if (admission.status === 'complete') throw new MainRunAdmissionError(409, 'main_run_restart_required', 'Continue with saved preferences before generating new venues.');
   const startTime = Date.now();
   const correlationId = randomUUID();
   const rankingId = randomUUID();
@@ -424,7 +370,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // Phase: 'venues' - AI venue recommendation
     await updatePhase(snapshotId, 'venues', { phaseEmitter });
 
-    // 2026-04-11: Fetch today's discovered events for the driver's state, joined with
+    // Fetch today's events from the canonical country/metro reader, joined with
     // venue_catalog. This is the authoritative event source for the Smart Blocks pipeline.
     // Pre-fetched here (not inside filter or matcher) because both downstream consumers
     // need the same list, and running the query once avoids a redundant DB round-trip.
@@ -448,8 +394,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // 2026-04-14: Issue P — fetchTodayDiscoveredEventsWithVenue returns Array on success,
     // or { events: [], eventFetchFailed: true } on error. Normalize here.
     const eventResult = todayDate
-      ? await fetchTodayDiscoveredEventsWithVenue(snapshot.state, todayDate, snapshot.lat, snapshot.lng)
-      : [];
+      ? await fetchTodayDiscoveredEventsWithVenue(snapshot, todayDate)
+      : { events: [], eventFetchFailed: true, error: 'Snapshot timezone is missing' };
     const eventFetchFailed = !Array.isArray(eventResult) && eventResult?.eventFetchFailed;
     const todayEvents = Array.isArray(eventResult) ? eventResult : (eventResult?.events || []);
     venuesLog.phase(1, eventFetchFailed
@@ -457,7 +403,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       : `Fetched ${todayEvents.length} reachable events for ${snapshot.state} on ${todayDate || 'NO_TZ'}`);
 
     // 2026-01-31: Filter briefing data for venue planner
-    // 2026-04-11: Now passes pre-fetched state-scoped events as 3rd arg — the filter
+    // 2026-04-11: Now passes pre-fetched country/metro events as 3rd arg — the filter
     // uses these directly instead of the legacy city-scoped briefing.events path.
     const filteredBriefing = filterBriefingForPlanner(briefing, snapshot, todayEvents);
 
@@ -480,9 +426,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // the metric is operational telemetry, not on the user's critical path.
     if (venuesPlan.cache_metrics) {
       try {
-        await db.update(strategies)
+        await withCurrentMainRun(snapshotId, tx => tx.update(strategies)
           .set({ venue_cache_metrics: mergeVenueCacheMetrics(venuesPlan.cache_metrics) })
-          .where(eq(strategies.snapshot_id, snapshotId));
+          .where(eq(strategies.snapshot_id, snapshotId)));
       } catch (err) {
         venuesLog.warn(1, `Failed to persist venue_cache_metrics for snapshot ${snapshotId}: ${err.message}`);
       }
@@ -507,6 +453,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       driverLocation,
       snapshot
     );
+    if (!enrichedVenues.length) throw new Error('No verified venues with usable routes are available');
     const enrichmentMs = Date.now() - enrichmentStart;
 
     venuesLog.done(2, `Routes API: ${enrichedVenues.map(v => `${v.name.slice(0,20)}=${v.distanceMiles}mi`).join(', ')}`, enrichmentMs);
@@ -521,32 +468,21 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     const eventMatches = matchVenuesToEvents(enrichedVenues, todayEvents);
     venuesLog.phase(3, `Event matching: ${eventMatches.size} venues matched to events`);
 
-    // Step 2.5: Verify venue events using Gemini 2.5 Pro
-    // Phase: 'verifying' - Gemini event verification
-    await updatePhase(snapshotId, 'verifying', { phaseEmitter });
+    // Events already passed the canonical stored-data validator. Match their
+    // identity and actual local span once; a second model cannot verify evidence
+    // merely by restating it. This set is stored in candidate.venue_events.
+    const relevantEvents = new Map();
+    for (const venue of enrichedVenues) {
+      const key = getVenueEventKey(venue);
+      const events = (eventMatches.get(key) || []).filter(event => isEventTimeRelevant(event, event.timezone || snapshot.timezone));
+      relevantEvents.set(key, events);
+    }
 
-    venuesLog.phase(3, `Places (NEW) API: Fetching hours + verifying events for ${enrichedVenues.length} venues`);
-    const verificationStart = Date.now();
-    const eventVerificationMap = await verifyVenueEventsBatch(
-      enrichedVenues.map(v => ({
-        ...v,
-        city: snapshot.city,
-        distance_miles: parseFloat(v.distanceMiles)
-      }))
-    );
-    const verificationMs = Date.now() - verificationStart;
-
-    const verifiedEvents = extractVerifiedEvents(enrichedVenues, eventVerificationMap);
-    venuesLog.done(3, `${verifiedEvents.length} verified events extracted`, verificationMs);
-    
-    // Store verified events for strategy injection
-    const verifiedEventsJson = JSON.stringify(verifiedEvents);
-    
     // Step 3: Create ranking record
     // 2026-04-14: Issue O — Use VENUE_SCORER role config for accurate model telemetry.
     // Previously used STRATEGY_CONSOLIDATOR env var which is the wrong role entirely.
     const venueRoleConfig = getRoleConfig('VENUE_SCORER');
-    await db.insert(rankings).values({
+    const ranking = {
       ranking_id: rankingId,
       snapshot_id: snapshotId,
       correlation_id: correlationId,
@@ -559,20 +495,19 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       total_ms: 0,
       timed_out: false,
       // 2026-04-14: Issue P — Record if event context was degraded
-      path_taken: eventFetchFailed ? 'enhanced-smart-blocks:degraded-events' : 'enhanced-smart-blocks',
-      extras: verifiedEventsJson // Store verified events for strategy injection
-    });
+      path_taken: eventFetchFailed ? 'enhanced-smart-blocks:degraded-events' : 'enhanced-smart-blocks'
+    };
     
     // Step 3.5: Promote verified venues to venue_catalog
     // 2026-03-28: Bridges SmartBlocks to canonical venue identity
-    const venueIdMap = await promoteToVenueCatalog(enrichedVenues, snapshot);
+    const venueIdMap = await promoteToVenueCatalog(enrichedVenues);
     venuesLog.phase(4, `Promoted ${venueIdMap.size}/${enrichedVenues.length} venues to catalog, storing ${enrichedVenues.length} candidates`);
 
     // Step 4: Insert ranking candidates with enriched Google data
     const candidates = enrichedVenues.map((enriched, index) => {
       // Calculate value metrics
-      const distanceMiles = parseFloat(enriched.distanceMiles) || 0;
-      const driveMinutes = enriched.driveTimeMinutes || 0;
+      const distanceMiles = Number(enriched.distanceMiles);
+      const driveMinutes = enriched.driveTimeMinutes;
       // HEURISTIC: Static $1.50/mile estimate. No surge, offer, or airport multiplier data.
       // value_grade is a distance-based approximation, not economic truth. See VENUES.md §11.
       const estimatedEarnings = distanceMiles * 1.50;
@@ -581,9 +516,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       // Get matched events for this venue
       // 2026-01-14: Filter to only time-relevant events (within 2h future or 4h past start)
       const allMatchedEvents = eventMatches.get(getVenueEventKey(enriched)) || [];
-      const matchedEvents = allMatchedEvents.filter(evt =>
-        isEventTimeRelevant(evt.event_start_time, snapshot.timezone)
-      );
+      const matchedEvents = relevantEvents.get(getVenueEventKey(enriched)) || [];
       const hasEvent = matchedEvents.length > 0;
 
       // 2026-04-27 (Commit 7): demoted per-venue line from info to debug. Set
@@ -651,18 +584,25 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       };
     });
     
-    await db.insert(ranking_candidates).values(candidates);
-
     const totalMs = Date.now() - startTime;
+    // One final transaction publishes the ranking and all candidates together.
+    // A settings save/new Continue wins before this transaction or after it;
+    // an obsolete worker cannot publish into the replacement run.
+    const persistedRankingId = await withCurrentMainRun(snapshotId, async (tx, admission) => {
+      const finalSource = await assertCurrentStrategySource(snapshotId, tx);
+      if (finalSource.briefing.generation_token !== currentSource.briefing.generation_token ||
+          finalSource.strategy.strategy_for_now !== immediateStrategy) throw new StrategySourceChangedError();
+      const [existing] = await tx.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+      if (existing) return existing.ranking_id;
+      await tx.insert(rankings).values({ ...ranking, user_id: admission.user_id, total_ms: totalMs });
+      await tx.insert(ranking_candidates).values(candidates);
+      return rankingId;
+    });
+    if (persistedRankingId !== rankingId) return { ok: true, rankingId: persistedRankingId, deduplicated: true };
     venuesLog.done(4, `Stored ${candidates.length} candidates`, totalMs);
     venuesLog.complete(`${candidates.length} venues`, totalMs);
 
-    // Update ranking with total time
-    await db.update(rankings).set({
-      total_ms: totalMs
-    }).where(eq(rankings.ranking_id, rankingId));
-
-    return { ok: true, rankingId, venues: candidates.length };
+    return { ok: true, rankingId: persistedRankingId, venues: candidates.length };
 
   } catch (err) {
     venuesLog.error(0, `Failed for ${snapshotId}`, err);

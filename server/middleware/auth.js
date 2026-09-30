@@ -4,12 +4,11 @@ import crypto from 'crypto';
 import { authLog, matrixLog } from '../logger/workflow.js';
 import { db } from '../db/drizzle.js';
 import { users } from '../../shared/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { verifyJWT } from '../lib/jwt.js';
+import { sessionExpiryReason, sessionIsLive } from '../lib/auth/session-policy.js';
 
 // 2026-01-05: Session TTL Constants (per SAVE-IMPORTANT.md)
-const SESSION_SLIDING_WINDOW_MS = 60 * 60 * 1000;   // 60 min sliding window
-const SESSION_HARD_LIMIT_MS = 2 * 60 * 60 * 1000;   // 2 hour absolute max
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2026-01-09: SERVICE ACCOUNT PATTERN - Agent Authentication
@@ -144,6 +143,28 @@ function isPhantom(userId, tetherSig) {
   return false;
 }
 
+// Revalidate an already-authenticated long-lived request without extending its
+// session. SSE heartbeats are transport activity, not driver activity.
+export async function isRequestAuthCurrent(req) {
+  try {
+    const captured = req?.auth;
+    if (!captured?.userId || !req.headers) return false;
+    if (captured.isAgent) {
+      const agent = validateAgentAuth(req);
+      return !!agent && agent.userId === captured.userId && agent.tokenSource === captured.tokenSource;
+    }
+    if (!captured.sessionId) return false;
+    const header = req.headers.authorization;
+    const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : '';
+    const payload = await verifyAppToken(token);
+    if (payload.userId !== captured.userId || (payload.sessionId && payload.sessionId !== captured.sessionId)) return false;
+    const [session] = await db.select().from(users).where(eq(users.user_id, captured.userId)).limit(1);
+    return session?.session_id === captured.sessionId && sessionIsLive(session);
+  } catch {
+    return false;
+  }
+}
+
 // Required auth - must have valid token AND active session
 // 2026-01-09: Also supports Service Account auth via x-vecto-agent-secret header
 export async function requireAuth(req, res, next) {
@@ -175,7 +196,6 @@ export async function requireAuth(req, res, next) {
 
     // 2026-01-05: Lazy session cleanup (per SAVE-IMPORTANT.md)
     // Check session validity on every authenticated request
-    const now = Date.now();
     const userId = payload.userId;
 
     try {
@@ -206,44 +226,35 @@ export async function requireAuth(req, res, next) {
         return res.status(401).json({ error: 'session_expired', message: 'Session superseded by a newer login. Please log in again.' });
       }
 
-      const lastActiveAt = session.last_active_at ? new Date(session.last_active_at).getTime() : 0;
-      const sessionStartAt = session.session_start_at ? new Date(session.session_start_at).getTime() : 0;
-
-      // Check 1: Hard limit (2 hours from session start - force re-login)
-      if (now - sessionStartAt > SESSION_HARD_LIMIT_MS) {
-        authLog.warn(1, `Session exceeded 2-hour limit for user ${userId.substring(0, 8)} - clearing session`);
-        // 2026-01-06: CRITICAL FIX - Use UPDATE to clear session instead of DELETE!
-        // DELETE was blocked by RESTRICT foreign keys on driver_profiles, auth_credentials, etc.
-        // This caused users to NOT be signed out even though session expired.
-        await db.update(users)
-          .set({
-            session_id: null,
-            current_snapshot_id: null,
-            updated_at: new Date()
-          })
-          .where(and(eq(users.user_id, userId), eq(users.session_id, session.session_id)));
-        return res.status(401).json({ error: 'session_expired', message: 'Session expired (2-hour limit). Please log in again.' });
+      const expiry = sessionExpiryReason(session);
+      if (expiry === 'invalid') {
+        return res.status(401).json({ error: 'session_expired', message: 'Session state is invalid. Please log in again.' });
+      }
+      if (expiry) {
+        authLog.warn(1, `Session ${expiry} for user ${userId.substring(0, 8)} - clearing captured session`);
+        const cleared = await db.update(users).set({ session_id: null, current_snapshot_id: null,
+          current_main_run_id: null, updated_at: new Date() }).where(and(
+          eq(users.user_id, userId), eq(users.session_id, session.session_id),
+          sql`${users.session_start_at} IS NOT DISTINCT FROM ${session.session_start_at}`,
+          sql`${users.last_active_at} IS NOT DISTINCT FROM ${session.last_active_at}`,
+        )).returning({ user_id: users.user_id });
+        if (!cleared.length) {
+          const [refreshed] = await db.select().from(users).where(eq(users.user_id, userId)).limit(1);
+          // An older activity write can commit after this request's expired read.
+          // Keep that live session; the normal path will check token binding again.
+          if (refreshed?.session_id === session.session_id && sessionIsLive(refreshed)) {
+            return requireAuth(req, res, next);
+          }
+        }
+        return res.status(401).json({ error: 'session_expired', message: 'Session expired. Please log in again.' });
       }
 
-      // Check 2: Sliding window (60 min from last activity)
-      if (now - lastActiveAt > SESSION_SLIDING_WINDOW_MS) {
-        authLog.warn(1, `Session timed out for user ${userId.substring(0, 8)} (inactive ${Math.round((now - lastActiveAt) / 60000)} min) - clearing session`);
-        // 2026-01-06: CRITICAL FIX - Use UPDATE to clear session instead of DELETE!
-        await db.update(users)
-          .set({
-            session_id: null,
-            current_snapshot_id: null,
-            updated_at: new Date()
-          })
-          .where(and(eq(users.user_id, userId), eq(users.session_id, session.session_id)));
-        return res.status(401).json({ error: 'session_expired', message: 'Session expired due to inactivity. Please log in again.' });
-      }
-
-      // Scope delayed activity and expiry writes to the session read above so
-      // they cannot alter a newer login for this user.
-      // Session valid - update last_active_at to extend sliding window (non-blocking)
+      // A delayed request must neither affect a new login nor move the activity
+      // clock backwards behind a newer request in the same session.
+      const activityAt = new Date();
       db.update(users)
-        .set({ last_active_at: new Date(), updated_at: new Date() })
+        .set({ last_active_at: sql`GREATEST(${users.last_active_at}, ${activityAt})`,
+          updated_at: sql`GREATEST(${users.updated_at}, ${activityAt})` })
         .where(and(eq(users.user_id, userId), eq(users.session_id, session.session_id)))
         .catch(err => console.warn('[AUTH] Failed to update last_active_at:', err.message));
 

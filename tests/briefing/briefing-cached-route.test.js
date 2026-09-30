@@ -2,12 +2,14 @@ import { jest, beforeEach, test, expect } from '@jest/globals';
 import { getTableName } from 'drizzle-orm';
 import { completeSnapshot } from '../fixtures/complete-snapshot.js';
 import { completeBriefing } from '../fixtures/complete-briefing.js';
+import { mainRunBoundary } from '../fixtures/main-run-boundary.js';
 
 const snapshotId = '11111111-1111-4111-8111-111111111111';
 let snapshot;
 const strategy = { status: 'ok', strategy_for_now: 'Previous guidance', updated_at: new Date() };
 let briefing, hasRanking, claimRace, briefingReads;
 const statusWrites = [];
+const admissionWrites = [];
 const log = new Proxy({}, { get: () => jest.fn() });
 jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ sseLog: log, venuesLog: log, dbLog: log, briefingLog: log, matrixLog: log }));
 const mustNotGenerate = jest.fn(async () => { throw new Error('Unexpected provider work'); });
@@ -29,11 +31,16 @@ const db = {
   insert: () => claimRace
     ? { values: () => ({ onConflictDoNothing: () => ({ returning: async () => [] }) }) }
     : mustNotGenerate(),
-  update: () => ({ set: value => ({ where: async () => { statusWrites.push(value.status); strategy.status = value.status; } }) }),
+  update: table => ({ set: value => ({ where: async () => {
+    if (getTableName(table) === 'strategies') { statusWrites.push(value.status); strategy.status = value.status; }
+    if (getTableName(table) === 'main_run_admissions') { admissionWrites.push(value.status); admission.state.status = value.status; if (value.status === 'failed') admission.state.allowed = false; }
+  } }) }),
   execute: async () => ({ rows: [{ acquired: true }] }),
   transaction: async fn => fn(db),
 };
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
+const admission = mainRunBoundary(db);
+jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => admission.exports);
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({ requireAuth: (_req, _res, next) => next() }));
 jest.unstable_mockModule('../../server/middleware/rate-limit.js', () => ({ expensiveEndpointLimiter: (_req, _res, next) => next() }));
 jest.unstable_mockModule('../../server/lib/strategy/strategy-utils.js', () => ({
@@ -52,7 +59,7 @@ jest.unstable_mockModule('../../server/lib/venue/venue-feedback.js', () => ({
   readSavedVenueFeedback: mustNotGenerate,
   VenueFeedbackError: class extends Error {},
 }));
-const { default: router } = await import('../../server/api/strategy/blocks-fast.js');
+const { default: router, ensureSmartBlocksExist, mapCandidatesToBlocks } = await import('../../server/api/strategy/blocks-fast.js');
 const invoke = async method => {
   const handler = router.stack.find(layer => layer.route?.path === '/' && layer.route.methods[method]).route.stack.at(-1).handle;
   let body, code = 200;
@@ -61,11 +68,20 @@ const invoke = async method => {
   return { body, code };
 };
 beforeEach(() => {
+  admission.state.allowed = true;
+  admission.state.status = 'running'; admissionWrites.length = 0;
   snapshot = completeSnapshot({ snapshot_id: snapshotId, user_id: 'owner', formatted_address: '123 Test Street' });
   briefing = { snapshot_id: snapshotId, status: 'pending', generation_token: 'active-owner', updated_at: new Date() }; hasRanking = true;
   claimRace = false; briefingReads = 0; statusWrites.length = 0; strategy.status = 'ok';
   strategy.venue_cache_metrics = null;
   mustNotGenerate.mockClear();
+});
+test.each(['get', 'post'])('%s without the current Continue admission cannot generate or reuse a fresh result', async method => {
+  admission.state.allowed = false;
+  const { body, code } = await invoke(method);
+  expect(code).toBe(409); expect(body.error).toBe('main_run_superseded');
+  expect(body.strategyFresh).toBe(false); expect(mustNotGenerate).not.toHaveBeenCalled();
+  expect(statusWrites).toEqual([]);
 });
 test.each([
   ['missing weather', { weather: null }], ['incorrect coordinate key', { coord_key: '1.000000_1.000000' }],
@@ -137,5 +153,69 @@ test.each(['get', 'post'])('%s replacement after the venue claim prevents provid
   const { body, code } = await invoke(method);
   expect(code).toBe(500); expect(body.error).toBe('briefing_failed');
   expect(statusWrites).toEqual(['pending_blocks', 'ok']); expect(strategy.status).toBe('ok');
+  expect(admissionWrites).toEqual(['failed']);
+  expect(mustNotGenerate).not.toHaveBeenCalled();
+});
+
+function readySource() {
+  hasRanking = false;
+  briefing = completeBriefing(snapshotId, { generation_token: 'active-owner' });
+  strategy.venue_cache_metrics = { strategy_source: { snapshot_id: snapshotId, briefing_generation_token: briefing.generation_token,
+    briefing_generated_at: briefing.generated_at.toISOString(), strategy_generated_at: briefing.generated_at.toISOString() } };
+}
+
+test('a failed venue attempt is terminal for that admission and cannot restart from a later GET', async () => {
+  readySource();
+  const result = await ensureSmartBlocksExist(snapshotId, { snapshot, briefingRow: briefing });
+  expect(result.error).toBe('Unexpected provider work');
+  expect(admissionWrites).toEqual(['failed']);
+  expect(strategy.strategy_for_now).toBe('Previous guidance');
+  await expect(ensureSmartBlocksExist(snapshotId)).rejects.toMatchObject({ code: 'main_run_superseded' });
+  expect(mustNotGenerate).toHaveBeenCalledTimes(1);
+});
+
+test('a completed admission with a missing ranking cannot claim providers or change phase', async () => {
+  readySource(); admission.state.status = 'complete';
+  await expect(ensureSmartBlocksExist(snapshotId)).rejects.toMatchObject({ code: 'main_run_restart_required' });
+  expect(statusWrites).toEqual([]); expect(admissionWrites).toEqual([]);
+  expect(mustNotGenerate).not.toHaveBeenCalled();
+});
+
+test('a late post-completion error preserves the successful admission and Strategy', async () => {
+  readySource();
+  mustNotGenerate.mockImplementationOnce(async () => {
+    admission.state.status = 'complete';
+    throw new Error('Notification failed after persisted completion');
+  });
+  const result = await ensureSmartBlocksExist(snapshotId, { snapshot, briefingRow: briefing });
+  expect(result.error).toBe('Notification failed after persisted completion');
+  expect(admissionWrites).toEqual([]); expect(admission.state.status).toBe('complete');
+  expect(strategy.strategy_for_now).toBe('Previous guidance');
+});
+
+test('direct cached ranking reuse rejects a changed Briefing source before returning ready', async () => {
+  readySource(); hasRanking = true;
+  briefing = { ...briefing, generation_token: 'replacement-generation' };
+  await expect(ensureSmartBlocksExist(snapshotId)).rejects.toMatchObject({ code: 'strategy_source_changed' });
+  expect(mustNotGenerate).not.toHaveBeenCalled();
+});
+
+test('a completed generator without a persisted ranking ends the admission instead of leaving pending_blocks', async () => {
+  readySource(); mustNotGenerate.mockResolvedValueOnce({ ok: true });
+  const result = await ensureSmartBlocksExist(snapshotId, { snapshot, briefingRow: briefing });
+  expect(result.error).toMatch(/ranking/i);
+  expect(admissionWrites).toEqual(['failed']);
+  expect(strategy.status).toBe('ok');
+  await expect(ensureSmartBlocksExist(snapshotId)).rejects.toMatchObject({ code: 'main_run_superseded' });
+  expect(mustNotGenerate).toHaveBeenCalledTimes(1);
+});
+
+test('saved candidate mapper reads its canonical address without provider work or a catalog write', async () => {
+  const result = await mapCandidatesToBlocks([
+    { name: 'Saved venue', features: { address: '123 Saved Street' }, distance_miles: 0, drive_minutes: 0 },
+    { name: 'Legacy venue' },
+  ]);
+  expect(result[0].address).toBe('123 Saved Street');
+  expect(result[1].address).toBeNull();
   expect(mustNotGenerate).not.toHaveBeenCalled();
 });

@@ -40,8 +40,17 @@ const VOICE_MODEL = getRoleConfig('COACH_VOICE_REALTIME').model;
  * Response: { ok, token, expires_at, model, context }
  */
 router.post('/token', requireAuth, async (req, res) => {
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+  const onClose = () => { if (!res.writableEnded) controller.abort(); };
+  res.on('close', onClose);
+  res.setHeader('Cache-Control', 'no-store');
   try {
-    const { snapshotId, userId, strategyId } = req.body;
+    const { snapshotId, userId, strategyId } = req.body || {};
+
+    if ([snapshotId, userId, strategyId].some(value => value != null && (typeof value !== 'string' || !value.trim()))) {
+      return res.status(400).json({ ok: false, error: 'Invalid voice context identifiers' });
+    }
 
     if (!snapshotId && !userId) {
       return res.status(400).json({ error: 'snapshotId or userId required' });
@@ -67,17 +76,18 @@ router.post('/token', requireAuth, async (req, res) => {
     // Fetch snapshot context for the session prompt (after ownership clears).
     let context = {
       snapshot_id: snapshotId,
-      user_id: userId,
+      user_id: req.auth.userId,
       city: 'your location',
       dayPart: 'current time',
     };
 
     if (snapshotId) {
       try {
-        const fullContext = await rideshareCoachDAL.getCompleteContext(snapshotId);
+        const fullContext = await rideshareCoachDAL.getCompleteContext(snapshotId, null, req.auth.userId);
         if (fullContext?.snapshot) {
           context = {
             snapshot_id: snapshotId,
+            user_id: req.auth.userId,
             city: fullContext.snapshot.city || 'your location',
             state: fullContext.snapshot.state,
             weather: fullContext.snapshot.weather,
@@ -106,8 +116,10 @@ router.post('/token', requireAuth, async (req, res) => {
 
     // Mint the ephemeral client_secret via the GA endpoint.
     // (Voice choice can be parameterized later; 'alloy' is a safe default.)
+    signal.throwIfAborted();
     const tokenResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
+      signal,
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
@@ -141,10 +153,14 @@ router.post('/token', requireAuth, async (req, res) => {
     }
 
     const response = await tokenResponse.json();
+    signal.throwIfAborted();
     // GA shape returns the ephemeral token at `value` (top-level). The prior
     // beta sessions endpoint nested it under `client_secret.value`; fall
     // back to that shape defensively in case the endpoint is rolled back.
     const token = response.value ?? response.client_secret?.value;
+    if (typeof token !== 'string' || !token.trim()) {
+      return res.status(502).json({ ok: false, error: 'Voice provider returned no session credential' });
+    }
     console.log('[COACH] [REALTIME] client_secret minted', {
       id: response.id,
       has_token: !!token,
@@ -159,11 +175,15 @@ router.post('/token', requireAuth, async (req, res) => {
       context,
     });
   } catch (err) {
+    if (res.destroyed) return;
+    if (signal.aborted) return res.status(controller.signal.aborted ? 499 : 504).json({ ok: false, error: 'Voice connection canceled or timed out' });
     console.error('[COACH] [REALTIME] token generation failed:', err.message);
     res.status(500).json({
       ok: false,
       error: err.message || 'Token generation failed',
     });
+  } finally {
+    res.off('close', onClose);
   }
 });
 

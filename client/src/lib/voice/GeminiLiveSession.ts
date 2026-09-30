@@ -60,6 +60,7 @@ export class GeminiLiveSession implements VoiceSession {
   // evolving alongside the preview models (see registry deprecation notes).
   private session: Awaited<ReturnType<GoogleGenAI['live']['connect']>> | null = null;
   private stopped = false;
+  private controller = new AbortController();
 
   // 2026-08-14 (unified voice thread): the session owns turn accumulation.
   // Transcription events arrive as fragments; the old (text, final) surface
@@ -162,6 +163,7 @@ export class GeminiLiveSession implements VoiceSession {
         ...(authToken && { Authorization: `Bearer ${authToken}` }),
       },
       body: JSON.stringify({ userId: this.opts.userId, snapshotId: this.opts.snapshotId }),
+      signal: this.controller.signal,
     });
     const mint = (await res.json()) as MintResponse;
     if (!res.ok || !mint.ok || !mint.token) {
@@ -521,6 +523,7 @@ export class GeminiLiveSession implements VoiceSession {
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
+    this.controller.abort();
     // 2026-08-14 (session continuity): End is final (Melody doctrine) — a
     // pending reconnect must never resurrect a session the driver ended.
     // Clearing the handle also disarms any in-flight connectLive (its stopped

@@ -44,3 +44,15 @@ describe('extractPrice', () => {
     expect(extractPrice('$7')).toBe(7); // fallback when nothing has cents
   });
 });
+
+describe('service identity preserves complete product labels', () => {
+  test.each([
+    ['UberXXL Exclusive', 'UberXXL Exclusive'],
+    ['Uber Black SUV', 'Black SUV'],
+    ['Lyft Black SUV', 'Lyft Black SUV'],
+    ['Lyft Lux Black XL', 'Lyft Black SUV'],
+    ['Uber\nComfort', 'Comfort'],
+  ])('%s remains %s rather than its shorter base label', (label, expected) => {
+    expect(parseOfferText(`${label}\n$20.00\n5 min (2.0 mi) away\n10 min (4.0 mi) trip`).product_type).toBe(expected);
+  });
+});

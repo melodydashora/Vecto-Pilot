@@ -38,6 +38,7 @@ import { validSnapshotDate } from '../../util/validate-snapshot.js';
 import { STRATEGY_STATUS, isStrategyComplete } from "../../lib/strategy/status-constants.js";
 import { strategyMatchesBriefing, STRATEGY_SOURCE_RETRY, getStrategySource } from '../../lib/strategy/strategy-source.js';
 import { readStrategySource } from '../../lib/strategy/strategy-source-store.js';
+import { applyVenueFeedbackExclusions, VenueFeedbackError } from '../../lib/venue/venue-feedback.js';
 
 export const router = Router();
 const storedTimestamp = value => validSnapshotDate(value) ? new Date(value).toISOString() : null;
@@ -213,6 +214,7 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
 
     // Fetch venue blocks/recommendations
     let blocks = [];
+    let feedbackState;
     const [ranking] = await db
       .select()
       .from(rankings)
@@ -232,6 +234,12 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
         ...toApiBlock(c),
         rankingId: ranking.ranking_id,
       }));
+      // The same saved ranking is read again after remount or while retaining
+      // prior guidance. Confirmed driver dismissals must survive those reads.
+      feedbackState = await applyVenueFeedbackExclusions(db, {
+        userId: req.auth.userId, snapshotId, rankingId: ranking.ranking_id, blocks,
+      });
+      blocks = feedbackState.blocks;
     } else {
       // Rankings not yet created - strategy is ready but blocks are still generating
       const currentPhase = strategy.phase || 'venues';
@@ -290,10 +298,17 @@ router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async
         holiday: briefingHoliday,
         briefing: briefingData,
       },
+      ...feedbackState,
       blocks,
       rankingId: ranking.ranking_id,
     });
   } catch (error) {
+    if (error instanceof VenueFeedbackError) {
+      return res.status(error.status).json({
+        status: 'error', snapshotId, error: error.code, message: error.message,
+        strategyFresh: false, blocks: [], timeElapsedMs: 0,
+      });
+    }
     console.error(`[VENUE] Error:`, error);
     res.status(500).json({
       status: "error",
