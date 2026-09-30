@@ -610,7 +610,6 @@ function SettingsEditor() {
               <TabsTrigger value="location" className="whitespace-normal">Location</TabsTrigger>
               <TabsTrigger value="vehicle" className="whitespace-normal">Vehicle</TabsTrigger>
               <TabsTrigger value="services" className="whitespace-normal">Services</TabsTrigger>
-              <TabsTrigger value="connections" className="whitespace-normal">Connections</TabsTrigger>
             </TabsList>
           <TabsContent value="profile" forceMount hidden={section !== 'profile'} className="space-y-4">
           {/* Personal Info Section */}
@@ -1116,9 +1115,6 @@ function SettingsEditor() {
               </div>
 
           </CardContent></Card>
-          </TabsContent>
-          <TabsContent value="connections" className="space-y-4">
-            <UberSettingsSection />
           </TabsContent>
           <TabsContent value="services" forceMount hidden={section !== 'services'}>
           <Card className="mb-4 bg-white border-gray-200 shadow-sm">

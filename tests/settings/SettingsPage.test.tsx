@@ -16,7 +16,6 @@ jest.mock('@/contexts/run-setup-context', () => ({ useRunSetup: () => ({
 }) }));
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ toast: mockToast }) }));
 jest.mock('@/utils/co-pilot-helpers', () => ({ getAuthHeader: () => ({}) }));
-jest.mock('@/components/settings/UberSettingsSection', () => ({ UberSettingsSection: () => <div>Existing connection controls</div> }));
 import SettingsPage from '../../client/src/pages/co-pilot/SettingsPage';
 
 function account(id = 'alice') {

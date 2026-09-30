@@ -11,7 +11,7 @@ export function sameSettingsValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-export type SettingsSection = 'profile' | 'location' | 'vehicle' | 'services' | 'connections';
+export type SettingsSection = 'profile' | 'location' | 'vehicle' | 'services';
 export type ServiceSection = 'ridehail' | 'premium' | 'private';
 
 export function settingsSectionForField(field: string): SettingsSection {

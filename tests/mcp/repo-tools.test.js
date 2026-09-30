@@ -89,7 +89,9 @@ describe('repo tools over MCP', () => {
     expect(res.structuredContent.total_matches).toBe(res.structuredContent.rows.length);
     // every surviving env-shaped hit must be a tracked *.example placeholder, never a real env file
     for (const f of files) expect(!/(^|\/)\.env(\.|$)/.test(f) || /\.example$/.test(f)).toBe(true);
-  });
+  // 2026-09-15: the same two calls take ~0.1 s when driven directly (see server/mcp/repo-tools.js
+  // DENIED_DIRS note) but 7-12 s under the ESM jest harness; the default 10 s timeout was flaky.
+  }, 30_000);
 
   it('greps with fixed args and returns file:line rows', async () => {
     const res = await client.callTool({ name: 'repo_search', arguments: { pattern: 'export function createVectoMcpServer', path: 'server/mcp', glob: '*.js' } });

@@ -20,7 +20,6 @@ jest.mock('@/contexts/run-setup-context', () => ({ useRunSetup: () => {
     getEditorDraft: () => null, setEditorDraft: () => {}, draftResetVersion: 0, loading: false, beginSave: () => () => {}, finishSave: mockFinishSave };
 } }));
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ toast: mockToast }) }));
-jest.mock('@/components/settings/UberSettingsSection', () => ({ UberSettingsSection: () => <div>Connection fixture</div> }));
 jest.mock('@/constants/featureFlags', () => ({ COACH_STREAMING_TTS_ENABLED: true,
   DEBUG_MAP_ENABLED: false, DEBUG_VENUES_ENABLED: false, DEBUG_SSE_ENABLED: false, DEBUG_BLOCKS_ENABLED: false }));
 import { AuthProvider, useAuth } from '@/contexts/auth-context';

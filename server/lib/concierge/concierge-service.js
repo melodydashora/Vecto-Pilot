@@ -378,6 +378,7 @@ async function queryNearbyEvents({ lat, lng, filter }) {
     // discovered_events.venue_id. The previous `discovered_events.lat` reference was
     // undefined in Drizzle, rendered as ` BETWEEN $1 AND $2`, and made this query
     // fail (and return []) on every call — DB_SCHEMA_EVALUATION_2026-09-13 §2.1.
+    // Independently found 2026-09-10 as Astra product finding #4 (same root cause).
     let conditions = [
       eq(discovered_events.is_active, true),
       sql`${discovered_events.event_start_date} <= (${venueToday})`,
@@ -412,7 +413,7 @@ async function queryNearbyEvents({ lat, lng, filter }) {
       expected_attendance: discovered_events.expected_attendance,
     })
       .from(discovered_events)
-      .innerJoin(venue_catalog, eq(venue_catalog.venue_id, discovered_events.venue_id))
+      .innerJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
       .where(and(...conditions))
       .limit(200);
 

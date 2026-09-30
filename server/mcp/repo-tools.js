@@ -24,7 +24,10 @@ const EXEC_TIMEOUT_MS = 20_000;
 const EXEC_MAX_BUFFER = 8 * 1024 * 1024;
 
 // Directories that are never listed, read, or searched.
-export const DENIED_DIRS = ['node_modules', '.git', '.cache', '.local', '.worktrees', 'logs', 'data', 'dist', 'coverage', '.npm'];
+// 2026-09-15: '.config' added — it holds the persisted Claude/Codex config homes (OAuth
+// tokens, MCP tokens, full session transcripts) and AI-session coordination bundles
+// (3.3 GB). Never readable through MCP, and walking it pushed repo_search past 10 s.
+export const DENIED_DIRS = ['node_modules', '.git', '.cache', '.config', '.local', '.worktrees', 'logs', 'data', 'dist', 'coverage', '.npm'];
 // File name patterns that are never read (secrets), regardless of gitignore.
 const DENIED_FILE_PATTERNS = [
   /(^|\/)\.env(\.|$)/,                 // .env, .env.local, .env.production … (but NOT .env.local.example? — it matches; handled below)
