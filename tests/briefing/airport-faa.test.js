@@ -16,7 +16,6 @@ jest.unstable_mockModule('../../server/lib/briefing/briefing-notify.js', () => (
   writeSectionAndNotify: writeSection, CHANNELS: { AIRPORT: 'test_airport' },
   errorMarker: error => ({ error: true, reason: error.message })
 }));
-jest.unstable_mockModule('../../server/lib/briefing/shared/safe-json-parse.js', () => ({ safeJsonParse: JSON.parse }));
 const { discoverAirport } = await import('../../server/lib/briefing/pipelines/airport.js');
 
 const args = { snapshotId: 'synthetic-snapshot', snapshot: { lat: 0, lng: 0, timezone: 'UTC' } };
@@ -31,6 +30,28 @@ beforeEach(() => {
 });
 
 describe('FAA failure is a Briefing failure before airport model dispatch', () => {
+  test('reconstructs citation-wrapped airport JSON through the real parser without altering content', async () => {
+    const recommendations = 'Wait at { curb; read [policy](https://example.test/policy).';
+    callModel.mockResolvedValue({ ok: true, output: '[1]\n' + JSON.stringify({
+      airports: [{ code: 'AAA', status: 'normal', delays: 'Keep literal \\n in this note' }],
+      recommendations
+    }) + '\n[2]' });
+    const result = await discoverAirport(args);
+    expect(result.airport_conditions.isFallback).not.toBe(true);
+    expect(result.airport_conditions.recommendations).toBe(recommendations);
+    expect(result.airport_conditions.airports[0].delays).toBe('Keep literal \\n in this note');
+    expect(writeSection).toHaveBeenCalledWith('synthetic-snapshot', {
+      airport_conditions: result.airport_conditions
+    }, 'test_airport');
+  });
+
+  test('keeps malformed airport siblings failed instead of publishing partial research', async () => {
+    callModel.mockResolvedValue({ ok: true, output: '{"airports":[{"code":"AAA"},{"code":}]}' });
+    const result = await discoverAirport(args);
+    expect(result.airport_conditions.isFallback).toBe(true);
+    expect(result.reason).toMatch(/unparseable or truncated/);
+  });
+
   test('persists a reason and throws without calling the model when FAA fails', async () => {
     fetchFAA.mockRejectedValue(new Error('FAA status returned HTTP 503'));
     await expect(discoverAirport(args)).rejects.toThrow('HTTP 503');

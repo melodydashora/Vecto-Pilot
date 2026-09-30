@@ -1,248 +1,149 @@
-// 2026-05-02: Workstream 6 Step 1 — extracted from briefing-service.js (commit 2/11).
-// Multi-attempt JSON parser hardened against the various ways LLMs (Gemini, Claude,
-// GPT) corrupt their JSON output: literal \n sequences, markdown code fences,
-// citation links, single-quote delimiters, unquoted property names, trailing
-// commas, embedded comments, malformed brackets from grounding citations, etc.
-//
-// Pure function — zero external dependencies (only stdlib + console).
-// Imported by every pipeline module that parses an LLM response.
+// Shared reconstruction for model-backed Briefing sections. Pure: no provider/DB calls.
+// 2026-09-30: Preserve the original text before attempting repairs. The previous
+// global escape/fence replacements corrupted valid strings, and object-by-object
+// salvage silently discarded malformed array items. Original evidence is retained
+// in the September 30 parser review; tests exercise the real parser and airport path.
+
+/** Repair formatting without changing characters inside valid JSON strings. */
+function repairFormatting(source) {
+  // Retain single-quoted model output without touching apostrophes in JSON strings.
+  let input = source;
+  if (!input.includes('"') && input.includes("'")) {
+    input = input.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g,
+      (_match, value) => '"' + value.replace(/\\'/g, "'").replace(/"/g, '\\"') + '"');
+  }
+
+  let result = '';
+  let inString = false;
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (inString) {
+      if (char === '\\') {
+        // Preserve existing escapes, including escaped backslashes and quotes.
+        result += char;
+        if (i + 1 < input.length) result += input[++i];
+      } else if (char === '"') {
+        inString = false;
+        result += char;
+      } else if (char.charCodeAt(0) < 32) {
+        // Escape a literal control character without losing its value.
+        result += JSON.stringify(char).slice(1, -1);
+      } else {
+        result += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      result += char;
+    } else if (char === '\\' && /[nrt]/.test(input[i + 1] || '')) {
+      // Literal escape sequences BETWEEN tokens represent structural whitespace.
+      result += ' ';
+      i++;
+    } else if (char === '/' && input[i + 1] === '/') {
+      // Comments outside strings only; URLs and // inside values are preserved.
+      while (i + 1 < input.length && input[i + 1] !== '\n') i++;
+    } else if (char === ',' && /^\s*[}\]]/.test(input.slice(i + 1))) {
+      // A structural trailing comma is recoverable; ", }" in a value is data.
+      continue;
+    } else if (/[A-Za-z_$]/.test(char) && /[{,]\s*$/.test(result)) {
+      const property = input.slice(i).match(/^([A-Za-z_$][\w$]*)(\s*:)/);
+      if (property) {
+        result += JSON.stringify(property[1]) + property[2];
+        i += property[0].length - 1;
+      } else {
+        result += char;
+      }
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
+/** Find one complete JSON root, respecting nested arrays, strings and escapes. */
+function extractRoot(source) {
+  for (let start = 0; start < source.length; start++) {
+    const open = source[start];
+    if (open !== '{' && open !== '[') continue;
+    const tail = source.slice(start + 1).replace(/^(?:\s|\\[nrt]|\/\/[^\n]*(?:\n|$))*/, '');
+    // Skip prose annotations such as [Source] / [aside]. Never skip a malformed
+    // JSON-shaped envelope to recover only its valid nested children.
+    if (open === '[') {
+      const citation = source.slice(start).match(/^\[\d+(?:\s*,\s*\d+)*\]\s*(?=[{\[])/);
+      if (citation) { start += citation[0].length - 1; continue; }
+      if (!/^(?:[\[\]{"'\d-]|true\b|false\b|null\b)/.test(tail)) {
+        const annotation = source.slice(start).match(/^\[[A-Za-z][\w .:-]*\](?:\([^)]*\))?/);
+        if (annotation) { start += annotation[0].length - 1; continue; }
+        return source.slice(start);
+      }
+    }
+
+    const stack = [open];
+    let quote = null;
+    for (let end = start + 1; end < source.length; end++) {
+      const char = source[end];
+      if (quote) {
+        if (char === '\\') end++;
+        else if (char === quote) quote = null;
+        continue;
+      }
+      if (char === '/' && source[end + 1] === '/') {
+        while (end + 1 < source.length && source[end + 1] !== '\n') end++;
+      } else if (char === '"' || char === "'") {
+        quote = char;
+      } else if (char === '{' || char === '[') {
+        stack.push(char);
+      } else if (char === '}' || char === ']') {
+        const expected = char === '}' ? '{' : '[';
+        if (stack.pop() !== expected) return source.slice(start);
+        if (stack.length === 0) return source.slice(start, end + 1);
+      }
+    }
+    // Preserve the incomplete envelope so parsing fails; do not salvage children.
+    return source.slice(start);
+  }
+  return null;
+}
 
 /**
- * Safely parse JSON from LLM responses.
- * Handles unescaped newlines, markdown blocks, citations, and other formatting issues.
- *
- * Attempts (in order):
- *   1. Direct JSON.parse after markdown-fence removal
- *   2. JSON.parse after applying common fixes (single-quote → double, unquoted keys, etc.)
- *   3. Strip markdown prose, extract first balanced [...] or {...}, parse
- *   4. Same as 3 but apply common fixes first
- *   5. Last resort: brace-matching extraction of individual top-level objects
- *
- * @param {string} jsonString - raw LLM output
- * @returns {object|array} parsed JSON value
- * @throws {Error} if all 5 attempts fail
+ * Reconstruct a complete JSON value from model text, fences and surrounding prose.
+ * Valid values are parsed untouched. Repairs affect structural formatting only;
+ * missing fields, truncated arrays and malformed siblings are never discarded.
+ * @param {string} jsonString
+ * @returns {object|array}
+ * @throws {Error} when the complete response value cannot be reconstructed
  */
 export function safeJsonParse(jsonString) {
-  if (!jsonString || typeof jsonString !== 'string') {
+  if (typeof jsonString !== 'string' || !jsonString.trim()) {
     throw new Error('JSON parse failed: input is empty or not a string');
   }
 
-  // 2026-04-05: PRE-PROCESSING — Replace literal \n sequences with real newlines BEFORE
-  // any parse attempt. AI models sometimes return JSON with literal backslash-n between
-  // tokens. Real newlines are valid JSON whitespace between tokens, and JSON.parse handles
-  // \n escape sequences inside strings natively — so this global replacement is safe.
-  // Also handle \\n (doubled backslash from stringify) and literal \r\n.
-  jsonString = jsonString
-    .replace(/\\r\\n/g, '\n')   // literal \r\n → real newline
-    .replace(/\\r/g, '')         // literal \r → remove
-    .replace(/\\n/g, '\n');      // literal \n → real newline
+  const original = jsonString.trim();
+  try { return JSON.parse(original); } catch { /* reconstruct the envelope */ }
 
-  function cleanMarkdown(str) {
-    let cleaned = str.trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
-    }
-    cleaned = cleaned.replace(/```json/g, '').replace(/```/g, '').trim();
-    return cleaned;
-  }
+  // Remove only an enclosing fence, never markdown syntax inside string values.
+  const fence = original.match(/^```(?:json)?\s*\n?([\s\S]*?)\s*```$/i);
+  const unwrapped = fence ? fence[1].trim() : original;
+  try { return JSON.parse(unwrapped); } catch { /* structural repair */ }
 
-  // 2026-02-26: FIX - Strip markdown prose/citations that google_search grounding injects.
-  // Safety net for when the adapter-level suppression doesn't fully eliminate citations.
-  function stripMarkdownProse(str) {
-    let cleaned = str;
+  const repaired = repairFormatting(unwrapped);
+  try { return JSON.parse(repaired); } catch { /* prose may surround the root */ }
 
-    // Remove inline markdown links: [text](url) → text
-    cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
-
-    // 2026-04-09: FIX (D-095) - Strip malformed markdown link artifacts that Gemini injects
-    // into JSON string values. The valid markdown regex above only catches well-formed
-    // [text](url). Malformed variants like ([collintimes.com) leave stray brackets/parens.
-    cleaned = cleaned.replace(/\(\[([^\]]*?)\)(?!\s*[{[\],:}])/g, '$1');
-    cleaned = cleaned.replace(/(?<=:\s*"[^"]*)\[([^\]]*)\](?!\s*[,\]}:({])/g, '$1');
-    cleaned = cleaned.replace(/(?<=\w)\((?:https?:\/\/)?[a-zA-Z0-9.-]+\.[a-z]{2,}[^)]*\)/g, '');
-
-    // Remove standalone markdown lines (headers, horizontal rules) that precede JSON
-    const lines = cleaned.split('\n');
-    const jsonLines = [];
-    let foundJson = false;
-    for (const line of lines) {
-      if (!foundJson && /^#{1,6}\s|^\*{3,}$|^-{3,}$/.test(line.trim())) continue;
-      if (!foundJson && line.trim() && !/[{[\]}",:]/.test(line)) continue;
-      if (/[{[\]}]/.test(line)) foundJson = true;
-      jsonLines.push(line);
-    }
-
-    return jsonLines.join('\n').trim();
-  }
-
-  // 2026-02-17: FIX - Three bugs that CORRUPTED valid JSON instead of fixing it:
-  //   Bug 1: Single-quote regex treated English apostrophes as delimiters
-  //   Bug 2: Unquoted-property regex matched word:colon inside string values
-  //   Bug 3: Newline regex only fixed the LAST \n per string (greedy backtrack)
-  function fixCommonJsonIssues(str) {
-    let fixed = str;
-
-    // 2026-02-17: Only convert single quotes to double quotes when the string is
-    // Python-style output (no double quotes at all).
-    const hasSingleQuoteDelimiters = !fixed.includes('"') && fixed.includes("'");
-    if (hasSingleQuoteDelimiters) {
-      fixed = fixed.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
-    }
-
-    // 2026-02-17: Only fix unquoted property names when the string doesn't already
-    // have double-quoted properties.
-    const hasDoubleQuotedProperties = /"[^"]+"\s*:/.test(fixed);
-    if (!hasDoubleQuotedProperties) {
-      fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
-    }
-
-    // Remove trailing commas before } or ]
-    fixed = fixed.replace(/,\s*([}\]])/g, '$1');
-
-    // 2026-02-19: FIX - Strip carriage returns instead of escaping them.
-    fixed = fixed.replace(/\r/g, '');
-
-    // 2026-02-19: Strip JavaScript-style // line comments after JSON values.
-    // Only strip when // follows a JSON value terminator to avoid matching URLs.
-    fixed = fixed.replace(/([\]}"'\d])\s*\/\/[^\n]*$/gm, '$1');
-
-    // 2026-05-12 (D-109 FIX): Replace buggy regex `"([^"]*)\n([^"]*)"` with a state-machine
-    // walker. The old regex was supposed to escape newlines inside string values, but [^"]*
-    // could greedily match across separate sibling properties — so given valid JSON like
-    // `"code": "LAS",\n      "name": ...`, the regex would match the closing-of-LAS through
-    // opening-of-name as if it were one string and replace the structural \n with a literal
-    // \n character, corrupting the JSON. The walker below tracks `inString` state correctly
-    // (toggled only on unescaped `"`) and escapes \n only when truly inside a quoted string.
-    // Surfaced 2026-05-12 by airport pipeline TSA addition; affected all 5 briefing pipelines
-    // that consume safeJsonParse (news, events, traffic, schools, airport). See DOC_DISCREPANCIES.md D-109.
-    {
-      let result = '';
-      let inString = false;
-      let escapeNext = false;
-      for (let i = 0; i < fixed.length; i++) {
-        const c = fixed[i];
-        if (escapeNext) {
-          // The previous char was an unescaped backslash — pass this char through verbatim
-          // without toggling string state. Handles cases like \" (escaped quote inside string).
-          result += c;
-          escapeNext = false;
-          continue;
-        }
-        if (c === '\\') {
-          result += c;
-          escapeNext = true;
-          continue;
-        }
-        if (c === '"') {
-          inString = !inString;
-          result += c;
-          continue;
-        }
-        if (c === '\n' && inString) {
-          // Real newline inside a quoted string value → escape it for valid JSON.
-          result += '\\n';
-          continue;
-        }
-        // Newline OUTSIDE a string (structural whitespace) → leave as-is. JSON.parse
-        // handles real newlines as whitespace natively, so no transformation needed.
-        result += c;
-      }
-      fixed = result;
-    }
-
-    // 2026-02-19: FIX - Replace tabs with spaces instead of escaping to literal \t.
-    fixed = fixed.replace(/\t/g, ' ');
-
-    return fixed;
-  }
-
-  const cleaned = cleanMarkdown(jsonString);
-
-  // Attempt 1: Direct parse
-  try {
-    return JSON.parse(cleaned);
-  } catch (_e1) {
-    // Continue to next attempt
-  }
-
-  // Attempt 2: Parse with common fixes applied
-  try {
-    const fixed = fixCommonJsonIssues(cleaned);
-    return JSON.parse(fixed);
-  } catch (_e2) {
-    // Continue to next attempt
-  }
-
-  // Attempt 3: Strip markdown prose, then extract JSON array or object
-  // 2026-02-26: FIX - Apply stripMarkdownProse before regex to prevent markdown citations
-  // (e.g., [Source](url)) from being captured as the start of a JSON array.
-  const strippedInput = stripMarkdownProse(jsonString);
-  const jsonMatch = strippedInput.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-  if (jsonMatch) {
-    // 2026-02-18: FIX - Hoist variable to outer scope so catch handler can access it
-    let fixedExtracted = null;
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch (_e3) {
-      // Try with fixes
-      try {
-        fixedExtracted = fixCommonJsonIssues(jsonMatch[0]);
-        return JSON.parse(fixedExtracted);
-      } catch (e4) {
-        // 2026-02-17: Enhanced logging — show BOTH raw extraction and post-fix to diagnose
-        console.error('[BRIEFING] All 4 parse attempts failed:', e4.message);
-        // 2026-05-12 (D-110): Focused failure-window log. The 500-char prefix log misses
-        // errors deep in the response (e.g., position 1286+). Parse the position out of
-        // the JSON.parse error message and print a 200-char window centered on it.
-        // JSON.stringify reveals escape sequences for any non-printable characters that
-        // might be the actual culprit (literal \n, citation markers, smart quotes, etc.).
-        const posMatch = e4.message?.match(/at position (\d+)/);
-        if (posMatch && fixedExtracted) {
-          const pos = parseInt(posMatch[1], 10);
-          const start = Math.max(0, pos - 100);
-          const end = Math.min(fixedExtracted.length, pos + 100);
-          console.error(
-            `[BRIEFING] Failure window [${start}..${end}] (pos=${pos}, ±100 chars):`,
-            JSON.stringify(fixedExtracted.substring(start, end))
-          );
-        }
-        console.error('[BRIEFING] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
-        console.error('[BRIEFING] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
-      }
+  // Extract BEFORE any content cleanup. Citation links and brackets in strings
+  // are data; citations outside the root do not belong to the returned value.
+  const root = extractRoot(unwrapped);
+  if (root) {
+    try { return JSON.parse(root); } catch { /* formatting inside the root */ }
+    try { return JSON.parse(repairFormatting(root)); } catch { /* fail complete */ }
+  } else {
+    // Escaped structural newlines may have hidden the initial JSON token shape.
+    const repairedRoot = extractRoot(repaired);
+    if (repairedRoot) {
+      try { return JSON.parse(repairedRoot); } catch { /* fail complete */ }
     }
   }
 
-  // Attempt 5: Extract individual JSON objects via balanced brace matching
-  // 2026-02-26: Last resort when greedy regex fails due to markdown corruption.
-  const objects = [];
-  let braceDepth = 0;
-  let objStart = -1;
-  const src = strippedInput || jsonString;
-  for (let i = 0; i < src.length; i++) {
-    if (src[i] === '{') {
-      if (braceDepth === 0) objStart = i;
-      braceDepth++;
-    } else if (src[i] === '}') {
-      braceDepth--;
-      if (braceDepth === 0 && objStart !== -1) {
-        try {
-          const obj = JSON.parse(src.slice(objStart, i + 1));
-          objects.push(obj);
-        } catch {
-          // Skip malformed object, try next
-        }
-        objStart = -1;
-      }
-    }
-  }
-  if (objects.length > 0) {
-    console.log(`[BRIEFING] Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
-    return objects.length === 1 ? objects[0] : objects;
-  }
-
-  // 2026-02-17: Log the raw input that caused total parse failure
-  console.error('[BRIEFING] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
-  throw new Error(`JSON parse failed after 5 attempts - raw AI response is malformed JSON`);
+  throw new Error('JSON parse failed: response is malformed or incomplete');
 }
