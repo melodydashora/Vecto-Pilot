@@ -10,7 +10,7 @@ jest.mock('@/lib/daypart', () => ({ getLocalIso: (date: Date, timeZone: string) 
   return `${value('year')}-${value('month')}-${value('day')}T${value('hour')}:${value('minute')}:${value('second')}`;
 } }));
 import React, { useLayoutEffect, useRef } from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import OffersDecisionChart from '@/components/offer-analyzer/OffersDecisionChart';
 
@@ -73,6 +73,49 @@ afterEach(async () => {
   cleanup();
   await act(async () => { requests.forEach(request => { deliverHeaders(request); request.body.resolve(summary(999.99)); }); });
   globalThis.fetch = originalFetch;
+});
+
+test('a same-period background refresh keeps the mounted chart and confirmed counts until replacement arrives', async () => {
+  const view = render(<OffersDecisionChart refreshToken="first" />);
+  await complete(requests[0], 111.11);
+  const chart = screen.getByTestId('fixture-chart-drawing');
+  view.rerender(<OffersDecisionChart refreshToken="next-offer" />);
+  expect(requests).toHaveLength(2);
+  expect(screen.getByText('$111.11')).toBeInTheDocument();
+  expect(screen.getByTestId('fixture-chart-drawing')).toBe(chart);
+  expect(screen.getByRole('status')).toHaveTextContent('Updating period counts');
+  await complete(requests[1], 222.22);
+  expect(screen.getByText('$222.22')).toBeInTheDocument();
+  expect(screen.getByTestId('fixture-chart-drawing')).toBe(chart);
+  expect(screen.queryByText(/Updating period counts/)).not.toBeInTheDocument();
+});
+
+test('a failed background read preserves labeled last counts and retry does not collapse the chart', async () => {
+  const view = render(<OffersDecisionChart refreshToken="first" />);
+  await complete(requests[0], 111.11);
+  const chart = screen.getByTestId('fixture-chart-drawing');
+  view.rerender(<OffersDecisionChart refreshToken="next-offer" />);
+  await act(async () => { requests[1].headers.resolve({ ok: false, status: 503 } as Response); });
+  expect(screen.getByRole('alert')).toHaveTextContent('Showing the last loaded counts');
+  expect(screen.getByText('$111.11')).toBeInTheDocument();
+  expect(screen.getByTestId('fixture-chart-drawing')).toBe(chart);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry counts' }));
+  expect(screen.getByTestId('fixture-chart-drawing')).toBe(chart);
+  await complete(requests[2], 333.33);
+  expect(screen.getByText('$333.33')).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+test('changing period hides cached counts immediately even while a same-period refresh is pending', async () => {
+  const view = render(<OffersDecisionChart refreshToken="first" />);
+  await complete(requests[0], 111.11);
+  view.rerender(<OffersDecisionChart refreshToken="next-offer" />);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Decision period' }), { target: { value: '30d' } });
+  expect(screen.queryByText('$111.11')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('fixture-chart-drawing')).not.toBeInTheDocument();
+  await complete(requests[1], 999.99);
+  expect(screen.queryByText('$999.99')).not.toBeInTheDocument();
+  expect(requests[1].init.signal?.aborted).toBe(true);
 });
 
 test('same-owner token replacement hides confirmed prior-session counts in the commit before effect cleanup', async () => {

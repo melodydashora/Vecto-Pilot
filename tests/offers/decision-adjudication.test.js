@@ -25,6 +25,9 @@ const transaction = jest.fn(async work => work({
   insert: () => ({ values: row => ({ returning: async () => { stored.push(row); return [{ id: 'fixture-offer' }]; } }) }),
 }));
 const forbidden = jest.fn(async () => { throw new Error('Unexpected external transport'); });
+const geocode = jest.fn(forbidden);
+const places = jest.fn(forbidden);
+const timezone = jest.fn(forbidden);
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: { execute, transaction } }));
 jest.unstable_mockModule('../../server/lib/offers/ruleset-store.js', () => ({
   resolveRuleset: async () => ({ ruleset, userId: 'fixture-driver', version: 2, hash: String(requestId),
@@ -34,9 +37,9 @@ jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callM
 jest.unstable_mockModule('../../server/lib/offers/downscale-offer-image.js', () => ({
   downscaleOfferImage: async (buffer, mimeType) => ({ buffer, mimeType, downscaled: false }),
 }));
-jest.unstable_mockModule('../../server/lib/events/pipeline/geocodeEvent.js', () => ({ geocodeEventAddress: forbidden }));
-jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ searchPlaceWithTextSearch: forbidden }));
-jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromCoords: forbidden }));
+jest.unstable_mockModule('../../server/lib/events/pipeline/geocodeEvent.js', () => ({ geocodeEventAddress: geocode }));
+jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ resolvePlaceByTextSearch: places }));
+jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromCoords: timezone }));
 jest.unstable_mockModule('../../server/middleware/rate-limit.js', () => ({ offerHookLimiter: (_req, _res, next) => next() }));
 const { default: router } = await import('../../server/api/hooks/analyze-offer.js');
 const app = express().use(express.json()).use('/hooks', router);
@@ -60,12 +63,81 @@ beforeEach(() => {
   notifications.length = 0;
   reply = success();
   jest.clearAllMocks();
+  execute.mockImplementation(async () => ({ rows: storeExpected ? [{ timezone: 'UTC', created_at: new Date() }] : [] }));
+  for (const transport of [geocode, places, timezone]) transport.mockReset().mockImplementation(forbidden);
   model.mockImplementation(async role => role === 'OFFER_ANALYZER' ? reply : { success: false, error: 'Synthetic deep failure' });
   jest.spyOn(console, 'log').mockImplementation(() => {});
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(async () => { await finishBackground(); jest.restoreAllMocks(); });
+
+function returnDeepPickup(pickup) {
+  model.mockImplementation(async role => role === 'OFFER_ANALYZER' ? reply : {
+    success: true, model: 'fixture-deep-model', text: JSON.stringify({
+      decision: 'ACCEPT', parsed_data: { ...modelOffer(), pickup },
+    }),
+  });
+}
+
+test.each([[null, null], ['', ''], ['91', '0'], ['0', '-181']])(
+  'missing or invalid snapshot coordinates (%j, %j) cannot anchor an address search at an invented point',
+  async (lat, lng) => {
+    execute.mockResolvedValue({ rows: [{ timezone: 'UTC', lat, lng, created_at: new Date() }] });
+    returnDeepPickup(`Fixture Depot ${requestId}`);
+    geocode.mockResolvedValue(null);
+    places.mockResolvedValue({ outcome: 'absent', place: null, reason: 'Fixture miss' });
+    expect((await analyze({ image: 'ZmFrZQ==' })).body.decision).toBe('ACCEPT');
+    await finishBackground();
+    expect(geocode).toHaveBeenCalledTimes(1);
+    expect(geocode.mock.calls[0][3]).not.toHaveProperty('bias');
+    expect(places).not.toHaveBeenCalled();
+    expect(stored).toHaveLength(1);
+    expect(stored[0].parsed_data_json.timezone_source).toBe('snapshot');
+  },
+);
+
+test('a real zero-valued snapshot coordinate remains a usable anchor', async () => {
+  execute.mockResolvedValue({ rows: [{ timezone: 'UTC', lat: '0', lng: '0', created_at: new Date() }] });
+  const pickup = `Fixture Depot ${requestId}`;
+  returnDeepPickup(pickup);
+  geocode.mockResolvedValue(null);
+  places.mockResolvedValue({ outcome: 'absent', place: null, reason: 'Fixture miss' });
+  await analyze({ image: 'ZmFrZQ==' });
+  await finishBackground();
+  expect(places).toHaveBeenCalledWith(0, 0, pickup, expect.any(Object));
+  expect(stored).toHaveLength(1);
+});
+
+test('Places provider failures remain retryable and successful structured results supply saved coordinates', async () => {
+  execute.mockResolvedValue({ rows: [{ timezone: 'UTC', lat: '33.1', lng: '-96.8', created_at: new Date() }] });
+  const pickup = `Fixture Depot ${requestId}`;
+  returnDeepPickup(pickup);
+  geocode.mockResolvedValue(null);
+  timezone.mockResolvedValue('UTC');
+  places.mockResolvedValueOnce({ outcome: 'provider_failure', place: null, reason: 'Fixture HTTP 503' })
+    .mockResolvedValue({ outcome: 'found', reason: null, place: {
+      lat: 33.1001, lng: -96.8001, placeId: 'fixture-depot', displayName: pickup,
+      formattedAddress: pickup, types: ['point_of_interest'],
+    } });
+  await analyze({ image: 'ZmFrZQ==' });
+  await finishBackground();
+  expect(stored).toHaveLength(1);
+  expect(stored[0].pickup_lat).toBeNull();
+  expect(console.warn).toHaveBeenCalledWith('[HOOKS] Pickup unresolved: Places provider request failed');
+  requestId++;
+  await analyze({ image: 'ZmFrZQ==' });
+  await finishBackground();
+  expect(places).toHaveBeenCalledTimes(2);
+  expect(stored).toHaveLength(2);
+  expect(stored[1]).toMatchObject({ pickup_lat: 33.1001, pickup_lng: -96.8001 });
+  requestId++;
+  await analyze({ image: 'ZmFrZQ==' });
+  await finishBackground();
+  expect(places).toHaveBeenCalledTimes(2);
+  expect(stored).toHaveLength(3);
+  expect(stored[2]).toMatchObject({ pickup_lat: 33.1001, pickup_lng: -96.8001 });
+});
 
 test.each([
   ['UberX', 'uber'], ['Lyft', 'lyft'],

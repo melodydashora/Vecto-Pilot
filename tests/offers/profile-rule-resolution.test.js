@@ -11,7 +11,7 @@ jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: { execute } 
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: external }));
 jest.unstable_mockModule('../../server/lib/offers/downscale-offer-image.js', () => ({ downscaleOfferImage: external }));
 jest.unstable_mockModule('../../server/lib/events/pipeline/geocodeEvent.js', () => ({ geocodeEventAddress: external }));
-jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ searchPlaceWithTextSearch: external }));
+jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ resolvePlaceByTextSearch: external }));
 jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromCoords: external }));
 jest.unstable_mockModule('../../server/middleware/rate-limit.js', () => ({ offerHookLimiter: (_req, _res, next) => next() }));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({ requireAuth: (req, _res, next) => { req.auth = { userId: 'driver' }; next(); } }));

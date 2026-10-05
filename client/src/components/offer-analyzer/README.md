@@ -31,6 +31,10 @@ is a record-list section within the feature.
   Counts and errors are bound to the current authenticated session. Replacing a
   token for the same driver hides the old result before effect cleanup; delayed
   responses cannot restore it.
+  Background updates retain the current session/period's mounted chart and label
+  refresh failures as last loaded counts. Date/period/session changes and rejected
+  authorization clear prior counts. The page keeps its offer-update callback
+  stable so each SSE reconnect handshake cannot cause another reconnect.
 
 The current source includes outcome revision/Other handling, canonical saved/conflict
 responses, reversible removal and complete-period stats. Deployment/migration state is

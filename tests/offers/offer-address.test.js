@@ -208,6 +208,8 @@ describe('resolveCardPoints — resolver with injected I/O (anchor plausibility 
   const dist = (a, b, c, d) => Math.hypot(a - c, (b - d) * 0.84) * 69;
   const quiet = { log: () => {}, warn: () => {} };
   const noPlaces = async () => { throw new Error('should not be called'); };
+  const found = (place) => ({ outcome: 'found', place, reason: null });
+  const absent = { outcome: 'absent', place: null, reason: 'Places provider returned no result' };
   const at = (lat, lng, extra = {}) => ({ ...geo('x', 'Plano', false), lat, lng, ...extra });
   const run = (args) => resolveCardPoints({ searchPlaces: noPlaces, distanceMi: dist, logger: quiet, dropoff: { address: null, geo: null }, ...args });
 
@@ -224,10 +226,10 @@ describe('resolveCardPoints — resolver with injected I/O (anchor plausibility 
     const boston = { ...at(42.3695, -71.0202, { formatted_address: 'Terminal E. Arrivals, Boston, MA' }), address_components: comps('Boston', ['Massachusetts', 'MA']) };
     let places = 0;
     const r = await resolveCardPoints({ anchor: frisco, pickup: { address: 'Terminal E, Arrivals', geo: boston }, dropoff: { address: null, geo: null },
-      searchPlaces: async () => { places++; return null; }, distanceMi: dist, logger: quiet });
+      searchPlaces: async () => { places++; return absent; }, distanceMi: dist, logger: quiet });
     expect(r.pickup).toBeNull(); expect(places).toBe(1); // fell through to Places (which found nothing)
     const fl = { ...at(29.65, -82.32, { formatted_address: 'Main St, Gainesville, FL' }), address_components: comps('Gainesville', ['Florida', 'FL']) };
-    const r2 = await run({ anchor: frisco, pickup: { address: 'Main St, Gainesville', geo: fl }, searchPlaces: async () => null });
+    const r2 = await run({ anchor: frisco, pickup: { address: 'Main St, Gainesville', geo: fl }, searchPlaces: async () => absent });
     expect(r2.pickup).toBeNull();
     // an 11-h anchor still admits a Denver road-trip pickup (~660 mi)
     const denver = { ...at(39.74, -104.99, { formatted_address: 'Denver, CO' }), address_components: comps('Denver', ['Colorado', 'CO']) };
@@ -236,17 +238,62 @@ describe('resolveCardPoints — resolver with injected I/O (anchor plausibility 
   });
 
   test('anchored: Places fallback — DFW Terminal B accepted (18 mi, POI, shares "terminal"); business-for-a-corner refused; far refused', async () => {
-    const dfw = async () => ({ placeId: 'dfwB', displayName: 'DFW Airport Terminal B', formattedAddress: 'Grapevine, TX 76051, USA', lat: 32.90624, lng: -97.041279, types: ['transit_station', 'tram_stop'] });
+    const dfw = async () => found({ placeId: 'dfwB', displayName: 'DFW Airport Terminal B', formattedAddress: 'Grapevine, TX 76051, USA', lat: 32.90624, lng: -97.041279, types: ['transit_station', 'tram_stop'] });
     const r = await run({ anchor: frisco, pickup: { address: 'Terminal B, Departures: Zone 14', geo: null }, searchPlaces: dfw });
     expect(r.pickup).toMatchObject({ via: 'places', trust: 'places_near', corroboration: 'anchor', place_id: 'dfwB', precise: true });
     const west = { ...at(41.2758, -72.9393, { formatted_address: 'Main St & 1st Ave, West Haven, CT' }), partial_match: true, address_components: comps('West Haven', ['Connecticut', 'CT']) };
-    const omp = async () => ({ placeId: 'omp', displayName: 'One Main Place', formattedAddress: '1201 Main St, Dallas, TX', lat: 33.1289, lng: -96.8758, types: ['establishment', 'point_of_interest'] });
+    const omp = async () => found({ placeId: 'omp', displayName: 'One Main Place', formattedAddress: '1201 Main St, Dallas, TX', lat: 33.1289, lng: -96.8758, types: ['establishment', 'point_of_interest'] });
     expect((await run({ anchor: frisco, pickup: { address: 'Main St & 1st Ave', geo: west }, searchPlaces: omp })).pickup).toBeNull();
-    const far = async () => ({ placeId: 'x', displayName: 'Main St & 1st Ave', formattedAddress: 'West Haven, CT', lat: 41.275778, lng: -72.939335, types: ['intersection'] });
+    const far = async () => found({ placeId: 'x', displayName: 'Main St & 1st Ave', formattedAddress: 'West Haven, CT', lat: 41.275778, lng: -72.939335, types: ['intersection'] });
     expect((await run({ anchor: frisco, pickup: { address: 'Main St & 1st Ave', geo: west }, searchPlaces: far })).pickup).toBeNull();
-    for (const sp of [async () => null, async () => ({ placeId: 'p', lat: null, lng: null }), async () => { throw new Error('quota'); }]) {
+    for (const sp of [async () => absent, async () => found({ placeId: 'p', lat: null, lng: null }), async () => { throw new Error('quota'); }]) {
       expect((await run({ anchor: frisco, pickup: { address: 'Terminal B, Departures: Zone 14', geo: null }, searchPlaces: sp })).pickup).toBeNull();
     }
+  });
+
+  test.each([
+    ['absent', 'Places returned no result'],
+    ['rejected', 'Places candidate failed identity validation'],
+    ['provider_failure', 'Places provider request failed'],
+    ['aborted', 'Places request was cancelled'],
+  ])('a %s Places outcome stays unresolved with its actual cause', async (outcome, message) => {
+    const warnings = [];
+    const privateAddress = 'Private Fixture Rd & Private Example St, Fixture City';
+    const point = { placeId: 'fixture-point', lat: frisco.lat, lng: frisco.lng,
+      displayName: privateAddress, formattedAddress: privateAddress, types: ['intersection'] };
+    const result = await run({ anchor: frisco, pickup: { address: privateAddress, geo: null },
+      // Even a malformed failure carrying a candidate must never become trusted.
+      searchPlaces: async () => ({ outcome, place: point, reason: `Sensitive provider detail: ${privateAddress}` }),
+      logger: { ...quiet, warn: (warning) => warnings.push(warning) } });
+    expect(result.pickup).toBeNull();
+    expect(warnings).toEqual([`[HOOKS] Pickup unresolved: ${message}`]);
+    expect(warnings.join('\n')).not.toContain(privateAddress);
+  });
+
+  test('missing/malformed Places outcomes and thrown failures do not masquerade as an absent result', async () => {
+    const searches = [
+      async () => null,
+      async () => ({ outcome: 'unknown', place: null }),
+      async () => found({ lat: null, lng: null }),
+      async () => { throw new Error('Private Fixture Rd provider failure'); },
+    ];
+    const causes = ['Places returned an invalid outcome', 'Places returned an invalid outcome',
+      'Places candidate has no usable coordinates', 'Places provider request failed'];
+    for (const [index, searchPlaces] of searches.entries()) {
+      const warnings = [];
+      const result = await run({ anchor: frisco, pickup: { address: 'Private Fixture Rd, Fixture City', geo: null },
+        searchPlaces, logger: { ...quiet, warn: (warning) => warnings.push(warning) } });
+      expect(result.pickup).toBeNull();
+      expect(warnings).toEqual([`[HOOKS] Pickup unresolved: ${causes[index]}`]);
+    }
+  });
+
+  test.each([false, true])('a city-contradicting geocode remains unresolved after an absent Places result (partial=%s)', async (partial) => {
+    const result = await run({ anchor: frisco,
+      pickup: { address: 'Fixture Pkwy & Example St, Fixture City',
+        geo: { ...at(frisco.lat, frisco.lng), partial_match: partial, address_components: comps('Different City') } },
+      searchPlaces: async () => absent });
+    expect(result.pickup).toBeNull();
   });
 
   test('NO anchor: pickup + dropoff both city-confirmed and within a ride length corroborate each other; Places never called', async () => {

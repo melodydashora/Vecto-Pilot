@@ -77,6 +77,9 @@ function OfferAnalyzerEditor({ token }: { token: string }) {
   const [meta, setMeta] = useState<RulesMeta | null>(null);
   const [activeTab, setActiveTab] = useState('gates');
   const [chartRefreshToken, setChartRefreshToken] = useState(0);
+  // SSE reconnects deliver a state handshake. Keep this callback stable so
+  // refreshing counts does not reconnect the offer stream and repeat that loop.
+  const refreshChart = useCallback(() => setChartRefreshToken(value => value + 1), []);
   const [selectedDate, setSelectedDate] = useState(() => todayForDriver(timeZone));
   const [dateWasChosen, setDateWasChosen] = useState(false);
   const [rulesConflict, setRulesConflict] = useState(false);
@@ -347,7 +350,7 @@ function OfferAnalyzerEditor({ token }: { token: string }) {
           <OffersCard selectedDate={selectedDate} onSelectedDateChange={(date) => {
             setDateWasChosen(true);
             setSelectedDate(date);
-          }} onDataChanged={() => setChartRefreshToken(value => value + 1)} />
+          }} onDataChanged={refreshChart} />
         </TabsContent>
         <TabsContent value="charts" forceMount className="mt-0 data-[state=inactive]:hidden">
           <OffersDecisionChart

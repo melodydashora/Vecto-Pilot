@@ -134,6 +134,76 @@ function compareStreetAddress(askedText, place) {
   return { matches, conflicts: asked.length > 0 && !matches };
 }
 
+const STREET_KINDS = new Set(['street', 'avenue', 'boulevard', 'drive', 'road', 'lane', 'court', 'place',
+  'parkway', 'highway', 'circle', 'trail', 'terrace', 'way', 'freeway', 'expressway', 'tollway', 'turnpike',
+  'loop', 'crossing', 'bridge', 'alley', 'square', 'path', 'walk', 'run', 'pass', 'bend', 'cove', 'point',
+  'hollow', 'view', 'heights', 'manor', 'estates', 'route', 'interstate']);
+const ROAD_DIRECTIONS = new Set(['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest']);
+
+function intersectionRoads(value) {
+  if (typeof value !== 'string') return null;
+  const parts = value.split(',')[0].split(/\s*(?:&|@|\/)\s*|\s+(?:and|at)\s+/i);
+  if (parts.length !== 2) return null;
+  const roads = parts.map(part => identityTokens(part).map(token => STREET_TOKEN_SPELLINGS.get(token) || token));
+  // Ordinary venue names such as "Fixture & Example" keep the venue-name path.
+  if (!roads.every(words => words.some(word => STREET_KINDS.has(word)) &&
+      words.some(word => !STREET_KINDS.has(word) && !ROAD_DIRECTIONS.has(word)))) return null;
+  return roads.map(words => words.join(' '));
+}
+
+function intersectionLocalityMatches(askedText, expected, place) {
+  const components = Array.isArray(place.addressComponents) ? place.addressComponents : [];
+  const names = types => components.filter(component => component?.types?.some(type => types.includes(type)))
+    .flatMap(componentText).filter(value => typeof value === 'string' && value.trim())
+    .map(value => identityTokens(value).join(' '));
+  const cities = names(['locality', 'postal_town', 'sublocality', 'sublocality_level_1', 'neighborhood']);
+  const states = names(['administrative_area_level_1']);
+  if (expected.city && !cities.includes(identityTokens(expected.city).join(' '))) return false;
+  if (expected.state && !states.includes(identityTokens(expected.state).join(' '))) return false;
+
+  const tail = askedText.split(',').slice(1).map(value => identityTokens(value).join(' ')).filter(Boolean);
+  if (!tail.length) return true; // no named city/state to contradict
+  const regions = [...states, ...names(['country', 'postal_code'])].sort((a, b) => b.length - a.length);
+  // Require each separately named region to agree. Do not consume the city as a
+  // region: "New York, NY" still has to identify New York city, not another city
+  // in New York state. Aliases must come from provider components, never guesses.
+  while (tail.length > 1) {
+    let regionText = tail.pop();
+    while (regionText) {
+      const region = regions.find(name => regionText === name || regionText.endsWith(` ${name}`));
+      if (!region) return false;
+      regionText = regionText === region ? '' : regionText.slice(0, -(region.length + 1));
+    }
+  }
+  let city = tail[0];
+  while (city) {
+    if (cities.includes(city)) return true;
+    const region = regions.find(name => city.endsWith(` ${name}`));
+    if (!region) return false;
+    city = city.slice(0, -(region.length + 1));
+  }
+  return false;
+}
+
+/** Intersections need both complete roads; venue-name overlap cannot prove a corner. */
+function compareIntersectionAddress(askedText, expected, place) {
+  const asked = intersectionRoads(askedText);
+  if (!asked) return null;
+  if (!Array.isArray(place.types) || !place.types.includes('intersection')) {
+    return { matches: false, reason: 'the provider result does not identify an intersection' };
+  }
+  const returned = [place.displayName, place.formattedAddress].map(intersectionRoads).filter(Boolean);
+  const sameRoads = roads => (roads[0] === asked[0] && roads[1] === asked[1]) ||
+    (roads[0] === asked[1] && roads[1] === asked[0]);
+  if (!returned.length || !returned.every(sameRoads)) {
+    return { matches: false, reason: 'the provider intersection does not match both requested roads' };
+  }
+  if (!intersectionLocalityMatches(askedText, expected, place)) {
+    return { matches: false, reason: 'the provider intersection does not confirm the requested city or region' };
+  }
+  return { matches: true, reason: null };
+}
+
 /**
  * Decide whether a provider text-search result is the place that was asked for.
  * Pure: no provider, database or log access.
@@ -148,6 +218,7 @@ function compareStreetAddress(askedText, place) {
  * @param {string} place.displayName - provider name
  * @param {string} [place.formattedAddress]
  * @param {Array} [place.addressComponents] - provider address components
+ * @param {Array<string>} [place.types] - provider place types (required to identify an intersection)
  * @param {Object} [place.parsed] - parseAddressComponents() output
  * @returns {{accepted: boolean, evidence: 'name'|'address'|null, requestedName: string|null, reason: string|null}}
  */
@@ -159,6 +230,8 @@ export function verifyPlaceIdentity(expected = {}, place = {}) {
   const accept = evidence => ({ accepted: true, evidence, requestedName, reason: null });
   const reject = reason => ({ accepted: false, evidence: null, requestedName, reason });
   if (!requestedName && !address) return reject('nothing was supplied to compare the provider result with');
+  const intersection = compareIntersectionAddress(address || query, expected, place);
+  if (intersection) return intersection.matches ? accept('address') : reject(intersection.reason);
   const locality = localityTokens(expected, place);
   const providerName = text(place?.displayName);
   const nameVerdict = requestedName && providerName ? compareNames(requestedName, providerName, locality) : null;
@@ -402,7 +475,7 @@ export async function resolvePlaceByTextSearch(lat, lng, textQuery, options = {}
     verdict = { accepted: true, evidence: 'caller', requestedName: null, reason: null };
   } else {
     verdict = verifyPlaceIdentity({ name: options.expectedName, address: options.expectedAddress, query: textQuery },
-      { displayName, formattedAddress: place.formattedAddress, addressComponents: place.addressComponents, parsed });
+      { displayName, formattedAddress: place.formattedAddress, addressComponents: place.addressComponents, types: place.types, parsed });
     if (!verdict.accepted) {
       resolverLog.warn(3, `[${IDENTITY_STAGE}] rejected: asked for "${verdict.requestedName ?? ''}", ` +
         `Places provider returned "${displayName ?? ''}" (${place.id || 'no id'}): ${verdict.reason}`);

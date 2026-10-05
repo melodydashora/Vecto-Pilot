@@ -40,7 +40,7 @@ jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: { execute, t
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: model }));
 jest.unstable_mockModule('../../server/lib/offers/downscale-offer-image.js', () => ({ downscaleOfferImage: forbidden }));
 jest.unstable_mockModule('../../server/lib/events/pipeline/geocodeEvent.js', () => ({ geocodeEventAddress: forbidden }));
-jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ searchPlaceWithTextSearch: forbidden }));
+jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ resolvePlaceByTextSearch: forbidden }));
 jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromCoords: timezone }));
 jest.unstable_mockModule('../../server/middleware/rate-limit.js', () => ({ offerHookLimiter: (_req, _res, next) => next() }));
 const { _clearCache } = await import('../../server/lib/offers/ruleset-store.js');

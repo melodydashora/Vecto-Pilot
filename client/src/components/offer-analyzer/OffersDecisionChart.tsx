@@ -62,7 +62,7 @@ export default function OffersDecisionChart({ refreshToken, selectedDate: select
   const session = useMemo(() => ({ userId, token }), [userId, token]);
   const [period, setPeriod] = useState<Period>(selectedDateProp ? 'day' : '7d');
   const [retry, setRetry] = useState(0);
-  const [result, setResult] = useState<{ session: typeof session; period: Period; date: string; timeZone: string; data?: Summary; error?: string } | null>(null);
+  const [result, setResult] = useState<{ session: typeof session; period: Period; date: string; timeZone: string; data?: Summary; error?: string; loading?: boolean } | null>(null);
   useEffect(() => {
     const refresh = () => setRetry(value => value + 1);
     window.addEventListener('focus', refresh); window.addEventListener('online', refresh);
@@ -71,7 +71,13 @@ export default function OffersDecisionChart({ refreshToken, selectedDate: select
   useEffect(() => {
     const controller = new AbortController();
     if (!userId || !token || !isAuthenticated || isLoading) { setResult(null); return () => controller.abort(); }
-    setResult(null);
+    const identity = { session, period, date: selectedDate, timeZone: zone.timeZone };
+    const samePeriod = (previous: typeof result) => previous?.session === session
+      && previous.period === period && previous.date === selectedDate && previous.timeZone === zone.timeZone;
+    // Preserve this session's confirmed chart during background refreshes. A
+    // new account, token, period, date or timezone must never reuse old counts.
+    setResult(previous => ({ ...identity, data: samePeriod(previous) ? previous?.data : undefined, loading: true }));
+    let authorizationFailed = false;
     const load = async () => {
       try {
         const query = period === 'day'
@@ -80,12 +86,19 @@ export default function OffersDecisionChart({ refreshToken, selectedDate: select
         const response = await fetch(`/api/offer-analyzer/offers/stats?${query.toString()}`, {
           headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: 'no-store',
         });
-        if (!response.ok) throw new Error('Could not load decision counts for this period.');
+        if (!response.ok) {
+          authorizationFailed = response.status === 401 || response.status === 403;
+          throw new Error('Could not load decision counts for this period.');
+        }
         const data = await response.json();
         if (!validSummary(data, period, selectedDate, zone.timeZone)) throw new Error('The server did not return complete decision counts.');
-        if (!controller.signal.aborted) setResult({ session, period, date: selectedDate, timeZone: zone.timeZone, data });
+        if (!controller.signal.aborted) setResult({ ...identity, data });
       } catch (error) {
-        if (!controller.signal.aborted) setResult({ session, period, date: selectedDate, timeZone: zone.timeZone, error: error instanceof Error ? error.message : 'Could not load decision counts.' });
+        if (!controller.signal.aborted) setResult(previous => ({
+          ...identity,
+          data: !authorizationFailed && samePeriod(previous) ? previous?.data : undefined,
+          error: error instanceof Error ? error.message : 'Could not load decision counts.',
+        }));
       }
     };
     void load();
@@ -116,8 +129,8 @@ export default function OffersDecisionChart({ refreshToken, selectedDate: select
       </label>
        <p className="text-xs text-gray-500">Local day: {zone.timeZone}, {zone.source === 'GPS' ? 'resolved from GPS' : 'resolved from device timezone'}</p>
     </div>}
-    {!current && <p role="status" className="text-sm text-gray-500">Loading period counts…</p>}
-    {current?.error && <div className="space-y-2"><p role="alert" className="text-sm text-gray-600">{current.error}</p><Button variant="outline" size="sm" onClick={() => setRetry(value => value + 1)}>Retry counts</Button></div>}
+    <p role="status" className="min-h-5 text-sm text-gray-500">{!current?.data && !current?.error ? 'Loading period counts…' : current?.loading ? 'Updating period counts…' : ''}</p>
+    {current?.error && <div className="space-y-2"><p role="alert" className="text-sm text-gray-600">{current.error}{data ? ' Showing the last loaded counts until a refresh succeeds.' : ''}</p><Button variant="outline" size="sm" onClick={() => setRetry(value => value + 1)}>Retry counts</Button></div>}
     {data && stats && <>
       <p className="text-xs text-gray-500 break-words">{period === 'day' ? `Selected day ${selectedDate}` : data.period?.label}. Counts cover all offers in this period.</p>
       {period !== 'day' && data.period && <p className="text-xs text-gray-500 break-words">

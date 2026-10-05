@@ -47,7 +47,7 @@ import { geocodeEventAddress } from '../../lib/events/pipeline/geocodeEvent.js';
 import { usableOfferAddress, resolveCardPoints } from '../../lib/offers/offer-address.js';
 // 2026-08-17 (Melody: "get details like we do for venues"): the venue Places adapter is the
 // fallback resolver for partial card addresses ("Terminal B, Departures: Zone 14").
-import { searchPlaceWithTextSearch } from '../../lib/venue/venue-address-resolver.js';
+import { resolvePlaceByTextSearch } from '../../lib/venue/venue-address-resolver.js';
 import { haversineDistanceMiles } from '../../lib/location/geo.js';
 // 2026-02-17: Shared utilities for structured analytics columns
 import { getDayPartKey, getLocalHour, getLocalDow, getLocalDateString } from '../../lib/location/daypart.js';
@@ -951,9 +951,10 @@ PRE-PARSED DATA (server-verified):
               // negative age; that is a FRESH snapshot, not a stale one (review 2026-08-17).
               const rawAge = row.created_at ? (Date.now() - new Date(row.created_at).getTime()) / 3600000 : null;
               const ageHours = Number.isFinite(rawAge) ? Math.max(0, rawAge) : null;
+              const snapshotPoint = normalizeCoordinates(row.lat, row.lng);
               snapshot = {
                 timezone: row.timezone || null,
-                lat: Number(row.lat), lng: Number(row.lng),
+                lat: snapshotPoint?.lat ?? null, lng: snapshotPoint?.lng ?? null,
                 ageHours,
                 fresh: ageHours != null && ageHours <= SNAPSHOT_ANCHOR_MAX_HOURS,
               };
@@ -1017,8 +1018,8 @@ PRE-PARSED DATA (server-verified):
           const k = memoKeyFor(text, { lat: blat, lng: blng });
           const hit = placesMemo.get(k);
           if (hit !== undefined) return hit;
-          const r = await searchPlaceWithTextSearch(blat, blng, text, { radius: 50000, signal: bounded() });
-          if (r) placesMemo.set(k, r);
+          const r = await resolvePlaceByTextSearch(blat, blng, text, { radius: 50000, signal: bounded() });
+          if (r.outcome === 'found') placesMemo.set(k, r);
           return r;
         };
         const { pickup: pickupPoint, dropoff: dropoffPoint } = await resolveCardPoints({

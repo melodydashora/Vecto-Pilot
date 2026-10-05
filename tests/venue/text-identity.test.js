@@ -159,6 +159,97 @@ describe('verifyPlaceIdentity', () => {
   });
 });
 
+describe('street intersection identity', () => {
+  const intersection = (displayName, extra = {}) => candidate(displayName, {
+    formattedAddress: `${displayName}, Sample City, XX`,
+    addressComponents: [...components.filter(component => !component.types.includes('street_number') && !component.types.includes('route')),
+      { types: ['postal_code'], longText: '00000', shortText: '00000' }],
+    types: ['intersection'], ...extra,
+  });
+
+  test.each([
+    ['Fixture Pkwy & Example St, Sample City', 'Fixture Parkway & Example Street'],
+    ['Fixture Pkwy & Example St, Sample City, XX', 'Example Street & Fixture Parkway'],
+    ['N Fixture Rd & State Hwy 121 Bus, Sample City XX', 'State Highway 121 Bus & North Fixture Road'],
+    ['Fixture Pkwy and Example St, Sample City, XX 00000', 'Example Street / Fixture Parkway'],
+  ])('normalizes both complete roads without treating their order as identity: %s', (query, displayName) => {
+    expect(verifyPlaceIdentity({ query }, intersection(displayName)))
+      .toMatchObject({ accepted: true, evidence: 'address' });
+  });
+
+  test.each([
+    'Fixture Parkway & Different Street',
+    'Fixture Parkway & Example Avenue',
+    'South Fixture Parkway & Example Street',
+    'Fixture Parkway & Example Street West',
+    'Different Road & Other Avenue',
+  ])('sharing a road or city does not establish both roads: %s', displayName => {
+    expect(verifyPlaceIdentity({ query: 'Fixture Pkwy & Example St, Sample City' }, intersection(displayName)))
+      .toMatchObject({ accepted: false, evidence: null });
+  });
+
+  test.each([
+    'State Highway 121 & Example Street',
+    'State Highway 122 Bus & Example Street',
+    'State Highway 121 Bus North & Example Street',
+  ])('route numbers, business-route markers and directions remain identity: %s', displayName => {
+    expect(verifyPlaceIdentity({ query: 'State Hwy 121 Bus & Example St, Sample City' }, intersection(displayName)).accepted).toBe(false);
+  });
+
+  test('a conflicting formatted intersection cannot be overridden by an agreeing display name', () => {
+    expect(verifyPlaceIdentity({ query: 'Fixture Pkwy & Example St, Sample City' }, intersection('Fixture Parkway & Example Street', {
+      formattedAddress: 'Fixture Parkway & Different Street, Sample City, XX',
+    })).accepted).toBe(false);
+  });
+
+  test.each([
+    'Fixture Pkwy & Example St, Different City',
+    'Fixture Pkwy & Example St, Sample City, YY',
+    'Fixture Pkwy & Example St, Sample City YY',
+    'Fixture Pkwy & Example St, Sample City, XX 11111',
+  ])('matching roads cannot override a contradictory named city or region: %s', query => {
+    expect(verifyPlaceIdentity({ query }, intersection('Fixture Parkway & Example Street')))
+      .toMatchObject({ accepted: false, reason: expect.stringMatching(/city or region/) });
+  });
+
+  test('explicit locality constraints also bind an intersection without comma-separated query metadata', () => {
+    const place = intersection('Fixture Parkway & Example Street');
+    expect(verifyPlaceIdentity({ address: 'Fixture Pkwy & Example St', city: 'Sample City', state: 'XX' }, place).accepted).toBe(true);
+    expect(verifyPlaceIdentity({ address: 'Fixture Pkwy & Example St', city: 'Different City' }, place).accepted).toBe(false);
+    expect(verifyPlaceIdentity({ address: 'Fixture Pkwy & Example St', state: 'YY' }, place).accepted).toBe(false);
+  });
+
+  test('a city that shares its state name is still required to match the provider city', () => {
+    const place = intersection('Fixture Parkway & Example Street', { addressComponents: [
+      { types: ['locality'], longText: 'Different City' },
+      { types: ['administrative_area_level_1'], longText: 'Sample City', shortText: 'SC' },
+    ] });
+    expect(verifyPlaceIdentity({ query: 'Fixture Pkwy & Example St, Sample City, SC' }, place).accepted).toBe(false);
+  });
+
+  test('a named city needs actual provider components, not only an agreeing formatted label', () => {
+    expect(verifyPlaceIdentity({ query: 'Fixture Pkwy & Example St, Sample City' },
+      intersection('Fixture Parkway & Example Street', { addressComponents: [] })).accepted).toBe(false);
+  });
+
+  test.each([undefined, ['point_of_interest'], ['route']])('an intersection-shaped business name or route is not an intersection (%j)', types => {
+    expect(verifyPlaceIdentity({ query: 'Fixture Pkwy & Example St, Sample City' },
+      intersection('Fixture Parkway & Example Street', { types })).accepted).toBe(false);
+  });
+
+  test('the shared adapter retains provider types and applies the same intersection boundary', async () => {
+    const makeProvider = name => providerPlace(name, { types: ['intersection'],
+      formattedAddress: `${name}, Sample City, XX`,
+      addressComponents: components.filter(component => !component.types.includes('street_number') && !component.types.includes('route')) });
+    global.fetch = answers(makeProvider('Example Street & Fixture Parkway'));
+    expect(await resolvePlaceByTextSearch(1, 2, 'Fixture Pkwy & Example St, Sample City'))
+      .toMatchObject({ outcome: 'found', place: { identityEvidence: 'address', types: ['intersection'] } });
+    global.fetch = answers(makeProvider('Other Avenue & Different Road'));
+    expect(await resolvePlaceByTextSearch(1, 2, 'Fixture Pkwy & Example St, Sample City'))
+      .toMatchObject({ outcome: 'rejected', place: null });
+  });
+});
+
 describe('searchPlaceWithTextSearch identity acceptance', () => {
   test('the first provider result is refused when it agrees with nothing that was asked for, and the refusal is logged with a reason', async () => {
     global.fetch = answers(providerPlace('The Sample', { formattedAddress: '9 Other Road, Sample City, XX', addressComponents: [] }));

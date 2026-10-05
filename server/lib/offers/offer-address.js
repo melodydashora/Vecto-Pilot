@@ -333,7 +333,7 @@ export function plausibleRadiusMi(ageHours, nearMi = 60, mph = 75) {
  * @param {{address: string|null, geo: object|null}} args.pickup
  * @param {{address: string|null, geo: object|null}} args.dropoff
  * @param {{lat:number, lng:number, ageHours?: number}|null} args.anchor
- * @param {(lat:number,lng:number,text:string)=>Promise<object|null>} args.searchPlaces
+ * @param {(lat:number,lng:number,text:string)=>Promise<{outcome: 'found'|'absent'|'rejected'|'provider_failure'|'aborted', place: object|null, reason: string|null}>} args.searchPlaces
  * @param {(lat1:number,lng1:number,lat2:number,lng2:number)=>number} args.distanceMi
  * @param {number} [args.nearMi=60]
  * @param {{log:Function,warn:Function}} [args.logger=console]
@@ -368,11 +368,26 @@ export async function resolveCardPoints({ pickup, dropoff, anchor, searchPlaces,
         logger.warn(`[HOOKS] ${label} geocode UNTRUSTED ("${addr}" → ${geo.formatted_address}; ${cls} but ${Math.round(d)} mi from the driver's last known position, > ${Math.round(maxMi)} mi plausible) — trying Places`);
       }
       // Places around the anchor
-      let place = null;
-      try { place = await searchPlaces(anchor.lat, anchor.lng, addr); } catch (err) {
-        logger.warn(`[HOOKS] ${label} Places search failed (${err.message}) — unresolved`); continue;
+      let searchResult;
+      try { searchResult = await searchPlaces(anchor.lat, anchor.lng, addr); } catch (_err) {
+        logger.warn(`[HOOKS] ${label} unresolved: Places provider request failed`); continue;
       }
-      if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) { logger.warn(`[HOOKS] ${label} unresolved: Places found nothing ("${addr}")`); continue; }
+      // The shared adapter distinguishes a genuine miss from a rejected identity,
+      // provider outage or cancelled request. Preserve that distinction here;
+      // none supplies a usable point. Its free-form reason may contain a rider's
+      // address, so this caller logs the bounded outcome instead of echoing it.
+      if (searchResult?.outcome !== 'found') {
+        const reason = {
+          absent: 'Places returned no result',
+          rejected: 'Places candidate failed identity validation',
+          provider_failure: 'Places provider request failed',
+          aborted: 'Places request was cancelled',
+        }[searchResult?.outcome] || 'Places returned an invalid outcome';
+        logger.warn(`[HOOKS] ${label} unresolved: ${reason}`);
+        continue;
+      }
+      const place = searchResult.place;
+      if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) { logger.warn(`[HOOKS] ${label} unresolved: Places candidate has no usable coordinates`); continue; }
       const d = distanceMi(anchor.lat, anchor.lng, place.lat, place.lng);
       if (d > nearMi) { logger.warn(`[HOOKS] ${label} Places match UNTRUSTED ("${addr}" → ${place.displayName}, ${place.formattedAddress}: ${Math.round(d)} mi from the driver's last known position) — unresolved`); continue; }
       if (!placeMatchesCard(addr, place)) { logger.warn(`[HOOKS] ${label} Places match UNTRUSTED ("${addr}" → ${place.displayName} [${(place.types || []).slice(0, 3).join(',')}]: kind/name does not match the card string) — unresolved`); continue; }
