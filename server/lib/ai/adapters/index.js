@@ -163,7 +163,9 @@ export async function callModel(role, params) {
       // but indefinite hangs block the entire briefing pipeline. 120s is generous enough for
       // Gemini HIGH thinking + Google Search while catching genuinely stuck calls.
       // Shorter callers pass a deadline signal so expiry reaches the SDK too.
-      timeout: 120000,
+      // 2026-10-05: Melody requested a three-minute Events search. Its registry
+      // budget overrides this default; unrelated model calls retain 120 seconds.
+      timeout: primaryConfig.timeoutMs ?? 120000,
       signal: params.signal,
     });
 

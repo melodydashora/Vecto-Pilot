@@ -74,7 +74,7 @@ const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const catalogRow = (n, name, overrides = {}) => ({
   venue_id: uuid(n), place_id: `synthetic-place-${n}`, venue_name: name, normalized_name: name.toLowerCase(),
   address: `${n} Synthetic Way, Synthetic City, XX`, formatted_address: `${n} Synthetic Way, Synthetic City, XX`,
-  city: 'Synthetic City', state: 'XX', country: 'US', lat: 1.223456, lng: 1.323456,
+  city: 'Synthetic City', state: 'XX', country: 'US', lat: 1.133456, lng: 1.143456,
   timezone: 'America/Chicago', ...overrides,
 });
 const venues = {
@@ -87,7 +87,7 @@ const venues = {
 const candidate = (title, venue, values = {}) => ({
   title, venue: venue.venue_name, place_id: null, address: venue.formatted_address, category: 'concert',
   event_start_date: today, event_start_time: '7:00 PM', event_end_time: '10:00 PM', event_end_date: today,
-  impact: null, ...values,
+  impact: 'high', ...values,
 });
 const alphaEvent = candidate('Alpha Quartet Recital', venues.alpha);
 const legacyEvent = candidate('Beta Improv Showcase', venues.legacy, { category: 'comedy', event_start_time: '8:00 PM' });
@@ -217,8 +217,11 @@ describe('defect 3: the failure label and the logged cause are truthful', () => 
     // Without its unique index the upsert cannot run: a genuine storage failure.
     await pg.exec('DROP INDEX event_hash_fixture');
     discovered([alphaEvent]);
-    await expect(run()).rejects.toThrow('Events database persistence failed');
-    expect(saved.at(-1).events._generationFailed).toBe(true);
+    const result = await run();
+    expect(result.events).toMatchObject({ _generationFailed: true, error: 'Events database persistence failed',
+      items: [expect.objectContaining({ title: alphaEvent.title })] });
+    expect(briefingSectionIssue('events', result.events)).not.toBeNull();
+    expect(saved.at(-1).events).toEqual(result.events);
     expect(await stored()).toEqual([]);
     expect(logged(error, 'persistence', alphaEvent.title, 'ON CONFLICT')).toBe(true);
   });
@@ -243,6 +246,16 @@ describe('defect 3: the failure label and the logged cause are truthful', () => 
 });
 
 describe('truthful section state for the Briefing row', () => {
+  test('unknown impact remains null in canonical storage and is not promoted into the priority display', async () => {
+    discovered([{ ...alphaEvent, impact: null }]);
+    const result = await run();
+    expect(await stored()).toEqual([expect.objectContaining({ title: alphaEvent.title, expected_attendance: null })]);
+    expect(result.events.candidates).toMatchObject({ discovered: 1, accepted: 1, rejected: 0 });
+    expect(result.events.items).toEqual([]);
+    expect(result.events._generationFailed).toBeUndefined();
+    expect(saved.at(-1).events._generationFailed).toBeUndefined();
+  });
+
   test('when every candidate is rejected the section is an explained empty result with counts', async () => {
     discovered([legacyEvent, overnightEvent]);
     const result = await run();
@@ -280,7 +293,7 @@ describe('saved read path: exclude and count, do not fail the market', () => {
   const savedEvent = (n, venue, values = {}) => ({ id: uuid(100 + n), venue_id: venue.venue_id, title: `Saved Synthetic Show ${n}`,
     venue_name: venue.venue_name, address: venue.formatted_address, city: 'Synthetic City', state: 'XX', category: 'concert',
     event_start_date: today, event_end_date: today, event_start_time: '19:00', event_end_time: '22:00',
-    event_hash: `synthetic-hash-${n}`, is_active: true, schema_version: 7, ...values });
+    event_hash: `synthetic-hash-${n}`, expected_attendance: 'high', is_active: true, schema_version: 7, ...values });
 
   test('a saved event at a venue with no timezone is excluded and counted; the rest of the market is returned', async () => {
     await pg.exec(`UPDATE venue_catalog SET timezone = NULL WHERE venue_id = '${venues.gamma.venue_id}'`);

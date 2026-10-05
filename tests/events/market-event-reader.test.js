@@ -9,7 +9,7 @@ const db = new Proxy({}, { get: (_target, name) => actualDb[name].bind(actualDb)
 const log = new Proxy({}, { get: () => jest.fn() });
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
 jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ locationLog: log, triadLog: log, OP: {}, tagLog: jest.fn() }));
-const { readMarketEvents, eventInSnapshotMarket, toBriefingEvent, eventOverlapsDisplayDays } = await import('../../server/lib/events/market-event-reader.js');
+const { readMarketEvents, eventInSnapshotMarket, venueInSnapshotMarket, toBriefingEvent, eventOverlapsDisplayDays } = await import('../../server/lib/events/market-event-reader.js');
 beforeAll(async () => {
   pg = new PGlite(); actualDb = drizzle(pg);
   for (const table of [markets, market_cities, venue_catalog, discovered_events]) {
@@ -35,11 +35,49 @@ async function event(index, values = {}) {
   return id;
 }
 test('one scoped query includes ongoing cross-state metro events but excludes same names in another country and unrelated state', async () => {
-  const included = await event(1); await event(2, { country: 'CA' }); await event(3, { state: 'CC' });
+  const included = await event(1, { expected_attendance: 'high' });
+  await event(2, { country: 'CA', expected_attendance: 'high' });
+  await event(3, { state: 'CC', expected_attendance: 'high' });
   const result = await readMarketEvents(snapshot, { today: '2026-09-29', highValueOtherCities: true });
   expect(result.marketName).toBe('Border Metro'); expect(result.rows.map(r => r.event.id)).toEqual([included]);
   expect(await eventInSnapshotMarket(included, snapshot)).toBe(true);
   expect(await eventInSnapshotMarket('00000000-0000-4000-8000-000000000002', snapshot)).toBe(false);
+});
+test('a concert category alone is not a high-impact market draw and selection never deletes saved events', async () => {
+  const high = await event(1, { expected_attendance: 'high' });
+  const low = await event(2, { expected_attendance: 'low' });
+  const unknown = await event(3);
+  const medium = await event(4, { expected_attendance: 'medium' });
+  const marketDraws = await readMarketEvents(snapshot, { today: '2026-09-29', highValueOtherCities: true });
+  expect(marketDraws.rows.map(row => row.event.id)).toEqual([high]);
+  const general = await readMarketEvents(snapshot, { today: '2026-09-29' });
+  expect(general.rows.map(row => row.event.id).sort()).toEqual([high, low, unknown, medium].sort());
+  expect(toBriefingEvent(general.rows.find(row => row.event.id === low)).impact).toBe('low');
+  expect((await pg.query('SELECT count(*)::int AS n FROM discovered_events')).rows[0].n).toBe(4);
+});
+test('progressive venue scope matches the canonical cross-state metro without inserting an event', async () => {
+  await actualDb.insert(market_cities).values({ market_slug: 'other-metro', market_name: 'Other Metro',
+    city: 'Other City', state: 'Alpha', state_abbr: 'AA', country_code: 'US' });
+  const cases = [
+    [{ city: 'Across River', state: 'BB', country: 'US' }, true],
+    [{ city: 'across river', state: 'Beta', country: 'us' }, true],
+    [{ city: 'Border City', state: 'AA', country: 'US' }, true],
+    [{ city: 'Other City', state: 'AA', country: 'US' }, false],
+    [{ city: 'Across River', state: 'CC', country: 'US' }, false],
+    [{ city: 'Across River', state: 'BB', country: 'CA' }, false],
+    [{ city: 'Across River', state: 'BB', country: null }, false],
+  ];
+  for (const [venue, expected] of cases) expect(await venueInSnapshotMarket(venue, snapshot)).toBe(expected);
+  expect((await pg.query('SELECT count(*)::int AS n FROM discovered_events')).rows[0].n).toBe(0);
+  expect((await pg.query('SELECT count(*)::int AS n FROM venue_catalog')).rows[0].n).toBe(0);
+});
+test('unmapped localities require exact city, state and country before progressive publication', async () => {
+  const localSnapshot = { ...snapshot, city: 'Unmapped Locality', state: 'ZZ' };
+  expect(await venueInSnapshotMarket({ city: 'unmapped locality', state: 'zz', country: 'us' }, localSnapshot)).toBe(true);
+  expect(await venueInSnapshotMarket({ city: 'Unmapped Locality', state: 'YY', country: 'US' }, localSnapshot)).toBe(false);
+  expect(await venueInSnapshotMarket({ city: 'Unmapped Locality', state: 'ZZ', country: 'CA' }, localSnapshot)).toBe(false);
+  expect(await venueInSnapshotMarket({ city: 'Across River', state: 'BB', country: 'US' }, localSnapshot)).toBe(false);
+  expect((await pg.query('SELECT count(*)::int AS n FROM discovered_events')).rows[0].n).toBe(0);
 });
 test('moderation requires the same country/market even for an inactive event and never guesses missing country', async () => {
   const id = await event(1, { is_active: false });

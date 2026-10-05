@@ -5,6 +5,7 @@ import { getBriefingBySnapshotId } from '../../lib/briefing/briefing-aggregator.
 import { filterInvalidEvents } from '../../lib/briefing/pipelines/events.js';
 import { readMarketEvents, eventInSnapshotMarket, toBriefingEvent, eventOverlapsDisplayDays } from '../../lib/events/market-event-reader.js';
 import { reconcileEventLists } from '../../lib/events/event-read-reconciliation.js';
+import { prioritizeBriefingEvents } from '../../lib/events/briefing-event-priority.js';
 import { fetchWeatherConditions } from '../../lib/briefing/pipelines/weather.js';
 import { briefingSectionIssue, briefingFailureReason, getBriefingReadiness } from '../../lib/briefing/briefing-readiness.js';
 import { normalizeCoordinates } from '../../../shared/coordinates.js';
@@ -290,7 +291,9 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
       ? briefing.events
       : (briefing.events?.items || []);
     const localEventsFailed = sectionState('events').failed;
-    let freshEvents = localEventsFailed ? [] : rawLocalEvents;
+    // Progressive Events contains only candidates that passed venue/content
+    // verification. Keep that evidence visible if a later category fails.
+    let freshEvents = rawLocalEvents;
 
     // Filter stale news - only today's news with valid publication dates (2026-01-05)
     const newsFailed = sectionState('news').failed;
@@ -324,6 +327,14 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
     ({ local: freshEvents, market: marketEvents } = reconcileEventLists(freshEvents, marketEvents, {
       isVisible: event => eventActiveToday(event, today, tz3) && freshEventReports.has(event),
     }));
+    const priorityEvents = prioritizeBriefingEvents(freshEvents, req.snapshot);
+    freshEvents = priorityEvents.filter(event => event.event_scope === 'nearby');
+    // Supplemental saved market evidence must not masquerade as progress from
+    // this source generation, even when its verified venue happens to be near.
+    marketEvents = prioritizeBriefingEvents([
+      ...priorityEvents.filter(event => event.event_scope === 'market'),
+      ...marketEvents.filter(event => event.impact === 'high'),
+    ], req.snapshot);
 
     // 2026-07-06 (Melody, todo #24): every section carries THREE distinct states
     // so the UI can stop rendering pending/failed as verified-empty:
@@ -337,6 +348,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
     const weatherState = weatherSectionState(briefing);
     res.json({
       snapshot_id: req.snapshot.snapshot_id,
+      status: briefing.status,
       briefing: {
         weather: {
           current: briefing.weather_current,
@@ -367,9 +379,13 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
           unresolved_market_events: unresolvedMarketEvents,
           reason: localEventsFailed
             ? (briefing.events?.error || 'Events generation failed')
-            : briefing.events == null
+            : briefing.events == null || sectionState('events').pending
               ? null // pending — no fabricated emptiness
-              : (briefing.events?.reason || (freshEvents.length === 0 ? 'No events found for this location' : null)),
+              : (briefing.events?.reason || (freshEvents.length === 0
+                ? marketEvents.length > 0
+                  ? 'No nearby high-value events. Major crowd draws are listed below.'
+                  : 'No verified high-value events near this location or major crowd draws in this market.'
+                : null)),
           _pending: sectionState('events').pending,
           _generationFailed: localEventsFailed,
         },
@@ -639,6 +655,9 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
         freshEventReports.has(event) &&
         (scope !== 'local' || filter !== 'active' || isEventActiveNow(event, eventReadTime, snapshotTz)),
     }));
+    // The Strategy map uses this compatibility route. Keep its single events
+    // array, with the same nearby-value/major-market selection as Briefing.
+    allEvents = prioritizeBriefingEvents(allEvents, snapshot);
 
     res.json({
       success: true,

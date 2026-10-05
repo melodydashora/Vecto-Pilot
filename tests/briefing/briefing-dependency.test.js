@@ -1,5 +1,5 @@
 import { jest, describe, test, beforeEach, expect } from '@jest/globals';
-import { getTableName } from 'drizzle-orm';
+import { getTableName, SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { completeSnapshot } from '../fixtures/complete-snapshot.js';
 import { completeBriefing } from '../fixtures/complete-briefing.js';
@@ -48,7 +48,13 @@ const db = {
       if (value.status === 'complete') await finalWrite(value);
       await beforeUpdate(value);
       if (!matches(condition)) return [];
-      row = { ...row, ...value }; writes.push(value); return [{ ...row }];
+      const resolved = Object.fromEntries(Object.entries(value).map(([field, update]) => {
+        if (!(update instanceof SQL)) return [field, update];
+        const query = dialect.sqlToQuery(update);
+        expect(query.sql).toBe(`coalesce("briefings"."${field}", $1::jsonb)`);
+        return [field, row[field] ?? JSON.parse(query.params[0])];
+      }));
+      row = { ...row, ...resolved }; writes.push(value); return [{ ...row }];
     };
     return { then: (resolve, reject) => apply().then(resolve, reject), returning: apply };
   } }) }),
@@ -205,6 +211,57 @@ describe('Briefing before Strategy orchestration', () => {
     expect(writes.some(write => write.status === 'complete')).toBe(false);
     expect(row.status).toBe('error'); expect(model).not.toHaveBeenCalled();
   });
+  test('a failed final save retains completed sections and verified partial Events', async () => {
+    const weather = { weather_current: { temperature: 20, conditions: 'Cloudy' },
+      weather_forecast: [{ temperature: 21, conditions: 'Clear' }] };
+    const partialEvents = { items: [{ title: 'Verified event', venue: 'Verified venue' }], _pending: true };
+    sections.weather.mockImplementationOnce(async () => {
+      await writeSectionAndNotify(snapshot.snapshot_id, weather, CHANNELS.WEATHER);
+      return weather;
+    });
+    sections.events.mockImplementationOnce(async () => {
+      await writeSectionAndNotify(snapshot.snapshot_id, { events: partialEvents }, CHANNELS.EVENTS);
+      return { events: { items: partialEvents.items } };
+    });
+    finalWrite = async () => { throw new Error('database write failed'); };
+    const result = await generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });
+    expect(result.success).toBe(false);
+    expect(row.status).toBe('error'); expect(row.generated_at).toBeNull();
+    expect(row.weather_current).toEqual(weather.weather_current);
+    expect(row.weather_forecast).toEqual(weather.weather_forecast);
+    expect(row.events).toEqual(partialEvents);
+    expect(row.news).toMatchObject({ _generationFailed: true });
+    expect(model).not.toHaveBeenCalled();
+  });
+  test('an Events failure envelope retains verified items without becoming a successful array', async () => {
+    const retained = { items: [{ title: 'Verified event' }], _generationFailed: true, reason: 'provider timeout' };
+    sections.events.mockResolvedValueOnce({ events: retained, reason: retained.reason });
+    const result = await generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });
+    expect(result.success).toBe(false); expect(row.status).toBe('error');
+    expect(row.events).toEqual(retained);
+    expect(row.weather_current).toEqual({ temperature: 20, conditions: 'Cloudy' });
+    expect(model).not.toHaveBeenCalled();
+  });
+  test('a pending Events envelope cannot be flattened into completed Briefing evidence', async () => {
+    const partial = { items: [{ title: 'Verified event' }], _pending: true };
+    sections.events.mockResolvedValueOnce({ events: partial });
+    const result = await generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });
+    expect(result.success).toBe(false); expect(row.status).toBe('error');
+    expect(row.events).toMatchObject({ ...partial, _generationFailed: true });
+  });
+  test('a late progressive write is preserved atomically when a final save fails', async () => {
+    const gate = deferred();
+    finalWrite = async () => { throw new Error('database write failed'); };
+    beforeUpdate = async value => { if (value.status === 'error') await gate.promise; };
+    const pending = generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });
+    await tick();
+    const lateNews = { items: [{ title: 'Saved while failure update waited' }] };
+    await withBriefingGeneration(snapshot.snapshot_id, row.generation_token,
+      () => writeSectionAndNotify(snapshot.snapshot_id, { news: lateNews }, CHANNELS.NEWS));
+    gate.resolve();
+    expect((await pending).success).toBe(false);
+    expect(row.news).toEqual(lateNews); expect(row.status).toBe('error');
+  });
   test('direct Strategy caller cannot bypass persisted pending state with a complete supplied object', async () => {
     const result = await generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot });
     const supplied = { ...result.briefing }; row.status = 'pending';
@@ -342,7 +399,7 @@ describe('Briefing before Strategy orchestration', () => {
     jest.useFakeTimers();
     try {
       const rejected = expect(generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot })).rejects.toThrow('completion timed out');
-      await jest.advanceTimersByTimeAsync(90000);
+      await jest.advanceTimersByTimeAsync(180000);
       await rejected;
       expect(row.generation_token).toBe('another-owner'); expect(writes).toHaveLength(0);
       expect(sections.weather).not.toHaveBeenCalled(); expect(model).not.toHaveBeenCalled();

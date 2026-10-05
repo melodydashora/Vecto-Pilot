@@ -27,7 +27,7 @@ interface CriticalErrorProps {
 const ERROR_MESSAGES: Record<CriticalErrorType, { title: string; description: string }> = {
   briefing_failed: {
     title: 'Briefing Could Not Be Completed',
-    description: 'Strategy needs the complete Briefing. Please come back later. Coach is still available with the information already received.'
+    description: 'Strategy needs the complete Briefing. You can view the collected data or open Coach.'
   },
   snapshot_missing: {
     title: 'Session Data Missing',
@@ -121,9 +121,14 @@ export default function CriticalError({
         {/* Action Buttons */}
         <div className="flex flex-col gap-3">
           {type === 'briefing_failed' ? (
+            <>
+            <Button asChild className="w-full bg-white text-red-900 hover:bg-red-100">
+              <a href="/co-pilot/briefing">View Briefing</a>
+            </Button>
             <Button asChild className="w-full bg-white text-red-900 hover:bg-red-100">
               <a href="/co-pilot/coach">Open Coach</a>
             </Button>
+            </>
           ) : <Button
             onClick={handleRefresh}
             className="w-full bg-white text-red-900 hover:bg-red-100"

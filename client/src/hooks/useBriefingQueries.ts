@@ -21,9 +21,8 @@
 // so no component needs to be updated; each section's data is derived from
 // the single aggregate response.
 //
-// Next phase (Phase A, not in this commit): server-side progressive writes
-// and per-section NOTIFYs so the tab populates weather-first, then traffic,
-// then events as each provider resolves.
+// Section and verified-event writes notify this same saved-row reader as the
+// providers resolve. Progress is displayable; final persistence gates Strategy.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useEffect, useCallback } from 'react';
@@ -50,6 +49,8 @@ interface BriefingQueriesOptions {
 const MAX_RETRY_ATTEMPTS = 12;
 const INITIAL_RETRY_MS = 2000;
 const MAX_RETRY_MS = 30000;
+const PROGRESS_POLL_MS = 2000;
+const NO_PROGRESS_TIMEOUT_MS = 180000;
 function getBackoffInterval(attemptCount: number): number {
   return Math.min(INITIAL_RETRY_MS * Math.pow(2, attemptCount), MAX_RETRY_MS);
 }
@@ -116,6 +117,7 @@ function shouldDisableQueries(): boolean { return isInCoolingOff; }
 // "still loading" from "generation permanently failed for this section".
 interface BriefingAggregate {
   snapshot_id: string;
+  status?: 'pending' | 'complete' | 'error';
   briefing: {
     // 2026-07-06 (todo #24): _pending = raw briefing column still NULL
     // (generation in flight); _generationFailed = ran and failed (reason
@@ -149,6 +151,9 @@ interface BriefingAggregate {
 
 function generationFailure(data: BriefingAggregate | undefined): string | null {
   if (!data?.briefing || data._authError || data._ownershipError) return null;
+  // A failed provider must not hide sibling sections that are still arriving.
+  // The owner persists a terminal status after every section has settled.
+  if (data.status === 'pending') return null;
   const labels: Record<string, string> = { weather: 'Weather', traffic: 'Traffic', events: 'Events', news: 'News',
     school_closures: 'Schools', airport_conditions: 'Airport', holiday: 'Holiday' };
   const failures = Object.entries(data.briefing).filter(([, section]) => section?._generationFailed)
@@ -157,7 +162,7 @@ function generationFailure(data: BriefingAggregate | undefined): string | null {
         section.forecast?.reason, section.forecast?.error].find(value => typeof value === 'string' && value.trim());
       return `${labels[key] ?? key}: ${detail || 'Required information could not be retrieved.'}`;
     });
-  return failures.length ? failures.join(' ') : null;
+  return failures.length ? failures.join(' ') : data.status === 'error' ? 'The Briefing could not be completed.' : null;
 }
 
 // Detect whether an aggregate response is "still missing its payload" and should
@@ -171,6 +176,7 @@ function isAggregateLoading(data: BriefingAggregate | undefined): boolean {
   const b = data.briefing;
   if (!b) return true;
   if (data._error && data._error >= 400 && data._error < 500) return false;
+  if (data.status === 'pending') return true;
   // September 13, 2026: metadata is not readiness. Keep recovering until every
   // required section has settled, including verified-empty and failed sections.
   return [b.weather, b.traffic, b.news, b.events, b.school_closures, b.airport_conditions, b.holiday]
@@ -200,11 +206,13 @@ export function useBriefingQueries({
     !shouldDisableQueries() &&
     (isAuthenticated === undefined || isAuthenticated === true);
 
-  // Retry counter — single counter for the aggregate, replacing six per-section
-  // counters. Reset on snapshotId change.
-  const retryCountRef = useRef<{ count: number; snapshotId: string | null }>({ count: 0, snapshotId: null });
+  // Successful progress never spends the transport-error budget. Bound stalled
+  // ownership by elapsed inactivity instead of the number of SSE notifications.
+  const retryCountRef = useRef({ count: 0, snapshotId, token: null as string | null,
+    lastProgressAt: Date.now(), progressStamp: '', saved: undefined as BriefingAggregate | undefined });
   if (retryCountRef.current.snapshotId !== snapshotId) {
-    retryCountRef.current = { count: 0, snapshotId };
+    retryCountRef.current = { count: 0, snapshotId, token: null,
+      lastProgressAt: Date.now(), progressStamp: '', saved: undefined };
   }
 
   // Cache invalidation on snapshotId change — force fresh fetch so we don't
@@ -240,12 +248,28 @@ export function useBriefingQueries({
       const staleResponse = (): BriefingAggregate => ({ snapshot_id: snapshotId!, briefing: {} as any,
         created_at: '', updated_at: '', generated_at: '', _authError: true });
       const attemptState = retryCountRef.current;
+      if (attemptState.token !== requestToken) {
+        Object.assign(attemptState, { count: 0, token: requestToken, lastProgressAt: Date.now(), progressStamp: '', saved: undefined });
+      }
       const finishAttempt = (data: BriefingAggregate): BriefingAggregate => {
-        if (isAggregateLoading(data) || (data._error != null && data._error >= 500)) {
+        if (!isCurrent()) return staleResponse();
+        if (data._notGenerated || (data._error != null && data._error >= 500)) {
           attemptState.count++;
-          if (attemptState.count >= MAX_RETRY_ATTEMPTS) return { ...data, _exhausted: true };
+          // Keep already received context visible during a read interruption.
+          // This saved value belongs only to this request token and snapshot.
+          const retained = attemptState.saved ? { ...attemptState.saved, _error: data._error, _notGenerated: data._notGenerated } : data;
+          return attemptState.count >= MAX_RETRY_ATTEMPTS ? { ...retained, _exhausted: true } : retained;
         } else if (!data._authError && !data._ownershipError) {
           attemptState.count = 0;
+          const progressTime = Date.parse(data.updated_at);
+          if (Number.isFinite(progressTime) && (!attemptState.progressStamp || progressTime > Date.parse(attemptState.progressStamp))) {
+            attemptState.progressStamp = data.updated_at;
+            attemptState.lastProgressAt = Date.now();
+          }
+          attemptState.saved = data;
+          if (isAggregateLoading(data) && Date.now() - attemptState.lastProgressAt >= NO_PROGRESS_TIMEOUT_MS) {
+            return { ...data, _exhausted: true };
+          }
         }
         return data;
       };
@@ -335,7 +359,7 @@ export function useBriefingQueries({
       // recovering from a transient 5xx.
       const needsRetry = isAggregateLoading(data) || (data?._error && data._error >= 500);
       if (needsRetry && retryCountRef.current.count < MAX_RETRY_ATTEMPTS) {
-        return getBackoffInterval(retryCountRef.current.count);
+        return retryCountRef.current.count ? getBackoffInterval(retryCountRef.current.count) : PROGRESS_POLL_MS;
       }
       return false;
     },
@@ -347,8 +371,8 @@ export function useBriefingQueries({
   const exhausted = !!aggregateQuery.data?._exhausted;
   const generationError = isEnabled && aggregateQuery.data?.snapshot_id === snapshotId
     ? generationFailure(aggregateQuery.data) : null;
-  const settled = !!aggregateQuery.data && !isAggregateLoading(aggregateQuery.data) &&
-    !(aggregateQuery.data._error && aggregateQuery.data._error >= 500);
+  const settled = !!aggregateQuery.data && (aggregateQuery.data._exhausted ||
+    (!isAggregateLoading(aggregateQuery.data) && !(aggregateQuery.data._error && aggregateQuery.data._error >= 500)));
 
   // Saved sources are immutable. Release the stream at success or terminal
   // failure; a different source/session gets its own subscription.
@@ -365,6 +389,7 @@ export function useBriefingQueries({
   const refetchAggregate = aggregateQuery.refetch;
   const retryBriefing = useCallback(() => {
     retryCountRef.current.count = 0;
+    retryCountRef.current.lastProgressAt = Date.now();
     return refetchAggregate();
   }, [refetchAggregate]);
 

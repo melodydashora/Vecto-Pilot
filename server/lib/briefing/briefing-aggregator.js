@@ -94,7 +94,11 @@ async function generateWithClaim({ snapshotId, snapshot, forceRefresh }) {
       if (error instanceof BriefingSupersededError) return awaitCurrentGeneration(snapshotId);
       const failure = errorMarker(error);
       const stored = await writeBriefingGeneration(snapshotId, {
-        ...Object.fromEntries(BRIEFING_FIELDS.map(field => [field, failure])),
+        // Keep every section already saved by this generation, including a
+        // verified partial Events envelope. Evaluate at UPDATE time so a late
+        // section write cannot be lost between a read and this failure write.
+        ...Object.fromEntries(BRIEFING_FIELDS.map(field => [field,
+          sql`coalesce(${briefings[field]}, ${JSON.stringify(failure)}::jsonb)`])),
         status: 'error', generated_at: null, updated_at: new Date(),
       });
       // An obsolete failure must not mark the new Briefing or its Strategy failed.
@@ -203,7 +207,8 @@ async function generateBriefingInternal({ snapshotId, snapshot, signal }) {
   [weatherResult, trafficResult, eventsResult, airportResult, newsResult, holidayResult, schoolsResult] = extractedResults;
 
   const failedSection = name => errorMarker(new Error(failedReasons[name] || `${name} returned no data`));
-  const listSection = value => Array.isArray(value?.items) && value.items.length > 0 ? value.items : value;
+  const listSection = value => !value?._generationFailed && !value?._pending &&
+    Array.isArray(value?.items) && value.items.length > 0 ? value.items : value;
   const briefingData = {
     news: newsResult?.news ?? failedSection('news'),
     weather_current: weatherResult?.weather_current ?? failedSection('weather'),

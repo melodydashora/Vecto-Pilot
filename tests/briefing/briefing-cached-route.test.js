@@ -144,10 +144,24 @@ test.each(['get', 'post'])('%s legacy cached context requests a new snapshot ins
   expect(body.message).toContain('not verified complete'); expect(mustNotGenerate).not.toHaveBeenCalled();
 });
 test.each(['get', 'post'])('%s abandoned pending context exposes the bounded retry without stealing ownership', async method => {
-  briefing.updated_at = new Date(Date.now() - 91000);
+  briefing.updated_at = new Date(Date.now() - 181000);
   const { body } = await invoke(method);
   expect(body.status).toBe('error'); expect(body.retry).toBe('new_snapshot'); expect(body.message).toContain('timed out');
   expect(briefing.generation_token).toBe('active-owner'); expect(statusWrites).toEqual([]);
+  expect(admissionWrites).toEqual([]); expect(mustNotGenerate).not.toHaveBeenCalled();
+});
+test.each(['get', 'post'])('%s saved reader keeps 91s and 179s pending without provider work or ownership changes', async method => {
+  for (const elapsed of [91000, 179000]) {
+    briefing.updated_at = new Date(Date.now() - elapsed);
+    const savedUpdate = briefing.updated_at;
+    const { body, code } = await invoke(method);
+    expect(code).toBe(202);
+    expect(body).toMatchObject({ status: 'pending', briefingStatus: 'pending', strategyFresh: false, waitFor: ['briefing'] });
+    expect(body.error).toBeUndefined(); expect(body.retry).toBeUndefined();
+    expect(body.strategy.strategyForNow).toBe('Previous guidance');
+    expect(briefing.updated_at).toBe(savedUpdate); expect(briefing.generation_token).toBe('active-owner');
+    expect(mustNotGenerate).not.toHaveBeenCalled(); expect(statusWrites).toEqual([]); expect(admissionWrites).toEqual([]);
+  }
 });
 test.each(['get', 'post'])('%s replacement after the venue claim prevents provider work and releases pending_blocks', async method => {
   hasRanking = false; claimRace = true;

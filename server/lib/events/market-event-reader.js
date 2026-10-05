@@ -6,22 +6,34 @@ import { discovered_events, venue_catalog, market_cities } from '../../../shared
 import { resolveTimezoneFromMarket } from '../location/resolveTimezone.js';
 import { getEventStartTime, getEventEndTime } from '../strategy/strategy-utils.js';
 
-async function marketScope(snapshot) {
+async function marketScope(snapshot, location = {
+  city: discovered_events.city, state: discovered_events.state, country: venue_catalog.country,
+}) {
   if (typeof snapshot?.country !== 'string' || !/^[A-Za-z]{2}$/.test(snapshot.country) ||
       !snapshot.city || !snapshot.state) throw new Error('Event market location is incomplete');
   const country = snapshot.country.toUpperCase();
   const market = await resolveTimezoneFromMarket(snapshot.city, snapshot.state, country);
   // A local match is still useful if the catalog has no metro mapping. It must
   // match all address dimensions; an unknown country cannot imply US.
-  const local = sql`lower(${discovered_events.city}) = lower(${snapshot.city})
-    AND lower(${discovered_events.state}) = lower(${snapshot.state})`;
+  const local = sql`lower(${location.city}) = lower(${snapshot.city})
+    AND lower(${location.state}) = lower(${snapshot.state})`;
   const metro = market?.market_slug ? sql`EXISTS (
     SELECT 1 FROM ${market_cities} mc
     WHERE mc.market_slug = ${market.market_slug} AND upper(mc.country_code) = ${country}
-      AND lower(mc.city) = lower(${discovered_events.city})
-      AND (lower(mc.state) = lower(${discovered_events.state}) OR lower(mc.state_abbr) = lower(${discovered_events.state}))
+      AND lower(mc.city) = lower(${location.city})
+      AND (lower(mc.state) = lower(${location.state}) OR lower(mc.state_abbr) = lower(${location.state}))
   )` : sql`false`;
-  return { market, predicate: sql`upper(${venue_catalog.country}) = ${country} AND ((${local}) OR (${metro}))` };
+  return { market, predicate: sql`upper(${location.country}) = ${country} AND ((${local}) OR (${metro}))` };
+}
+
+// Apply the same saved-read scope before publishing a verified candidate. No
+// discovered_events insert is necessary to establish its venue's membership.
+export async function venueInSnapshotMarket(venue, snapshot) {
+  if (!venue?.city || !venue?.state || !/^[A-Za-z]{2}$/.test(venue.country || '')) return false;
+  const { predicate } = await marketScope(snapshot, { city: sql`${venue.city}`, state: sql`${venue.state}`,
+    country: sql`${venue.country}` });
+  const result = await db.execute(sql`SELECT ${predicate} AS included`);
+  return result.rows[0]?.included === true;
 }
 
 function shiftDate(value, days) {
@@ -50,7 +62,7 @@ export async function readMarketEvents(snapshot, { today, endDate = today, highV
       // dates. Absolute venue-local instants below decide actual overlap.
       lte(discovered_events.event_start_date, shiftDate(endDate, 2)), gte(discovered_events.event_end_date, shiftDate(today, -2)),
       highValueOtherCities ? sql`lower(${discovered_events.city}) <> lower(${snapshot.city}) AND
-        (${discovered_events.expected_attendance} = 'high' OR ${discovered_events.category} IN ('sports', 'concert', 'festival'))` : undefined))
+        ${discovered_events.expected_attendance} = 'high'` : undefined))
     .orderBy(discovered_events.event_start_date);
   let unresolvedCount = 0;
   const visible = rows.filter(row => {

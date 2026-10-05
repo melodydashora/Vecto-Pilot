@@ -12,15 +12,19 @@ Melody's purpose is to reduce the attention needed to evaluate work while drivin
 flowchart TD
   A[Authenticated session and canonical setup read] --> B{Saved or pending context?}
   B -->|Saved| R[Restore context through reads]
-  B -->|Pending| X[Show cause; manual location Refresh to retry]
+  B -->|Active Briefing| W[Read saved progress; wait for the current owner]
+  B -->|Failed or interrupted capture| X[Show cause; preserve received context]
   B -->|Neither| D[Fresh precise GPS observation]
-  X -->|Explicit Refresh| D
+  X --> V[View Briefing or open Coach]
+  A -->|Separate explicit header GPS Refresh| D
   D --> E[Geocoding, timezone, market, weather and air]
   E --> F[Atomic snapshot publication for current capture]
   F --> G[Briefing: seven parallel sections]
   G --> H{All required sections saved and usable?}
   H -->|Yes| Q[Canonical context readback]
+  H -->|Still collecting| W
   H -->|Failure| X
+  W --> H
   R --> H
   Q --> C[Explicit Strategy start with confirmed preferences]
   C --> N[Pin settings and copy immutable snapshot and Briefing]
@@ -31,7 +35,7 @@ flowchart TD
   L --> M[Saved Strategy and venue display]
 ```
 
-SSE wakes readers to fetch saved state; receiving an event never proves that this sequence completed. There is no second active STRATEGY_CORE stage. Model names, role parameters and provider fallbacks belong to [model-registry.js](../../server/lib/ai/model-registry.js) and the [adapter guide](AI_MODEL_ADAPTERS.md), not copied pins in this guide.
+SSE wakes readers to fetch saved state; receiving an event never proves that this sequence completed. Active collection uses saved reads and a three-minute inactivity wait extended by saved progress, not a three-minute whole-pipeline deadline. The existing header GPS Refresh is a separate explicit new-context action, not a Refresh Briefing feature. There is no second active STRATEGY_CORE stage. Model names, role parameters and provider fallbacks belong to [model-registry.js](../../server/lib/ai/model-registry.js) and the [adapter guide](AI_MODEL_ADAPTERS.md), not copied pins in this guide.
 
 <a id="1-session-and-preferences--admitted-run"></a>
 
@@ -50,7 +54,7 @@ The additive [MAIN admission migration](../../migrations/20260929_main_run_admis
 
 ### 2. GPS preparation and explicit Strategy admission
 
-[location-context-clean.tsx](../../client/src/contexts/location-context-clean.tsx) captures browser GPS after canonical setup confirms there is no saved or pending context, including while required preference setup remains incomplete. Same-session saved context is restored through reads; unfinished capture requires manual Refresh. [coordinates.js](../../shared/coordinates.js) validates full coordinate values, observation age and reported accuracy. Six-decimal cache keys are lookup formats, not a measurement of GPS accuracy.
+[location-context-clean.tsx](../../client/src/contexts/location-context-clean.tsx) captures browser GPS after canonical setup confirms there is no saved or pending context, including while required preference setup remains incomplete. Same-session saved context is restored through reads; active Briefing continues through saved progress without creating another capture. Interrupted capture or failed context displays its cause and preserves received data. A fresh GPS observation uses the separate explicit existing header action. [coordinates.js](../../shared/coordinates.js) validates full coordinate values, observation age and reported accuracy. Six-decimal cache keys are lookup formats, not a measurement of GPS accuracy.
 
 [main-run-snapshot.js](../../server/lib/location/main-run-snapshot.js) is the shared portal writer. The current browser posts fresh GPS and a UUID `captureId` to `/api/location/snapshot`. `captureUpstreamSnapshot` claims the live owner's current capture before providers, collects fresh Google address/timezone and environmental evidence, resolves a country/state-scoped market, validates the complete snapshot, then rechecks session/capture ownership under the driver settings lock before publication. Concurrent losers receive the saved winner's coordinates, GPS time and accuracy together. Compatibility `runId` callers retain the older strict admitted capture path; it does not gate current browser preparation.
 
@@ -83,6 +87,12 @@ The aggregator validates the persisted snapshot, claims one generation token und
 | [Holiday](../../server/lib/briefing/pipelines/holiday.js) | Holiday role returns a named result plus boolean, including an explicit none result | `holiday` |
 
 [briefing-generation.js](../../server/lib/briefing/briefing-generation.js) fences writes to the current generation/admission. [briefing-readiness.js](../../server/lib/briefing/briefing-readiness.js) checks every required field plus final status and generation timestamp. Progressive notifications are useful to the UI, but Strategy waits until the whole row is saved `complete`. A malformed result, provider fallback marked failed, unexplained emptiness, failed save, or bounded wait expiry prevents Strategy.
+
+Events now publishes verified progress within a section. Each complete category response enters the shared normalization, deduplication, venue resolution and schedule validation path. Its verified in-market results can be saved to Briefing as `{items, _pending: true}` before the other category finishes. Canonical event writes wait for both searches and the full combined deduplication pass; verification is reused instead of repeating provider lookups. Raw model fragments and unverified venue suggestions are never progressive cards. Later category failure retains those verified items with a failure marker; final assembly preserves that marked envelope. Catastrophic finalization preserves already saved sections rather than overwriting them with empty failure payloads. The owner waits for sibling sections to settle before declaring final failure; a failed required section still prevents Strategy throughout.
+
+The Events role retains its pinned model, high reasoning, search grounding and complete-response validation with a 32,768-token output allowance. Each category has a 180-second deadline, supported by the role-specific router allowance; other roles keep their own budgets. Existing-generation joins and client polling use a 180-second inactivity bound extended by saved progress. Venue verification has a separate bounded per-candidate budget, so these settings are not a three-minute total Briefing deadline. Successful pending reads do not spend the client's transport-error budget. Same-source read interruptions retain received data; another token or snapshot cannot inherit that retained payload.
+
+[briefing-event-priority.js](../../server/lib/events/briefing-event-priority.js) selects high- or medium-impact events within the established 15-mile straight-line nearby area first, then high-impact wider-market events. Missing impact evidence is not upgraded to medium, and venue capacity does not establish attendance or demand. This selection shapes Briefing context without deleting canonical events. The aggregate reader separates nearby items from major market items; the UI retains genre groups within each and shows nearby groups first. Verified cards remain visible alongside pending or failure notices, including through View Briefing on the first-failure screen. The UI adds no Refresh Briefing function and partial visibility never admits Strategy.
 
 An empty seeded airport query establishes unknown coverage, not proof that no airport exists. It therefore cannot masquerade as a successful airport section. Positive catalog coverage outside the seeded areas remains an explicit limit.
 

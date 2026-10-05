@@ -121,7 +121,7 @@ export function NewsCard({ newsData, isNewsLoading }: NewsCardProps) {
             // Failed ≠ empty: show the recorded reason, never "no news" (todo #24)
             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>News couldn't be generated{newsReason ? ` — ${newsReason}` : ''}. It will retry on the next briefing refresh.</span>
+              <span>News couldn't be generated{newsReason ? ` — ${newsReason}` : ''}.</span>
             </div>
           ) : (
             <p className="text-gray-500 text-sm text-center py-4">

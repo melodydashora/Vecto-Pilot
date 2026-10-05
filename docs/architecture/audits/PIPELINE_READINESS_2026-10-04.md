@@ -197,3 +197,171 @@ recheck the installed MacroDroid export and trace one authenticated Offer Analyz
 capture through speech and storage; then prove the smallest automatic source.
 Tasks 91/75 and the automatic-capture milestone remain open. Preserve the exact
 stage receipts and remaining deployment prerequisites.
+
+## October 5 live workspace acceptance and remaining findings
+
+The later authorized workspace run exercised actual providers and persistence
+through an isolated authenticated test account. It supersedes the earlier
+statement that real-provider acceptance had not occurred; it does not erase
+the historical verification or establish production deployment. The reviewed
+initial implementation was committed as `ac9d23b3` on the same candidate branch;
+the later progressive Events follow-up is covered below. This
+checkpoint records workspace behavior; publication and production acceptance
+remain separate.
+
+| Observed path | Live result and boundary |
+|---|---|
+| Login, preferences and rules | Real login, saved preferences and rules succeeded. Logout and a new login preserved the profile/economics settings and the original rules version and hash. This was browser acceptance, not physical-phone capture acceptance. See [preferences](../USER_PREFERENCES.md) and [admission](../../../server/lib/main-run-admission.js). |
+| Offer Analyzer | One actual OCR observation produced ACCEPT and was saved with its input hash. No claim is made about automatic phone screenshot capture. See [Offer Analyzer](../OFFER_ANALYZER.md). |
+| First complete Briefing and MAIN run | Briefing completed in about 65 seconds with all eight persisted payloads representing the seven required sections, including both weather payloads. One explicit Continue produced exactly one admission, Strategy, job and ranking, with six candidates carrying measured Google Routes results. All 22 database verification checks passed. See [MAIN](../ai-pipeline.md), [readiness](../../../server/lib/briefing/briefing-readiness.js) and [venue lifecycle](../../../server/api/strategy/blocks-fast.js). |
+| Strategy map | The first rendered map exposed a CSP gap for Google's raster tile host. The [CSP image-source correction](../../../server/bootstrap/middleware.js) was verified with actual raster imagery and venue markers, without the earlier security errors. Markers alone were not treated as map acceptance. |
+| Saved Strategy | Same-session reload restored the completed Strategy. A new session did not promote prior-session Strategy as current guidance; the session ownership gate remains intentional. |
+
+The accepted [Airport contract](../../../LEXICON.md) is FAA conditions first,
+Gemini conditions research only for airports missing usable observations, then
+a separate terminal pass consuming those fixed conditions. The national FAA
+JSON read is shared; absence from its disruption feed remains unknown rather
+than normal. The [Airport pipeline](../../../server/lib/briefing/pipelines/airport.js)
+and [shared prompt formatter](../../../server/lib/briefing/shared/format-airport-context.js)
+preserve the source and disruptions through Strategy and VenuePlanner.
+
+A **separate new-login generation failed Events** with the recorded provider
+classification `google:truncated`. This was an incomplete model-provider result,
+not a verified empty event list and not proof that every Events request fails.
+The provider log identifies `MAX_TOKENS` at the configured 8,192-token ceiling;
+it does not establish model retirement. The [official model reference](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
+lists a 65,536-token output limit, and [thinking documentation](https://ai.google.dev/gemini-api/docs/generate-content/thinking)
+explains that thinking and visible output share the configured output allowance.
+The Events-only output allowance is now 32,768 tokens with numeric truncation
+diagnostics; model choice, high reasoning, search grounding and complete-response
+validation remain required. A live category then completed in about 66 seconds
+using 10,620 thinking tokens and 789 output tokens, directly exceeding the old
+allowance. Its parallel category reached the previous 90-second deadline, so
+that run still correctly failed discovery. Two later real discovery runs with
+a 120-second category allowance passed in 68.700 and 59.373 seconds: 11 found
+became 10 unique events, then 13 found became 11 unique events. All four category
+responses were HTTP 200 with `STOP`; their recorded thinking-token usage alone
+exceeded the former 8,192-token allowance. Melody then requested three minutes
+while preserving received Briefing data. The 180-second category allowance,
+role-specific router support and matching progress-aware readiness wait are now
+implemented and the final uninterrupted integrated run passed. The allowance
+applies to category discovery, not a promise that the entire Briefing and later
+venue verification finish within three minutes.
+The [model adapter](../../../server/lib/ai/adapters/gemini-adapter.js) rejects
+truncated output; [Events discovery](../../../server/lib/briefing/pipelines/events.js)
+rejects an incomplete required search instead of publishing another category
+or cached rows as complete. Briefing correctly remained failed and no second
+Strategy was admitted. During a subsequent 39-second browser observation,
+there were no further Briefing GETs and zero live EventSources. The error screen
+offered no retry/Refresh Briefing action and its Open Coach link worked. See
+[Briefing query lifecycle](../../../client/src/hooks/useBriefingQueries.ts) and
+[error presentation](../../../client/src/components/CriticalError.tsx).
+
+Melody subsequently approved progressive Events: show verified results as they
+arrive, preserve received information if later work fails, and keep Strategy
+blocked until the complete Briefing is ready. The pipeline now verifies and
+saves events from a completed category while the other category runs. Only
+normalized, venue/time-verified in-market items are published to Briefing;
+canonical event writes wait for both searches and combined deduplication. Raw
+partial model output is not displayed. Pending and failed Events retain those items, and finalization
+preserves already saved sections. The client waits for the owner's terminal
+status before releasing its listener, without allowing a failed section to
+admit Strategy. It preserves received same-source data during transient read
+failures and keeps account/snapshot isolation. Successful progress does not
+spend the read-error retry budget; saved updates extend the three-minute
+inactivity wait. Focused tests and the final live progressive acceptance below
+cover these changes separately from the earlier discovery-only probes.
+
+Five client suites passed 99 tests covering actual hook/SSE lifecycle,
+provider/page rendering, retained-data isolation, saved Strategy and location
+regressions. Five new lifecycle/preservation assertions first failed against
+the previous committed hook. These fixture tests establish the specified
+transitions; their counts overlap earlier client checks and are not added to
+those totals.
+
+The later full client run passed 406 tests across 46 suites, with the separate
+Airport UI harness passing 25 tests; lint, TypeScript and the client build
+passed. The broader server run passed 524 cases across 24 suites; after the final
+reader parity correction, the actual-route and router checks passed 43 cases
+across two suites. JSON validation checked 49 files. These scopes include
+earlier focused checks and overlap one another, so the totals are not additive.
+A later live progressive attempt was interrupted when the workspace gateway
+restarted at 11:53:25 UTC after a capture began at 11:53:20 UTC. That receipt is
+archived as interrupted, not a pass or a newly diagnosed provider failure.
+The prior completed MAIN and Coach checks remain valid separate evidence.
+The aggregate reader also now keeps this generation's verified Events separate
+from supplemental saved market rows; cached nearby rows must not masquerade as
+newly collected progress.
+
+**The final uninterrupted progressive run passed.** The gateway was restarted
+only after the browser collaborator acknowledged it was idle; source and
+runtime were then held stable for the run. The observer first distinguished
+zero current-generation items from one supplemental saved market item, then
+saw owned Events progress from 0 to 1, 3 and 4 while pending, followed by a
+complete Briefing with nine saved verified nearby events, in about 71 seconds.
+The real preferences confirmation and Strategy action produced exactly one
+snapshot POST, one MAIN POST and one blocks POST in this attempt, with no MAIN
+request before the explicit action. Strategy and six venues completed.
+These are six verified candidates, not six displayed shortlist cards: all six
+received Grade C, so the existing A/B-only shortlist correctly displayed zero
+cards while Recommendations ready and nine loaded map tiles were visible.
+That policy was not relaxed. The earlier run's A/B candidates are separate
+evidence, not the contents of this final run.
+
+Independent read-only database checks passed 22/22 for this capture: exactly
+one completed admission, one successful completed Strategy, one venue job,
+one ranking and six distinct catalog-linked candidates with measured Google
+Routes. Source generation and observation times were preserved, and admitted
+settings revision 2/rules version 1 matched the canonical profile, vehicle and
+rules. These are current-capture counts, not lifetime database totals. The
+database read began after completion; the browser supplied the earlier
+progress evidence. The observer's first 30-second Strategy wait ended while
+preferences review was still unconfirmed; resuming through the real button
+completed the same flow without a second admission. This test-harness wait is
+distinct from the earlier gateway-interrupted attempt.
+
+The [priority helper](../../../server/lib/events/briefing-event-priority.js)
+selects high/medium-impact nearby events within 15 straight-line miles, followed
+by high-impact wider-market events. Canonical records remain saved even when
+excluded from this Briefing selection. Venue capacity is not attendance or
+demand evidence. The UI retains genre groups, puts nearby groups before major
+market events, and shows verified cards alongside pending or failure notices.
+View Briefing is available from the first-failure screen without adding a retry
+feature. The [canonical terms](../../../LEXICON.md) and [MAIN contract](../ai-pipeline.md)
+record the accepted behavior.
+
+**Coach's missing pre-admission UI context is fixed and verified.**
+After the new-login failure there was no admitted run, and the old
+[CoachPage](../../../client/src/pages/co-pilot/CoachPage.tsx) passed only
+`lastSnapshotId`, so Coach incorrectly showed that it was waiting for location.
+This established a UI context/status defect, not
+missing context in a model response: the [Coach endpoint](../../../server/api/chat/chat.js)
+can resolve the authenticated user's latest owned snapshot when the UI omits
+one. The UI now uses `lastSnapshotId || contextSnapshotId` for both the readout
+and composer, preserving admitted-run priority. Two failures were reproduced
+before the fix; all 10 focused identity tests then passed. A real browser read
+of the existing failed snapshot returned authenticated context-summary HTTP 200
+and correctly displayed location complete, Briefing failed, Strategy missing
+and one saved offer, with the composer available and no false location wait.
+That check made zero POSTs, captures, MAIN starts or model calls; no paid Coach
+answer is claimed. The later progressive-visibility change adds View Briefing
+alongside Open Coach; neither action promises a completed Strategy.
+
+Discovery deduplication also remains bounded. The existing coordinate-precision
+and similar-name changes were already present in the reviewed base; their
+109-test check is evidence for those existing changes, not a newly implemented
+release fix. [Discovery title matching](../../../server/lib/events/pipeline/deduplicateEventsSemantic.js)
+can still merge similar events across different venues, and its scope differs
+from [saved-event read reconciliation](../../../server/lib/events/event-read-reconciliation.js).
+That limitation remains open. Earlier bounded review findings involving event
+coordinates, ongoing-event/timezone filtering, conflicting reports, saved event
+shapes, event-read failure handling and saved-Strategy read recovery have not
+all been fixed or certified by the successful first MAIN run.
+
+Workspace acceptance is complete for the bounded paths above; commit/push is
+pending at this verification checkpoint. The successful runs, correctly
+terminated provider failure and interrupted attempt are all retained. Tasks
+91/75, physical-device capture, the separate open review findings and production
+publication/acceptance are not marked complete. Private account
+identifiers, credentials, GPS, raw provider output and detailed live receipts
+remain outside Git.

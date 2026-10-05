@@ -130,25 +130,28 @@ const BriefingTab = memo(function BriefingTab({
       />
 
       {/* Events Sections */}
-      {isEventsLoading ? (
+      {(isEventsLoading || eventsData?._pending) && !eventsData?._generationFailed && (
         <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
           <CardContent className="p-6">
             <div className="flex items-center justify-center py-8">
               <Loader className="w-5 h-5 animate-spin text-indigo-600 mr-2" />
-              <span className="text-gray-600">Loading events...</span>
+              <span role="status" className="text-gray-600">{allEvents.length ? 'Still collecting events. Verified events appear below.' : 'Loading events...'}</span>
             </div>
           </CardContent>
         </Card>
-      ) : eventsData?._generationFailed ? (
+      )}
+      {eventsData?._generationFailed && (
         // Failed ≠ empty: show the recorded reason, never "no events" (todo #24)
         <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
           <CardContent className="p-6">
-            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              ⚠ Events couldn't be generated{eventsData?.reason ? ` — ${eventsData.reason}` : ''}. They will retry on the next briefing refresh.
+            <div role="alert" className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              Events are incomplete{eventsData?.reason ? ` — ${eventsData.reason}` : ''}.
+              {allEvents.length > 0 && ' Verified events collected so far are shown below.'}
             </div>
           </CardContent>
         </Card>
-      ) : allEvents.length === 0 && eventsData?.reason ? (
+      )}
+      {!isEventsLoading && !eventsData?._pending && !eventsData?._generationFailed && allEvents.length === 0 && eventsData?.reason && (
         // 2026-04-19: H4 fix — when events generation completed but returned
         // nothing (e.g., "No events found for this location"), surface the
         // server-provided reason instead of an empty silent card. Was previously
@@ -159,7 +162,8 @@ const BriefingTab = memo(function BriefingTab({
             <div className="text-sm text-gray-600">{eventsData.reason}</div>
           </CardContent>
         </Card>
-      ) : (
+      )}
+      {allEvents.length > 0 && (
         <EventsComponent events={allEvents} isLoading={false} timezone={timezone ?? undefined} />
       )}
 

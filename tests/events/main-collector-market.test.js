@@ -37,7 +37,7 @@ const snapshot = { city: 'Border City', state: 'AA', country: 'US', timezone: 'A
 const now = new Date('2026-09-30T04:30:00Z'); // Sep29 Chicago; Sep30 New York
 const venueId = '00000000-0000-4000-8000-000000000001';
 const venue = { venue_id: venueId, place_id: 'verified-provider-id', venue_name: 'River Hall', city: 'Across River', state: 'BB', country: 'US', formatted_address: '1 River Street', lat: 0, lng: 0, timezone: 'America/New_York' };
-const event = { title: 'Concert at the river', venue_name: 'River Hall', address: '1 River Street', city: 'Across River', state: 'BB', event_start_date: '2026-09-30', event_end_date: '2026-09-30', event_start_time: '00:15', event_end_time: '01:30', category: 'concert', expected_attendance: null, is_active: true };
+const event = { title: 'Concert at the river', venue_name: 'River Hall', address: '1 River Street', city: 'Across River', state: 'BB', event_start_date: '2026-09-30', event_end_date: '2026-09-30', event_start_time: '00:15', event_end_time: '01:30', category: 'concert', expected_attendance: 'high', is_active: true };
 beforeAll(async () => {
  pg = new PGlite(); actualDb = drizzle(pg);
  for (const table of [markets, market_cities, venue_catalog, discovered_events, rankings, ranking_candidates]) {
@@ -68,7 +68,7 @@ test('MAIN excludes unrelated state matches before limiting and persists cross-s
  await actualDb.insert(discovered_events).values({ ...event, venue_id: venueId });
  const result = await run(); expect(result.events.items).toHaveLength(1);
  const persisted = saved.at(-1).events;
- expect(persisted[0]).toMatchObject({ title: event.title, impact: null, latitude: 0, longitude: 0, timezone: 'America/New_York', start_time_iso: '2026-09-30T04:15:00.000Z', end_time_iso: '2026-09-30T05:30:00.000Z' });
+ expect(persisted[0]).toMatchObject({ title: event.title, impact: 'high', latitude: 0, longitude: 0, timezone: 'America/New_York', start_time_iso: '2026-09-30T04:15:00.000Z', end_time_iso: '2026-09-30T05:30:00.000Z' });
  expect(filterFreshEvents(persisted, now, snapshot.timezone)).toEqual(persisted);
 });
 test('discovery waits for venue-local timezone before excluding a next-calendar-day current event', async () => {
@@ -78,7 +78,7 @@ test('discovery waits for venue-local timezone before excluding a next-calendar-
  expect(lookupVenue.mock.calls[0][0].placeId).toBeUndefined();
  expect(findOrCreateVenue).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'verified-provider-id', country: 'US', city: 'Across River', latitude: 0 }), 'briefing_discovery');
  const stored = await actualDb.select().from(discovered_events);
- expect(stored[0]).toMatchObject({ city: 'Across River', state: 'BB', venue_id: venueId, expected_attendance: null });
+ expect(stored[0]).toMatchObject({ city: 'Across River', state: 'BB', venue_id: venueId, expected_attendance: 'high' });
  expect(filterFreshEvents(saved.at(-1).events, now, snapshot.timezone)).toHaveLength(1);
 });
 test('unknown provider country rejects the candidate without inventing the snapshot country or writing verified events', async () => {

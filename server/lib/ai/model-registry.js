@@ -74,7 +74,13 @@ export const MODEL_ROLES = {
   BRIEFING_EVENTS_DISCOVERY: {
     model: 'gemini-3.8-flash',
     purpose: 'Event discovery (parallel category search)',
-    maxTokens: 8192,
+    // 2026-10-05: The prior 8192 cap returned MAX_TOKENS with only 1493 visible
+    // characters during live Events discovery. Thinking shares this output cap;
+    // retain HIGH and search quality with headroom below the model's 65536 limit.
+    // Complete-response validation remains unchanged. Melody requested three
+    // minutes for Events; only this role extends the router's 120-second default.
+    maxTokens: 32768,
+    timeoutMs: 180000,
     temperature: 0.4,
     thinkingLevel: 'HIGH',
     features: ['google_search'],

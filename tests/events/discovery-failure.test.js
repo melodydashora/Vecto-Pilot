@@ -4,7 +4,7 @@ const writeSectionAndNotify = jest.fn();
 const finalRead = jest.fn();
 jest.unstable_mockModule('../../server/lib/events/market-event-reader.js', () => ({
  readMarketEvents: async () => ({ rows: await finalRead(), unresolvedCount: 0 }),
- toBriefingEvent: row => row, eventOverlapsDisplayDays: () => true,
+ toBriefingEvent: row => row, eventOverlapsDisplayDays: () => true, venueInSnapshotMarket: async () => true,
 }));
 const query = { from() { return this; }, leftJoin() { return this; }, where() { return this; }, orderBy() { return this; }, limit: finalRead };
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: { select: () => query } }));

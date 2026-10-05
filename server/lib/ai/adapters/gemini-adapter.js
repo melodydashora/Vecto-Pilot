@@ -202,7 +202,14 @@ export async function callGemini({
     const blockReason = result?.promptFeedback?.blockReason
       || result?.response?.promptFeedback?.blockReason || null;
     if (finishReason === 'MAX_TOKENS') {
-      console.warn(`[AI] ${model} truncated at max_tokens=${maxTokens} (finishReason=MAX_TOKENS) — returning ok:false with partial output (${output.length} chars)`);
+      // Thinking and visible text share the cap. Record only provider numeric
+      // counters; missing usage stays absent and response text is never logged.
+      const usage = result?.usageMetadata || result?.response?.usageMetadata || {};
+      const counts = [['promptTokens', 'promptTokenCount'], ['outputTokens', 'candidatesTokenCount'],
+        ['thoughtsTokens', 'thoughtsTokenCount'], ['totalTokens', 'totalTokenCount']]
+        .filter(([, key]) => Number.isInteger(usage[key]) && usage[key] >= 0)
+        .map(([label, key]) => `${label}=${usage[key]}`).join(' ');
+      console.warn(`[AI] ${model} truncated at max_tokens=${maxTokens} (finishReason=MAX_TOKENS) — returning ok:false with partial output (${output.length} chars)${counts ? ` ${counts}` : ''}`);
       return { ok: false, output, truncated: true, error: `truncated at max_tokens=${maxTokens} (finishReason=MAX_TOKENS)` };
     }
 

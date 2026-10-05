@@ -19,8 +19,8 @@ describe('briefing retry lifecycle without SSE',()=>{
   const partial=pending();partial.briefing.weather._pending=false;
   jest.mocked(fetch).mockResolvedValueOnce(response(pending())).mockResolvedValueOnce(response(partial)).mockResolvedValue(response(complete()));
   const {result}=mount();await tick();expect(result.current.isLoading.traffic).toBe(true);
-  await tick(4000);expect(fetch).toHaveBeenCalledTimes(2);expect(result.current.isLoading.traffic).toBe(true);
-  await tick(8000);await tick(1);expect(fetch).toHaveBeenCalledTimes(3);expect(result.current.isLoading.traffic).toBe(false);
+  await tick(2000);expect(fetch).toHaveBeenCalledTimes(2);expect(result.current.isLoading.traffic).toBe(true);
+  await tick(2000);await tick(1);expect(fetch).toHaveBeenCalledTimes(3);expect(result.current.isLoading.traffic).toBe(false);
   await tick(60000);expect(fetch).toHaveBeenCalledTimes(3);
  });
  it.each(['500','network'])('bounds and backs off repeated %s failures',async mode=>{
@@ -86,4 +86,50 @@ it('polling waits for Holiday after the other six sections have settled',async()
  mount(); await tick(); await tick(4000);
  expect(fetch).toHaveBeenCalledTimes(2);
  await tick(60000); expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it.each(['500','network'])('retains verified same-source data across a transient %s read failure',async mode=>{
+ const partial={...pending(),status:'pending',updated_at:'2026-10-05T12:00:00Z'};
+ partial.briefing.events.items=[{title:'Previously verified event'}] as never[];
+ jest.mocked(fetch).mockResolvedValueOnce(response(partial));
+ const {client,result}=mount();await tick();await tick(1);
+ if(mode==='network')jest.mocked(fetch).mockRejectedValue(new Error('offline'));else jest.mocked(fetch).mockResolvedValue(response({},500));
+ await act(async()=>{await client.refetchQueries({queryKey:QUERY_KEYS.BRIEFING_AGGREGATE('fixture')});});await tick(1);
+ expect(result.current.eventsData?.events).toEqual([{title:'Previously verified event'}]);
+ expect(result.current.generationError).toBeNull();
+ expect(result.current.isRetryExhausted).toBe(false);
+});
+
+it('does not retain verified data when the same snapshot key is read with a different session token',async()=>{
+ const partial={...pending(),status:'pending',updated_at:'2026-10-05T12:00:00Z'};
+ partial.briefing.events.items=[{title:'Previous session private event'}] as never[];
+ jest.mocked(fetch).mockResolvedValueOnce(response(partial));
+ const {client,result}=mount();await tick();await tick(1);
+ localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN,'replacement-session');
+ jest.mocked(fetch).mockResolvedValue(response({},500));
+ await act(async()=>{await client.refetchQueries({queryKey:QUERY_KEYS.BRIEFING_AGGREGATE('fixture')});});await tick(1);
+ expect(result.current.eventsData?.events??[]).toEqual([]);
+});
+
+it('does not carry verified rows into a replacement snapshot whose first read fails',async()=>{
+ const partial={...pending(),status:'pending',updated_at:'2026-10-05T12:00:00Z'};
+ partial.briefing.events.items=[{title:'Old snapshot event'}] as never[];
+ jest.mocked(fetch).mockResolvedValueOnce(response(partial));
+ const {rerender,result}=mount();await tick();await tick(1);
+ jest.mocked(fetch).mockResolvedValue(response({},500));
+ rerender({snapshotId:'replacement'});await tick();await tick(1);
+ expect(result.current.eventsData?.events??[]).toEqual([]);
+ expect(fetch).toHaveBeenLastCalledWith('/api/briefing/snapshot/replacement',expect.any(Object));
+});
+
+it('successful pending reads receive a bounded inactivity allowance reset only by saved progress',async()=>{
+ let data={...pending(),status:'pending',updated_at:'2026-10-05T12:00:00Z'};
+ jest.mocked(fetch).mockImplementation(async()=>response(data));
+ const {client,result}=mount();await tick();await tick(1);
+ await tick(170000);expect(result.current.isRetryExhausted).toBe(false);
+ data={...data,updated_at:'2026-10-05T12:02:50Z'};
+ await act(async()=>{await client.refetchQueries({queryKey:QUERY_KEYS.BRIEFING_AGGREGATE('fixture')});});await tick(1);
+ await tick(170000);expect(result.current.isRetryExhausted).toBe(false);
+ await tick(15000);expect(result.current.isRetryExhausted).toBe(true);
+ const count=jest.mocked(fetch).mock.calls.length;await tick(60000);expect(fetch).toHaveBeenCalledTimes(count);
 });

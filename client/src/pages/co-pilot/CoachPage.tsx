@@ -14,7 +14,10 @@ import { useAuth } from '@/contexts/auth-context';
 import { MessageSquare } from 'lucide-react';
 
 export default function CoachPage() {
-  const { lastSnapshotId, strategyData, immediateStrategy, snapshotData, blocks, criticalError } = useCoPilot();
+  const { lastSnapshotId, contextSnapshotId, strategyData, immediateStrategy, snapshotData, blocks, criticalError } = useCoPilot();
+  // Before Strategy admission, Coach can read the current owned Briefing even
+  // when a section failed. Keep an admitted Strategy paired with its snapshot.
+  const coachSnapshotId = lastSnapshotId || contextSnapshotId || undefined;
   // 2026-09-11 (desktop-coach-review item 1, verified): the Coach identity came from
   // localStorage 'vecto_user_id' || 'default'. Nothing writes that legacy key, so every
   // account keyed its chat thread as vecto_coach_chat_default_* and a second account on the
@@ -35,10 +38,10 @@ export default function CoachPage() {
           Some current data is unavailable. The Coach can help with what has arrived and explain what is missing. Strategy remains unavailable until its required data is complete.
         </p>
       )}
-      <CoachContextStatus snapshotId={lastSnapshotId || undefined} />
+      <CoachContextStatus snapshotId={coachSnapshotId} />
       <RideshareCoach
         userId={user.userId}
-        snapshotId={lastSnapshotId || undefined}
+        snapshotId={coachSnapshotId}
         strategyId={strategyData?.strategyId || undefined}
         strategy={immediateStrategy ?? undefined}
         snapshot={snapshotData}

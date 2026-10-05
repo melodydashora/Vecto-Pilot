@@ -515,7 +515,7 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
           ) : airportReason ? (
             <p className="text-gray-500 text-sm text-center py-4">{airportReason}</p>
           ) : (
-            <p role="alert" className="text-amber-800 text-sm py-4">Airport information is incomplete: no reason was returned for the empty result. Refresh the briefing to retry.</p>
+            <p role="alert" className="text-amber-800 text-sm py-4">Airport information is incomplete: no reason was returned for the empty result.</p>
           )}
         </CardContent>
       )}

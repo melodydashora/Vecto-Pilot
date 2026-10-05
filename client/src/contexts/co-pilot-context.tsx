@@ -88,7 +88,9 @@ export function useCoPilot() {
   return context;
 }
 
-export function CoPilotProvider({ children, allowPartialCoach = false }: { children: React.ReactNode; allowPartialCoach?: boolean }) {
+export function CoPilotProvider({ children, allowPartialCoach = false, allowPartialBriefing = false }: {
+  children: React.ReactNode; allowPartialCoach?: boolean; allowPartialBriefing?: boolean;
+}) {
   const { run, setup } = useRunSetup();
   const runRef = useRef(run);
   runRef.current = run;
@@ -729,9 +731,9 @@ export function CoPilotProvider({ children, allowPartialCoach = false }: { child
   ]);
 
   // A first failed Briefing is terminal before a Strategy can be admitted.
-  // Preserve completed guidance on replacement failure and keep Coach usable.
+  // Preserve completed guidance and allow inspection of collected Briefing data.
   if (criticalError?.type === 'auth_failed' ||
-      (criticalError?.type === 'briefing_failed' && !previousStrategy && !allowPartialCoach)) {
+      (criticalError?.type === 'briefing_failed' && !previousStrategy && !allowPartialCoach && !allowPartialBriefing)) {
     return (
       <CoPilotContext.Provider value={value}>
         <CriticalError

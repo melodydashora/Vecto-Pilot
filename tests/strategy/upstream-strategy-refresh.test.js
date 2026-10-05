@@ -32,6 +32,7 @@ for (const [name, fn] of Object.entries(sections)) {
 const { captureUpstreamSnapshot, captureMainRunSnapshot } = await import('../../server/lib/location/main-run-snapshot.js');
 const { continueMainRun, getMainRunSetup, assertCurrentMainRun, assertMainRunForSnapshot, withCurrentMainRun } = await import('../../server/lib/main-run-admission.js');
 const { generateAndStoreBriefing } = await import('../../server/lib/briefing/briefing-aggregator.js');
+const { writeSectionAndNotify, CHANNELS } = await import('../../server/lib/briefing/briefing-notify.js');
 const config = migrateRuleset(null), rulesHash = hashRuleset(config);
 const input = () => ({ lat: 1.123456789, lng: -2.123456789, accuracy: 5, gps_timestamp: Date.now(), permission: 'granted' });
 const capture = (captureId = randomUUID(), body = input()) => captureUpstreamSnapshot(auth, captureId, body);
@@ -264,6 +265,45 @@ test('refresh recovers a failed Airport Briefing and admits only the new complet
   const retainedFailure = (await pg.query('SELECT * FROM briefings WHERE snapshot_id=$1', [failedSource.snapshot_id])).rows[0];
   expect(retainedFailure).toEqual(failedBriefing);
   expect(environment).toHaveBeenCalledTimes(2);
+});
+
+test('a real SQL final-save failure preserves progressively saved Briefing data without admitting Strategy', async () => {
+  const source = await capture();
+  const weather = { weather_current: { temperature: 23, conditions: 'Clear' },
+    weather_forecast: [{ temperature: 24, conditions: 'Clear' }] };
+  const partialEvents = { items: [{ title: 'Verified fixture event', venue: 'Verified fixture venue' }], _pending: true };
+  sections.weather.mockImplementationOnce(async () => {
+    await writeSectionAndNotify(source.snapshot_id, weather, CHANNELS.WEATHER);
+    return weather;
+  });
+  sections.events.mockImplementationOnce(async () => {
+    await writeSectionAndNotify(source.snapshot_id, { events: partialEvents }, CHANNELS.EVENTS);
+    return { events: { items: partialEvents.items } };
+  });
+  // The database rejects the completion write; its later failure UPDATE must
+  // preserve JSONB columns atomically, not reconstruct them in JavaScript.
+  await pg.exec(`CREATE FUNCTION reject_fixture_briefing_completion() RETURNS trigger AS $$
+    BEGIN
+      IF NEW.status = 'complete' THEN RAISE EXCEPTION 'fixture final persistence failure'; END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    CREATE TRIGGER reject_fixture_briefing_completion BEFORE UPDATE ON briefings
+    FOR EACH ROW EXECUTE FUNCTION reject_fixture_briefing_completion();`);
+  try {
+    expect(await generateAndStoreBriefing({ snapshotId: source.snapshot_id }))
+      .toMatchObject({ success: false, complete: false });
+    const saved = (await pg.query('SELECT * FROM briefings WHERE snapshot_id=$1', [source.snapshot_id])).rows[0];
+    expect(saved.status).toBe('error'); expect(saved.generated_at).toBeNull();
+    expect(saved.weather_current).toEqual(weather.weather_current);
+    expect(saved.weather_forecast).toEqual(weather.weather_forecast);
+    expect(saved.events).toEqual(partialEvents);
+    expect(saved.news).toMatchObject({ _generationFailed: true });
+    await expect(continueMainRun(auth, intent(source))).rejects.toMatchObject({ code: 'briefing_failed' });
+    expect((await pg.query('SELECT count(*)::int AS n FROM main_run_admissions')).rows[0].n).toBe(0);
+  } finally {
+    await pg.exec('DROP TRIGGER reject_fixture_briefing_completion ON briefings; DROP FUNCTION reject_fixture_briefing_completion();');
+  }
 });
 
 test('a late previous GPS result cannot displace the newer context', async () => {

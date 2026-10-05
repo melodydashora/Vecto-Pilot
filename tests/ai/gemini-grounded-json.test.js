@@ -19,6 +19,7 @@ const { MODEL_ROLES, roleUsesGoogleSearch, getProviderForModel } = await import(
 
 const answered = text => ({ text, candidates: [{ finishReason: 'STOP', content: { parts: [{ text }] } }] });
 const originalKey = process.env.GEMINI_API_KEY;
+const realTimers = { setTimeout: global.setTimeout, clearTimeout: global.clearTimeout };
 let warn;
 let error;
 beforeEach(() => {
@@ -29,6 +30,8 @@ beforeEach(() => {
   error = jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(() => {
+  jest.useRealTimers();
+  Object.assign(global, realTimers);
   warn.mockRestore();
   error.mockRestore();
   if (originalKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = originalKey;
@@ -71,6 +74,116 @@ describe('request shape', () => {
     expect(requests).toHaveLength(1);
     expect(requests[0].config.tools).toEqual([{ googleSearch: {} }]);
     expect(requests[0].config).not.toHaveProperty('responseMimeType');
+  });
+
+  test('Events reserves headroom for HIGH thinking and a complete grounded result', async () => {
+    behavior = () => answered('[{"title":"Synthetic complete event"}]');
+    const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system: 'Return only JSON.', user: 'Find verified events.' });
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ model: 'gemini-3.8-flash', config: {
+      maxOutputTokens: 32768, thinkingConfig: { thinkingLevel: 'high' }, tools: [{ googleSearch: {} }],
+    } });
+    expect(requests[0].config).not.toHaveProperty('responseMimeType');
+    expect(JSON.parse(result.output)).toEqual([{ title: 'Synthetic complete event' }]);
+  });
+});
+
+describe('Events gets its own three-minute router budget', () => {
+  test('actual role/router accepts a complete Events answer after the former two-minute limit', async () => {
+    jest.useFakeTimers();
+    let providerSignal;
+    behavior = params => new Promise((resolve, reject) => {
+      providerSignal = params.config.abortSignal;
+      const timer = setTimeout(() => resolve(answered('[{"title":"Complete synthetic event"}]')), 150000);
+      providerSignal.addEventListener('abort', () => {
+        clearTimeout(timer); reject(providerSignal.reason);
+      }, { once: true });
+    });
+    const pending = callModel('BRIEFING_EVENTS_DISCOVERY', { system: 'Return JSON.', user: 'Find events.' });
+    await jest.advanceTimersByTimeAsync(120000);
+    expect(providerSignal?.aborted).toBe(false);
+    await jest.advanceTimersByTimeAsync(30000);
+    const result = await pending;
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(result.output)).toEqual([{ title: 'Complete synthetic event' }]);
+    expect(requests).toHaveLength(1); expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test.each([['BRIEFING_EVENTS_DISCOVERY', 180000], ['BRIEFING_HOLIDAY', 120000]])(
+    '%s aborts its SDK request at its own %ims limit', async (role, deadline) => {
+      jest.useFakeTimers();
+      let providerSignal;
+      behavior = params => new Promise((_resolve, reject) => {
+        providerSignal = params.config.abortSignal;
+        providerSignal.addEventListener('abort', () => reject(providerSignal.reason), { once: true });
+      });
+      const pending = callModel(role, { system: 'Return JSON.', user: 'Find current data.' });
+      await jest.advanceTimersByTimeAsync(deadline - 1);
+      expect(providerSignal?.aborted).toBe(false);
+      await jest.advanceTimersByTimeAsync(1);
+      const result = await pending;
+      expect(providerSignal.aborted).toBe(true);
+      expect(result).toMatchObject({ ok: false, text: null });
+      expect(result.error).toContain('google:timeout');
+      expect(requests).toHaveLength(1); expect(jest.getTimerCount()).toBe(0);
+    }
+  );
+
+  test('caller cancellation still interrupts Events before its extended deadline', async () => {
+    jest.useFakeTimers();
+    const controller = new AbortController();
+    let providerSignal;
+    behavior = params => new Promise((_resolve, reject) => {
+      providerSignal = params.config.abortSignal;
+      providerSignal.addEventListener('abort', () => reject(providerSignal.reason), { once: true });
+    });
+    const pending = callModel('BRIEFING_EVENTS_DISCOVERY', { system: 'Return JSON.', user: 'Find events.', signal: controller.signal });
+    await jest.advanceTimersByTimeAsync(0);
+    controller.abort();
+    expect((await pending).ok).toBe(false);
+    expect(providerSignal.aborted).toBe(true);
+    expect(requests).toHaveLength(1); expect(jest.getTimerCount()).toBe(0);
+  });
+});
+
+describe('truncated responses remain failures with content-free diagnostics', () => {
+  test('adapter records only numeric usage and rejects a partial MAX_TOKENS response', async () => {
+    const partial = '[{"title":"PRIVATE_SYNTHETIC_EVENT';
+    behavior = () => ({ text: partial, candidates: [{ finishReason: 'MAX_TOKENS' }],
+      usageMetadata: { promptTokenCount: 1500, candidatesTokenCount: 768, thoughtsTokenCount: 32000,
+        totalTokenCount: 34268, privateDebug: 'PRIVATE_SYNTHETIC_USAGE' } });
+    const result = await callGemini({ model: 'gemini-3.8-flash', system: 'Return JSON.', user: 'Find events.',
+      maxTokens: 32768, thinkingLevel: 'HIGH', useSearch: true });
+    expect(result).toMatchObject({ ok: false, truncated: true, output: partial });
+    const diagnostic = warn.mock.calls.flat().join(' ');
+    for (const value of ['finishReason=MAX_TOKENS', 'max_tokens=32768', 'promptTokens=1500',
+      'outputTokens=768', 'thoughtsTokens=32000', 'totalTokens=34268']) expect(diagnostic).toContain(value);
+    expect(diagnostic).not.toContain('PRIVATE_SYNTHETIC');
+  });
+
+  test('missing or malformed usage is not logged as zero or upstream text', async () => {
+    behavior = () => ({ text: '', candidates: [{ finishReason: 'MAX_TOKENS' }],
+      usageMetadata: { promptTokenCount: 'PRIVATE_SYNTHETIC_USAGE', candidatesTokenCount: -1,
+        thoughtsTokenCount: 0, totalTokenCount: Infinity } });
+    const result = await callGemini({ model: 'gemini-3.8-flash', system: 'Return JSON.', user: 'Find events.', maxTokens: 32768 });
+    expect(result.ok).toBe(false);
+    const diagnostic = warn.mock.calls.flat().join(' ');
+    expect(diagnostic).toContain('thoughtsTokens=0');
+    for (const value of ['promptTokens=', 'outputTokens=', 'totalTokens=', 'PRIVATE_SYNTHETIC']) {
+      expect(diagnostic).not.toContain(value);
+    }
+  });
+
+  test.each(['[{"title":"PRIVATE_SYNTHETIC_EVENT', '[]'])('actual role/router rejects MAX_TOKENS even for JSON-shaped text: %s', async output => {
+    behavior = () => ({ text: output, candidates: [{ finishReason: 'MAX_TOKENS' }],
+      usageMetadata: { candidatesTokenCount: 768, thoughtsTokenCount: 32000 } });
+    const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system: 'Return JSON.', user: 'Find events.' });
+    expect(result).toMatchObject({ ok: false, success: false, text: null });
+    expect(result.error).toContain('google:truncated');
+    expect(result).not.toHaveProperty('output');
+    expect(requests).toHaveLength(1);
+    expect(JSON.stringify([...warn.mock.calls, ...error.mock.calls])).not.toContain('PRIVATE_SYNTHETIC_EVENT');
   });
 });
 

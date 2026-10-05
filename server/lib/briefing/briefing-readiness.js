@@ -6,7 +6,9 @@ export const BRIEFING_FIELDS = Object.freeze([
 ]);
 
 const hasText = value => typeof value === 'string' && value.trim().length > 0;
-export const BRIEFING_WAIT_TIMEOUT_MS = 90000;
+// Bound inactivity, not the whole fan-out: verified section writes can continue
+// after a three-minute Events search and advance the saved progress timestamp.
+export const BRIEFING_WAIT_TIMEOUT_MS = 180000;
 
 // Provider errors can contain URLs/credentials. Expose the cause, not raw responses.
 export function briefingFailureReason(error) {
@@ -129,13 +131,22 @@ export function cachedBriefingRetryReason(row, snapshotId, now = Date.now()) {
 // to invoke Strategy. Injectable timing makes this contract testable without a DB.
 export async function waitForBriefing({ snapshotId, read, timeoutMs = BRIEFING_WAIT_TIMEOUT_MS, intervalMs = 3000,
   now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
-  const started = now();
+  let lastProgressAt = now();
+  let lastSavedUpdate = null;
   for (;;) {
     const row = await read(snapshotId);
     const readiness = getBriefingReadiness(row, snapshotId);
     if (readiness.ready) return row;
-    if (readiness.failed) throw new BriefingNotReadyError(row, snapshotId);
-    if (now() - started >= timeoutMs) throw new BriefingNotReadyError(row, snapshotId, { timedOut: true });
-    await sleep(Math.min(intervalMs, timeoutMs - (now() - started)));
+    // A failed section blocks Strategy immediately, but the generation owner
+    // still saves other sections before publishing its terminal row status.
+    if (readiness.failed && row?.status !== 'pending') throw new BriefingNotReadyError(row, snapshotId);
+    const savedUpdate = row?.updated_at ? new Date(row.updated_at).getTime() : NaN;
+    if (Number.isFinite(savedUpdate) && (lastSavedUpdate === null || savedUpdate > lastSavedUpdate)) {
+      lastSavedUpdate = savedUpdate;
+      lastProgressAt = Math.min(now(), savedUpdate);
+    }
+    const inactiveFor = now() - lastProgressAt;
+    if (inactiveFor >= timeoutMs) throw new BriefingNotReadyError(row, snapshotId, { timedOut: true });
+    await sleep(Math.min(intervalMs, timeoutMs - inactiveFor));
   }
 }

@@ -127,7 +127,7 @@ export function SchoolClosuresCard({ schoolClosuresData, isSchoolClosuresLoading
             // Failed ≠ empty: show the recorded reason, never "no closures" (todo #24)
             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>School closure data couldn't be retrieved{closuresReason ? ` — ${closuresReason}` : ''}. It will retry on the next briefing refresh.</span>
+              <span>School closure data couldn't be retrieved{closuresReason ? ` — ${closuresReason}` : ''}.</span>
             </div>
           ) : (
             <p className="text-gray-500 text-sm text-center py-4">

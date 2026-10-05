@@ -69,7 +69,7 @@ function mount(data: ReturnType<typeof aggregate>) {
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
-  render(<QueryClientProvider client={client}><CoPilotProvider><BriefingPage /></CoPilotProvider></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><CoPilotProvider allowPartialBriefing><BriefingPage /></CoPilotProvider></QueryClientProvider>);
   return client;
 }
 
@@ -126,7 +126,7 @@ describe('upstream briefing aggregate through its real provider, page, and event
     data.briefing.school_closures.reason = 'School source unavailable';
     data.briefing.airport_conditions.reason = 'Airport source unavailable';
     mount(data);
-    expect(await screen.findByText(/Events couldn't be generated.*Event discovery unavailable/)).toBeInTheDocument();
+    expect(await screen.findByText(/Events are incomplete.*Event discovery unavailable/)).toBeInTheDocument();
     expect(screen.getByText(/Weather temporarily unavailable/)).toBeInTheDocument();
     expect(screen.getByText(/Traffic data couldn't be retrieved.*Traffic provider unavailable/)).toBeInTheDocument();
     expect(screen.getByText(/News couldn't be generated.*News provider unavailable/)).toBeInTheDocument();
@@ -153,20 +153,19 @@ describe('upstream briefing aggregate through its real provider, page, and event
     expect(screen.queryByText(/Events couldn't be generated/)).not.toBeInTheDocument();
   });
 
-  it('shows exhausted recovery honestly and restores the cards after an explicit retry', async () => {
+  it('shows exhausted recovery honestly while preserving known cards without a retry action', async () => {
     const data = aggregate();
     data.briefing.events.reason = 'No scheduled events in this market today';
     const client = mount(data);
     await screen.findByText('No scheduled events in this market today');
     client.setQueryData(QUERY_KEYS.BRIEFING_AGGREGATE('briefing-fixture'), {
-      snapshot_id: 'briefing-fixture', briefing: {}, _error: 503, _exhausted: true,
+      ...data, _error: 503, _exhausted: true,
     });
-    expect(await screen.findByText('Briefing data is temporarily unavailable. Try again to refresh it.')).toHaveAttribute('role', 'alert');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/unavailable|incomplete/i);
     expect(screen.queryByText('No events found in your area')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading forecast...')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry briefing' }));
-    expect(await screen.findByText('No scheduled events in this market today')).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry|refresh/i })).not.toBeInTheDocument();
+    expect(screen.getByText('No scheduled events in this market today')).toBeInTheDocument();
   });
 });
 
@@ -191,4 +190,50 @@ it('shows a completed event section while another required section remains pendi
   expect(await screen.findByText('Ready while schools load')).toBeInTheDocument();
   expect(screen.getByText('Loading school closures...')).toBeInTheDocument();
   expect(screen.queryByText('Loading events...')).not.toBeInTheDocument();
+});
+
+it('shows verified events while discovery is pending without starting MAIN', async () => {
+  const data = aggregate();
+  Object.assign(data, { status: 'pending', updated_at: '2026-09-14T02:00:00Z' });
+  data.briefing.events._pending = true;
+  data.briefing.events.items = [{ title: 'Verified before final category', event_start_date: '2026-09-13', event_start_time: '20:00' }];
+  mount(data);
+  expect(await screen.findByText('Verified before final category')).toBeInTheDocument();
+  expect(screen.getByText(/collecting events.*verified events appear below/i)).toHaveAttribute('role', 'status');
+  expect(screen.queryByText('No events found in your area')).not.toBeInTheDocument();
+  expect(jest.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+});
+
+it('keeps verified events visible after a later category fails and does not admit Strategy', async () => {
+  const data = aggregate(); Object.assign(data, { status: 'error' });
+  data.briefing.events._generationFailed = true;
+  data.briefing.events.reason = 'Second category unavailable';
+  data.briefing.events.items = [{ title: 'Retained verified concert', event_start_date: '2026-09-13', event_start_time: '20:00' }];
+  mount(data);
+  expect(await screen.findByText('Retained verified concert')).toBeInTheDocument();
+  expect(screen.getAllByText(/Second category unavailable/).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('button', { name: /retry|refresh/i })).not.toBeInTheDocument();
+  expect(screen.queryByText(/will retry on the next briefing refresh/i)).not.toBeInTheDocument();
+  expect(jest.mocked(fetch).mock.calls.some(([url]) => String(url).startsWith('/api/blocks'))).toBe(false);
+  expect(jest.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+});
+
+it('keeps nearby genre groups before the separate major-market group during progress', async () => {
+  const data = aggregate(); Object.assign(data, { status: 'pending' });
+  data.briefing.events._pending = true;
+  data.briefing.events.items = [
+    { title: 'Nearby concert', impact: 'medium', event_scope: 'nearby', event_type: 'concert', event_start_date: '2026-09-13', event_start_time: '20:00' },
+    { title: 'Nearby game', impact: 'high', event_scope: 'nearby', event_type: 'sports', event_start_date: '2026-09-13', event_start_time: '20:30' },
+  ];
+  data.briefing.events.marketEvents = [
+    { title: 'Major farther concert', impact: 'high', event_scope: 'market', event_type: 'concert', event_start_date: '2026-09-13', event_start_time: '21:00' },
+  ];
+  mount(data);
+  expect(await screen.findByText('Nearby concert')).toBeInTheDocument();
+  expect(screen.getByTestId('events-category-concerts')).toHaveTextContent('Nearby concert');
+  expect(screen.getByTestId('events-category-sports')).toHaveTextContent('Nearby game');
+  fireEvent.click(screen.getByText('Major Events in Your Market'));
+  const market = screen.getByText('Major farther concert');
+  expect(screen.getByText('Nearby game').compareDocumentPosition(market) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByText('Nearby concert').compareDocumentPosition(market) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

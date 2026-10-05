@@ -23,6 +23,7 @@ interface Event extends EventVariant {
   type?: string;
   subtype?: string;
   estimated_distance_miles?: number;
+  straight_line_distance_miles?: number | null;
   impact?: "high" | "medium" | "low" | null;
   recommended_driver_action?: string;
   confidence?: string;
@@ -317,7 +318,12 @@ export default function EventsComponent({ events: savedEvents, isLoading: _isLoa
                           </div>
                         )}
 
-                        {event.estimated_distance_miles && (
+                        {Number.isFinite(event.straight_line_distance_miles) ? (
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                            <span>{event.straight_line_distance_miles!.toFixed(1)} straight-line miles away</span>
+                          </div>
+                        ) : event.estimated_distance_miles != null && (
                           <div className="flex items-center gap-2">
                             <TrendingUp className="w-3 h-3 text-gray-500 flex-shrink-0" />
                             <span>{event.estimated_distance_miles} miles away</span>

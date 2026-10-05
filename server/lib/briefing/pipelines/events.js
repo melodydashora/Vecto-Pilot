@@ -47,12 +47,18 @@ import { geocodeEventAddress } from '../../events/pipeline/geocodeEvent.js';
 import { searchPlaceWithTextSearch } from '../../venue/venue-address-resolver.js';
 import { parseAddressComponents } from '../../venue/venue-utils.js';
 import { normalizeCoordinates } from '../../../../shared/coordinates.js';
-import { readMarketEvents, toBriefingEvent, eventOverlapsDisplayDays } from '../../events/market-event-reader.js';
+import { readMarketEvents, toBriefingEvent, eventOverlapsDisplayDays, venueInSnapshotMarket } from '../../events/market-event-reader.js';
+import { prioritizeBriefingEvents } from '../../events/briefing-event-priority.js';
 import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVenueTags, mergeIntoOverlappingActiveSpan, withEventVenueLock, resolveEventWriteHash, discoveryReactivationFields } from '../cleanup-events.js';
 
 // Per-category Gemini search timeout. Each category runs in parallel; total fan-out
 // time is bounded by max(category_timeouts), not sum, since they're Promise.all'd.
-const EVENT_SEARCH_TIMEOUT_MS = 90000; // 90 seconds per category search (Gemini + thinking needs time)
+// 2026-10-05: The former 90-second deadline cancelled live HIGH-thinking search
+// after the token cap was corrected. The first increase matched the router's
+// 120-second default. Melody then requested three minutes; the Events role's
+// router budget matches this caller deadline, which still cancels transport
+// and rejects late output.
+const EVENT_SEARCH_TIMEOUT_MS = 180000;
 const EVENT_VENUE_TIMEOUT_MS = 15000; // One budget for cache/Places/geocode resolution
 
 /**
@@ -206,6 +212,8 @@ function scheduleInconsistency(event) {
  * Split rationale:
  * - high_impact: Big venues that generate surge demand (stadiums, arenas, concert halls)
  * - local_entertainment: Smaller venues, local events (bars, comedy clubs, community)
+ * 2026-10-05: Melody narrowed this to valuable nearby gatherings and only major
+ * wider-market crowd draws. Routine local listings are not a demand signal.
  *
  * 2026-02-26: FIX - Removed hardcoded US league names (NBA, NFL, etc.) and DFW-specific references.
  * Search terms are now market-agnostic so Gemini discovers whatever events exist in any global market.
@@ -222,8 +230,8 @@ const EVENT_CATEGORIES = [
   },
   {
     name: 'local_entertainment',
-    description: 'Local nightlife and community events',
-    searchTerms: (market, state, date) => `comedy shows live music bars nightlife community events ${market} ${state} ${date} trivia karaoke DJ local entertainment`,
+    description: 'High-value nearby entertainment and community gatherings with evidence of a meaningful crowd',
+    searchTerms: (market, state, date) => `ticketed comedy shows live music major community gatherings ${market} ${state} ${date} popular local entertainment crowd`,
     eventTypes: ['concert', 'comedy', 'nightlife', 'community'],
     maxEvents: 8
   }
@@ -424,7 +432,7 @@ async function fetchEventCategory({ category, city, state, market, country, lat,
   // never reached the prompt.
   const prompt = `Find ${category.description || category.name.replace('_', ' ')} happening TODAY (${date}) in the ${searchArea} metro area in country ${country}. The driver day is defined by ${timezone}.
 
-The driver is currently near coordinates (${lat}, ${lng}). Prioritize discovering events at venues within 15 miles of these coordinates first. Then include the most impactful events from the broader ${searchArea} area.
+The driver is currently near coordinates (${lat}, ${lng}). Prioritize discovering high-value events at venues within 15 miles of these coordinates first. Outside that nearby area, include only major crowd draws with supporting evidence of high impact in the broader ${searchArea} area.
 
 SEARCH: "${category.searchTerms(searchArea, state, date)} ${country}"
 EVENT TYPES: ${category.eventTypes.join(', ')}
@@ -450,6 +458,7 @@ RULES:
 - For SINGLE-day events: use the same actual venue-local date for start and end, which may differ from the driver date near a timezone boundary.
 - place_id: optional opaque Google Places identifier only when a source supplies it; otherwise null. Never invent it or assume a prefix. Venue identity is verified separately.
 - impact: high, medium or low only with supporting evidence; otherwise null.
+- Nearby events should have evidence of a meaningful crowd (high or medium impact); wider-market events need evidence of high impact. Do not fill the list with routine bar nights, trivia, karaoke or small community listings without that evidence. Venue capacity alone does not establish attendance or demand. Never invent attendance counts or earnings.
 - category: MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community
 - ALL 4 date/time fields REQUIRED — use the published schedule. Never estimate missing start/end times or durations. Omit an event if its schedule cannot be verified.
 - Search the ENTIRE ${searchArea.toUpperCase()} metro, not just ${city}
@@ -548,7 +557,7 @@ DO NOT use any other category values.`;
  * (EVENT_CATEGORIES) replaced an earlier 5-category approach and a single-search
  * fallback (now-deleted _fetchEventsWithGemini3ProPreviewLegacy).
  */
-async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date }) {
+async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date, onCategory }) {
   signal?.throwIfAborted();
   // 2026-01-09: Require ALL location data - no fallbacks for global app
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
@@ -590,12 +599,16 @@ async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date }) {
     throw new Error('GEMINI_API_KEY required for event discovery');
   }
 
-  briefingLog.ai(2, 'Briefer', `events for ${market || '[unknown-market]'} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
+  briefingLog.ai(2, 'Briefer', `events for ${market || '[unknown-market]'} market (driver in ${city}) - 2 focused searches (${EVENT_SEARCH_TIMEOUT_MS / 1000}s timeout each)`);
 
   // PARALLEL CATEGORY SEARCHES - 2 focused searches (high_impact + local_entertainment)
   // Each category runs independently, results are merged and deduplicated
   // 2026-02-01: Now searches entire market, not just driver's city
   const startTime = Date.now();
+  // Verification starts when one complete category arrives, outside its model
+  // deadline. Serialize callbacks and await every callback before finalizing so
+  // concurrent responses cannot overwrite progress or outlive this generation.
+  let progressQueue = Promise.resolve();
 
   const categoryPromises = EVENT_CATEGORIES.map(category =>
     withTimeout(
@@ -604,6 +617,12 @@ async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date }) {
       `Event search: ${category.name}`,
       signal
     ).catch(error => ({ category: category.name, items: [], timedOut: error.name === 'TimeoutError', error: error.message }))
+      .then(result => {
+        if (!onCategory || result.error || result.timedOut) return result;
+        const callback = progressQueue.then(() => { signal?.throwIfAborted(); return onCategory(result); });
+        progressQueue = callback;
+        return callback.then(() => result, error => ({ ...result, error: error.message }));
+      })
   );
 
   const categoryResults = await Promise.all(categoryPromises);
@@ -617,7 +636,12 @@ async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date }) {
     ).join('; '));
   }
 
-  // Merge results from all categories
+  return mergeEventCategoryResults(categoryResults, { elapsedMs: Date.now() - startTime });
+}
+
+function mergeEventCategoryResults(categoryResults, { elapsedMs = null } = {}) {
+  // Merge results from all categories. Progressive callers use the same rules
+  // over the categories completed so far; the final merge still requires both.
   // 2026-04-11: Two-phase merge — exact title dedup first, then semantic title-similarity dedup
   const rawEvents = [];
   const seenTitles = new Set();
@@ -647,7 +671,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date }) {
   const { deduplicated: allEvents, removed: semanticRemoved, mergeLog } =
     deduplicateEventsSemantic(rawEvents);
 
-  if (semanticRemoved.length > 0) {
+  if (semanticRemoved.length > 0 && elapsedMs !== null) {
     briefingLog.done(2, `[EVENTS] [DEDUP] Semantic dedup: ${rawEvents.length} → ${allEvents.length} (${semanticRemoved.length} title-variant duplicates removed)`, OP.AI);
     // 2026-04-28: per-merge mergeLog demoted — deduplicateEventsSemantic
     // already emits each [BRIEFING] [EVENTS] [DEDUP] line directly to console
@@ -659,8 +683,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot, signal, date }) {
     }
   }
 
-  const elapsedMs = Date.now() - startTime;
-  briefingLog.done(2, `Briefer: ${allEvents.length} unique events (${totalFound} total from 2 searches, ${sourceRejections.length} incomplete) in ${elapsedMs}ms`, OP.AI);
+  if (elapsedMs !== null) briefingLog.done(2, `Briefer: ${allEvents.length} unique events (${totalFound} total from 2 searches, ${sourceRejections.length} incomplete) in ${elapsedMs}ms`, OP.AI);
 
   // Every category completed. Preserve provided no-data explanations; bare-array
   // providers retain the existing successful-empty contract.
@@ -753,6 +776,110 @@ async function resolveEventVenue(event, snapshot, signal) {
   return venue;
 }
 
+// A single verification path serves progressive cards and final persistence.
+// Cache within this generation only: publishing progress never starts a second
+// venue lookup, and final dedup still decides which verified candidates to save.
+function createEventVerifier({ snapshot, todayStr, signal, progress }) {
+  const normalizedBySource = new Map();
+  const validation = new Map();
+  const verification = new Map();
+  const verified = new Map();
+  const marketMembership = new Map();
+  const key = event => JSON.stringify(event);
+
+  function prepare(items) {
+    signal?.throwIfAborted();
+    progress.stage = 'validation';
+    const normalized = items.map(source => {
+      const sourceKey = key(source);
+      if (!normalizedBySource.has(sourceKey)) normalizedBySource.set(sourceKey, {
+        // 2026-04-04: FIX C-4 — Pass city/state context so normalizeEvent has
+        // fallback location rather than empty strings that break event hashes.
+        ...normalizeEvent(source, { city: snapshot.city, state: snapshot.state }),
+        // The legacy normalizer defaults missing/unknown attendance to medium.
+        // A demand estimate requires actual provider evidence at this boundary.
+        expected_attendance: ['high', 'medium', 'low'].includes(source.expected_attendance || source.impact)
+          ? (source.expected_attendance || source.impact) : null,
+      });
+      return normalizedBySource.get(sourceKey);
+    });
+    const unchecked = [...new Set(normalized.filter(event => !validation.has(event)))];
+    if (unchecked.length) {
+      // 2026-01-10: validateEventsHard returns {valid, invalid, stats}.
+      // 2026-04-28: Rule 13 uses the driver's timezone, never server time.
+      const { valid, invalid = [] } = validateEventsHard(unchecked, { context: { timezone: snapshot.timezone } });
+      for (const event of unchecked) {
+        const rejected = invalid.find(result => result.event === event);
+        // Calendar exclusions wait for the verified venue's own timezone.
+        if (valid.includes(event) || (rejected && DATE_WINDOW_REASONS.has(rejected.reason))) validation.set(event, null);
+        else if (rejected) validation.set(event, { stage: 'validation', reason: rejected.reason,
+          detail: `required field ${rejected.field} failed validation` });
+        else throw new Error('Event validation returned no outcome for a candidate');
+      }
+    }
+    const rejected = normalized.filter(event => validation.get(event)).map(event => ({ event, ...validation.get(event) }));
+    const validEvents = normalized.filter(event => !validation.get(event));
+    // 2026-06-11: Retain both dedup stages. Raw discovery dedup sees provider
+    // titles; normalization can reveal new collisions. Hash-first is the cheap
+    // exact pass before semantic matching of normalized, validated candidates.
+    const hashDeduped = deduplicateEvents(validEvents);
+    const { deduplicated: events } = deduplicateEventsSemantic(hashDeduped);
+    return { events, rejected, duplicates: validEvents.length - events.length };
+  }
+
+  async function verify(event) {
+    signal?.throwIfAborted();
+    const eventKey = key(event);
+    if (!verification.has(eventKey)) verification.set(eventKey, (async () => {
+      progress.candidate = label(event.title);
+      progress.stage = 'schedule';
+      const inconsistency = scheduleInconsistency(event);
+      if (inconsistency) return { rejection: { stage: 'schedule', reason: 'schedule_inconsistent', detail: inconsistency } };
+      progress.stage = 'venue_resolution';
+      let venue;
+      try {
+        venue = await withTimeout(requestSignal => resolveEventVenue(event, snapshot, requestSignal),
+          EVENT_VENUE_TIMEOUT_MS, `Event venue: ${event.venue_name}`, signal);
+      } catch (error) {
+        signal?.throwIfAborted();
+        return { rejection: venueRejection(error) };
+      }
+      signal?.throwIfAborted();
+      progress.stage = 'schedule';
+      const canonical = { ...event, venue_name: venue.venue_name, address: venue.formatted_address,
+        city: venue.city, state: venue.state, venue_id: venue.venue_id };
+      const projected = toBriefingEvent({ event: canonical, venue });
+      const overlaps = eventOverlapsDisplayDays(projected, todayStr, todayStr, snapshot.timezone);
+      if (overlaps === null) return { rejection: { stage: 'schedule', reason: 'schedule_inconsistent',
+        detail: `${event.event_start_date} ${event.event_start_time} to ${event.event_end_date} ${event.event_end_time} cannot be resolved to an interval in ${venue.timezone}` } };
+      if (!overlaps) return { outsideWindow: true };
+      const result = { venue, projected };
+      verified.set(eventKey, result);
+      return result;
+    })());
+    const result = await verification.get(eventKey);
+    signal?.throwIfAborted();
+    return result;
+  }
+
+  return { prepare, verify, knownItems: async events => {
+    const items = [];
+    for (const event of events) {
+      const result = verified.get(key(event));
+      if (!result) continue;
+      signal?.throwIfAborted();
+      const venueId = result.venue.venue_id;
+      if (!marketMembership.has(venueId)) {
+        marketMembership.set(venueId, venueInSnapshotMarket(result.venue, snapshot));
+      }
+      const included = await marketMembership.get(venueId);
+      signal?.throwIfAborted();
+      if (included) items.push(result.projected);
+    }
+    return items;
+  } };
+}
+
 /**
  * Primary entry point for event discovery + DB caching + read.
  *
@@ -777,9 +904,11 @@ async function resolveEventVenue(event, snapshot, signal) {
  * @param {object} args.snapshot - snapshot row (city/state/timezone/lat/lng required)
  * @param {{stage: string, candidate: string|null}} [args.progress] - updated as the
  *   pipeline advances so the caller can log the stage that failed
+ * @param {function(Array): Promise<void>} [args.onProgress] - receives verified
+ *   eligible cards while discovery continues; never indicates completion
  * @returns {Promise<{items: Array, reason: string|null, provider: string}>}
  */
-export async function fetchEventsForBriefing({ snapshot, signal, progress = { stage: 'preflight', candidate: null } } = {}) {
+export async function fetchEventsForBriefing({ snapshot, signal, progress = { stage: 'preflight', candidate: null }, onProgress } = {}) {
   signal?.throwIfAborted();
   if (!snapshot) {
     throw new Error('Snapshot is required for events fetch');
@@ -840,10 +969,37 @@ export async function fetchEventsForBriefing({ snapshot, signal, progress = { st
 
   let discoveryReason = null;
   const candidates = createCandidateLedger();
+  const verifier = createEventVerifier({ snapshot, todayStr, signal, progress });
+  const completedCategories = new Map();
+  let publishedItems = '[]';
+  const onCategory = onProgress ? async result => {
+    completedCategories.set(result.category, result);
+    // Keep the historical category order even when the responses arrive in the
+    // opposite order, then reapply the same combined raw and normalized dedup.
+    const completed = EVENT_CATEGORIES.map(category => completedCategories.get(category.name)).filter(Boolean);
+    const merged = mergeEventCategoryResults(completed);
+    const prepared = verifier.prepare(merged.items);
+    const impactRank = { high: 3, medium: 2, low: 1 };
+    const verificationOrder = [...prepared.events].sort((a, b) =>
+      (impactRank[b.expected_attendance] || 0) - (impactRank[a.expected_attendance] || 0));
+    for (const event of verificationOrder) {
+      await verifier.verify(event);
+      signal?.throwIfAborted();
+      const items = prioritizeBriefingEvents(await verifier.knownItems(prepared.events), snapshot);
+      const serialized = JSON.stringify(items);
+      if (serialized !== publishedItems) {
+        await onProgress(items);
+        signal?.throwIfAborted();
+        publishedItems = serialized;
+      }
+    }
+    progress.stage = 'discovery';
+    progress.candidate = null;
+  } : undefined;
   progress.stage = 'discovery';
   try {
     // Run parallel category search using configured Briefer model
-    const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot, signal, date: todayStr });
+    const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot, signal, date: todayStr, onCategory });
     discoveryReason = discoveryResult.reason;
     candidates.counts.discovered = discoveryResult.found;
     candidates.counts.duplicates = discoveryResult.duplicates;
@@ -852,93 +1008,27 @@ export async function fetchEventsForBriefing({ snapshot, signal, progress = { st
     if (discoveryResult.items && discoveryResult.items.length > 0) {
       briefingLog.done(2, `Events: ${discoveryResult.items.length} discovered`, OP.AI);
 
-      // Store discovered events in DB for caching and SmartBlocks integration
-      // Note: This uses the canonical ETL pipeline for validation/normalization
-      // 2026-04-04: FIX C-4 — Pass city/state context so normalizeEvent has fallback location
-      // Without context, events from AI responses missing city/state fields get empty strings,
-      // breaking downstream filtering and event hash consistency
-      progress.stage = 'validation';
-      const normalized = discoveryResult.items.map(e => ({
-        ...normalizeEvent(e, { city, state }),
-        // The legacy normalizer defaults missing/unknown attendance to medium.
-        // A demand estimate requires actual provider evidence at this boundary.
-        expected_attendance: ['high', 'medium', 'low'].includes(e.expected_attendance || e.impact)
-          ? (e.expected_attendance || e.impact) : null,
-      }));
-      // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
-      // 2026-04-28: thread snapshot.timezone so Rule 13 today-check uses driver's local tz
-      // (spec §9.2 — global-app correctness for far-east / Hawaii callers near midnight UTC)
-      const { valid, invalid: invalidEvents } = validateEventsHard(normalized, {
-        context: { timezone: timezone }
-      });
-      // Date-window exclusions are legitimate search results. Missing or invalid
-      // required content rejects that candidate alone, under the validator's own
-      // reason code. 2026-09-29: it used to fail the whole section.
-      for (const result of (invalidEvents || []).filter(result => !DATE_WINDOW_REASONS.has(result.reason))) {
-        candidates.reject(result.event, { stage: 'validation', reason: result.reason, detail: `required field ${result.field} failed validation` });
-      }
-      const validatedEvents = [...valid, ...(invalidEvents || []).filter(result => DATE_WINDOW_REASONS.has(result.reason)).map(result => result.event)];
+      const prepared = verifier.prepare(discoveryResult.items);
+      for (const rejection of prepared.rejected) candidates.reject(rejection.event, rejection);
+      candidates.counts.duplicates += prepared.duplicates;
 
-      // 2026-06-11: Two-stage dedup here is intentionally retained (NOT redundant with the
-      // raw-stage deduplicateEventsSemantic in fetchEventsWithGemini3ProPreview). The earlier
-      // pass runs on RAW Gemini titles; THIS pass runs on NORMALIZED + validated events, where
-      // normalizeEvent has canonicalized titles/venues/categories and can surface new
-      // title-variant collisions the raw pass could not see. Hash dedup runs first (cheap exact
-      // key) to shrink the input before the O(n²) semantic pass.
-      const hashDeduped = deduplicateEvents(validatedEvents);
-      const { deduplicated: semanticDeduped } = deduplicateEventsSemantic(hashDeduped);
-      console.log(
-        `[BRIEFING] [EVENTS] [DEDUP] [WRITE] ` +
-        `hash: ${validatedEvents.length} → ${hashDeduped.length}, ` +
-        `semantic: ${hashDeduped.length} → ${semanticDeduped.length} ` +
-        `(pre-insert dedup before per-event upsert)`
-      );
-      candidates.counts.duplicates += validatedEvents.length - semanticDeduped.length;
-
-      for (const event of semanticDeduped) {
+      for (const event of prepared.events) {
         progress.candidate = label(event.title);
-
-        // Stage: schedule. Checked before the paid venue lookup.
-        progress.stage = 'schedule';
-        const inconsistency = scheduleInconsistency(event);
-        if (inconsistency) {
-          candidates.reject(event, { stage: 'schedule', reason: 'schedule_inconsistent', detail: inconsistency });
+        const verified = await verifier.verify(event);
+        if (verified.rejection) {
+          candidates.reject(event, verified.rejection);
           continue;
         }
-
-        // Stage: venue resolution. A lookup that times out, errors or cannot
-        // verify the venue rejects this candidate and the batch continues.
-        progress.stage = 'venue_resolution';
-        let resolvedVenue;
-        try {
-          resolvedVenue = await withTimeout(requestSignal => resolveEventVenue(event, snapshot, requestSignal),
-            EVENT_VENUE_TIMEOUT_MS, `Event venue: ${event.venue_name}`, signal);
-        } catch (venueErr) {
-          // Caller cancellation ends the run. It says nothing about this venue.
-          signal?.throwIfAborted();
-          candidates.reject(event, venueRejection(venueErr));
-          continue;
-        }
-        signal?.throwIfAborted();
-        const venueId = resolvedVenue.venue_id;
-        const resolvedAddress = resolvedVenue.formatted_address;
-        const resolvedCity = resolvedVenue.city;
-        const resolvedState = resolvedVenue.state;
-
-        // Stage: schedule, now in the venue's own timezone.
-        progress.stage = 'schedule';
-        const projected = toBriefingEvent({ event, venue: resolvedVenue });
-        const overlaps = eventOverlapsDisplayDays(projected, todayStr, todayStr, timezone);
-        if (overlaps === null) {
-          candidates.reject(event, { stage: 'schedule', reason: 'schedule_inconsistent',
-            detail: `${event.event_start_date} ${event.event_start_time} to ${event.event_end_date} ${event.event_end_time} cannot be resolved to an interval in ${resolvedVenue.timezone}` });
-          continue;
-        }
-        if (!overlaps) {
+        if (verified.outsideWindow) {
           candidates.counts.outside_window++;
           discoveryReason = 'No events remained within the current date window';
           continue;
         }
+        const resolvedVenue = verified.venue;
+        const venueId = resolvedVenue.venue_id;
+        const resolvedAddress = resolvedVenue.formatted_address;
+        const resolvedCity = resolvedVenue.city;
+        const resolvedState = resolvedVenue.state;
 
         // Stage: persistence. A failure here is a real storage failure.
         progress.stage = 'persistence';
@@ -1057,18 +1147,21 @@ export async function fetchEventsForBriefing({ snapshot, signal, progress = { st
     briefingLog.warn(2, `[EVENTS] [stage=saved_read] ${candidateNote({ saved_excluded: unresolvedCount })} ` +
       '(venue timezone missing or invalid, or the end precedes the start). The shared reader reports a count only.', OP.DB);
   }
-  const cleanEvents = rows.map(toBriefingEvent).filter(event => {
+  const verifiedEvents = rows.map(toBriefingEvent).filter(event => {
     const result = validateEventsHard([event], { context: { timezone: event.timezone } });
     // Calendar overlap was already established using absolute venue instants.
     const usable = result.valid.length > 0 || (result.invalid.length === 1 && DATE_WINDOW_REASONS.has(result.invalid[0].reason));
     if (!usable) candidates.counts.saved_invalid++;
     return usable;
   });
+  const cleanEvents = prioritizeBriefingEvents(verifiedEvents, snapshot);
   briefingLog.done(2, `Events: ${cleanEvents.length} from current country/metro`, OP.DB);
 
   const summary = candidates.summary();
   const note = candidateNote(summary);
-  const empty = cleanEvents.length ? null : rows.length
+  const empty = cleanEvents.length ? null : verifiedEvents.length
+    ? 'No verified high-value events near this location or major crowd draws in this market.'
+    : rows.length
     ? 'No events remained after required-field validation'
     : discoveryReason || (note ? 'No verified events for this location' : 'No events found for this location');
   const reason = note
@@ -1087,10 +1180,13 @@ export async function fetchEventsForBriefing({ snapshot, signal, progress = { st
  * Special case: events SSE-write shape is polymorphic — when items > 0, the section
  * is the array directly; when empty, it's a {items, reason} object. The wider
  * pipeline contract wraps both forms in a {events: ..., reason} envelope.
+ * While searches/verification continue, known cards use {items, _pending:true}.
+ * On a later failure, known cards use {items, _generationFailed:true, ...} and
+ * return to reconciliation with that marker intact. Neither is ready data.
  *
- * fetchEventsForBriefing's internal try/catch handles AI provider failures and DB
- * read errors — so the catch block here is defensive against unexpected sync/import
- * errors. Errors from missing snapshot context throw and propagate to allSettled.
+ * fetchEventsForBriefing reports provider/storage failures by stage and throws.
+ * This wrapper preserves verified progress on those failures; failures without
+ * eligible cards and cancellation still throw to the orchestrator's allSettled.
  *
  * @param {object} args
  * @param {object} args.snapshot - snapshot row (city/state/timezone/lat/lng required)
@@ -1100,6 +1196,7 @@ export async function fetchEventsForBriefing({ snapshot, signal, progress = { st
 export async function discoverEvents({ snapshot, snapshotId, signal }) {
   let events;
   let reason = null;
+  let verifiedItems = [];
 
   if (!snapshot) {
     const err = new Error('Snapshot required for events');
@@ -1109,7 +1206,12 @@ export async function discoverEvents({ snapshot, snapshotId, signal }) {
 
   const progress = { stage: 'preflight', candidate: null };
   try {
-    const r = await fetchEventsForBriefing({ snapshot, signal, progress });
+    const r = await fetchEventsForBriefing({ snapshot, signal, progress, onProgress: async items => {
+      signal?.throwIfAborted();
+      verifiedItems = items;
+      await writeSectionAndNotify(snapshotId, { events: { items, _pending: true,
+        reason: 'Event searches and verification are still in progress.' } }, CHANNELS.EVENTS);
+    } });
     signal?.throwIfAborted();
     progress.stage = 'section_contract';
     if (!Array.isArray(r?.items)) throw new Error('Event discovery returned an invalid response');
@@ -1141,9 +1243,12 @@ export async function discoverEvents({ snapshot, snapshotId, signal }) {
     if (err === null || typeof err !== 'object' || !reportedFailures.has(err)) {
       reportStageFailure(progress.stage, err, progress.candidate ? `"${progress.candidate}" ` : '');
     }
-    events = errorMarker(err);
-    reason = err.message;
+    events = { ...(verifiedItems.length ? { items: verifiedItems } : {}), ...errorMarker(err) };
+    reason = events.error;
     await writeSectionAndNotify(snapshotId, { events }, CHANNELS.EVENTS);
+    // Known verified cards survive a later search/storage failure. The marker
+    // still blocks readiness; cancellation keeps its original throw semantics.
+    if (verifiedItems.length && !signal?.aborted) return { events, reason };
     throw err;
   }
 

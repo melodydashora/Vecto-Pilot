@@ -85,7 +85,7 @@ export function TrafficCard({ trafficData, isTrafficLoading }: TrafficCardProps)
             // Failed ≠ empty: show the recorded reason, never "no issues" (todo #24)
             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>Traffic data couldn't be retrieved{traffic?.reason ? ` — ${traffic.reason}` : ''}. It will retry on the next briefing refresh.</span>
+              <span>Traffic data couldn't be retrieved{traffic?.reason ? ` — ${traffic.reason}` : ''}.</span>
             </div>
           ) : traffic ? (
             <div className="space-y-3">

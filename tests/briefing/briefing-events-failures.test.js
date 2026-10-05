@@ -13,10 +13,12 @@ jest.unstable_mockModule('../../server/lib/briefing/briefing-notify.js', () => (
 }));
 const readEvents = jest.fn();
 const eventOverlapsDisplayDays = jest.fn();
+const venueInSnapshotMarket = jest.fn();
 jest.unstable_mockModule('../../server/lib/events/market-event-reader.js', () => ({
  readMarketEvents: async () => ({ rows: await readEvents(), unresolvedCount: 0 }),
- toBriefingEvent: row => row.event ? { ...row.event, timezone: row.venue.timezone } : { ...row, timezone: 'Etc/UTC' },
- eventOverlapsDisplayDays,
+ toBriefingEvent: row => row.event ? { ...row.event, timezone: row.venue.timezone,
+   latitude: row.venue.lat, longitude: row.venue.lng } : { ...row, timezone: 'Etc/UTC' },
+ eventOverlapsDisplayDays, venueInSnapshotMarket,
 }));
 const insertEvent = jest.fn();
 const chain = { from: () => chain, leftJoin: () => chain, where: () => chain, orderBy: () => chain, limit: readEvents };
@@ -43,7 +45,7 @@ jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () 
 jest.unstable_mockModule('../../server/lib/venue/venue-address-validator.js', () => ({ validateVenueAddress: () => ({ valid: true }) }));
 const { discoverEvents } = await import('../../server/lib/briefing/pipelines/events.js');
 const args = { snapshotId: 'test-snapshot', snapshot: { country: 'US', city: 'Test City', state: 'Test State', timezone: 'Etc/UTC', market: 'Test Market', lat: 1, lng: 1 } };
-const cachedEvent = { title: 'Previously found concert', venue_name: 'Test venue', event_start_date: '2026-09-10', event_end_date: '2026-09-10', event_start_time: '7:00 PM', event_end_time: '10:00 PM', category: 'concert' };
+const cachedEvent = { title: 'Previously found concert', venue_name: 'Test venue', event_start_date: '2026-09-10', event_end_date: '2026-09-10', event_start_time: '7:00 PM', event_end_time: '10:00 PM', category: 'concert', expected_attendance: 'high' };
 const realTimers = { setTimeout: global.setTimeout, clearTimeout: global.clearTimeout };
 
 beforeEach(() => {
@@ -53,6 +55,7 @@ beforeEach(() => {
   readEvents.mockResolvedValue([cachedEvent]);
   insertEvent.mockResolvedValue(undefined);
   eventOverlapsDisplayDays.mockReturnValue(true);
+  venueInSnapshotMarket.mockResolvedValue(true);
   lookupVenue.mockResolvedValue({ venue_id: 'fixture-id', place_id: 'fixture-provider-id', venue_name: 'Test venue', formatted_address: '123 Test Road', city: 'Test City', state: 'Test State', country: 'US', lat: 0, lng: 0, timezone: 'Etc/UTC' });
   findOrCreateVenue.mockResolvedValue(null); geocodeEventAddress.mockResolvedValue(null); searchPlaceWithTextSearch.mockResolvedValue(null);
   validateEventsHard.mockImplementation(events => ({ valid: events, invalid: [], stats: {} }));
@@ -73,9 +76,29 @@ test('one timed out category blocks cached events even when the other succeeds',
   jest.useFakeTimers();
   callModel.mockImplementationOnce(() => new Promise(() => {}));
   const rejected = expect(discoverEvents(args)).rejects.toThrow('timed out');
-  await jest.advanceTimersByTimeAsync(90000);
+  await jest.advanceTimersByTimeAsync(180000);
   await rejected;
   expect(readEvents).not.toHaveBeenCalled(); expect(writes.at(-1).events._generationFailed).toBe(true);
+});
+test('complete category output after two minutes remains eligible before the three-minute deadline', async () => {
+  jest.useFakeTimers();
+  let providerSignal;
+  callModel.mockImplementationOnce((_role, options) => {
+    providerSignal = options.signal;
+    return new Promise(resolve => setTimeout(() => resolve({ ok: true, output: JSON.stringify([
+      { ...cachedEvent, venue: cachedEvent.venue_name, address: '123 Test Road' },
+    ]) }), 150000));
+  });
+  const settled = discoverEvents(args).then(value => ({ value }), error => ({ error }));
+  await jest.advanceTimersByTimeAsync(120000);
+  expect(providerSignal?.aborted).toBe(false);
+  expect(readEvents).not.toHaveBeenCalled(); expect(writes).toHaveLength(0);
+  await jest.advanceTimersByTimeAsync(30000);
+  const result = await settled;
+  expect(result.error).toBeUndefined();
+  expect(result.value.events._generationFailed).toBeUndefined();
+  expect(insertEvent).toHaveBeenCalledTimes(1);
+  expect(jest.getTimerCount()).toBe(0);
 });
 test.each([
   { ok: false }, { ok: true, output: '{}' }, { ok: true, output: '[null]' },
@@ -101,8 +124,127 @@ test('events database read failure propagates to a failed section', async () => 
 test('events database persistence failure cannot be hidden by cached rows', async () => {
   callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name, address: '123 Test Road' }]) });
   insertEvent.mockRejectedValueOnce(new Error('connection lost'));
-  await expect(discoverEvents(args)).rejects.toThrow('database persistence failed');
+  const result = await discoverEvents(args);
+  expect(result.events).toMatchObject({ _generationFailed: true, error: expect.stringContaining('database persistence failed'),
+    items: [expect.objectContaining({ title: cachedEvent.title })] });
+  expect(result.events._pending).toBeUndefined();
   expect(readEvents).not.toHaveBeenCalled();
+});
+
+test('verified cards arrive before the other category, with shared dedup and one venue lookup', async () => {
+  jest.useFakeTimers();
+  const source = { ...cachedEvent, venue: cachedEvent.venue_name, address: '123 Test Road' };
+  let finishOther;
+  callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([source]) });
+  callModel.mockImplementationOnce(() => new Promise(resolve => { finishOther = resolve; }));
+  const pending = discoverEvents(args);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(writes).toHaveLength(1);
+  expect(writes[0].events).toMatchObject({ _pending: true, items: [expect.objectContaining({ title: source.title, venue_id: 'fixture-id' })] });
+  expect(insertEvent).not.toHaveBeenCalled(); expect(readEvents).not.toHaveBeenCalled();
+  finishOther({ ok: true, output: JSON.stringify([source]) });
+  await jest.advanceTimersByTimeAsync(0);
+  const result = await pending;
+  expect(result.events._pending).toBeUndefined(); expect(result.events._generationFailed).toBeUndefined();
+  expect(callModel).toHaveBeenCalledTimes(2); expect(lookupVenue).toHaveBeenCalledTimes(1);
+  expect(venueInSnapshotMarket).toHaveBeenCalledTimes(1);
+  expect(insertEvent).toHaveBeenCalledTimes(1);
+  expect(result.events.candidates).toMatchObject({ discovered: 2, duplicates: 1, accepted: 1 });
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+test('later category failure retains verified cards but never reads cached success or stores canonical events', async () => {
+  jest.useFakeTimers();
+  let finishOther;
+  callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) });
+  callModel.mockImplementationOnce(() => new Promise(resolve => { finishOther = resolve; }));
+  const pending = discoverEvents(args);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(writes.at(-1).events._pending).toBe(true);
+  finishOther({ ok: false, error: 'provider unavailable' });
+  await jest.advanceTimersByTimeAsync(0);
+  const result = await pending;
+  expect(result.events).toMatchObject({ _generationFailed: true, items: [expect.objectContaining({ title: cachedEvent.title })] });
+  expect(result.events._pending).toBeUndefined();
+  expect(writes.at(-1).events).toEqual(result.events);
+  expect(insertEvent).not.toHaveBeenCalled(); expect(readEvents).not.toHaveBeenCalled();
+});
+
+test('saved-read failure retains verified progress with full coordinate precision', async () => {
+  const venue = await lookupVenue(); lookupVenue.mockClear();
+  const latitude = 32.782698100000005, longitude = -96.80214578901234;
+  lookupVenue.mockResolvedValueOnce({ ...venue, lat: latitude, lng: longitude });
+  callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) });
+  readEvents.mockRejectedValueOnce(new Error('connection lost'));
+  const result = await discoverEvents(args);
+  expect(result.events).toMatchObject({ _generationFailed: true,
+    items: [expect.objectContaining({ latitude, longitude })] });
+  expect(writes[0].events).toMatchObject({ _pending: true,
+    items: [expect.objectContaining({ latitude, longitude })] });
+  expect(insertEvent).toHaveBeenCalledTimes(1);
+});
+
+test('partial discovery with an unverified venue publishes no event card', async () => {
+  jest.useFakeTimers();
+  let finishOther;
+  lookupVenue.mockResolvedValueOnce(null);
+  callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) });
+  callModel.mockImplementationOnce(() => new Promise(resolve => { finishOther = resolve; }));
+  const rejected = expect(discoverEvents(args)).rejects.toThrow('Event discovery incomplete');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(writes).toHaveLength(0);
+  finishOther({ ok: false, error: 'provider unavailable' });
+  await jest.advanceTimersByTimeAsync(0); await rejected;
+  expect(writes.at(-1).events).not.toHaveProperty('items');
+  expect(insertEvent).not.toHaveBeenCalled();
+});
+
+test('a verified venue outside the canonical metro is never shown as progressive market context', async () => {
+  venueInSnapshotMarket.mockResolvedValueOnce(false);
+  callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) });
+  readEvents.mockResolvedValueOnce([]);
+  const result = await discoverEvents(args);
+  expect(writes.some(write => write.events._pending)).toBe(false);
+  expect(result.events.items).toEqual([]);
+  // The shared canonical reader owns final market selection. The discovery
+  // catalog still keeps verified facts, as it did before progressive display.
+  expect(insertEvent).toHaveBeenCalledTimes(1);
+  expect(venueInSnapshotMarket).toHaveBeenCalledTimes(1);
+});
+
+test('generation cancellation stops queued progress and ignores a later category response', async () => {
+  jest.useFakeTimers(); const controller = new AbortController();
+  let finishOther;
+  callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) });
+  callModel.mockImplementationOnce(() => new Promise(resolve => { finishOther = resolve; }));
+  const rejected = expect(discoverEvents({ ...args, signal: controller.signal })).rejects.toThrow('caller cancelled');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(writes.at(-1).events._pending).toBe(true);
+  controller.abort(new Error('caller cancelled'));
+  await jest.advanceTimersByTimeAsync(0); await rejected;
+  const writeCount = writes.length;
+  finishOther({ ok: true, output: JSON.stringify([{ ...cachedEvent, title: 'Late candidate', venue: 'Late hall' }]) });
+  await jest.advanceTimersByTimeAsync(0);
+  expect(writes).toHaveLength(writeCount); expect(lookupVenue).toHaveBeenCalledTimes(1);
+  expect(insertEvent).not.toHaveBeenCalled(); expect(readEvents).not.toHaveBeenCalled();
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+test('a complete category can finish venue verification after its model search deadline', async () => {
+  jest.useFakeTimers();
+  const venue = await lookupVenue(); lookupVenue.mockClear();
+  callModel.mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve({ ok: true,
+    output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) }), 170000)));
+  lookupVenue.mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve(venue), 12000)));
+  const pending = discoverEvents(args);
+  await jest.advanceTimersByTimeAsync(180000);
+  expect(writes).toHaveLength(0);
+  await jest.advanceTimersByTimeAsync(2000);
+  const result = await pending;
+  expect(result.events._generationFailed).toBeUndefined();
+  expect(writes[0].events._pending).toBe(true);
+  expect(insertEvent).toHaveBeenCalledTimes(1); expect(lookupVenue).toHaveBeenCalledTimes(1);
+  expect(jest.getTimerCount()).toBe(0);
 });
 test('successful searches with no results retain an explained empty result', async () => {
   readEvents.mockResolvedValueOnce([]);
@@ -113,6 +255,18 @@ test('successful searches with no results retain an explained empty result', asy
 test('successful searches may return existing validated events', async () => {
   const result = await discoverEvents(args);
   expect(result.events.items).toHaveLength(1); expect(result.events.items[0].title).toBe(cachedEvent.title);
+});
+test('display filtering preserves canonical facts and explains when no supported high-value events remain', async () => {
+  const source = { ...cachedEvent, venue: cachedEvent.venue_name, expected_attendance: null, impact: null };
+  callModel.mockResolvedValueOnce({ ok: true, output: JSON.stringify([source]) });
+  readEvents.mockResolvedValueOnce([{ ...cachedEvent, expected_attendance: null, impact: null }]);
+  const result = await discoverEvents(args);
+  expect(insertEvent).toHaveBeenCalledTimes(1);
+  expect(result.events.candidates.accepted).toBe(1);
+  expect(result.events.items).toEqual([]);
+  expect(result.reason).toContain('No verified high-value events near this location or major crowd draws in this market.');
+  expect(writes.some(write => write.events._pending)).toBe(false);
+  expect(result.events._generationFailed).toBeUndefined();
 });
 test('successful empty event searches preserve the model explanation', async () => {
   callModel.mockResolvedValue({ ok: true, output: '{"items":[],"reason":"No matching events are scheduled today"}' });
@@ -186,7 +340,7 @@ test('category deadline aborts the actual provider signal and discards late succ
     return new Promise(resolve => { finish = resolve; });
   });
   const rejected = expect(discoverEvents(args)).rejects.toThrow('timed out');
-  await jest.advanceTimersByTimeAsync(90000); await rejected;
+  await jest.advanceTimersByTimeAsync(180000); await rejected;
   expect(providerSignal?.aborted).toBe(true);
   finish({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) });
   await jest.advanceTimersByTimeAsync(0);
@@ -199,7 +353,7 @@ test('caller cancellation aborts both running category requests and never publis
   callModel.mockImplementation((_role, options) => { signals.push(options.signal); return new Promise(resolve => completions.push(resolve)); });
   const rejected = expect(discoverEvents({ ...args, signal: controller.signal })).rejects.toThrow();
   await jest.advanceTimersByTimeAsync(0); controller.abort(new Error('caller cancelled'));
-  await jest.advanceTimersByTimeAsync(90000); await rejected;
+  await jest.advanceTimersByTimeAsync(180000); await rejected;
   expect(signals).toHaveLength(2); expect(signals.every(signal => signal?.aborted)).toBe(true);
   completions.forEach(resolve => resolve({ ok: true, output: '[]' })); await jest.advanceTimersByTimeAsync(0);
   expect(readEvents).not.toHaveBeenCalled(); expect(writes).toHaveLength(1); expect(writes[0].events._generationFailed).toBe(true);

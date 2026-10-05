@@ -229,7 +229,9 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
           ? { code: 'context_preparation_unfinished', message: 'Your previous refresh did not finish. Use Refresh when you’re ready to try again.' }
           : !snapshot.ready
           ? { code: 'context_incomplete', message: 'Saved context is incomplete. Use Refresh when you’re ready.' }
-          : { code: 'briefing_incomplete', message: 'Briefing is unfinished. Use Refresh to try again when ready.' } } });
+          : snapshot.briefingStatus === 'pending'
+          ? { code: 'briefing_pending', message: 'Briefing is still collecting data. Verified results appear as they arrive.' }
+          : { code: 'briefing_incomplete', message: 'Briefing is incomplete. You can view the collected data or open Coach.' } } });
     } catch (error) {
       setRequestedScope(scope);
       setSaved({ scope, data: { ...emptyLocation, locationError: { code: 'saved_context_incomplete',

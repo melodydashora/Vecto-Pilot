@@ -33,7 +33,7 @@ function App() {
           <RunSetupProvider>
           <LocationProvider>
             {/* CoPilotProvider wraps router so it persists across route changes */}
-            <CoPilotProvider allowPartialCoach={pathname === '/co-pilot/coach'}>
+            <CoPilotProvider allowPartialCoach={pathname === '/co-pilot/coach'} allowPartialBriefing={pathname === '/co-pilot/briefing'}>
               <RouterProvider router={router} />
             </CoPilotProvider>
           </LocationProvider>

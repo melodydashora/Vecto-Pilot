@@ -449,7 +449,8 @@ test('first-context Briefing failure reaches the existing red screen before any 
   mount();
   expect(screen.getByRole('alert')).toHaveTextContent('Briefing Could Not Be Completed');
   expect(screen.getByRole('alert')).toHaveTextContent('Airport: required research failed');
-  expect(screen.getByRole('alert')).toHaveTextContent('Please come back later.');
+  expect(screen.getByRole('alert')).toHaveTextContent('You can view the collected data or open Coach.');
+  expect(screen.getByRole('link', { name: 'View Briefing' })).toHaveAttribute('href', '/co-pilot/briefing');
   expect(screen.queryByRole('button', { name: /try again|refresh/i })).toBeNull();
   expect(screen.getByRole('link', { name: 'Open Coach' })).toHaveAttribute('href', '/co-pilot/coach');
   expect(screen.getByRole('button', { name: 'Sign Out & Start Fresh' })).toBeInTheDocument();
