@@ -7,7 +7,7 @@ import { mainRunBoundary } from '../fixtures/main-run-boundary.js';
 const snapshotId = '11111111-1111-4111-8111-111111111111';
 let snapshot;
 const strategy = { status: 'ok', strategy_for_now: 'Previous guidance', updated_at: new Date() };
-let briefing, hasRanking, claimRace, briefingReads;
+let briefing, hasRanking, claimRace, briefingReads, jobMode;
 const statusWrites = [];
 const admissionWrites = [];
 const log = new Proxy({}, { get: () => jest.fn() });
@@ -28,11 +28,11 @@ const db = {
     };
     return chain;
   },
-  insert: () => claimRace
-    ? { values: () => ({ onConflictDoNothing: () => ({ returning: async () => [] }) }) }
+  insert: () => claimRace || jobMode !== 'forbid'
+    ? { values: () => ({ onConflictDoNothing: () => ({ returning: async () => jobMode === 'new' ? [{ id: 'fixture-job' }] : [] }) }) }
     : mustNotGenerate(),
   update: table => ({ set: value => ({ where: async () => {
-    if (getTableName(table) === 'strategies') { statusWrites.push(value.status); strategy.status = value.status; }
+    if (getTableName(table) === 'strategies') { statusWrites.push(value.status); Object.assign(strategy, value); }
     if (getTableName(table) === 'main_run_admissions') { admissionWrites.push(value.status); admission.state.status = value.status; if (value.status === 'failed') admission.state.allowed = false; }
   } }) }),
   execute: async () => ({ rows: [{ acquired: true }] }),
@@ -44,6 +44,7 @@ jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => admissi
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({ requireAuth: (_req, _res, next) => next() }));
 jest.unstable_mockModule('../../server/middleware/rate-limit.js', () => ({ expensiveEndpointLimiter: (_req, _res, next) => next() }));
 jest.unstable_mockModule('../../server/lib/strategy/strategy-utils.js', () => ({
+  PHASE_EXPECTED_DURATIONS: {},
   isStrategyReady: async () => ({ ready: true, strategy, status: 'ok' }), ensureStrategyRow: mustNotGenerate, updatePhase: mustNotGenerate,
 }));
 jest.unstable_mockModule('../../server/lib/ai/providers/briefing.js', () => ({ runBriefing: mustNotGenerate }));
@@ -60,6 +61,14 @@ jest.unstable_mockModule('../../server/lib/venue/venue-feedback.js', () => ({
   VenueFeedbackError: class extends Error {},
 }));
 const { default: router, ensureSmartBlocksExist, mapCandidatesToBlocks } = await import('../../server/api/strategy/blocks-fast.js');
+const { router: pollRouter } = await import('../../server/api/strategy/content-blocks.js');
+const poll = async () => {
+  const handler = pollRouter.stack.find(layer => layer.route?.path === '/strategy/:snapshotId').route.stack.at(-1).handle;
+  let body;
+  const response = { status: () => response, json: value => { body = value; } };
+  await handler({ params: { snapshotId }, snapshot, auth: { userId: 'owner' } }, response);
+  return body;
+};
 const invoke = async method => {
   const handler = router.stack.find(layer => layer.route?.path === '/' && layer.route.methods[method]).route.stack.at(-1).handle;
   let body, code = 200;
@@ -72,9 +81,10 @@ beforeEach(() => {
   admission.state.status = 'running'; admissionWrites.length = 0;
   snapshot = completeSnapshot({ snapshot_id: snapshotId, user_id: 'owner', formatted_address: '123 Test Street' });
   briefing = { snapshot_id: snapshotId, status: 'pending', generation_token: 'active-owner', updated_at: new Date() }; hasRanking = true;
-  claimRace = false; briefingReads = 0; statusWrites.length = 0; strategy.status = 'ok';
+  claimRace = false; briefingReads = 0; statusWrites.length = 0; strategy.status = 'ok'; jobMode = 'forbid';
+  strategy.error_message = null;
   strategy.venue_cache_metrics = null;
-  mustNotGenerate.mockClear();
+  mustNotGenerate.mockReset().mockImplementation(async () => { throw new Error('Unexpected provider work'); });
 });
 test.each(['get', 'post'])('%s without the current Continue admission cannot generate or reuse a fresh result', async method => {
   admission.state.allowed = false;
@@ -152,7 +162,7 @@ test.each(['get', 'post'])('%s replacement after the venue claim prevents provid
     briefing_generated_at: briefing.generated_at.toISOString(), strategy_generated_at: briefing.generated_at.toISOString() } };
   const { body, code } = await invoke(method);
   expect(code).toBe(500); expect(body.error).toBe('briefing_failed');
-  expect(statusWrites).toEqual(['pending_blocks', 'ok']); expect(strategy.status).toBe('ok');
+  expect(statusWrites).toEqual(['pending_blocks', 'failed']); expect(strategy.status).toBe('failed');
   expect(admissionWrites).toEqual(['failed']);
   expect(mustNotGenerate).not.toHaveBeenCalled();
 });
@@ -205,7 +215,7 @@ test('a completed generator without a persisted ranking ends the admission inste
   const result = await ensureSmartBlocksExist(snapshotId, { snapshot, briefingRow: briefing });
   expect(result.error).toMatch(/ranking/i);
   expect(admissionWrites).toEqual(['failed']);
-  expect(strategy.status).toBe('ok');
+  expect(strategy.status).toBe('failed');
   await expect(ensureSmartBlocksExist(snapshotId)).rejects.toMatchObject({ code: 'main_run_superseded' });
   expect(mustNotGenerate).toHaveBeenCalledTimes(1);
 });
@@ -218,4 +228,77 @@ test('saved candidate mapper reads its canonical address without provider work o
   expect(result[0].address).toBe('123 Saved Street');
   expect(result[1].address).toBeNull();
   expect(mustNotGenerate).not.toHaveBeenCalled();
+});
+
+test('terminal poll exposes a venue failure while retaining saved text and rejecting same-run work', async () => {
+  readySource();
+  const result = await ensureSmartBlocksExist(snapshotId, { snapshot, briefingRow: briefing });
+  expect(result.error).toBe('Unexpected provider work');
+  expect(admission.state.status).toBe('failed');
+  expect(strategy.strategy_for_now).toBe('Previous guidance');
+  expect(strategy.status).toBe('failed');
+  for (let read = 0; read < 2; read++) {
+    const response = await poll();
+    expect(response).toMatchObject({ status: 'error', error: 'strategy_failed' });
+    expect(response.message).toContain('Venue generation failed');
+    expect(response.waitFor).toBeUndefined();
+  }
+  await expect(ensureSmartBlocksExist(snapshotId)).rejects.toMatchObject({ code: 'main_run_superseded' });
+  expect(mustNotGenerate).toHaveBeenCalledTimes(1);
+});
+
+test('failed venue response is an error on the GET that ends its admission', async () => {
+  readySource();
+  const result = await invoke('get');
+  expect(admission.state.status).toBe('failed');
+  expect(result).toMatchObject({ code: 500, body: { status: 'error', error: 'blocks_generation_failed' } });
+});
+
+test('a competing POST keeps an active venue owner pending after its local wait expires', async () => {
+  readySource(); jobMode = 'existing';
+  jest.useFakeTimers();
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  mustNotGenerate.mockImplementation(async () => {});
+  mustNotGenerate.mockImplementationOnce(async () => { await gate; hasRanking = true; });
+  const owner = ensureSmartBlocksExist(snapshotId, { snapshot, briefingRow: briefing });
+  try {
+    await jest.advanceTimersByTimeAsync(0);
+    expect(strategy.status).toBe('pending_blocks');
+    expect(mustNotGenerate).toHaveBeenCalledTimes(1);
+    const waiter = invoke('post');
+    await jest.advanceTimersByTimeAsync(41000);
+    const response = await waiter;
+    expect(response.code).toBe(202);
+    expect(response.body.error).toBeUndefined();
+    expect(admission.state.status).toBe('running');
+    expect(hasRanking).toBe(false);
+    release();
+    await expect(owner).resolves.toMatchObject({ generated: true, error: null });
+    expect(admissionWrites).toEqual([]);
+  } finally { release(); await owner; jest.useRealTimers(); }
+});
+
+test('the original waterfall returns pending when a notification worker owns its unfinished venue stage', async () => {
+  readySource(); jobMode = 'new';
+  // The Strategy/Briefing stages have independent contract coverage. Simulate
+  // the worker taking the venue claim just after the saved Strategy notification.
+  mustNotGenerate.mockResolvedValueOnce(undefined) // ensureStrategyRow
+    .mockResolvedValueOnce(undefined) // resolving phase
+    .mockResolvedValueOnce(undefined) // analyzing phase
+    .mockResolvedValueOnce({ briefing }) // runBriefing
+    .mockResolvedValueOnce(undefined) // immediate phase
+    .mockResolvedValueOnce(undefined) // runImmediateStrategy
+    .mockImplementationOnce(async () => { strategy.status = 'pending_blocks'; }); // venues phase
+  jest.useFakeTimers();
+  try {
+    const waterfall = invoke('post');
+    await jest.advanceTimersByTimeAsync(41000);
+    const response = await waterfall;
+    expect(response).toMatchObject({ code: 202, body: { status: 'pending_blocks', snapshotId } });
+    expect(response.body.error).toBeUndefined();
+    expect(admission.state.status).toBe('running');
+    expect(admissionWrites).toEqual([]);
+    expect(mustNotGenerate).toHaveBeenCalledTimes(7);
+  } finally { jest.useRealTimers(); }
 });

@@ -10,6 +10,7 @@ import { normalizeCoordinates } from '../../../../shared/coordinates.js';
 import { normalizeTime } from '../../events/pipeline/normalizeEvent.js';
 import { db } from '../../../db/drizzle.js';
 import { assertBriefingReady } from '../../briefing/briefing-readiness.js';
+import { formatAirportContext } from '../../briefing/shared/format-airport-context.js';
 import { assertSnapshotReady } from '../../location/snapshot-readiness.js';
 import { haversineMiles } from '../../location/geo.js';
 import { strategyMatchesBriefing, StrategySourceChangedError } from '../../strategy/strategy-source.js';
@@ -240,7 +241,7 @@ NEWS: ${formatNewsForPrompt(optimizeNewsForLLM(briefing.news))}
 
 SCHOOL CLOSURES: ${formatSchoolClosuresSummary(briefing.school_closures, snapshot.timezone)}
 
-AIRPORT: ${optimizeAirportForLLM(briefing.airport)}
+AIRPORT: ${formatAirportContext(briefing.airport)}
 
 === TIME-OF-DAY INTELLIGENCE ===
 Think about WHAT drives demand at ${localTime}:
@@ -687,57 +688,6 @@ function formatNewsForPrompt(newsItems) {
     const line = `- [${(n.impact || 'medium').toUpperCase()}] ${n.headline}${date}`;
     return n.context ? `${line}\n  → ${n.context}` : line;
   }).join('\n');
-}
-
-/**
- * 2026-02-26: Simplified airport data — generate travelImpact summary, strip source noise.
- * Handles both single airport and multi-airport (airports array) formats.
- */
-function optimizeAirportForLLM(airport) {
-  if (!airport) return 'No airport data';
-
-  // Handle airports array format from fetchAirportConditions()
-  const airports = airport.airports || [];
-  if (airports.length === 0 && !airport.code) {
-    return airport.recommendations || 'No airport data available';
-  }
-
-  // Single airport (legacy) or first airport from array
-  const primary = airports[0] || airport;
-  const code = primary.code || airport.code || airport.airport_code || '???';
-  const delays = primary.delays || airport.delays || airport.delay_status || 'normal operations';
-  const status = primary.status || 'normal';
-  const busyTimes = primary.busyTimes || [];
-  const recommendations = airport.recommendations || '';
-
-  // Generate concise travelImpact summary
-  const parts = [`${code}:`];
-
-  if (status === 'severe_delays') {
-    parts.push(`severe delays (${delays}) — high surge at terminal pickup`);
-  } else if (status === 'delays') {
-    parts.push(`delays (${delays}) — moderate surge opportunity`);
-  } else {
-    parts.push('normal operations');
-  }
-
-  if (busyTimes.length > 0) {
-    parts.push(`Peak: ${busyTimes.slice(0, 2).join(', ')}`);
-  }
-
-  // Add other airports briefly
-  if (airports.length > 1) {
-    const others = airports.slice(1).map(a =>
-      `${a.code || '???'}: ${a.status === 'delays' || a.status === 'severe_delays' ? a.delays : 'normal'}`
-    );
-    parts.push(others.join('; '));
-  }
-
-  if (recommendations) {
-    parts.push(recommendations);
-  }
-
-  return parts.join('. ');
 }
 
 /**

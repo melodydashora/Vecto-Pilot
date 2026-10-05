@@ -41,18 +41,29 @@ See `server/lib/traffic/README.md` for full documentation.
 import { fetchFAADelayData } from './faa-asws.js';
 
 const status = await fetchFAADelayData(airportCode, { strict: true });
-// Returns observed disruption fields, coverage, weather and source/fetch times.
+// Returns reported disruption fields, unknown coverage/weather, and advisory/fetch times.
 // Missing delay minutes remain null. A failed feed throws with its reason.
 ```
 
-September 10, 2026: the FAA ASWS per-airport endpoint at
-`https://external-api.faa.gov/asws/api/airport/status/{IATA}` was verified with an
-anonymous JSON request. No Basic credentials are required by the observed
-endpoint. The companion NAS disruption feed remains XML. Both requests have a
-15-second timeout. Briefing requires successful responses; unsupported airport
-coverage is represented explicitly, with a reason, rather than as an outage or
-an inferred normal status. The legacy snapshot caller can retain nullable
-failure behavior by omitting `strict`; Briefing always opts into strict errors.
+October 5, 2026: this adapter reads the same anonymous national
+[JSON airport-events feed](https://nasstatus.faa.gov/api/airport-events) used by
+[the FAA NAS website](https://nasstatus.faa.gov/). Concurrent airport lookups share
+one in-flight request with a 15-second deadline; completed results are not retained
+as a cache. It makes no ASWS or additional XML request and no database lookup.
+
+Reported stops, delays and scoped restrictions retain their reasons. Missing
+minutes, coverage and weather remain unknown. An airport absent from this advisory
+feed is **not** verified normal or unsupported. `source_updated_at`/`last_updated`
+mean the newest available advisory update, while `fetched_at` records transport
+time; an empty feed cannot supply an invented source timestamp. National reads
+with a null airport code return the listed rows only.
+
+Strict callers receive malformed payload, identity, timestamp and transport errors;
+legacy nullable callers receive null. Airport Briefing uses usable FAA conditions
+first, then asks Gemini to research conditions only for airports lacking usable
+FAA observations. A separate terminal research call consumes that fixed result.
+The required Airport section still fails if either required research stage is missing or invalid.
+See the [preserved prior contract](../../../docs/architecture/removals/2026-10-05-faa-national-json.md).
 
 ### Google Routes API
 ```javascript
@@ -83,7 +94,7 @@ const results = await searchSimilar("airport pickup strategy");
 | API | Provider | Purpose |
 |-----|----------|---------|
 | TomTom Traffic | TomTom | Real-time traffic incidents (primary) |
-| FAA ASWS | FAA | Airport delays, closures |
+| FAA NAS | FAA | Reported airport delays, stops and restrictions |
 | Routes API | Google | Traffic-aware routing |
 | Text-to-Speech | OpenAI | Voice synthesis |
 

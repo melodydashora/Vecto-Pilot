@@ -22,7 +22,13 @@ The follow-up honors pending markers inside the persisted section. Missing data
 stays unresolved; an empty result uses the server's reason and reports a missing
 reason explicitly. Research failures stay visible even when nearby airport
 identities are retained. Legacy directional fields render only when present,
-and cannot claim On Time against a disrupted or unknown FAA observation.
+and cannot claim On Time against a reported FAA disruption. An unknown FAA
+observation does not erase independently researched status or advisories.
+Conditions supplied directly by FAA are labeled "FAA conditions"; Gemini and
+legacy advisories are labeled "Airport research". Source timestamps identify
+when an FAA report was updated, separately from retrieval time. Unavailable
+Airport data asks the driver to come back later without suggesting a missing
+Refresh Briefing action.
 Long failure reasons wrap within narrow layouts.
 
 Focused DOM checks are in `tests/briefing/airport-status.ui.test.tsx`, using the

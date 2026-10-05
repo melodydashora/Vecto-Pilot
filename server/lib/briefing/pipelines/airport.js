@@ -7,15 +7,15 @@
 //     coords, AIRPORT_RADIUS_MILES=50) — the model NEVER discovers airports
 //     (the old "find airports within 50 miles of {city}" prompt returned a
 //     different set every run: the 1-vs-3 nondeterminism).
-//   - WHAT's happening at them: the BRIEFING_AIRPORT role researches the
-//     NAMED airports only — per-terminal checkpoint waits (~2 checkpoints per
-//     terminal; Clear only where the seeded inventory says it exists),
-//     arrivals activity, rideshare pickup points, delays.
+//   - Conditions come from FAA when usable, otherwise BRIEFING_AIRPORT searches
+//     for those missing conditions. A separate BRIEFING_AIRPORT terminal pass
+//     consumes that fixed result — it does not research flight conditions again.
+//     Terminal inventory controls checkpoint/Clear structure and pickup guidance.
 //   - best_entry per lane type is COMPUTED server-side from returned waits
 //     (min across checkpoints) — never chosen by the model. Melody: "knowing
 //     the best entry point is one of the best pieces of information to give
 //     for airports."
-//   - FAA ASWS delay data merged per US airport (deterministic API).
+//   - FAA NAS observations retain their own fields and source timestamps.
 //   - Model-agnostic: role-addressed, no vendor names, no vendor env gates.
 //
 // Internal-only: fetchAirportConditions and extractAirportJson are NOT re-exported.
@@ -143,6 +143,18 @@ function computeBestEntry(terminals) {
   return best;
 }
 
+function conditionsFromFAA(code, faa) {
+  if (!faa) return null;
+  const status = faa.ground_stops?.length || faa.closure_status === 'ground-stop' ? 'ground-stop'
+    : faa.closure_status === 'closed' ? 'closed'
+    : faa.closure_status === 'restricted' ? 'restricted'
+    : faa.has_delays === true || (Number.isFinite(faa.delay_minutes) && faa.delay_minutes > 0) ? 'delayed'
+    : faa.has_delays === false ? 'normal' : null;
+  if (!status) return null;
+  return { code, status, delays: faa.delay_reason || (status === 'normal'
+    ? 'FAA explicitly reports no delays.' : `FAA reports ${status} conditions.`), conditionsSource: 'faa' };
+}
+
 async function fetchAirportConditions({ snapshot }) {
   // Require GPS coords + timezone — selection is coords-based (no fallbacks)
   if (!Number.isFinite(snapshot?.lat) || !Number.isFinite(snapshot?.lng) || !snapshot?.timezone) {
@@ -183,6 +195,23 @@ async function fetchAirportConditions({ snapshot }) {
   }
 
   const airportList = nearby.map((a) => `${a.iata} (${a.name}, ${a.distance_miles} mi away)`).join('; ');
+  const faaByCode = {};
+  const conditionsByCode = new Map();
+  const faaFields = code => {
+    const faa = faaByCode[code];
+    return faa ? {
+      faa_delay_minutes: faa.delay_minutes,
+      faa_has_delays: faa.has_delays,
+      ...(Array.isArray(faa.ground_stops) ? { faa_ground_stops: faa.ground_stops } : {}),
+      faa_delay_reason: faa.delay_reason ?? null,
+      faa_closure_status: faa.closure_status,
+      faa_closure_start: faa.closure_start ?? null,
+      faa_closure_end: faa.closure_end ?? null,
+      faa_supported: faa.supported,
+      faa_source_updated_at: faa.source_updated_at,
+      faa_fetched_at: faa.fetched_at,
+    } : {};
+  };
 
   // Failure object for the research call — reason recorded, role-addressed,
   // and the deterministic airport list is preserved so the UI can still show
@@ -194,6 +223,8 @@ async function fetchAirportConditions({ snapshot }) {
       distance_miles: a.distance_miles,
       status: 'unknown',
       delays: 'Live conditions unavailable',
+      ...conditionsByCode.get(a.iata),
+      ...faaFields(a.iata),
     })),
     busyPeriods: [],
     recommendations: `Live airport conditions could not be researched — airports within ${AIRPORT_RADIUS_MILES} mi: ${nearby.map((a) => a.iata).join(', ')}`,
@@ -202,20 +233,64 @@ async function fetchAirportConditions({ snapshot }) {
     reason: why
   });
 
-  // 2026-09-10 (Melody): failed FAA requests invalidate Briefing. Lack of
-  // coverage is a documented no-data result; a failed request is not.
-  const faaByCode = {};
-  await Promise.all(
+  // One conditions source per airport: FAA first, research only for missing
+  // usable observations. Concurrent lookups share one national feed request.
+  // Terminal research starts after conditions resolve and cannot replace them.
+  const faaEnrichment = Promise.all(
     nearby
       .filter((a) => a.country === 'US')
       .map(async (a) => {
-        const faa = await fetchFAADelayData(a.iata, { strict: true });
-        if (!faa) throw new Error(`FAA returned no status for ${a.iata}`);
-        faaByCode[a.iata] = faa;
+        try {
+          const faa = await fetchFAADelayData(a.iata, { strict: true });
+          if (!faa) throw new Error(`FAA returned no status for ${a.iata}`);
+          faaByCode[a.iata] = faa;
+        } catch {
+          briefingLog.warn(2, `FAA unavailable for ${a.iata}; conditions research will handle the missing source`, OP.FALLBACK);
+          faaByCode[a.iata] = {
+            delay_minutes: null,
+            has_delays: null,
+            closure_status: 'unknown',
+            supported: null,
+            delay_reason: 'FAA live status unavailable; see the separate airport conditions source.',
+            source_updated_at: null,
+            fetched_at: null,
+          };
+        }
       })
   );
 
   try {
+    await faaEnrichment;
+    for (const airport of nearby) {
+      const conditions = conditionsFromFAA(airport.iata, faaByCode[airport.iata]);
+      if (conditions) conditionsByCode.set(airport.iata, conditions);
+    }
+    const missingConditions = nearby.filter(airport => !conditionsByCode.has(airport.iata));
+    if (missingConditions.length) {
+      briefingLog.info(`Airport conditions fallback: ${missingConditions.map(airport => airport.iata).join(', ')}`);
+      const conditionsResult = await callModel('BRIEFING_AIRPORT', {
+        system: `Research current airport operating conditions using Google Search. Use current FAA advisories and official airport sources. Research ONLY the supplied airports. Use the driver's timezone ${timezone} for clock times. Return only JSON. Missing or stale evidence stays unreported; a failed FAA request does not mean normal operations. Do not research terminal checkpoints, pickup locations or TSA waits in this step.`,
+        user: `Airport conditions fallback as of ${date}. Direct FAA data did not supply usable conditions for: ${missingConditions.map(airport => `${airport.iata} (${airport.name})`).join('; ')}.
+Find current delays, ground stops, closures, diversions and operating restrictions for exactly these airports. Use normal only when current evidence explicitly confirms it. A scoped restriction is not a whole-airport closure. Do not invent minutes, conditions or FAA observations.
+Return {"airports":[{"code":"<requested IATA>","status":"<normal|delayed|severe|closed|ground-stop|restricted|unreported>","delays":"<current source advisory, or unreported>"}]}. Include every requested airport even when its conditions are unreported.`,
+      });
+      if (!conditionsResult.ok) return failureResult(`Airport conditions fallback failed: ${conditionsResult.error}`);
+      const conditions = safeJsonParse(conditionsResult.output);
+      const allowedStatuses = new Set(['normal', 'delayed', 'severe', 'closed', 'ground-stop', 'restricted', 'unreported']);
+      if (!Array.isArray(conditions?.airports) || conditions.airports.length !== missingConditions.length) {
+        return failureResult('Airport conditions fallback returned an incomplete airport list');
+      }
+      const requested = new Set(missingConditions.map(airport => airport.iata));
+      for (const report of conditions.airports) {
+        if (!report || !requested.delete(report.code) || !allowedStatuses.has(report.status)
+          || typeof report.delays !== 'string' || !report.delays.trim()) {
+          return failureResult('Airport conditions fallback returned invalid or mismatched conditions');
+        }
+        conditionsByCode.set(report.code, { code: report.code, status: report.status,
+          delays: report.delays, conditionsSource: 'gemini-search' });
+      }
+    }
+
     matrixLog.info({
       category: 'BRIEFING',
       connection: 'AI',
@@ -223,7 +298,7 @@ async function fetchAirportConditions({ snapshot }) {
       roleName: 'BRIEFER',
       secondaryCat: 'AIRPORT',
       location: 'pipelines/airport.js:fetchAirportConditions',
-    }, `Researching ${nearby.length} named airports: ${nearby.map((a) => a.iata).join(', ')}`);
+    }, `Researching terminals for ${nearby.length} named airports using resolved conditions: ${nearby.map((a) => a.iata).join(', ')}`);
 
     // STEP 3 — the model researches the NAMED airports only. Terminal
     // inventory (where seeded) tells it the terminal list, checkpoint count
@@ -239,21 +314,19 @@ async function fetchAirportConditions({ snapshot }) {
       )
       .join('\n');
 
-    const system = `You are an airport conditions research assistant for rideshare drivers. Use web search to find CURRENT real-time status for the SPECIFIC airports you are given — delays, closures, ground stops, customs backups, weather diversions, security incidents, per-terminal TSA checkpoint waits, arrivals activity, and rideshare pickup locations, within the last 24 hours. Research ONLY the airports listed — do not add or substitute airports. Express EVERY clock time in the driver's local timezone (${timezone}) — never quote another timezone's clock (an FAA advisory in PDT must be converted for a ${timezone} driver). Return ONLY valid JSON. No prose, no markdown, no code fences.`;
-    const user = `Research current conditions as of ${date} for exactly these airports: ${airportList}. All times in ${timezone} local time.
+    const system = `You are a terminal research assistant for rideshare drivers. Airport operating conditions have already been resolved and are fixed input. Do not re-fetch, re-research, correct or replace flight delays, ground stops, closures or diversions. Use web search ONLY for terminal checkpoint waits, arrivals schedules/activity, rideshare pickup locations and typical terminal demand windows. Keep advice consistent with the supplied conditions; unknown conditions stay unknown. Research ONLY the listed airports. Express EVERY clock time in the driver's local timezone (${timezone}). Return ONLY valid JSON, without prose, markdown or code fences.`;
+    const user = `Research terminal details as of ${date} for exactly these airports: ${airportList}. All times in ${timezone} local time.
+FIXED AIRPORT CONDITIONS (read-only context; do not research these again or return replacement status/delays):
+${JSON.stringify(nearby.map(airport => ({ ...conditionsByCode.get(airport.iata), faa: faaByCode[airport.iata] ?? null })))}
 ${inventoryLines ? `\nKnown terminal structure — your terminals array for these airports MUST contain one entry per terminal listed here (fill what search finds; use "unreported" for what it doesn't; Clear lanes exist ONLY where marked):\n${inventoryLines}\n` : ''}
 For EACH airport, search for:
-1. CURRENT FLIGHT DELAYS (specific counts and average minutes — from today's data, not historical patterns)
-2. GROUND STOPS, CLOSURES, or DIVERSIONS
-3. PER-TERMINAL TSA CHECKPOINT WAITS — each terminal usually has MULTIPLE checkpoints; report each checkpoint you can find by name with its general/PreCheck/Clear waits in minutes. Use "unreported" when search gives no number — never fabricate.
-4. PER-TERMINAL ARRIVALS ACTIVITY (which terminals have arrival banks now / next hour)
-5. PER-TERMINAL RIDESHARE PICKUP location (where drivers meet passengers for that terminal)
-6. TYPICAL BUSY WINDOWS for rideshare pickup demand
-
-If search shows NO current disruption for an airport, use status "normal". If search shows ANY disruption, surface it specifically — do not default to "normal".
+1. PER-TERMINAL TSA CHECKPOINT WAITS — report each available checkpoint by name with general/PreCheck/Clear waits in minutes. Use "unreported" when unavailable; never fabricate.
+2. PER-TERMINAL ARRIVALS ACTIVITY (which terminals have arrival banks now / next hour)
+3. PER-TERMINAL RIDESHARE PICKUP locations
+4. TYPICAL BUSY WINDOWS for rideshare pickup demand, qualified by the supplied operating conditions
 
 Return ONLY this JSON structure (placeholders in <angle brackets> are value types, not literal text):
-{"airports":[{"code":"<IATA from the given list>","status":"<normal|delayed|severe|closed|ground-stop>","delays":"<specific current info OR 'No current delays reported'>","busyTimes":["<HH:MM-HH:MM>"],"terminals":[{"terminal":"<terminal name>","arrivalsActivity":"<current arrivals info OR 'unreported'>","ridesharePickup":"<pickup location OR 'unreported'>","checkpoints":[{"name":"<checkpoint name OR 'unreported'>","lanes":{"general":<minutes OR "unreported">,"preCheck":<minutes OR "unreported">,"clear":<minutes OR "unreported">}}]}]}],"busyPeriods":["<HH:MM-HH:MM driver demand windows>"],"recommendations":"<2-3 sentences of driver-specific tactical advice>"}`;
+{"airports":[{"code":"<IATA from the given list>","busyTimes":["<HH:MM-HH:MM>"],"terminals":[{"terminal":"<terminal name>","arrivalsActivity":"<current arrivals info OR 'unreported'>","ridesharePickup":"<pickup location OR 'unreported'>","checkpoints":[{"name":"<checkpoint name OR 'unreported'>","lanes":{"general":<minutes OR "unreported">,"preCheck":<minutes OR "unreported">,"clear":<minutes OR "unreported">}}]}]}],"busyPeriods":["<HH:MM-HH:MM driver demand windows>"],"recommendations":"<2-3 sentences of terminal/pickup advice consistent with fixed conditions>"}`;
 
     const result = await callModel('BRIEFING_AIRPORT', { system, user });
 
@@ -344,28 +417,17 @@ Return ONLY this JSON structure (placeholders in <angle brackets> are value type
         });
         terminals = [...scaffolded, ...extras];
       }
-      const faa = faaByCode[known.iata];
       return {
         code: known.iata,
         name: known.name,
         distance_miles: known.distance_miles,
-        status: researched.status || 'unreported',
-        delays: researched.delays || 'unreported',
+        status: conditionsByCode.get(known.iata).status,
+        delays: conditionsByCode.get(known.iata).delays,
+        conditionsSource: conditionsByCode.get(known.iata).conditionsSource,
         busyTimes: Array.isArray(researched.busyTimes) ? researched.busyTimes : [],
         terminals,
         best_entry: computeBestEntry(terminals),
-        ...(faa ? {
-          faa_delay_minutes: faa.delay_minutes,
-          faa_has_delays: faa.has_delays,
-          faa_ground_stops: faa.ground_stops ?? [],
-          faa_delay_reason: faa.delay_reason ?? null,
-          faa_closure_status: faa.closure_status,
-          faa_closure_start: faa.closure_start ?? null,
-          faa_closure_end: faa.closure_end ?? null,
-          faa_supported: faa.supported,
-          faa_source_updated_at: faa.source_updated_at,
-          faa_fetched_at: faa.fetched_at,
-        } : {}),
+        ...faaFields(known.iata),
       };
     });
 

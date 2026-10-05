@@ -174,3 +174,35 @@ test.each(['coordinates', 'observation'])('invalid saved snapshot %s cannot be r
   expect(location.currentCoords).toBeNull();
   expect(published).not.toHaveBeenCalled();
 });
+
+
+test('matching terminal Briefing failure aborts capture and late success cannot mark context ready', async () => {
+  let finish!: (value: Response) => void;
+  let signal!: AbortSignal;
+  jest.mocked(fetch).mockImplementation((input, options) => String(input) === API_ROUTES.LOCATION.NEWS_BRIEFING
+    ? new Promise<Response>(resolve => { finish = resolve; signal = options!.signal as AbortSignal; }) : route(input, options));
+  render(app()); await flush();
+  expect(location.isUpdating).toBe(true);
+  act(() => window.dispatchEvent(new CustomEvent('vecto-briefing-failed', { detail: {
+    snapshotId: location.lastSnapshotId, ownerId: identity.user.userId, sessionId: identity.sessionId, message: 'Airport source failed',
+  } })));
+  expect(signal.aborted).toBe(true);
+  expect(location.isUpdating).toBe(false); expect(location.isLoading).toBe(false);
+  expect(location.contextReady).toBe(false); expect(location.locationError?.code).toBe('briefing_failed');
+  await act(async () => { finish(response({ success: true, complete: true })); });
+  expect(reload).not.toHaveBeenCalled(); expect(location.contextReady).toBe(false);
+});
+
+test.each(['owner', 'session', 'snapshot'])('a foreign %s failure cannot release the current capture', async boundary => {
+  let signal!: AbortSignal;
+  jest.mocked(fetch).mockImplementation((input, options) => String(input) === API_ROUTES.LOCATION.NEWS_BRIEFING
+    ? new Promise<Response>(() => { signal = options!.signal as AbortSignal; }) : route(input, options));
+  render(app()); await flush();
+  const detail = { snapshotId: location.lastSnapshotId, ownerId: identity.user.userId, sessionId: identity.sessionId, message: 'Old failure' };
+  if (boundary === 'owner') detail.ownerId = 'old-owner';
+  if (boundary === 'session') detail.sessionId = 'old-session';
+  if (boundary === 'snapshot') detail.snapshotId = 'old-snapshot';
+  act(() => window.dispatchEvent(new CustomEvent('vecto-briefing-failed', { detail })));
+  expect(signal.aborted).toBe(false); expect(location.isUpdating).toBe(true);
+  expect(location.locationError).toBeNull();
+});

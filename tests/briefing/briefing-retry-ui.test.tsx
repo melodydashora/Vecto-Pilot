@@ -35,15 +35,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-test('a current Briefing failure stays within Strategy and returning to the app never captures fresh GPS', async () => {
+test('a first Briefing failure shows the terminal screen and returning never captures fresh GPS', async () => {
   strategyData = { _snapshotId: 'test-snapshot', status: 'error', error: 'briefing_failed', message: 'weather_forecast: The data provider timed out.' };
   render(app());
-  expect(screen.getByTestId('local-error').textContent).toContain('weather_forecast: The data provider timed out.');
-  expect(screen.getByText('Dashboard content')).toBeTruthy();
-  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByRole('alert').textContent).toContain('weather_forecast: The data provider timed out.');
+  expect(screen.queryByText('Dashboard content')).toBeNull();
   await act(async () => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
   expect(refreshGPS).not.toHaveBeenCalled();
-  expect(screen.getByText('Dashboard content')).toBeTruthy();
+  expect(screen.getByRole('alert')).toBeTruthy();
 });
 
 test('pending work keeps dashboard mounted', () => {
@@ -62,7 +61,7 @@ test('a late failure for an old snapshot does not replace the current dashboard'
 test('logout clears local session failure details without reviving the old snapshot error', () => {
   strategyData = { _snapshotId: 'test-snapshot', status: 'error', error: 'briefing_failed', message: 'news: Provider unavailable' };
   const view = render(app());
-  expect(screen.getByTestId('local-error').textContent).toContain('news: Provider unavailable');
+  expect(screen.getByRole('alert').textContent).toContain('news: Provider unavailable');
   authenticated = false;
   view.rerender(app());
   expect(screen.queryByRole('alert')).toBeNull();

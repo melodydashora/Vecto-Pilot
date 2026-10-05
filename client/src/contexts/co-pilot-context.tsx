@@ -88,14 +88,14 @@ export function useCoPilot() {
   return context;
 }
 
-export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoach = false }: { children: React.ReactNode; allowPartialCoach?: boolean }) {
+export function CoPilotProvider({ children, allowPartialCoach = false }: { children: React.ReactNode; allowPartialCoach?: boolean }) {
   const { run, setup } = useRunSetup();
   const runRef = useRef(run);
   runRef.current = run;
   const locationContext = useLocationContext();
   const queryClient = useQueryClient();
   // 2026-04-05: Gate all queries on auth state — stop polling after logout
-  const { isAuthenticated, user, token } = useAuth();
+  const { isAuthenticated, user, token, sessionId } = useAuth();
   const ownerId = user?.userId ?? null;
   const authScope = useMemo(() => isAuthenticated && ownerId && token
     ? { ownerId, token, revision: ++nextStrategySession }
@@ -124,7 +124,7 @@ export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoac
     scope: typeof authScope; error: CoPilotContextValue['criticalError'];
   } | null>(null);
   // Error details are also account/session data: hide them before cleanup effects.
-  const criticalError = authScope && criticalErrorState?.scope === authScope ? criticalErrorState.error : null;
+  const savedCriticalError = authScope && criticalErrorState?.scope === authScope ? criticalErrorState.error : null;
   const setCriticalError = React.useCallback((error: CoPilotContextValue['criticalError']) => {
     setCriticalErrorState(error ? { scope: authScopeRef.current, error } : null);
   }, []);
@@ -133,6 +133,21 @@ export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoac
   // context may refresh Briefing/Bars without replacing the driver's Strategy.
   const lastSnapshotId = authScope && run?.snapshotId ? run.snapshotId : null;
   const contextSnapshotId = authScope ? locationContext.lastSnapshotId : null;
+  const briefingQueries = useBriefingQueries({
+    snapshotId: contextSnapshotId,
+    isAuthenticated,
+  });
+  const generationError = briefingQueries.generationError;
+  const criticalError = useMemo(() => savedCriticalError?.type === 'auth_failed' ? savedCriticalError
+    : generationError ? { type: 'briefing_failed' as const, details: generationError } : savedCriticalError,
+  [savedCriticalError, generationError]);
+  useEffect(() => {
+    if (!authScope || !contextSnapshotId || !generationError) return;
+    window.dispatchEvent(new CustomEvent('vecto-briefing-failed', { detail: {
+      snapshotId: contextSnapshotId, ownerId: authScope.ownerId, sessionId: sessionId ?? setup?.sessionId ?? null,
+      message: generationError,
+    } }));
+  }, [authScope, contextSnapshotId, generationError, sessionId, setup?.sessionId]);
   const [completedVenues, setCompletedVenues] = useState<{
     scope: NonNullable<typeof authScope>; snapshotId: string; data: BlocksResponse;
   } | null>(null);
@@ -569,15 +584,7 @@ export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoac
     airportData,
     isLoading: briefingIsLoading,
     isUnavailable: briefingIsUnavailable
-  } = useBriefingQueries({
-    snapshotId: contextSnapshotId,
-    snapshotStatus: locationContext?.isLocationResolved ? 'ok' : 'pending',
-    pipelinePhase,
-    // 2026-04-19: M3 fix — gate the briefing query on the same isAuthenticated
-    // signal that strategy/blocks/bars use. Eliminates the post-logout window
-    // where the briefing hook saw a missing localStorage token and froze.
-    isAuthenticated,
-  });
+  } = briefingQueries;
 
   // Pre-load bars data as soon as location resolves (no snapshot needed)
   // This ensures bars tab has data before user navigates there
@@ -656,6 +663,7 @@ export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoac
     // Keep the hook's section envelopes intact so pending/failure flags and
     // provider reasons reach the cards without another mapping contract.
     briefingData: {
+      generationError,
       isRetryExhausted,
       isFetching: isBriefingFetching,
       retryBriefing,
@@ -704,6 +712,7 @@ export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoac
     pipelinePhase,
     timeRemainingText,
     isRetryExhausted,
+    generationError,
     isBriefingFetching,
     retryBriefing,
     weatherData,
@@ -719,9 +728,10 @@ export function CoPilotProvider({ children, allowPartialCoach: _allowPartialCoac
     // refetchBlocks and refetchBars are EXCLUDED - they're stable refs from useQuery
   ]);
 
-  // A failed refresh preserves the dashboard and its completed Strategy.
-  // Authentication failure remains a separate blocking boundary.
-  if (criticalError?.type === 'auth_failed') {
+  // A first failed Briefing is terminal before a Strategy can be admitted.
+  // Preserve completed guidance on replacement failure and keep Coach usable.
+  if (criticalError?.type === 'auth_failed' ||
+      (criticalError?.type === 'briefing_failed' && !previousStrategy && !allowPartialCoach)) {
     return (
       <CoPilotContext.Provider value={value}>
         <CriticalError

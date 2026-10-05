@@ -24,6 +24,7 @@
 // ============================================================================
 
 import { briefingLog } from '../../logger/workflow.js';
+import { formatAirportContext } from './shared/format-airport-context.js';
 
 // 2026-06-11: Removed LARGE_EVENT_INDICATORS / LARGE_EVENT_CATEGORIES — their only
 // consumers were the now-deleted isLargeEvent + filterEventsForPlanner (memory #258).
@@ -324,10 +325,7 @@ export function formatBriefingForPrompt(filteredBriefing) {
 
   // Airport section
   if (filteredBriefing.airport) {
-    const airportInfo = typeof filteredBriefing.airport === 'string'
-      ? filteredBriefing.airport
-      : (filteredBriefing.airport.summary || 'Normal operations');
-    sections.push(`AIRPORT: ${airportInfo}`);
+    sections.push(`AIRPORT: ${formatAirportContext(filteredBriefing.airport)}`);
   }
 
   // School closures section

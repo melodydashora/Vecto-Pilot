@@ -8,13 +8,13 @@ interface AirportDelay {
   avgMinutes?: number | null;
 }
 
-function directionalDelayLabel(delay: AirportDelay, faaUnconfirmed: boolean): string {
+function directionalDelayLabel(delay: AirportDelay, faaDisrupted: boolean): string {
   if (typeof delay.avgMinutes === 'number' && Number.isFinite(delay.avgMinutes) && delay.avgMinutes > 0) {
     return `~${delay.avgMinutes} min delay`;
   }
   const status = delay.status?.trim() ?? '';
   if (['none', 'normal', 'on time', 'on-time'].includes(status.toLowerCase())) {
-    return faaUnconfirmed ? 'Status not confirmed' : 'On Time';
+    return faaDisrupted ? 'Status not confirmed' : 'On Time';
   }
   return status || 'Unknown';
 }
@@ -60,6 +60,7 @@ interface BestEntryLane {
 interface Airport {
   code: string;
   name: string;
+  conditionsSource?: 'faa' | 'gemini-search';
   overallStatus?: 'normal' | 'delays' | 'severe_delays';
   status?: 'normal' | 'delays' | 'severe_delays' | string;
   delays?: string;
@@ -87,7 +88,7 @@ interface Airport {
 }
 
 // FAA observations take precedence over optimistic model status. Unknown FAA
-// coverage must remain distinguishable from a measured absence of delays.
+// coverage stays separate from independent airport research.
 function getFAAStatus(airport: Airport) {
   const hasFAA = airport.faa_delay_minutes !== undefined || airport.faa_has_delays !== undefined ||
     airport.faa_closure_status !== undefined || airport.faa_supported !== undefined ||
@@ -106,7 +107,7 @@ function getFAAStatus(airport: Airport) {
     return { status: 'delayed', label: 'FAA: Delays reported', disrupted: true };
   }
   if (airport.faa_supported === false) {
-    return { status: 'unknown', label: 'FAA: Airport not covered by ASWS', disrupted: false };
+    return { status: 'unknown', label: 'FAA: Airport coverage unavailable', disrupted: false };
   }
   if (airport.faa_has_delays === false) {
     return { status: 'normal', label: 'FAA: No delays reported', disrupted: false };
@@ -223,7 +224,7 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
           {airportFailed && (
             <div role="alert" className="mb-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 break-words">
               <AlertTriangle aria-hidden="true" className="w-4 h-4 mt-0.5 shrink-0" />
-              <span className="min-w-0 [overflow-wrap:anywhere]">Airport data couldn't be retrieved — {airportReason ?? 'the server did not provide a failure reason'}. Refresh the briefing to retry.</span>
+              <span className="min-w-0 [overflow-wrap:anywhere]">Airport data couldn't be retrieved — {airportReason ?? 'the server did not provide a failure reason'}. Please come back later.</span>
             </div>
           )}
           {(isAirportLoading || airportPending) && !airportFailed ? (
@@ -247,8 +248,7 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
               {airports.map((airport, idx) => {
                 const researchedStatus = (airport.overallStatus || airport.status || 'unknown').trim().toLowerCase();
                 const faaStatus = getFAAStatus(airport);
-                const airportStatus = faaStatus?.disrupted || (faaStatus?.status === 'unknown' && researchedStatus === 'normal')
-                  ? faaStatus.status : researchedStatus;
+                const airportStatus = faaStatus?.disrupted ? faaStatus.status : researchedStatus;
 
                 return (
                 <div
@@ -294,13 +294,14 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                       {airport.faa_closure_end && (
                         <p className="mt-1">{airport.faa_closure_status === 'closed' ? 'FAA reported reopening' : 'FAA reported restriction end'}: {airport.faa_closure_end}</p>
                       )}
-                      {airport.faa_source_updated_at && <p className="mt-2 text-xs">FAA feed updated: {airport.faa_source_updated_at}</p>}
+                      {airport.faa_source_updated_at && <p className="mt-2 text-xs">FAA report updated: {airport.faa_source_updated_at}</p>}
                       {airport.faa_fetched_at && <p className="mt-1 text-xs">Retrieved: {airport.faa_fetched_at}</p>}
                     </div>
                   )}
 
-                  {airport.delays && !(faaStatus && faaStatus.status !== 'normal' && researchedStatus === 'normal') && (
+                  {airport.delays && !(faaStatus?.disrupted && researchedStatus === 'normal') && (
                     <div className="p-3 bg-white/50 rounded-lg border border-sky-100 mb-3">
+                      <p className="text-xs font-semibold text-gray-500 mb-1">{airport.conditionsSource === 'faa' ? 'FAA conditions' : 'Airport research'}</p>
                       <p className="text-sm text-gray-700">{airport.delays}</p>
                     </div>
                   )}
@@ -436,7 +437,7 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                       <div>
                         <p className="text-xs text-gray-500">Arrivals</p>
                         <p className="text-sm font-medium text-gray-700">
-                          {directionalDelayLabel(airport.arrivalDelays, !!faaStatus && faaStatus.status !== 'normal')}
+                          {directionalDelayLabel(airport.arrivalDelays, !!faaStatus?.disrupted)}
                         </p>
                       </div>
                     </div>
@@ -448,7 +449,7 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                       <div>
                         <p className="text-xs text-gray-500">Departures</p>
                         <p className="text-sm font-medium text-gray-700">
-                          {directionalDelayLabel(airport.departureDelays, !!faaStatus && faaStatus.status !== 'normal')}
+                          {directionalDelayLabel(airport.departureDelays, !!faaStatus?.disrupted)}
                         </p>
                       </div>
                     </div>

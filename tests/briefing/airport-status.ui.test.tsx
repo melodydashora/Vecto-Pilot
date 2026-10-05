@@ -16,7 +16,7 @@ test('FAA ground stop replaces model-normal badge and preserves source observati
   expect(screen.queryByText('On Time')).toBeNull();
   expect(screen.queryByText('No current delays reported')).toBeNull();
   expect(screen.getByText(/Synthetic weather restriction/).textContent).toContain('18:00 UTC');
-  expect(screen.getByText('FAA feed updated: Thu Sep 10 17:00:00 2026 GMT')).toBeTruthy();
+  expect(screen.getByText('FAA report updated: Thu Sep 10 17:00:00 2026 GMT')).toBeTruthy();
   expect(screen.getByText('Retrieved: 2026-09-10T17:03:00.000Z')).toBeTruthy();
   expect(screen.queryByText(/0 min/)).toBeNull();
 });
@@ -43,14 +43,14 @@ test('a scoped FAA restriction does not claim the whole airport is closed or reo
   expect(screen.queryByText('On Time')).toBeNull();
 });
 
-test.each([false, null])('unsupported/unknown FAA coverage %s is neutral, with no invented timestamp', supported => {
+test.each([false, null])('unknown FAA coverage %s preserves independent research without inventing FAA facts', supported => {
   show({ faa_supported: supported, faa_has_delays: null, faa_delay_minutes: null, faa_closure_status: 'unknown' });
-  expect(screen.getByText('Unknown')).toBeTruthy();
-  expect(screen.queryByText('On Time')).toBeNull();
-  expect(screen.queryByText(/FAA feed updated:/)).toBeNull();
-  expect(screen.queryByText('No current delays reported')).toBeNull();
+  expect(screen.getByText('On Time')).toBeTruthy();
+  expect(screen.getByText('Airport research')).toBeTruthy();
+  expect(screen.queryByText(/FAA report updated:/)).toBeNull();
+  expect(screen.getByText('No current delays reported')).toBeTruthy();
   expect(screen.queryByText(/Retrieved:/)).toBeNull();
-  expect(screen.getByText(supported === false ? 'FAA: Airport not covered by ASWS' : 'FAA: Status unknown')).toBeTruthy();
+  expect(screen.getByText(supported === false ? 'FAA: Airport coverage unavailable' : 'FAA: Status unknown')).toBeTruthy();
 });
 
 test('a measured delay is visible even when the older has-delays field is missing', () => {
@@ -96,14 +96,14 @@ test('an explicit FAA closure retains its start and reported reopening label', (
 test('retrieval time alone never becomes a source update time', () => {
   show({ faa_has_delays: true, faa_fetched_at: '2026-09-10T17:03:00.000Z' });
   expect(screen.getByText('Retrieved: 2026-09-10T17:03:00.000Z')).toBeTruthy();
-  expect(screen.queryByText(/FAA feed updated:/)).toBeNull();
+  expect(screen.queryByText(/FAA report updated:/)).toBeNull();
 });
 
-test('normalized historical status remains neutral when FAA coverage is unknown', () => {
+test('normalized researched status remains visible when FAA coverage is unknown', () => {
   show({ status: ' NORMAL ', faa_supported: null });
-  expect(screen.getByText('Unknown')).toBeTruthy();
-  expect(screen.queryByText('On Time')).toBeNull();
-  expect(screen.queryByText('No current delays reported')).toBeNull();
+  expect(screen.getByText('On Time')).toBeTruthy();
+  expect(screen.getByText('FAA: Status unknown')).toBeTruthy();
+  expect(screen.getByText('No current delays reported')).toBeTruthy();
 });
 
 test('collapse has a focusable native button with explicit expanded state', () => {
@@ -152,6 +152,8 @@ test('a resolved empty section requires and displays its actual reason', () => {
 test('a known failure remains visible with its reason even when nearby identities or a loading flag remain', () => {
   render(<AirportCard isAirportLoading={true} airportData={{ airport_conditions: { isFallback: true, reason: 'Synthetic research timeout', airports: [{ code: 'AAA', name: 'Known synthetic airport', status: 'unknown' }] } }} />);
   expect(screen.getByRole('alert').textContent).toContain('Synthetic research timeout');
+  expect(screen.getByRole('alert').textContent).toContain('Please come back later');
+  expect(screen.getByRole('alert').textContent).not.toContain('Refresh the briefing');
   expect(screen.getByText('Known synthetic airport')).toBeTruthy();
   expect(screen.queryByText('No nearby airports found')).toBeNull();
 });
@@ -170,4 +172,49 @@ test('one historical direction preserves its reported delay without inventing th
   expect(screen.getByText('~18 min delay')).toBeTruthy();
   expect(screen.queryByText('Departures')).toBeNull();
   expect(screen.queryByText('Normal')).toBeNull();
+});
+
+
+test('unknown FAA preserves an independent advisory even when researched operations are normal', () => {
+  show({ faa_supported: null, faa_has_delays: null, faa_closure_status: 'unknown', delays: 'Airport advisory: pickup lane restrictions' });
+  expect(screen.getByText('On Time')).toBeTruthy();
+  expect(screen.getByText('FAA: Status unknown')).toBeTruthy();
+  expect(screen.getByText('Airport research')).toBeTruthy();
+  expect(screen.getByText('Airport advisory: pickup lane restrictions')).toBeTruthy();
+});
+
+test('unknown FAA retains adverse research, terminal activity, pickup and checkpoints', () => {
+  show({ status: 'severe', delays: 'Airport advisory: disrupted arrivals', faa_supported: null,
+    terminals: [{ terminal: 'A', arrivalsActivity: 'Reduced arrivals', ridesharePickup: 'North pickup lane', checkpoints: [{ name: 'A2', lanes: { general: 12 } }] }] });
+  expect(screen.getByText('Severe Delays')).toBeTruthy();
+  expect(screen.getByText('FAA: Status unknown')).toBeTruthy();
+  expect(screen.getByText('Airport advisory: disrupted arrivals')).toBeTruthy();
+  expect(screen.getByText('Terminal A')).toBeTruthy();
+  expect(screen.getByText('Reduced arrivals')).toBeTruthy();
+  expect(screen.getByText('🚗 Pickup: North pickup lane')).toBeTruthy();
+  expect(screen.getByText('Gen: 12m')).toBeTruthy();
+});
+
+test('unknown research stays unknown when FAA has no observation', () => {
+  show({ status: 'unreported', delays: 'unreported', faa_supported: null, faa_has_delays: null, faa_closure_status: 'unknown' });
+  expect(screen.getByText('Unknown')).toBeTruthy();
+  expect(screen.getByText('FAA: Status unknown')).toBeTruthy();
+  expect(screen.queryByText('On Time')).toBeNull();
+});
+
+
+test('independent directional research stays visible while FAA is unknown', () => {
+  show({ status: 'unreported', delays: undefined, faa_supported: null, arrivalDelays: { status: 'none', avgMinutes: 0 } });
+  expect(screen.getByText('FAA: Status unknown')).toBeTruthy();
+  expect(screen.getByText('Arrivals')).toBeTruthy();
+  expect(screen.getByText('On Time')).toBeTruthy();
+  expect(screen.queryByText('Status not confirmed')).toBeNull();
+  expect(screen.queryByText('Departures')).toBeNull();
+});
+
+test('conditions from FAA keep their source label without becoming airport research', () => {
+  show({ conditionsSource: 'faa', delays: 'FAA reports normal operations', faa_has_delays: false });
+  expect(screen.getByText('FAA conditions')).toBeTruthy();
+  expect(screen.getByText('FAA reports normal operations')).toBeTruthy();
+  expect(screen.queryByText('Airport research')).toBeNull();
 });

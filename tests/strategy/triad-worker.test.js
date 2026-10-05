@@ -74,3 +74,17 @@ test('a changed Strategy source cannot start venue generation from a notificatio
   expect(ensureSmartBlocksExist).not.toHaveBeenCalled();
   expect(forbiddenNotify).not.toHaveBeenCalled();
 });
+
+test('an active venue owner outlasting the local wait is pending, not a notification failure', async () => {
+  subscribe.mockResolvedValue(jest.fn());
+  const { startConsolidationListener } = await import('../../server/jobs/triad-worker.js');
+  await startConsolidationListener();
+  ensureSmartBlocksExist.mockResolvedValue({ ranking: null, generated: false, error: null, pending: true });
+  const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await subscribe.mock.calls[0][1](JSON.stringify({ snapshot_id: snapshotId }));
+    expect(errors).not.toHaveBeenCalled();
+    expect(ensureSmartBlocksExist).toHaveBeenCalledTimes(1);
+    expect(forbiddenNotify).not.toHaveBeenCalled();
+  } finally { errors.mockRestore(); }
+});

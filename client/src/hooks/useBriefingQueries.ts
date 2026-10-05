@@ -147,11 +147,25 @@ interface BriefingAggregate {
   _notGenerated?: boolean;
 }
 
+function generationFailure(data: BriefingAggregate | undefined): string | null {
+  if (!data?.briefing || data._authError || data._ownershipError) return null;
+  const labels: Record<string, string> = { weather: 'Weather', traffic: 'Traffic', events: 'Events', news: 'News',
+    school_closures: 'Schools', airport_conditions: 'Airport', holiday: 'Holiday' };
+  const failures = Object.entries(data.briefing).filter(([, section]) => section?._generationFailed)
+    .map(([key, section]) => {
+      const detail = [section.reason, section.error, section.current?.reason, section.current?.error,
+        section.forecast?.reason, section.forecast?.error].find(value => typeof value === 'string' && value.trim());
+      return `${labels[key] ?? key}: ${detail || 'Required information could not be retrieved.'}`;
+    });
+  return failures.length ? failures.join(' ') : null;
+}
+
 // Detect whether an aggregate response is "still missing its payload" and should
 // trigger a retry. True if: no briefing row yet, or the response is explicitly
 // flagged not-generated. Stop only when all seven sections have settled.
 function isAggregateLoading(data: BriefingAggregate | undefined): boolean {
   if (!data) return true;
+  if (generationFailure(data)) return false;
   if (data._authError || data._ownershipError || data._exhausted) return false;
   if (data._notGenerated) return true;
   const b = data.briefing;
@@ -185,19 +199,6 @@ export function useBriefingQueries({
     !!snapshotId &&
     !shouldDisableQueries() &&
     (isAuthenticated === undefined || isAuthenticated === true);
-
-  // SSE subscription: when briefing_ready fires, refetch the single aggregate query.
-  useEffect(() => {
-    if (!snapshotId || isAuthenticated === false) return;
-    const refetchAggregate = () => {
-      console.log('[BriefingQuery] 📢 briefing_ready received, refetching aggregate for', snapshotId.slice(0, 8));
-      queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId) });
-    };
-    const unsubscribe = subscribeBriefingReady(snapshotId, (readySnapshotId) => {
-      if (readySnapshotId === snapshotId) refetchAggregate();
-    });
-    return () => unsubscribe();
-  }, [snapshotId, queryClient, isAuthenticated]);
 
   // Retry counter — single counter for the aggregate, replacing six per-section
   // counters. Reset on snapshotId change.
@@ -344,6 +345,23 @@ export function useBriefingQueries({
   // Keep the same external shape as the prior six-query API.
   const b = aggregateQuery.data?.briefing;
   const exhausted = !!aggregateQuery.data?._exhausted;
+  const generationError = isEnabled && aggregateQuery.data?.snapshot_id === snapshotId
+    ? generationFailure(aggregateQuery.data) : null;
+  const settled = !!aggregateQuery.data && !isAggregateLoading(aggregateQuery.data) &&
+    !(aggregateQuery.data._error && aggregateQuery.data._error >= 500);
+
+  // Saved sources are immutable. Release the stream at success or terminal
+  // failure; a different source/session gets its own subscription.
+  useEffect(() => {
+    if (!snapshotId || !isEnabled || settled) return;
+    let active = true;
+    const unsubscribe = subscribeBriefingReady(snapshotId, readySnapshotId => {
+      if (active && readySnapshotId === snapshotId) {
+        void queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId), type: 'active' });
+      }
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [snapshotId, queryClient, isEnabled, settled]);
   const refetchAggregate = aggregateQuery.refetch;
   const retryBriefing = useCallback(() => {
     retryCountRef.current.count = 0;
@@ -395,7 +413,7 @@ export function useBriefingQueries({
   // the old content-shape guessing (which counted fabricated "No X for this
   // area" reasons as data, so pending sections instantly read as loaded-empty).
   const sectionLoading = (section: { _pending?: boolean; _generationFailed?: boolean } | undefined) => {
-    if (section?._generationFailed || exhausted) return false;
+    if (generationError || section?._generationFailed || exhausted) return false;
     // Whole-Briefing polling continues until every section finishes. A remaining
     // section must not hide another section's already saved progressive result.
     if (aggregateQuery.isLoading || !section) return true;
@@ -403,6 +421,7 @@ export function useBriefingQueries({
   };
 
   return {
+    generationError,
     isRetryExhausted: exhausted,
     isFetching: aggregateQuery.isFetching,
     retryBriefing,

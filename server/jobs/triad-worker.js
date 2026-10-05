@@ -41,6 +41,7 @@ async function startListener() {
         const result = await ensureSmartBlocksExist(snapshotId, {
           strategyRow: strategy, briefingRow: briefing, snapshot, userId: snapshot.user_id,
         });
+        if (result.pending) return;
         if (!result.ranking) throw new Error(result.error || 'Venue generation is still pending');
       } catch (error) {
         console.error('[STRATEGY] Notification handling failed:', error?.message || error);

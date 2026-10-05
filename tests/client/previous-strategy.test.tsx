@@ -25,7 +25,8 @@ jest.unstable_mockModule('@/utils/co-pilot-helpers', () => ({
   subscribeBlocksReady: () => () => {}, subscribePhaseChange: () => () => {},
 }));
 jest.unstable_mockModule('@/hooks/useEnrichmentProgress', () => ({ useEnrichmentProgress: () => ({ progress: 0, strategyProgress: 0, phase: 'strategy', pipelinePhase: 'analyzing' }) }));
-jest.unstable_mockModule('@/hooks/useBriefingQueries', () => ({ useBriefingQueries: () => ({ isLoading: {} }) }));
+let briefingFailures: Record<string, string> = {};
+jest.unstable_mockModule('@/hooks/useBriefingQueries', () => ({ useBriefingQueries: ({ snapshotId }: { snapshotId: string }) => ({ isLoading: {}, generationError: briefingFailures[snapshotId] ?? null }) }));
 jest.unstable_mockModule('@/hooks/useBarsQuery', () => ({ useBarsQuery: () => ({}) }));
 const { CoPilotProvider, useCoPilot } = await import('@/contexts/co-pilot-context');
 let current: ReturnType<typeof useCoPilot>;
@@ -74,6 +75,7 @@ async function refetch(client: QueryClient, id = 'snapshot-A') {
 }
 beforeEach(() => {
   showProbe = true;
+  briefingFailures = {};
   savedSetup = undefined;
   admittedRun = { runId: 'run-A', snapshotId: 'snapshot-A' };
   venueBlocks = [{ name: 'Current venue', placeId: 'place-current', coordinates: { lat: 32, lng: -97 } }];
@@ -251,7 +253,7 @@ describe('completed strategy history and current scope', () => {
   it('hides prior-account error details before passive auth cleanup runs', async () => {
     payloads['snapshot-A'] = { snapshotId: 'snapshot-A', status: 'error', error: 'briefing_failed', message: 'Account A private failure detail' };
     const { client, rerender } = mount();
-    await waitFor(() => expect(screen.getByTestId('local-error')).toHaveTextContent('Account A private failure detail'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Account A private failure detail'));
     auth = { ...auth, user: { userId: 'driver-B' }, token: 'synthetic-B' };
     admittedRun = null;
     location = { ...location, lastSnapshotId: null }; rerender(app(client));
@@ -262,6 +264,9 @@ describe('completed strategy history and current scope', () => {
     mount(); await waitFor(() => expect(current.previousStrategy?.text).toBe('Completed A'));
     fireEvent.click(screen.getByRole('button', { name: 'Fail auth' }));
     expect(screen.getByRole('alert')).not.toHaveTextContent('Completed A'); expect(screen.queryByRole('main')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign Out & Start Fresh' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open Coach' })).toBeNull();
   });
   it('keeps the Coach route available during a data failure while still blocking authentication failure', async () => {
     allowPartialCoach = true;
@@ -435,4 +440,38 @@ test.each([1, 2])('canonical saved venue revision %s supersedes an equal or olde
   await refetch(client);
   expect(current.blocks).toEqual(canonical);
   expect(client.getQueryData<any>(strategyQuery.queryKey).venueFeedbackRevision).toBe(scopeRevision);
+});
+
+
+test('first-context Briefing failure reaches the existing red screen before any Strategy admission', async () => {
+  admittedRun = null;
+  briefingFailures['snapshot-A'] = 'Airport: required research failed';
+  mount();
+  expect(screen.getByRole('alert')).toHaveTextContent('Briefing Could Not Be Completed');
+  expect(screen.getByRole('alert')).toHaveTextContent('Airport: required research failed');
+  expect(screen.getByRole('alert')).toHaveTextContent('Please come back later.');
+  expect(screen.queryByRole('button', { name: /try again|refresh/i })).toBeNull();
+  expect(screen.getByRole('link', { name: 'Open Coach' })).toHaveAttribute('href', '/co-pilot/coach');
+  expect(screen.getByRole('button', { name: 'Sign Out & Start Fresh' })).toBeInTheDocument();
+  expect(screen.queryByRole('main')).toBeNull();
+  act(() => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
+  expect(refreshGPS).not.toHaveBeenCalled();
+  expect(jest.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+});
+
+test('a failed upstream replacement keeps completed guidance and clears when another source is selected', async () => {
+  const { client, rerender } = mount();
+  await waitFor(() => expect(current.previousStrategy?.text).toBe('Completed A'));
+  location = { ...location, lastSnapshotId: 'source-B' };
+  briefingFailures['source-B'] = 'Airport: replacement research failed';
+  rerender(app(client));
+  expect(screen.getByRole('main')).toBeInTheDocument();
+  expect(screen.getByTestId('local-error')).toHaveTextContent('replacement research failed');
+  expect(current.previousStrategy?.text).toBe('Completed A');
+  expect(screen.queryByTestId('critical-error')).toBeNull();
+  location = { ...location, lastSnapshotId: 'source-C' };
+  rerender(app(client));
+  expect(screen.getByTestId('local-error')).toBeEmptyDOMElement();
+  expect(current.previousStrategy?.text).toBe('Completed A');
+  expect(refreshGPS).not.toHaveBeenCalled();
 });

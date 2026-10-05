@@ -65,6 +65,7 @@ import { toApiBlock } from '../../validation/transformers.js';
 import { applyVenueFeedbackExclusions, readSavedVenueFeedback, VenueFeedbackError } from '../../lib/venue/venue-feedback.js';
 
 const router = Router();
+const VENUE_FAILURE_MESSAGE = 'Venue generation failed. Review your saved setup and Continue to try again.';
 
 // PostgreSQL Advisory Lock helpers for cross-server coordination
 // 2026-01-10: S-002 FIX - Now uses TRANSACTION-SCOPED locks (pg_try_advisory_xact_lock)
@@ -109,7 +110,7 @@ const router = Router();
  * @param {Object} options.briefingRow - Pre-fetched briefing row (avoids extra DB call)
  * @param {Object} options.snapshot - Pre-fetched snapshot row (avoids extra DB call)
  * @param {string} options.userId - Authenticated user ID (required for ownership)
- * @returns {Promise<{ranking: Object|null, generated: boolean, error: string|null}>}
+ * @returns {Promise<{ranking: Object|null, generated: boolean, error: string|null, pending?: boolean}>}
  */
 export async function ensureSmartBlocksExist(snapshotId, options = {}) {
   await assertMainRunForSnapshot(snapshotId);
@@ -197,7 +198,8 @@ export async function ensureSmartBlocksExist(snapshotId, options = {}) {
     // Another process is handling it - poll for completion
     venuesLog.info(`[S-002] Waiting for other process to complete ${snapshotId.slice(0, 8)}`);
 
-    // Poll with exponential backoff (max 30s)
+    // Bound this request's wait to 40s. The claimed owner's provider deadline
+    // is separate, so an unfinished local wait must not declare its work failed.
     for (let i = 0; i < 10; i++) {
       await new Promise(r => setTimeout(r, Math.min(1000 * (i + 1), 5000)));
       await assertMainRunForSnapshot(snapshotId);
@@ -208,7 +210,7 @@ export async function ensureSmartBlocksExist(snapshotId, options = {}) {
         return { ranking, generated: false, error: null };
       }
     }
-    return { ranking: null, generated: false, error: 'generation_timeout' };
+    return { ranking: null, generated: false, error: null, pending: true };
   }
 
   // Phase 2: Generate outside the transaction. Every failure after claiming
@@ -254,7 +256,8 @@ export async function ensureSmartBlocksExist(snapshotId, options = {}) {
     // venue failure. A later GET must not retry providers on this same snapshot.
     await withCurrentMainRun(snapshotId, async (tx, admission) => {
       if (admission.status === 'complete') return;
-      await tx.update(strategies).set({ status: STRATEGY_STATUS.OK, updated_at: new Date() })
+      await tx.update(strategies).set({ status: STRATEGY_STATUS.FAILED,
+        error_message: VENUE_FAILURE_MESSAGE, updated_at: new Date() })
         .where(eq(strategies.snapshot_id, snapshotId));
       await tx.update(main_run_admissions).set({ status: 'failed', updated_at: new Date() })
         .where(eq(main_run_admissions.run_id, admission.run_id));
@@ -458,6 +461,11 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
         status: 'pending_briefing',
         message: 'Briefing data is still being generated'
       });
+    }
+
+    if (error) {
+      return res.status(500).json({ status: 'error', error: 'blocks_generation_failed',
+        message: VENUE_FAILURE_MESSAGE, snapshotId, strategyFresh: false, retry: 'new_snapshot' });
     }
 
     if (!ranking) {
@@ -974,7 +982,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Use shared helper for block generation
         // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
         // 2026-01-10: Pass freshBriefing directly (captured from runBriefing above)
-        const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
+        const { ranking, error: blocksError, pending } = await ensureSmartBlocksExist(snapshotId, {
           strategyRow: strategyRow,
           briefingRow: freshBriefing,
           snapshot,
@@ -988,6 +996,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             error: 'blocks_generation_failed',
             message: blocksError
           });
+        }
+
+        if (pending) {
+          return sendOnce(202, { status: 'pending_blocks', snapshotId, blocks: [],
+            message: 'Venue recommendations are still being generated.' });
         }
 
         if (ranking) {

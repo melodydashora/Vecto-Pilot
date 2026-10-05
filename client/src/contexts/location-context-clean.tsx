@@ -264,7 +264,18 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       if (failedId && failedId !== currentId) return;
       holdContext('snapshot_ownership_error', 'Saved context could not be verified for this session. Use Refresh when ready.');
     };
+    const briefingFailed = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || detail.ownerId !== scope.ownerId || detail.sessionId !== scope.sessionId) return;
+      const known = savedRef.current.scope === scope ? savedRef.current.data.lastSnapshotId : null;
+      const pending = captureRef.current.scope === scope ? captureRef.current.id : null;
+      const currentId = collection.current && !collection.current.signal.aborted ? pending : known;
+      if (!detail.snapshotId || detail.snapshotId !== currentId) return;
+      holdContext('briefing_failed', typeof detail.message === 'string' && detail.message.trim()
+        ? detail.message : 'Briefing could not be completed. Please come back later.');
+    };
     window.addEventListener('snapshot-ownership-error', ownershipError);
+    window.addEventListener('vecto-briefing-failed', briefingFailed);
     if (navigator.permissions?.query) {
       void navigator.permissions.query({ name: 'geolocation' }).then(status => {
         if (!active || scopeRef.current !== scope) return;
@@ -277,6 +288,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       active = false;
       permission?.removeEventListener('change', revoked);
       window.removeEventListener('snapshot-ownership-error', ownershipError);
+      window.removeEventListener('vecto-briefing-failed', briefingFailed);
     };
   }, [scope]);
 

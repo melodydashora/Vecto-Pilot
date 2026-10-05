@@ -1,343 +1,141 @@
-// Using Node.js built-in fetch (available in Node 18+)
-import { parseStringPromise } from 'xml2js';
-
-const PUBLIC_API_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
-const STATUS_API_BASE = 'https://external-api.faa.gov/asws';
+const AIRPORT_EVENTS_URL = 'https://nasstatus.faa.gov/api/airport-events';
 const REQUEST_TIMEOUT_MS = 15000;
+const EVENT_FIELDS = ['groundStop', 'groundDelay', 'arrivalDelay', 'departureDelay', 'airportClosure', 'freeForm', 'deicing'];
+let inFlightFeed = null;
 
-// 2026-09-10 (Melody): Briefing must surface failed providers, not infer normal
-// operations from missing data. Legacy snapshot callers retain the nullable API.
+// The FAA website uses this national JSON feed (verified 2026-10-05). Share only
+// overlapping reads, so nearby airports do not each fetch the same national data.
+// An absent advisory is not evidence of normal operations or airport coverage.
 export async function fetchFAADelayData(airportCode = null, { strict = false } = {}) {
   try {
-    if (airportCode !== null && !/^[A-Z]{3}$/i.test(airportCode)) {
+    if (airportCode !== null && (typeof airportCode !== 'string' || !/^[A-Z]{3}$/i.test(airportCode))) {
       throw new Error('FAA airport code must be a three-letter IATA code');
     }
-    const [publicData, authData] = await Promise.all([
-      fetchPublicAPI(),
-      fetchStatusAPI(airportCode?.toUpperCase() ?? null)
-    ]);
-
-    if (airportCode) {
-      return mergeAirportData(airportCode, publicData, authData);
-    }
-
-    return mergeAllAirportData(publicData, authData);
+    const feed = await sharedNationalFeed();
+    if (airportCode === null) return structuredClone(feed.airports);
+    const code = airportCode.toUpperCase();
+    return structuredClone(feed.airports.find(airport => airport.airport_code === code)
+      ?? unknownAirport(code, feed.fetched_at));
   } catch (error) {
     if (strict) throw error;
-    console.error('[FAA Hybrid] Fetch error:', error.message);
+    console.error('[FAA NAS] Fetch error:', error.message);
     return null;
   }
 }
 
-async function fetchPublicAPI() {
+function sharedNationalFeed() {
+  if (inFlightFeed) return inFlightFeed;
+  const pending = fetchNationalFeed();
+  inFlightFeed = pending;
+  const release = () => { if (inFlightFeed === pending) inFlightFeed = null; };
+  pending.then(release, release);
+  return pending;
+}
+
+async function fetchNationalFeed() {
   try {
-    const response = await fetch(PUBLIC_API_URL, {
-      headers: { 'Accept': 'application/xml' },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    const response = await fetch(AIRPORT_EVENTS_URL, {
+      headers: { Accept: 'application/json' },
+      signal,
     });
-
-    if (!response.ok) throw new Error(`FAA disruption feed returned HTTP ${response.status}`);
-
-    const xmlData = await response.text();
-    const parsedData = await parseStringPromise(xmlData, {
-      explicitArray: false,
-      mergeAttrs: true
+    signal.throwIfAborted();
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const rows = await response.json();
+    signal.throwIfAborted();
+    if (!Array.isArray(rows)) throw new Error('Invalid airport-events response: expected an array');
+    const fetchedAt = new Date().toISOString();
+    const seen = new Set();
+    const airports = rows.map(row => {
+      if (!isObject(row) || typeof row.airportId !== 'string' || !/^[A-Z0-9]{3,4}$/.test(row.airportId)) {
+        throw new Error('Invalid airport-events airport identity');
+      }
+      if (!EVENT_FIELDS.some(field => Object.hasOwn(row, field))) throw new Error('Invalid airport-events event fields');
+      if (seen.has(row.airportId)) throw new Error('Duplicate airport-events airport identity');
+      seen.add(row.airportId);
+      return parseAirportEvents(row, fetchedAt);
     });
-
-    const airportData = [];
-    const root = parsedData.AIRPORT_STATUS_INFORMATION;
-    if (!root || !root.Update_Time) throw new Error('FAA disruption feed is missing its root or update time');
-
-    const delayTypes = Array.isArray(root.Delay_type) ? root.Delay_type : [root.Delay_type];
-
-    delayTypes.forEach(delayType => {
-      if (delayType?.Arrival_Departure_Delay_List?.Delay) {
-        const delays = Array.isArray(delayType.Arrival_Departure_Delay_List.Delay)
-          ? delayType.Arrival_Departure_Delay_List.Delay
-          : [delayType.Arrival_Departure_Delay_List.Delay];
-
-        delays.forEach(delay => {
-          if (delay.ARPT) {
-            airportData.push(parseDelayData(delay));
-          }
-        });
-      }
-
-      if (delayType?.Airport_Closure_List?.Airport) {
-        const closures = Array.isArray(delayType.Airport_Closure_List.Airport)
-          ? delayType.Airport_Closure_List.Airport
-          : [delayType.Airport_Closure_List.Airport];
-
-        closures.forEach(closure => {
-          if (closure.ARPT) {
-            airportData.push(parseClosureData(closure));
-          }
-        });
-      }
-
-      // 2026-08-06: the feed's other two list types were silently ignored —
-      // verified live: an active MCO/DCA/LGA ground stop and 43-90min SFO/JFK
-      // ground delays were invisible to the app. Ground stops mean no arrivals
-      // (no pickup queue) — the most driver-relevant signal in the feed.
-      if (delayType?.Ground_Stop_List?.Program) {
-        const programs = Array.isArray(delayType.Ground_Stop_List.Program)
-          ? delayType.Ground_Stop_List.Program
-          : [delayType.Ground_Stop_List.Program];
-
-        programs.forEach(program => {
-          if (program.ARPT) {
-            airportData.push(parseGroundStopData(program));
-          }
-        });
-      }
-
-      if (delayType?.Ground_Delay_List?.Ground_Delay) {
-        const groundDelays = Array.isArray(delayType.Ground_Delay_List.Ground_Delay)
-          ? delayType.Ground_Delay_List.Ground_Delay
-          : [delayType.Ground_Delay_List.Ground_Delay];
-
-        groundDelays.forEach(gd => {
-          if (gd.ARPT) {
-            airportData.push(parseGroundDelayData(gd));
-          }
-        });
-      }
-    });
-
-    // 2026-08-06: one airport can appear in multiple lists (e.g. a ground stop
-    // AND arrival delays). The downstream merges use find()/Map.set() which take
-    // one entry per code — combine here so nothing is dropped.
-    const byCode = new Map();
-    for (const entry of airportData) {
-      const existing = byCode.get(entry.airport_code);
-      if (!existing) {
-        byCode.set(entry.airport_code, { ground_stops: [], ...entry,
-          reasons: new Set(entry.delay_reason ? [entry.delay_reason] : []) });
-        continue;
-      }
-      // 2026-09-11: null-aware — unknown minutes never collapse to 0, and any listed
-      // disruption keeps has_delays true across the merged entry.
-      existing.delay_minutes = [existing.delay_minutes, entry.delay_minutes].some(v => Number.isFinite(v))
-        ? Math.max(...[existing.delay_minutes, entry.delay_minutes].filter(v => Number.isFinite(v)))
-        : null;
-      existing.has_delays = existing.has_delays === true || entry.has_delays === true
-        ? true : (existing.has_delays ?? entry.has_delays ?? null);
-      existing.ground_delay_programs = [...(existing.ground_delay_programs || []), ...(entry.ground_delay_programs || [])];
-      existing.ground_stops = [...(existing.ground_stops || []), ...(entry.ground_stops || [])];
-      // 2026-09-11: closure_status retains an observed scoped restriction while
-      // ground_stops independently retains the concurrent stop. Feed order must
-      // not attach restriction times to a stop while dropping the restriction.
-      if (entry.closure_status === 'restricted' ||
-          (existing.closure_status === 'open' && entry.closure_status !== 'open')) {
-        existing.closure_status = entry.closure_status;
-      }
-      if (entry.delay_reason) existing.reasons.add(entry.delay_reason);
-      if (entry.closure_start) existing.closure_start = entry.closure_start;
-      if (entry.closure_end) existing.closure_end = entry.closure_end;
-    }
-
-    // Retain distinct source reasons without choosing the first feed list as
-    // authoritative. Sorting makes the summary independent of list order.
-    return { airports: Array.from(byCode.values(), ({ reasons, ...entry }) => ({
-      ...entry, delay_reason: [...reasons].sort().join('; ') || null
-    })), source_updated_at: root.Update_Time };
+    return { airports, fetched_at: fetchedAt };
   } catch (error) {
-    throw new Error(`FAA disruption feed unavailable: ${error.message}`);
+    throw new Error(`FAA airport-events feed unavailable: ${error.message}`);
   }
 }
 
-async function fetchStatusAPI(specificAirport = null) {
-  try {
-    // FAA ASWS per-airport endpoint verified anonymously on 2026-09-10.
-    // Do not send unrelated/legacy Basic credentials to a public data endpoint.
-    const fetchAirport = async (code) => {
-      const response = await fetch(`${STATUS_API_BASE}/api/airport/status/${code}`, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-      });
-      if (!response.ok) throw new Error(`FAA status for ${code} returned HTTP ${response.status}`);
-      const data = await response.json();
-      if (data?.IATA !== code || typeof data.SupportedAirport !== 'boolean' ||
-          (data.SupportedAirport && typeof data.Delay !== 'boolean')) {
-        throw new Error(`FAA status for ${code} has an invalid or mismatched payload`);
-      }
-      return parseStatusAirportData(data);
-    };
+const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const text = value => typeof value === 'string' && value.trim() ? value.trim() : null;
+const minutes = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 
-    if (specificAirport) {
-      return [await fetchAirport(specificAirport)];
+// Keep the supplied advisory instant distinct from HTTP fetch time. Zoned,
+// calendar-valid timestamps are required; no host-zone or current-time default.
+function timestamp(value) {
+  if (value == null) return null;
+  const match = typeof value === 'string' && /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(value);
+  if (!match) throw new Error('Invalid FAA advisory timestamp');
+  const [, year, month, day, hour, minute, second, offsetHour = '0', offsetMinute = '0'] = match;
+  if (+month < 1 || +month > 12 || +day < 1 || +day > new Date(Date.UTC(+year, +month, 0)).getUTCDate()
+      || +hour > 23 || +minute > 59 || +second > 59 || +offsetHour > 23 || +offsetMinute > 59
+      || !Number.isFinite(Date.parse(value))) throw new Error('Invalid FAA advisory timestamp');
+  return value;
+}
+
+function unknownAirport(code, fetchedAt) {
+  return {
+    airport_code: code, airport_name: code, city: null, state: null,
+    delay_minutes: null, has_delays: null, supported: null,
+    ground_stops: [], ground_delay_programs: [], closure_status: 'unknown',
+    delay_reason: 'No FAA airport events are listed; normal operations are not verified.',
+    closure_start: null, closure_end: null, weather: null,
+    source_updated_at: null, last_updated: null, fetched_at: fetchedAt,
+  };
+}
+
+function parseAirportEvents(row, fetchedAt) {
+  const result = unknownAirport(row.airportId, fetchedAt);
+  result.airport_name = text(row.airportLongName) ?? row.airportId;
+  const reasons = new Set(), observedTimes = [], durations = [], restrictions = [];
+  for (const field of EVENT_FIELDS) {
+    const event = row[field];
+    if (event == null) continue;
+    if (!isObject(event) || event.airportId !== row.airportId) {
+      throw new Error(`Invalid or mismatched FAA ${field} payload`);
     }
-
-    // 2026-07-06: US majors from the airports table (Google-seeded), not a
-    // hardcoded list. Dynamic import avoids a module cycle at load time.
-    const { db } = await import('../../db/drizzle.js');
-    const { airports: airportsTable } = await import('../../../shared/schema.js');
-    const { eq } = await import('drizzle-orm');
-    const usAirports = await db
-      .select({ code: airportsTable.iata })
-      .from(airportsTable)
-      .where(eq(airportsTable.country, 'US'));
-    return await Promise.all(usAirports.map(airport => fetchAirport(airport.code)));
-  } catch (error) {
-    throw new Error(`FAA airport status unavailable: ${error.message}`);
+    const times = Object.fromEntries(['updatedAt', 'updateTime', 'issuedDate', 'startTime', 'endTime', 'eventTime']
+      .map(key => [key, timestamp(event[key])]));
+    observedTimes.push(...['updatedAt', 'updateTime', 'issuedDate'].map(key => times[key]).filter(Boolean));
+    if (field === 'groundStop') {
+      const reason = text(event.impactingCondition);
+      result.ground_stops.push({ reason, end_time: times.endTime });
+      result.has_delays = true;
+      reasons.add(reason ?? 'FAA ground stop reported');
+    } else if (['groundDelay', 'arrivalDelay', 'departureDelay'].includes(field)) {
+      const groundDelay = field === 'groundDelay';
+      const duration = minutes(groundDelay ? event.avgDelay : event.averageDelay);
+      const reason = text(groundDelay ? event.impactingCondition : event.reason);
+      const type = groundDelay ? 'Ground Delay Program' : field === 'arrivalDelay' ? 'Arrival Delay' : 'Departure Delay';
+      result.ground_delay_programs.push({ reason, min_delay: null, max_delay: null,
+        average_delay: duration, trend: text(event.trend), type });
+      if (duration !== null) durations.push(duration);
+      result.has_delays = true;
+      reasons.add(reason ?? `FAA ${type.toLowerCase()} reported`);
+    } else if (field === 'airportClosure' || field === 'freeForm') {
+      // Preserve the restriction's full wording, including exceptions and scope.
+      // A closure notice may apply only to particular aircraft or operations.
+      const reason = text(event.simpleText) ?? text(event.text);
+      restrictions.push({ reason, start_time: times.startTime, end_time: times.endTime });
+      reasons.add(reason ?? 'FAA airport closure or restriction reported');
+    } else if (field === 'deicing') {
+      reasons.add('FAA deicing reported; delay duration is unknown.');
+    }
   }
+  result.delay_minutes = durations.length ? Math.max(...durations) : null;
+  if (restrictions.length) {
+    result.closure_status = 'restricted';
+    result.closure_start = restrictions[0].start_time;
+    result.closure_end = restrictions[0].end_time;
+    result.restrictions = restrictions;
+  } else if (result.ground_stops.length) result.closure_status = 'ground-stop';
+  if (reasons.size) result.delay_reason = [...reasons].sort().join('; ');
+  result.source_updated_at = observedTimes.sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+  result.last_updated = result.source_updated_at;
+  return result;
 }
-
-function parseDelayData(delay) {
-  const ad = delay.Arrival_Departure;
-  const minMatch = ad?.Min?.match(/(\d+)/);
-  const maxMatch = ad?.Max?.match(/(\d+)/);
-  // 2026-09-11 (Astra FAA producer finding, verified): a public delay-list entry with a
-  // reason but no numeric duration used to become delay_minutes 0, and the merge then let
-  // an optimistic ASWS Delay:false turn it into "no delays". Unknown minutes stay null and
-  // the entry's presence is itself the disruption signal (has_delays: true).
-  const minDelay = minMatch ? parseInt(minMatch[1], 10) : null;
-  const maxDelay = maxMatch ? parseInt(maxMatch[1], 10) : null;
-
-  return {
-    airport_code: delay.ARPT,
-    has_delays: true,
-    delay_minutes: maxDelay ?? minDelay ?? null,
-    ground_delay_programs: [{
-      reason: delay.Reason || 'Unknown',
-      min_delay: minDelay,
-      max_delay: maxDelay,
-      trend: ad?.Trend || null,
-      type: ad?.Type || 'General'
-    }],
-    closure_status: 'open',
-    delay_reason: delay.Reason
-  };
-}
-
-function parseClosureData(closure) {
-  return {
-    airport_code: closure.ARPT,
-    has_delays: null,           // a scoped restriction says nothing about delay minutes
-    delay_minutes: null,
-    ground_delay_programs: [],
-    closure_status: 'restricted',
-    delay_reason: closure.Reason,
-    closure_start: closure.Start,
-    closure_end: closure.Reopen
-  };
-}
-
-// 2026-08-06: "1 hour and 32 minutes" / "43 minutes" → total minutes
-// 2026-09-11: null (unknown) when the feed gives no parseable duration — never 0.
-function parseDurationMinutes(text) {
-  if (!text) return null;
-  const hours = text.match(/(\d+)\s*hour/);
-  const minutes = text.match(/(\d+)\s*minute/);
-  if (!hours && !minutes) return null;
-  return (hours ? parseInt(hours[1], 10) * 60 : 0) + (minutes ? parseInt(minutes[1], 10) : 0);
-}
-
-function parseGroundStopData(program) {
-  return {
-    airport_code: program.ARPT,
-    has_delays: true,           // a ground stop is a disruption even with no minutes figure
-    delay_minutes: null,
-    ground_delay_programs: [],
-    ground_stops: [{
-      reason: program.Reason || 'Unknown',
-      end_time: program.End_Time || null
-    }],
-    closure_status: 'ground-stop',
-    delay_reason: program.Reason
-  };
-}
-
-function parseGroundDelayData(gd) {
-  const avgMinutes = parseDurationMinutes(gd.Avg);
-  return {
-    airport_code: gd.ARPT,
-    has_delays: true,           // listed ground delay program = disruption; minutes may be unknown
-    delay_minutes: avgMinutes,
-    ground_delay_programs: [{
-      reason: gd.Reason || 'Unknown',
-      min_delay: avgMinutes,
-      max_delay: parseDurationMinutes(gd.Max),
-      trend: null,
-      type: 'Ground Delay Program'
-    }],
-    ground_stops: [],
-    closure_status: 'open',
-    delay_reason: gd.Reason
-  };
-}
-
-function parseStatusAirportData(data) {
-  if (!data) return null;
-
-  const weather = data.Weather ? {
-    temperature: data.Weather.Temp?.[0] ?? null,
-    conditions: data.Weather.Weather?.[0]?.Temp?.[0] || null,
-    visibility: data.Weather.Visibility?.[0] ?? null,
-    wind: data.Weather.Wind?.[0] || null,
-    last_updated: data.Weather.Meta?.[0]?.Updated || null
-  } : null;
-
-  return {
-    airport_code: data.IATA,
-    airport_name: data.Name,
-    city: data.City,
-    state: data.State,
-    supported: data.SupportedAirport,
-    has_delays: data.SupportedAirport ? data.Delay : null,
-    status_reason: Array.isArray(data.Status)
-      ? data.Status.map(item => item.Reason).filter(Boolean).join('; ') || null
-      : null,
-    weather
-  };
-}
-
-function mergeAirportData(airportCode, publicData, authData) {
-  const code = airportCode.toUpperCase();
-  const publicInfo = publicData.airports.find(a => a.airport_code === code);
-  const authInfo = authData?.find(a => a.airport_code === code);
-
-  if (!publicInfo && !authInfo) return null;
-
-  return {
-    airport_code: code,
-    airport_name: authInfo?.airport_name || code,
-    city: authInfo?.city || null,
-    state: authInfo?.state || null,
-    // ASWS can report a delay before the aggregate feed contains its minutes; and the
-    // public feed can list a disruption whose minutes are unknown while ASWS still says
-    // Delay:false (2026-09-11, Astra finding). A listed public disruption wins; unknown
-    // minutes stay null instead of borrowing ASWS's optimistic zero.
-    delay_minutes: publicInfo
-      ? (Number.isFinite(publicInfo.delay_minutes) ? publicInfo.delay_minutes : null)
-      : (authInfo?.has_delays === false ? 0 : null),
-    has_delays: publicInfo && (publicInfo.has_delays === true || publicInfo.delay_minutes > 0
-        || publicInfo.ground_stops?.length > 0 || publicInfo.ground_delay_programs?.length > 0)
-      ? true : (authInfo?.has_delays ?? null),
-    supported: authInfo?.supported ?? null,
-    ground_stops: publicInfo?.ground_stops || [],
-    ground_delay_programs: publicInfo?.ground_delay_programs || [],
-    closure_status: publicInfo?.closure_status || (authInfo?.has_delays === false ? 'open' : 'unknown'),
-    delay_reason: publicInfo?.delay_reason || authInfo?.status_reason || (authInfo?.supported === false ? 'FAA ASWS does not cover this airport' : null),
-    closure_start: publicInfo?.closure_start || null,
-    closure_end: publicInfo?.closure_end || null,
-    weather: authInfo?.weather || null,
-    source_updated_at: publicData.source_updated_at,
-    last_updated: publicData.source_updated_at,
-    fetched_at: new Date().toISOString()
-  };
-}
-
-// 2026-09-10: Replace weather-only zero-delay defaults with the same observed
-// status merge used for individual airports. Previous implementation is in Git.
-function mergeAllAirportData(publicData, authData) {
-  const codes = new Set([...publicData.airports.map(a => a.airport_code), ...authData.map(a => a.airport_code)]);
-  return [...codes].map(code => mergeAirportData(code, publicData, authData));
-}
-
-// 2026-07-06 (todo #22): getMajorUSAirports + getNearestMajorAirport DELETED.
-// They were a hardcoded 20-airport US-only list with coordinates baked into
-// code (app_rules no-hardcoded-location violation; Austin/Nashville/San Diego
-// missing entirely). Airport identity now lives in the airports table (seeded
-// from Google Places by scripts/seed-airports.mjs) and selection goes through
-// server/lib/location/airports.js findNearbyAirports (AIRPORT_RADIUS_MILES).

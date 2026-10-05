@@ -236,6 +236,36 @@ test('Continue cannot consume pending, failed or missing-generation Briefing', a
   expect((await pg.query('SELECT count(*)::int AS n FROM main_run_admissions')).rows[0].n).toBe(0);
 });
 
+test('refresh recovers a failed Airport Briefing and admits only the new completed source', async () => {
+  sections.airport.mockResolvedValueOnce({ airport_conditions: {
+    _generationFailed: true, reason: 'Airport provider unavailable', airports: [],
+  } });
+  const failedSource = await capture();
+  expect(await generateAndStoreBriefing({ snapshotId: failedSource.snapshot_id }))
+    .toMatchObject({ success: false, complete: false });
+  const failedBriefing = (await pg.query('SELECT * FROM briefings WHERE snapshot_id=$1', [failedSource.snapshot_id])).rows[0];
+  expect((await getMainRunSetup(auth)).currentSnapshot).toMatchObject({
+    snapshot_id: failedSource.snapshot_id, briefingReady: false, briefingFailed: true,
+  });
+  await expect(continueMainRun(auth, intent(failedSource))).rejects.toMatchObject({ code: 'briefing_failed' });
+
+  const freshSource = await prepared();
+  expect((await getMainRunSetup(auth)).currentSnapshot).toMatchObject({
+    snapshot_id: freshSource.snapshot_id, briefingReady: true, briefingFailed: false,
+  });
+  // Refresh prepares context; it never grants Strategy intent on its own.
+  expect((await pg.query('SELECT count(*)::int AS n FROM main_run_admissions')).rows[0].n).toBe(0);
+  await expect(continueMainRun(auth, intent(failedSource))).rejects.toMatchObject({ code: 'context_conflict' });
+  const request = intent(freshSource);
+  const run = await continueMainRun(auth, request);
+  expect(run).toMatchObject({ sourceSnapshotId: freshSource.snapshot_id, status: 'running' });
+  expect(await continueMainRun(auth, request)).toMatchObject({ runId: run.runId, replayed: true, current: true });
+  expect((await pg.query('SELECT count(*)::int AS n FROM main_run_admissions')).rows[0].n).toBe(1);
+  const retainedFailure = (await pg.query('SELECT * FROM briefings WHERE snapshot_id=$1', [failedSource.snapshot_id])).rows[0];
+  expect(retainedFailure).toEqual(failedBriefing);
+  expect(environment).toHaveBeenCalledTimes(2);
+});
+
 test('a late previous GPS result cannot displace the newer context', async () => {
   let release;
   environment.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));

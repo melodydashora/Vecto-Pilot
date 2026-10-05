@@ -1,6 +1,6 @@
 # VectoPilot lexicon
 
-Updated October 4, 2026 by Codex/Astra. Melody explicitly requested one lexicon
+Updated October 5, 2026 by Codex/Astra. Melody explicitly requested one lexicon
 after correcting the feature name to **Offer Analyzer**. That naming decision
 governs current product labels, documentation and agent communication. The
 remaining definitions below describe the reviewed source; they do not assert
@@ -25,6 +25,7 @@ historical evidence as dated history rather than rewriting past receipts.
 | **MAIN** | The prepared-context and explicitly admitted Strategy pipeline. GPS/snapshot and Briefing preparation precede Strategy admission. | [Ordered trace](docs/architecture/ai-pipeline.md) |
 | **snapshot** | A saved point-in-time context with owned GPS evidence and environmental observations. Retain original times, accuracy and source identity. | [Snapshot contract](docs/architecture/SNAPSHOT.md), [writer](server/lib/location/main-run-snapshot.js) |
 | **Briefing** | Saved contextual intelligence required by MAIN. Required sections must be complete and tied to the current generation before Strategy can use them. | [MAIN trace](docs/architecture/ai-pipeline.md), [Briefing aggregator](server/lib/briefing/briefing-aggregator.js) |
+| **Airport** | Briefing's airport section. The catalog selects airport identities; usable FAA conditions resolve first, missing conditions alone trigger `BRIEFING_AIRPORT` research, and a separate terminal pass consumes those fixed conditions. Missing observations remain unknown. | [Airport pipeline](server/lib/briefing/pipelines/airport.js), [FAA source](server/lib/external/README.md) |
 | **Strategy** | The saved guidance/result for an explicitly admitted MAIN run, distinct from the role generating it. | [Strategy guide](docs/architecture/ai-pipeline.md), `strategies` |
 | **Strategist** | The role that generates Strategy from the admitted context and complete Briefing. The active role key is `STRATEGY_TACTICAL`; a provider model name is not the role name. | [Role registry](server/lib/ai/model-registry.js), [MAIN trace](docs/architecture/ai-pipeline.md) |
 | **VenuePlanner** | The planning stage using Strategy and verified context to produce candidate venues; role key `VENUE_SCORER`. Verified Places identities and measured Routes remain distinct from model suggestions. | [Venue contract](docs/architecture/VENUES.md) |
@@ -87,7 +88,7 @@ analysis error or missing data must remain distinguishable from a rejection.
 | **Agent / Eidolon** | Existing development/workspace integration names. These do not name Coach, Offer Analyzer or a phone permission level. Consult their actual entry points and access checks before using capabilities. |
 | **MCP** | The tool protocol used by [mcp-server.js](mcp-server.js), including project continuity tools. A successful tool read retrieves particular saved records; it does not transfer another chat's entire memory. |
 | **JWT / RLS** | An authentication token format / PostgreSQL row-level security. These are different layers. Their definitions do not establish that every current route or table is protected; consult [authentication](docs/architecture/AUTH.md) and [security](docs/architecture/SECURITY.md). |
-| **Google Places / Routes / FAA ASWS** | Place evidence / measured route information / aviation disruption observations. A successful response from one does not substitute for missing evidence from another. See [venues](docs/architecture/VENUES.md) and [FAA client](server/lib/external/faa-asws.js). |
+| **Google Places / Routes / FAA NAS** | Place evidence / measured route information / aviation disruption observations. Airport uses the FAA NAS national airport-events JSON feed; the existing client filename retains `asws` for compatibility. A successful response from one source does not substitute for missing evidence from another. See [venues](docs/architecture/VENUES.md) and [FAA client](server/lib/external/faa-asws.js). |
 
 ## Names by surface
 

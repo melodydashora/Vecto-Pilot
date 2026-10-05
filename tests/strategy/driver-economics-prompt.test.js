@@ -33,9 +33,10 @@ const model = jest.fn(async () => ({ ok: true, output: 'GO: Stay near the named 
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
 const admission = mainRunBoundary(db);
 jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => admission.exports);
-jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ triadLog: log, aiLog: log, dbLog: log, eventsLog: log, OP: {}, tagLog: jest.fn() }));
+jest.unstable_mockModule('../../server/logger/workflow.js', () => ({ triadLog: log, aiLog: log, dbLog: log, eventsLog: log, briefingLog: log, OP: {}, tagLog: jest.fn() }));
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: model }));
 const { loadDriverPreferences, buildDriverPreferencesSection, buildEarningsContextSection, runImmediateStrategy } = await import('../../server/lib/ai/providers/consolidator.js');
+const { filterBriefingForPlanner, formatBriefingForPrompt } = await import('../../server/lib/briefing/filter-for-planner.js');
 
 beforeEach(() => { profile = undefined; profileError = undefined; venueRows = []; openNow.mockClear(); admission.state.configuration = { profile: {}, vehicle: {}, rules: { config: {} } }; model.mockClear(); writes.length = 0; });
 
@@ -174,4 +175,76 @@ test('actual Strategy dispatch excludes invalid, missing and future saved news d
     expect(prompt).toContain('Saved fresh road closure');
     expect(prompt).not.toMatch(/Saved (future|impossible|undated|old) report/);
   } finally { briefing.news = previousNews; jest.useRealTimers(); }
+});
+
+const airportSection = airports => ({ airports, busyPeriods: ['18:00-19:00'],
+  recommendations: 'Use the supplied airport evidence.', fetchedAt: '2026-10-05T12:00:00Z',
+  radiusMiles: 50, role: 'BRIEFING_AIRPORT' });
+const researchedAirport = (status, extra = {}) => ({ code: 'AAA', name: 'Synthetic airport',
+  distance_miles: 7, status, delays: 'Synthetic current source advisory', busyTimes: ['18:00-19:00'],
+  terminals: [], best_entry: {}, ...extra });
+
+async function airportPrompts(section, check) {
+  const previous = briefing.airport_conditions;
+  briefing.airport_conditions = section;
+  try {
+    await runImmediateStrategy(snapshot.snapshot_id);
+    expect(model).toHaveBeenCalledTimes(1);
+    const strategy = model.mock.calls[0][1].user;
+    const planner = formatBriefingForPrompt(filterBriefingForPlanner(briefing, snapshot, []));
+    for (const prompt of [strategy, planner]) check(prompt.slice(prompt.indexOf('AIRPORT:')));
+  } finally { briefing.airport_conditions = previous; }
+}
+
+test.each(['delayed', 'severe', 'closed', 'ground-stop', 'unreported', 'delays', 'severe_delays'])(
+  'both downstream prompts preserve airport status %s and its advisory without inventing normal or surge', async status => {
+    await airportPrompts(airportSection([researchedAirport(status)]), prompt => {
+      expect(prompt).toContain(`"status":"${status}"`);
+      expect(prompt).toContain('Synthetic current source advisory');
+      expect(prompt).toContain('Use the supplied airport evidence.');
+      expect(prompt).not.toMatch(/normal operations|moderate surge opportunity|high surge at terminal pickup/i);
+    });
+  }
+);
+
+test('both prompts retain FAA ground stops, scoped restrictions, source times and secondary airport uncertainty', async () => {
+  const section = airportSection([
+    researchedAirport('normal', { faa_has_delays: true, faa_delay_minutes: null,
+      faa_closure_status: 'restricted', faa_delay_reason: 'Synthetic restricted aircraft operation',
+      faa_ground_stops: [{ reason: 'Synthetic ground stop', end_time: '2026-10-05T13:00:00Z' }],
+      faa_closure_start: '2026-10-05T12:00:00Z', faa_closure_end: '2026-10-05T14:00:00Z',
+      faa_supported: true, faa_source_updated_at: null, faa_fetched_at: '2026-10-05T12:10:00Z' }),
+    researchedAirport('unreported', { code: 'BBB', faa_has_delays: null, faa_delay_minutes: null,
+      faa_closure_status: 'unknown', faa_supported: null, faa_source_updated_at: null, faa_fetched_at: null,
+      faa_delay_reason: 'FAA live status unavailable.' }),
+  ]);
+  await airportPrompts(section, prompt => {
+    expect(prompt).toContain('FAA disruptions take precedence');
+    expect(prompt).toContain('Synthetic ground stop');
+    expect(prompt).toContain('Synthetic restricted aircraft operation');
+    expect(prompt).toContain('"faa_closure_status":"restricted"');
+    expect(prompt).toContain('"faa_source_updated_at":null');
+    expect(prompt).toContain('"faa_fetched_at":"2026-10-05T12:10:00Z"');
+    expect(prompt).toContain('"code":"BBB"');
+    expect(prompt).toContain('"faa_has_delays":null');
+    expect(prompt).toContain('FAA live status unavailable.');
+    expect(prompt).not.toMatch(/normal operations|BBB: normal/i);
+  });
+});
+
+test('independent normal research stays separate from unknown FAA and measured no-delay FAA evidence', async () => {
+  await airportPrompts(airportSection([
+    researchedAirport('normal', { delays: 'Current airport source confirms operations are normal.',
+      faa_has_delays: null, faa_delay_minutes: null, faa_closure_status: 'unknown', faa_supported: null }),
+    researchedAirport('normal', { code: 'BBB', faa_has_delays: false, faa_delay_minutes: 0,
+      faa_closure_status: 'open', faa_supported: true }),
+  ]), prompt => {
+    expect(prompt).toContain('Current airport source confirms operations are normal.');
+    expect(prompt).toContain('"faa_has_delays":null');
+    expect(prompt).toContain('"faa_delay_minutes":null');
+    expect(prompt).toContain('"faa_closure_status":"unknown"');
+    expect(prompt).toContain('"faa_has_delays":false');
+    expect(prompt).toContain('"faa_delay_minutes":0');
+    expect(prompt).not.toContain('"faa_ground_stops":[]');
+  });
 });

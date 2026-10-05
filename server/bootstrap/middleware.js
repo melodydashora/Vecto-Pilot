@@ -94,7 +94,9 @@ export async function configureMiddleware(app) {
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
+        // 2026-10-05: Maps' raster fallback loads /v1/tiles as images from this
+        // host too; connect-src alone left the real Strategy map without tiles.
+        imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://mapsresources-pa.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
         mediaSrc: ["'self'", "data:", "blob:"],
         // 2026-08-11 (todo #33 voice switcher, Melody's phone test: "failed to
         // fetch"): wss://*.googleapis.com — the Gemini Live API is WebSocket-only
