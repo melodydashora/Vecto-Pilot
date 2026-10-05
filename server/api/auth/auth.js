@@ -33,6 +33,9 @@ import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeEmail, isEmai
 import { sendPasswordResetSMS, isSmsConfigured, validatePhoneNumber } from '../../lib/auth/sms.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { isUniqueViolation, resolveGoogleIdentity } from '../../lib/auth/identity-policy.js';
+import { ActiveDriverSessionError, createDriverSession } from '../../lib/auth/driver-session.js';
+import { LoginAttemptError, validRecoveryProof, beginLoginAttempt, withLoginAttempt,
+  completeLoginAttempt, failLoginAttempt, recoverLoginAttempt, cancelLoginAttempt } from '../../lib/auth/login-recovery.js';
 import { ensureMarket } from '../../lib/markets/ensure-market.js';
 import { matrixLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
@@ -45,22 +48,6 @@ import { driverProfileResponse } from '../../lib/driver-profile-response.js';
 import { withDriverSettingsLock, MainRunAdmissionError, validSettingsRevision, validateSelectedServices } from '../../lib/main-run-admission.js';
 
 const router = Router();
-
-// Called inside a transaction. Updating the owner row serializes login with
-// setup saves, Continue, logout and publication; hydrate one saved revision.
-async function createDriverSession(tx, userId, sessionId, now) {
-  const values = { session_id: sessionId, current_snapshot_id: null, current_main_run_id: null,
-    session_start_at: now, last_active_at: now, updated_at: now };
-  const existing = await tx.query.users.findFirst({ where: eq(users.user_id, userId) });
-  if (existing) await tx.update(users).set(values).where(eq(users.user_id, userId));
-  else await tx.insert(users).values({ user_id: userId, ...values, created_at: now });
-  const profile = await tx.query.driver_profiles.findFirst({ where: eq(driver_profiles.user_id, userId) });
-  if (!profile) throw new Error('Driver profile disappeared during session creation');
-  const vehicle = await tx.query.driver_vehicles.findFirst({ where: and(
-    eq(driver_vehicles.driver_profile_id, profile.id), eq(driver_vehicles.is_primary, true), eq(driver_vehicles.is_active, true),
-  ) });
-  return { profile, vehicle };
-}
 
 // 2026-03-17: SECURITY FIX (F-10) — No hardcoded fallback secret.
 // REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
@@ -85,8 +72,8 @@ if (!process.env.JWT_SECRET && !process.env.REPLIT_DEVSERVER_INTERNAL_ID) {
  */
 // 2026-09-10 (security finding [9]): sessionId binds the token to the users.session_id
 // created for this login; see signJWT/requireAuth.
-async function generateAuthToken(userId, _email = '', sessionId = null) {
-  const token = await signJWT({ sub: userId, sid: sessionId });
+async function generateAuthToken(userId, _email = '', sessionId = null, issuedAt = null) {
+  const token = await signJWT({ sub: userId, sid: sessionId, ...(issuedAt && { issuedAt }) });
   matrixLog.info({
     category: 'AUTH',
     action: 'TOKEN_ISSUE',
@@ -452,7 +439,8 @@ router.post('/register', async (req, res) => {
     const { newUser, profile, createdCreds } = await db.transaction(async (tx) => {
       const [newUser] = await tx.insert(users).values({
         user_id: newUserId,
-        session_id: newSessionId,
+        // Signup returns to sign-in. It must not occupy the driver's only session.
+        session_id: null,
         current_snapshot_id: null, // Set when first snapshot created
         session_start_at: now,
         last_active_at: now,
@@ -568,7 +556,8 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // Generate auth token
+    // Preserve the response token shape, bound to an unused UUID. It cannot
+    // authorize this account now or attach to the session created at sign-in.
     const token = await generateAuthToken(newUser.user_id, email, newSessionId);
 
     // Send welcome email (non-blocking)
@@ -600,7 +589,7 @@ router.post('/register', async (req, res) => {
       ok: true,
       token,
       customMarket: customMarketResult, // 2026-09-10: null unless the body declared one
-      ...driverProfileResponse(profile, createdVehicle, newSessionId)
+      ...driverProfileResponse(profile, createdVehicle, null)
     });
 
   } catch (err) {
@@ -623,14 +612,24 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login - Authenticate driver
 // ═══════════════════════════════════════════════════════════════════════════
 router.post('/login', async (req, res) => {
+  let recoveryAttempt = null;
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
       return res.status(400).json({
         error: 'MISSING_CREDENTIALS',
         message: 'Email and password are required'
       });
+    }
+    res.set?.('Cache-Control', 'no-store');
+    if (req.body.recoveryProof !== undefined) {
+      const claim = await beginLoginAttempt(db, req.body.recoveryProof, 'password');
+      if (!claim.claimed) {
+        const recovered = await recoverLoginAttempt(db, req.body.recoveryProof);
+        return res.status(recovered.status).json(recovered.body);
+      }
+      recoveryAttempt = claim.attempt;
     }
 
     // Find driver profile by email
@@ -709,7 +708,7 @@ router.post('/login', async (req, res) => {
     }, `Password verification: ${isValid ? 'success' : 'failed'}`);
 
     const newSessionId = crypto.randomUUID();
-    const login = await db.transaction(async tx => {
+    const login = await withLoginAttempt(db, recoveryAttempt, async tx => {
       const [current] = await tx.select().from(auth_credentials)
         .where(eq(auth_credentials.user_id, profile.user_id)).for('update').limit(1);
       // Verification may finish after a reset or OAuth password revocation.
@@ -727,7 +726,12 @@ router.post('/login', async (req, res) => {
       await tx.update(auth_credentials).set({ failed_login_attempts: 0, locked_until: null,
         last_login_at: now, last_login_ip: req.ip || req.headers['x-forwarded-for'] || 'unknown', updated_at: now })
         .where(eq(auth_credentials.user_id, profile.user_id));
-      return createDriverSession(tx, profile.user_id, newSessionId, now);
+      const created = await createDriverSession(tx, profile.user_id, newSessionId);
+      // Local signing failure must not leave a session the driver cannot use
+      // or log out of. The token is returned only after the transaction commits.
+      const token = await generateAuthToken(profile.user_id, email, newSessionId, created.sessionStartedAt);
+      await completeLoginAttempt(tx, recoveryAttempt, { userId: profile.user_id, sessionId: newSessionId });
+      return { ...created, token };
     });
     if (login.lockedUntil) return res.status(423).json({ error: 'ACCOUNT_LOCKED',
       message: 'Account is temporarily locked. Try again later.', locked_until: login.lockedUntil });
@@ -741,9 +745,6 @@ router.post('/login', async (req, res) => {
       location: 'auth.js:login',
     }, `Session created for user ${profile.user_id.substring(0, 8)} (session ${newSessionId.substring(0, 8)})`);
 
-    // Generate token
-    const token = await generateAuthToken(profile.user_id, email, newSessionId);
-
     matrixLog.info({
       category: 'AUTH',
       action: 'LOGIN_SUCCESS',
@@ -753,19 +754,45 @@ router.post('/login', async (req, res) => {
     // Return same structure as GET /me for auth context compatibility
     res.json({
       ok: true,
-      token,
+      token: login.token,
       ...driverProfileResponse(login.profile, login.vehicle, newSessionId)
     });
 
   } catch (err) {
+    if (err instanceof LoginAttemptError) {
+      return res.status(err.status).json({ error: err.code, message: err.message });
+    }
+    if (err instanceof ActiveDriverSessionError) {
+      return res.status(409).json({ error: err.code, message: err.message });
+    }
     matrixLog.error({
       category: 'AUTH',
       action: 'LOGIN_FAIL_INTERNAL',
       location: 'auth.js:login',
     }, 'Login failed', err);
     res.status(500).json({ error: 'LOGIN_FAILED', message: err.message });
+  } finally {
+    try { await failLoginAttempt(db, recoveryAttempt); }
+    catch { matrixLog.warn({ category: 'AUTH', action: 'LOGIN_ATTEMPT_STATUS_FAIL', location: 'auth.js:login' }, 'Sign-in attempt status could not be recorded'); }
   }
 });
+
+// These endpoints authenticate only the unpredictable attempt proof. They never
+// run requireAuth (which updates activity), accept cookies, or replace sessions.
+for (const [path, action] of [['/login/recovery', recoverLoginAttempt], ['/login/recovery/cancel', cancelLoginAttempt]]) {
+  router.post(path, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!validRecoveryProof(req.body?.recoveryProof)) {
+      return res.status(400).json({ error: 'invalid_recovery_proof', message: 'A valid sign-in recovery proof is required.' });
+    }
+    try {
+      const result = await action(db, req.body.recoveryProof);
+      return res.status(result.status).json(result.body);
+    } catch {
+      return res.status(503).json({ error: 'login_recovery_unavailable', message: 'Could not check this sign-in. Try again when your connection is ready.' });
+    }
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/auth/forgot-password - Request password reset
@@ -1463,14 +1490,24 @@ router.get('/google', async (req, res) => {
 // for tokens, verifies identity, finds/creates user, returns app token
 // ═══════════════════════════════════════════════════════════════════════════
 router.post('/google/exchange', async (req, res) => {
+  let recoveryAttempt = null;
   try {
     const { code, state } = req.body;
 
-    if (!code || !state) {
+    if (typeof code !== 'string' || !code || typeof state !== 'string' || !state) {
       return res.status(400).json({
         error: 'MISSING_PARAMS',
         message: 'Authorization code and state are required'
       });
+    }
+    res.set?.('Cache-Control', 'no-store');
+    if (req.body.recoveryProof !== undefined) {
+      const claim = await beginLoginAttempt(db, req.body.recoveryProof, 'google');
+      if (!claim.claimed) {
+        const recovered = await recoverLoginAttempt(db, req.body.recoveryProof);
+        return res.status(recovered.status).json(recovered.body);
+      }
+      recoveryAttempt = claim.attempt;
     }
 
     // 1. Validate AND consume the CSRF state in ONE statement (2026-09-10, VP-005 / Astra
@@ -1566,29 +1603,17 @@ router.post('/google/exchange', async (req, res) => {
     const profile = verdict.profile; // null when this is a brand-new account
     let activeProfile = profile;
     let passwordRevoked = false;
+    const newSessionId = crypto.randomUUID();
 
-    if (verdict.kind === 'new') {
-      // ═══════════════════════════════════════════════════════════════════
-      // NEW ACCOUNT — Create minimal profile from Google data
-      // profile_complete: false → user can complete address/vehicle later
-      // ═══════════════════════════════════════════════════════════════════
-      matrixLog.info({
-        category: 'AUTH',
-        action: 'OAUTH_NEW_ACCOUNT',
-        location: 'auth.js:googleOAuthCallback',
-      }, `Google OAuth: creating new account (sub: ${googleUser.sub.substring(0, 8)})`);
-
-      const newUserId = crypto.randomUUID();
-      const newSessionId = crypto.randomUUID();
-      const now = new Date();
-
-      // 2026-09-10 (VP-003 / Astra A3c): users + driver_profiles + auth_credentials in ONE
-      // transaction — a mid-sequence failure no longer strands an orphan users row or a
-      // profile that can never reset a password.
-      const newProfile = await db.transaction(async (tx) => {
+    const login = await withLoginAttempt(db, recoveryAttempt, async tx => {
+      if (verdict.kind === 'new') {
+        // Account creation and first session must commit together so a failed
+        // admission cannot strand a profile that can neither sign in nor reset.
+        const newUserId = crypto.randomUUID();
+        const now = new Date();
         await tx.insert(users).values({
           user_id: newUserId,
-          session_id: newSessionId,
+          session_id: null,
           current_snapshot_id: null,
           session_start_at: now,
           last_active_at: now,
@@ -1621,66 +1646,55 @@ router.post('/google/exchange', async (req, res) => {
           password_hash: null, // OAuth-only: no password
           last_login_at: now,
         });
-        return newProfile;
-      });
-
-      activeProfile = newProfile;
-      matrixLog.info({
-        category: 'AUTH',
-        connection: 'DB',
-        action: 'OAUTH_NEW_ACCOUNT_COMPLETE',
-        tableName: 'DRIVER_PROFILES',
-        location: 'auth.js:googleOAuthCallback',
-      }, `Google OAuth: new account created for user ${newUserId.substring(0, 8)} (profile_complete: false)`);
-    } else if (verdict.kind === 'link') {
-      // ═══════════════════════════════════════════════════════════════════
-      // EXISTING email/password account — link the verified Google subject.
-      // Google proved the email, so email_verified becomes true. If the account's
-      // password was never proven (email_verified was false), it is revoked in the
-      // same transaction (pre-hijack mitigation, identity-policy.js); the address
-      // owner can set a new one through the email reset flow.
-      // ═══════════════════════════════════════════════════════════════════
-      await db.transaction(async (tx) => {
-        await tx.update(driver_profiles)
-          .set({
-            google_id: googleUser.sub,
-            email_verified: true,
-            updated_at: new Date()
-          })
-          .where(eq(driver_profiles.id, activeProfile.id));
-        if (verdict.revokePassword) {
-          await tx.update(auth_credentials)
-            .set({ password_hash: null })
-            .where(eq(auth_credentials.user_id, activeProfile.user_id));
-          // The same unproven registrant chose the phone (SMS reset target) and may hold a
-          // live session — neither survives the address owner's verified Google login.
+        activeProfile = newProfile;
+      } else if (verdict.kind === 'link') {
+        // Google proves email ownership. An unverified registrant's password,
+        // phone and session cannot survive adoption by the verified owner;
+        // the owner can set a password through the email reset flow.
+        // Match password/reset lock order, then serialize with profile saves.
+        // Recheck the adoption decision after waiting: a concurrent Google login
+        // may already own this account and its session must not be revoked again.
+        const [currentCredentials] = await tx.select().from(auth_credentials)
+          .where(eq(auth_credentials.user_id, activeProfile.user_id)).for('update').limit(1);
+        await tx.select().from(users).where(eq(users.user_id, activeProfile.user_id)).for('update').limit(1);
+        const currentProfile = await tx.query.driver_profiles.findFirst({ where: eq(driver_profiles.user_id, activeProfile.user_id) });
+        if (!currentProfile) throw new Error('Driver profile disappeared during Google account linking');
+        const currentVerdict = resolveGoogleIdentity({
+          bySubject: currentProfile.google_id === googleUser.sub ? currentProfile : null,
+          byEmail: currentProfile, sub: googleUser.sub,
+          byEmailHasPassword: Boolean(currentCredentials?.password_hash),
+        });
+        if (currentVerdict.kind === 'conflict') return { identityConflict: true };
+        if (currentVerdict.kind === 'link') {
           await tx.update(driver_profiles)
-            .set({ phone: null, phone_verified: false })
+            .set({ google_id: googleUser.sub, email_verified: true, updated_at: new Date() })
             .where(eq(driver_profiles.id, activeProfile.id));
-          await tx.update(users)
-            .set({ session_id: null, current_snapshot_id: null, current_main_run_id: null, updated_at: new Date() })
-            .where(eq(users.user_id, activeProfile.user_id));
+          if (currentVerdict.revokePassword) {
+            await tx.update(auth_credentials)
+              .set({ password_hash: null })
+              .where(eq(auth_credentials.user_id, activeProfile.user_id));
+            await tx.update(driver_profiles)
+              .set({ phone: null, phone_verified: false })
+              .where(eq(driver_profiles.id, activeProfile.id));
+            await tx.update(users)
+              .set({ session_id: null, current_snapshot_id: null, current_main_run_id: null, updated_at: new Date() })
+              .where(eq(users.user_id, activeProfile.user_id));
+          }
         }
-      });
-      passwordRevoked = verdict.revokePassword;
-      matrixLog.info({
-        category: 'AUTH',
-        connection: 'DB',
-        action: 'OAUTH_LINK',
-        tableName: 'DRIVER_PROFILES',
-        location: 'auth.js:googleOAuthCallback',
-      }, `Google OAuth: linked Google ID to existing user ${activeProfile.user_id.substring(0, 8)} (${verdict.reason})`);
-    }
-    // verdict.kind === 'subject': already linked — nothing to write.
-
-    // 6. Create/update session (same upsert pattern as login endpoint)
-    const newSessionId = crypto.randomUUID();
-    const now = new Date();
-
-    const login = await db.transaction(tx => createDriverSession(tx, activeProfile.user_id, newSessionId, now));
-
-    // 7. Generate app token
-    const token = await generateAuthToken(activeProfile.user_id, activeProfile.email, newSessionId);
+        passwordRevoked = currentVerdict.revokePassword;
+      }
+      // Account/link writes and admission commit together. If a prior session is
+      // live, refusal also rolls back a verified existing account's Google link.
+      const created = await createDriverSession(tx, activeProfile.user_id, newSessionId);
+      const token = await generateAuthToken(activeProfile.user_id, activeProfile.email, newSessionId, created.sessionStartedAt);
+      await completeLoginAttempt(tx, recoveryAttempt, { userId: activeProfile.user_id, sessionId: newSessionId,
+        isNewUser: !profile, passwordRevoked });
+      return { ...created, token };
+    });
+    if (login.identityConflict) return res.status(409).json({
+      error: 'ACCOUNT_CONFLICT',
+      message: 'This email is already linked to a different Google account. Sign in with that Google account, or use your password.'
+    });
 
     matrixLog.info({
       category: 'AUTH',
@@ -1691,12 +1705,18 @@ router.post('/google/exchange', async (req, res) => {
     // Return same structure as /login for auth context compatibility
     res.json({
       ok: true,
-      token,
+      token: login.token,
       isNewUser: !profile, // Let client know this is a new sign-up
       passwordRevoked, // 2026-09-10: true when an unproven password was revoked on Google link
       ...driverProfileResponse(login.profile, login.vehicle, newSessionId)
     });
   } catch (err) {
+    if (err instanceof LoginAttemptError) {
+      return res.status(err.status).json({ error: err.code, message: err.message });
+    }
+    if (err instanceof ActiveDriverSessionError) {
+      return res.status(409).json({ error: err.code, message: err.message });
+    }
     matrixLog.error({
       category: 'AUTH',
       action: 'OAUTH_EXCHANGE_FAIL',
@@ -1711,6 +1731,9 @@ router.post('/google/exchange', async (req, res) => {
       error: 'GOOGLE_AUTH_FAILED',
       message: 'Google authentication failed. Please try again.'
     });
+  } finally {
+    try { await failLoginAttempt(db, recoveryAttempt); }
+    catch { matrixLog.warn({ category: 'AUTH', action: 'LOGIN_ATTEMPT_STATUS_FAIL', location: 'auth.js:googleOAuthCallback' }, 'Sign-in attempt status could not be recorded'); }
   }
 });
 

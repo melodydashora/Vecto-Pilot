@@ -15,7 +15,7 @@ import { sql, relations } from "drizzle-orm";
 //   - Rows are NEVER deleted — driver_profiles, auth_credentials, offer_rulesets, offer_outcomes,
 //     coach_conversations and news_deactivations FK here with ON DELETE RESTRICT
 //   - Sliding window: last_active_at updates on every request
-//   - Highlander Rule: One session per user (re-login replaces the previous session)
+//   - One live session per user; another login is refused and same-attempt recovery preserves it
 //
 // NO LOCATION DATA - all location goes to snapshots table
 export const users = pgTable("users", {
@@ -30,6 +30,28 @@ export const users = pgTable("users", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// A random browser proof is stored only as a SHA-256 digest. The receipt binds
+// completion/cancellation to one attempt across requests and server processes.
+export const auth_login_attempts = pgTable("auth_login_attempts", {
+  proof_hash: text("proof_hash").primaryKey(),
+  attempt_id: uuid("attempt_id").notNull().defaultRandom(),
+  method: text("method").notNull(),
+  status: text("status").notNull().default('processing'),
+  user_id: uuid("user_id").references(() => users.user_id, { onDelete: 'restrict' }),
+  session_id: uuid("session_id"),
+  is_new_user: boolean("is_new_user").notNull().default(false),
+  password_revoked: boolean("password_revoked").notNull().default(false),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, table => ({
+  attemptIdentity: uniqueIndex('auth_login_attempts_attempt_id_key').on(table.attempt_id),
+  expiry: index('auth_login_attempts_expires_at_idx').on(table.expires_at),
+  validMethod: check('auth_login_attempts_method_check', sql`${table.method} IN ('password', 'google', 'cancel')`),
+  validStatus: check('auth_login_attempts_status_check', sql`${table.status} IN ('processing', 'completed', 'failed', 'cancelled')`),
+  validProof: check('auth_login_attempts_proof_hash_check', sql`${table.proof_hash} ~ '^[a-f0-9]{64}$'`),
+  completedOwner: check('auth_login_attempts_completed_owner_check', sql`${table.status} <> 'completed' OR (${table.user_id} IS NOT NULL AND ${table.session_id} IS NOT NULL)`),
+}));
 
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),

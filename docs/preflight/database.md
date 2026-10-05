@@ -32,8 +32,17 @@ await db.insert(rankings).values({
 - **Ephemeral**: on logout or inactivity (60 min TTL) the `users` row is KEPT and its `session_id` is set NULL (2026-01-06: DELETE was blocked by RESTRICT FKs from driver_profiles/auth_credentials). Do not store permanent settings here.
 - **No Location Data**: All location data goes to the `snapshots` table.
 - **Sliding Window**: `last_active_at` updates on every request.
-- **Highlander Rule**: One device per user (login on new device kills old session).
+- **One live session per user**: Login from another browser/device returns `session_already_active`; the driver must log out of the prior session first. Same-session app switching retains the 60-minute inactivity window and two-hour hard limit. See [authentication](../architecture/AUTH.md).
 - **Lazy Cleanup**: expired sessions are cleared (session_id → NULL) on the next `requireAuth` check; see server/middleware/auth.js.
+
+Interrupted-login receipts live in `auth_login_attempts`, created by
+`20261005_login_recovery.sql`. Only proof digests are stored. Finalization,
+recovery and cancellation lock the attempt before credentials/the user. A
+completed receipt can recover only its original live session; it never changes
+session clocks or MAIN pointers. Cancellation tombstones must not be deleted
+without a reviewed retention protocol: a delayed original request could otherwise
+claim that proof again. The ten-minute `expires_at` bounds unfinished work, not a
+completed session's lifetime or an automatic row-deletion schedule.
 
 **Key Fields:**
 - `current_snapshot_id`: Links to the user's ONE active snapshot.

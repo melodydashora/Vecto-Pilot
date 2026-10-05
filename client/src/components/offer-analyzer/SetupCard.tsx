@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/useToast';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { createAndroidLauncher } from '@/lib/android-launcher';
+import AndroidMacroDroidGuide from './AndroidMacroDroidGuide';
 import {
   ChevronDown,
   Download,
@@ -68,6 +69,7 @@ export default function SetupCard() {
   const [isBusy, setIsBusy] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [editsOpen, setEditsOpen] = useState(false);
+  const [showToken, setShowToken] = useState(false);
 
   const loadToken = useCallback(async () => {
     setTokenState('loading');
@@ -94,7 +96,7 @@ export default function SetupCard() {
     if (!tokenInfo?.token) return;
     try {
       await navigator.clipboard.writeText(tokenInfo.token);
-      toast({ title: 'Token copied', description: 'Paste it into the Shortcut’s X-Shortcut-Token header.' });
+      toast({ title: 'Your token copied', description: 'Paste it into your macro or Shortcut’s X-Shortcut-Token header.' });
     } catch {
       toast({ title: 'Copy failed', description: 'Select the token text and copy it manually.', variant: 'destructive' });
     }
@@ -112,7 +114,8 @@ export default function SetupCard() {
       // Response carries token + created_at only — keep the label we already have.
       setTokenInfo((prev) => ({ ...prev, ...data }));
       setConfirmRegen(false);
-      toast({ title: 'New token generated', description: 'Your old token no longer works — paste the new one into the Shortcut.' });
+      setShowToken(false);
+      toast({ title: 'New token generated', description: 'Your old token no longer works — update every macro or Shortcut using it.' });
     } catch (err) {
       toast({
         title: 'Error',
@@ -158,6 +161,12 @@ export default function SetupCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <AndroidMacroDroidGuide
+          hookUrl={`${window.location.origin}/api/hooks/analyze-offer`}
+          tokenReady={tokenState === 'ready' && Boolean(tokenInfo?.token)}
+          onCopyToken={handleCopy}
+        />
+        <p className="text-sm text-gray-700"><strong>No macro app needed:</strong> use browser capture below to choose an offer screenshot and hear the result. You do not need to copy a shortcut token for this option.</p>
         <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
           <a href="/co-pilot/analyze"><Smartphone className="mr-2 h-4 w-4" />Open Offer Analyzer capture</a>
         </Button>
@@ -237,11 +246,12 @@ export default function SetupCard() {
         <Separator className="bg-gray-200" />
 
         {/* Shortcut token — the identity bridge */}
-        <div className="space-y-3">
+        <div id="offer-shortcut-token" className="scroll-mt-6 space-y-3">
           <div className="flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-amber-500" />
             <span className="text-sm font-medium text-gray-700">Your shortcut token</span>
           </div>
+          <p className="text-xs text-gray-600">This token belongs to your signed-in account on this site. Each person must copy their own token into their macro or Shortcut. Keep it private; the guide pictures use placeholders.</p>
 
           {tokenState === 'loading' && (
             <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -263,6 +273,9 @@ export default function SetupCard() {
               <div className="flex gap-2">
                 <Input
                   readOnly
+                  type={showToken ? 'text' : 'password'}
+                  aria-label="Your private shortcut token"
+                  autoComplete="off"
                   value={tokenInfo.token}
                   className="bg-gray-100 border-gray-200 text-gray-700 font-mono text-xs"
                 />
@@ -270,6 +283,7 @@ export default function SetupCard() {
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
+              <Button type="button" variant="ghost" size="sm" className="min-h-11" aria-pressed={showToken} onClick={() => setShowToken(!showToken)}>{showToken ? 'Hide token' : 'Show token'}</Button>
 
               {!confirmRegen ? (
                 <Button type="button" variant="outline" size="sm" onClick={() => setConfirmRegen(true)}>
@@ -279,7 +293,7 @@ export default function SetupCard() {
               ) : (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
                   <p className="text-xs text-red-700">
-                    The old token stops working immediately — the Shortcut on your phone will need the new one.
+                    The old token stops working immediately — update every macro or Shortcut using it.
                   </p>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setConfirmRegen(false)} disabled={isBusy}>
@@ -300,7 +314,7 @@ export default function SetupCard() {
                 <div className="flex gap-2">
                   <Input
                     id="offer-device-label"
-                    placeholder='e.g., "Melody’s iPhone"'
+                    placeholder='e.g., "My Android phone"'
                     value={deviceLabel}
                     onChange={(e) => setDeviceLabel(e.target.value)}
                     className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"

@@ -18,6 +18,11 @@ export const LEGACY_PREFIX = 'vecto_'; // For backward compatibility
 export const STORAGE_KEYS = {
   // Authentication
   AUTH_TOKEN: 'vectopilot_auth_token',
+  // Retained only to finish an interrupted server logout; never hydrates a session.
+  PENDING_LOGOUT_TOKEN: 'vectopilot_pending_logout_token',
+  LOGIN_RECOVERY_PREFIX: 'vectopilot_login_recovery_',
+  LOGIN_CANCEL_PREFIX: 'vectopilot_login_cancel_',
+  LOGIN_SESSION_OWNER: 'vectopilot_login_session_owner',
   USER_ID: 'vecto_user_id', // Legacy key, keep for backward compat
 
   // Strategy persistence (survives app switches)

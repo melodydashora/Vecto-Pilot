@@ -66,6 +66,7 @@ analysis error or missing data must remain distinguishable from a rejection.
 | Term | Meaning |
 |---|---|
 | **account owner** | The user established by authentication or resolved shortcut token. A self-reported device ID does not authenticate a user. |
+| **driver session** | One authenticated session per account, with a 60-minute inactivity window and existing two-hour absolute limit. Tabs on the same origin reuse the saved token. A new login is refused while that session is live; log out of it first. Recovery of a lost login response returns that attempt's original session without extending its lifetime. Verified Google adoption of an unverified registration retains its existing identity-protection exception. See [authentication](docs/architecture/AUTH.md). |
 | **capture ID** | The GPS observation request identity used to control capture publication. |
 | **MAIN admission / run ID** | The explicit Strategy intent and its pinned settings/source receipt, stored in `main_run_admissions`. |
 | **generation** | A particular Briefing/source version. Matching a snapshot alone does not establish a matching generation. |

@@ -7,6 +7,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
+import SessionCheck from '@/components/auth/SessionCheck';
+import LoginRecovery from '@/components/auth/LoginRecovery';
+import { GoogleCallbackPage } from './google/Callback';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,7 +68,8 @@ type SignInFormData = z.infer<typeof signInSchema>;
 export default function SignInPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading, sessionCheckError, refreshProfile,
+    hasPendingLogout, isLoggingOut, logoutError, retryLogout, pendingLoginCount, googleAuthResult } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,11 +92,11 @@ export default function SignInPage() {
 
   // Redirect authenticated users to the app - don't show login page
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
+    if (!authLoading && isAuthenticated && !googleAuthResult && pendingLoginCount === 0) {
       console.log('🔐 [SignIn] User already authenticated - redirecting to app');
       navigate('/co-pilot/strategy', { replace: true });
     }
-  }, [authLoading, isAuthenticated, navigate]);
+  }, [authLoading, isAuthenticated, googleAuthResult, pendingLoginCount, navigate]);
 
   // 2026-01-06: Handle social login error from backend stub redirects
   // CRITICAL: Do NOT put searchParams in deps array - it's a new object every render!
@@ -119,15 +123,39 @@ export default function SignInPage() {
     );
   }
 
+  if (!isAuthenticated && hasPendingLogout) {
+    return <div className="min-h-dvh flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-gray-900">Finish signing out</CardTitle>
+          <CardDescription className="text-gray-600">Your previous session must end before you can sign in again.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {logoutError && <p role="alert" className="text-sm text-red-700">{logoutError}</p>}
+          {isLoggingOut && <p role="status" className="text-sm text-gray-600">Signing out of your previous session…</p>}
+          <Button type="button" className="w-full" disabled={isLoggingOut} onClick={() => { void retryLogout(); }}>
+            {isLoggingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoggingOut ? 'Signing out…' : 'Finish signing out'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>;
+  }
+
+  if (pendingLoginCount > 0) return <LoginRecovery />;
+  if (googleAuthResult) return <GoogleCallbackPage />;
+
+  if (!isAuthenticated && sessionCheckError) {
+    return <SessionCheck error={sessionCheckError} onRetry={refreshProfile} />;
+  }
+
   const onSubmit = async (data: SignInFormData) => {
     setIsLoading(true);
     setError(null);
 
     const result = await login(data);
 
-    if (result.success) {
-      navigate('/co-pilot/strategy');
-    } else {
+    if (!result.success) {
       setError(result.error || 'Login failed');
     }
 

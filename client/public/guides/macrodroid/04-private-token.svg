@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" role="img" aria-labelledby="title desc">
+<title id="title">Step 4: Add your private token — schematic illustration</title>
+<desc id="desc">Schematic illustration with a placeholder, never a real credential. Configure an HTTP POST to your VectoPilot deployment and path /api/hooks/analyze-offer. Set the X-Shortcut-Token header to your own shortcut token. Send body_json as JSON. Every driver must supply their own account token; do not share exported macros containing tokens.</desc>
+<rect width="640" height="460" rx="24" fill="#F3F7FA"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<rect x="28" y="24" width="82" height="30" rx="15" fill="#087E83"/>
+<text x="43" y="46" font-size="16" fill="#FFFFFF" font-weight="700">STEP 4</text>
+<text x="124" y="46" font-size="16" fill="#486174" font-weight="700">SETUP DIAGRAM</text>
+<text x="28" y="91" font-size="30" fill="#132E41" font-weight="700">Add your private token</text>
+<rect x="28" y="113" width="584" height="282" rx="16" fill="#FFFFFF" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="147" font-size="24" fill="#132E41" font-weight="700">HTTP Request · POST</text><text x="48" y="184" font-size="23" fill="#132E41" font-family="monospace">/api/hooks/analyze-offer</text><text x="48" y="213" font-size="20" fill="#486174">Use your VectoPilot deployment URL.</text><path d="M 46 233 H 594" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="265" font-size="22" fill="#132E41" font-weight="700">Header: X-Shortcut-Token</text><rect x="46" y="279" width="548" height="49" rx="8" fill="#FFF1D6"/><text x="62" y="311" font-size="23" fill="#132E41" font-weight="700" font-family="monospace">YOUR_SHORTCUT_TOKEN</text><text x="48" y="365" font-size="22" fill="#132E41" font-family="monospace">JSON body: {lv=body_json}</text>
+<text x="28" y="429" font-size="19" fill="#486174">Each driver must paste their own account token.</text>
+</g>
+</svg>

@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-09-29 (synthetic client auth and isolated session tests)
+> **Last Verified:** 2026-10-05 (synthetic client auth and isolated session tests)
 
 # Auth Components (`client/src/components/auth/`)
 
@@ -13,6 +13,7 @@ Authentication-related UI components for protecting routes and managing auth sta
 | `ProtectedRoute.tsx` | Protects private routes while verifying saved sessions |
 | `AuthRedirect.tsx` | Routes the root entry after session verification |
 | `SessionCheck.tsx` | Shared loading and recoverable session-check view |
+| `LoginRecovery.tsx` | Retry or cancel a sign-in whose response was interrupted |
 
 ## ProtectedRoute
 
@@ -71,6 +72,27 @@ a new login or workflow on focus. The server retains its existing 60-minute
 inactivity window and two-hour absolute limit; the client does not extend either.
 An actual `401` still clears the rejected session. Account transitions fence old
 responses before they can change the new owner's state.
+
+The sign-in page also uses `SessionCheck` after temporary saved-session verification
+failure. Opening a saved sign-in URL in another tab retries the existing session
+instead of offering a replacement login. Password and Google login display the
+server's existing-session warning when a separate login is refused.
+
+If server logout fails, the sign-in page shows **Finish signing out** and offers
+an explicit retry. Private state and the active token are cleared immediately;
+the separately stored pending-logout credential can only retry that logout, never
+restore private UI. Success or `401` removes it. Requests time out after 15 seconds,
+and recovery survives reload and synchronizes across same-origin tabs. Late logout
+responses cannot clear a newer session or newer pending logout. Covered by
+`tests/client/logout-recovery.test.tsx` with synthetic network and storage events.
+
+Interrupted password/Google sign-in keeps a separate durable proof for each
+attempt. `LoginRecovery` offers **Try again** to retrieve the original session
+and **Cancel sign-in** to end that attempt safely. New login is blocked while its
+outcome remains unknown. Recovery keeps original session/JWT clocks and Google
+terms/adoption flags; cancellation survives reload and fences delayed responses.
+The proof is removed only after token storage, a terminal result, or confirmed
+server cancellation. See [authentication](../../../../docs/architecture/AUTH.md).
 
 - **State from:** `../../contexts/auth-context.tsx`
 - **Used by:** `../../routes.tsx`

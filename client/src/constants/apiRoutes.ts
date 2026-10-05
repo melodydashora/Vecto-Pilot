@@ -17,6 +17,8 @@ export const API_ROUTES = {
   // Authentication
   // =========================================================================
   AUTH: {
+    LOGIN_RECOVERY: '/api/auth/login/recovery',
+    LOGIN_RECOVERY_CANCEL: '/api/auth/login/recovery/cancel',
     LOGIN: '/api/auth/login',
     REGISTER: '/api/auth/register',
     LOGOUT: '/api/auth/logout',

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" role="img" aria-labelledby="title desc">
+<title id="title">Step 2: Choose when it runs — schematic illustration</title>
+<desc id="desc">Schematic illustration. Use a File Changed trigger for created files in the device screenshot folder. Add a macro-wide Application Running constraint: Running, Uber Driver, Use App History. Keep the file filter as an asterisk. Other Uber screens may still trigger it.</desc>
+<rect width="640" height="460" rx="24" fill="#F3F7FA"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<rect x="28" y="24" width="82" height="30" rx="15" fill="#087E83"/>
+<text x="43" y="46" font-size="16" fill="#FFFFFF" font-weight="700">STEP 2</text>
+<text x="124" y="46" font-size="16" fill="#486174" font-weight="700">SETUP DIAGRAM</text>
+<text x="28" y="91" font-size="30" fill="#132E41" font-weight="700">Choose when it runs</text>
+<rect x="28" y="113" width="584" height="127" rx="16" fill="#FFFFFF" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="143" font-size="16" fill="#486174" font-weight="700">TRIGGER</text><text x="48" y="176" font-size="25" fill="#132E41" font-weight="700">File Changed · Created</text><text x="48" y="208" font-size="19" fill="#132E41" font-family="monospace">/storage/emulated/0/Pictures/Screenshots</text><path d="M 320 245 v 12 m -5 -5 l 5 5 l 5 -5" fill="none" stroke="#087E83" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="28" y="268" width="584" height="127" rx="16" fill="#E3F3F0"/><text x="48" y="298" font-size="16" fill="#087E83" font-weight="700">CONSTRAINT</text><text x="48" y="332" font-size="23" fill="#132E41" font-weight="700">Application Running → Running</text><text x="48" y="365" font-size="22" fill="#132E41">Uber Driver · Use App History</text>
+<text x="28" y="429" font-size="19" fill="#486174">File filter: *   ·   Select your actual screenshot folder.</text>
+</g>
+</svg>

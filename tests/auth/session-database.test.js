@@ -1,7 +1,9 @@
 import { jest, beforeAll, beforeEach, afterAll, test, expect } from '@jest/globals';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 import * as schema from '../../shared/schema.js';
+import { createDriverSession } from '../../server/lib/auth/driver-session.js';
 
 // Exercise generated session SQL on isolated PostgreSQL; no workspace connection.
 let pg, orm;
@@ -20,12 +22,17 @@ beforeAll(async () => {
   await pg.exec(`CREATE TABLE users (user_id uuid PRIMARY KEY, session_id uuid, current_snapshot_id uuid,
     current_main_run_id uuid, session_start_at timestamptz, last_active_at timestamptz,
     created_at timestamptz, updated_at timestamptz);`);
+  for (const table of [schema.driver_profiles, schema.driver_vehicles]) {
+    const { name, columns } = getTableConfig(table);
+    await pg.exec(`CREATE TABLE "${name}" (${columns.map(column => `"${column.name}" ${column.getSQLType()}`).join(', ')})`);
+  }
   orm = drizzle(pg, { schema });
 }, 30000);
 beforeEach(async () => {
-  await pg.exec('DELETE FROM users');
+  await pg.exec('DELETE FROM users; DELETE FROM driver_profiles; DELETE FROM driver_vehicles');
   await pg.query(`INSERT INTO users(user_id, session_id, session_start_at, last_active_at, created_at, updated_at)
     VALUES ($1, $2, now() - interval '10 minutes', now() - interval '5 minutes', now(), now())`, [userId, sessionId]);
+  await pg.query('INSERT INTO driver_profiles(id,user_id) VALUES ($1,$2)', [userId, userId]);
 });
 afterAll(async () => { await pg?.close(); });
 async function authenticate() {
@@ -57,4 +64,33 @@ test.each(['NULL', "'infinity'"])('invalid PostgreSQL timestamp %s rejects witho
   const result = await authenticate();
   expect(result.res.statusCode).toBe(401);
   expect(result.next).not.toHaveBeenCalled();
+});
+
+test('admission rejects an existing 59-minute session using actual PostgreSQL timestamps and retains its pointers', async () => {
+  await pg.query(`UPDATE users SET session_start_at=now()-interval '59 minutes', last_active_at=now()-interval '59 minutes',
+    current_snapshot_id=$1,current_main_run_id=$1`, [sessionId]);
+  const before = (await pg.query('SELECT * FROM users')).rows;
+  await expect(orm.transaction(tx => createDriverSession(tx, userId, '00000000-0000-4000-8000-000000000005')))
+    .rejects.toMatchObject({ code: 'session_already_active' });
+  expect((await pg.query('SELECT * FROM users')).rows).toEqual(before);
+  expect((await authenticate()).next).toHaveBeenCalledTimes(1);
+});
+
+test('61-minute inactivity expires within the two-hour hard limit and permits a fresh login', async () => {
+  await pg.exec("UPDATE users SET session_start_at=now()-interval '90 minutes',last_active_at=now()-interval '61 minutes'");
+  expect((await authenticate()).res.statusCode).toBe(401);
+  const nextSession = '00000000-0000-4000-8000-000000000005';
+  await orm.transaction(tx => createDriverSession(tx, userId, nextSession));
+  expect((await pg.query('SELECT session_id,current_snapshot_id,current_main_run_id FROM users')).rows[0])
+    .toEqual({ session_id: nextSession, current_snapshot_id: null, current_main_run_id: null });
+});
+
+test('overlapping isolated database admissions yield one winner without replacing its session', async () => {
+  await pg.exec('UPDATE users SET session_id=NULL');
+  const sessions = ['00000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000006'];
+  const outcomes = await Promise.allSettled(sessions.map(id => orm.transaction(tx => createDriverSession(tx, userId, id))));
+  expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  expect(outcomes.find(result => result.status === 'rejected').reason).toMatchObject({ code: 'session_already_active' });
+  const winner = sessions[outcomes.findIndex(result => result.status === 'fulfilled')];
+  expect((await pg.query('SELECT session_id FROM users')).rows[0].session_id).toBe(winner);
 });

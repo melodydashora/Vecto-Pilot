@@ -6,7 +6,7 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-secret-key-for-auth-003-jwt-helpers-32-chars-min';
 
 import { describe, it, expect } from '@jest/globals';
-import { SignJWT } from 'jose';
+import { SignJWT, decodeJwt } from 'jose';
 import { signJWT, verifyJWT, JWT_CONFIG } from '../../server/lib/jwt.js';
 
 const TEST_USER_ID = 'ab85999f-e9aa-49c1-a77f-5723c5c80356';
@@ -58,6 +58,19 @@ describe('AUTH-003 jwt-helpers: round-trip', () => {
 });
 
 describe('AUTH-003 jwt-helpers: signJWT input validation', () => {
+  it('recovery reproduces the original token lifetime instead of issuing another two hours', async () => {
+    const issuedAt = new Date(Date.now() - 59 * 60 * 1000);
+    const first = await signJWT({ sub: TEST_USER_ID, sid: 'session-12345678', issuedAt });
+    const recovered = await signJWT({ sub: TEST_USER_ID, sid: 'session-12345678', issuedAt });
+    expect(recovered).toBe(first);
+    expect(decodeJwt(recovered)).toMatchObject({ iat: Math.floor(issuedAt.getTime() / 1000),
+      exp: Math.floor(issuedAt.getTime() / 1000) + 7200 });
+  });
+
+  it('rejects invalid or future session issue times', async () => {
+    await expect(signJWT({ sub: TEST_USER_ID, issuedAt: 'invalid' })).rejects.toThrow(/issuedAt/);
+    await expect(signJWT({ sub: TEST_USER_ID, issuedAt: new Date(Date.now() + 60000) })).rejects.toThrow(/issuedAt/);
+  });
   it('rejects empty sub', async () => {
     await expect(signJWT({ sub: '' })).rejects.toThrow();
   });

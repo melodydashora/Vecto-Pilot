@@ -16,6 +16,7 @@ const { AuthProvider, useAuth } = await import('@/contexts/auth-context');
 const { GoogleCallbackPage } = await import('@/pages/auth/google/Callback');
 const { default: ProtectedRoute } = await import('@/components/auth/ProtectedRoute');
 const { default: AuthRedirect } = await import('@/components/auth/AuthRedirect');
+const { default: SignInPage } = await import('@/pages/auth/SignInPage');
 const { LocationProvider, useLocation } = await import('@/contexts/location-context-clean');
 const { RunSetupProvider } = await import('@/contexts/run-setup-context');
 const { queryClient: unusedClient } = await import('@/lib/queryClient');
@@ -115,6 +116,16 @@ describe('VP-002 shared login completion', () => {
     await act(async () => { jest.advanceTimersByTime(10000); });
     expect(fetch).toHaveBeenCalledTimes(1); expect(auth.isAuthenticated).toBe(false);
   });
+  it('shows the existing-session warning after Google sign-in without retrying or storing a token', async () => {
+    const message = 'You already have an active session. Log out of that session before starting a new one.';
+    jest.mocked(fetch).mockResolvedValue(response({ error: 'session_already_active', message }, 409));
+    mount(true, true); await flush();
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    await act(async () => { jest.advanceTimersByTime(60 * 60 * 1000); });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(auth.isAuthenticated).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
+  });
   it('holds the password-revocation notice until Continue', async () => {
     jest.mocked(fetch).mockResolvedValue(response({ ...fixture('google'), passwordRevoked: true }));
     mount(true); await flush();
@@ -123,10 +134,11 @@ describe('VP-002 shared login completion', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Protected strategy fixture')).toBeInTheDocument();
   });
-  it('rejects a successful exchange missing its token', async () => {
+  it('retains recovery for an ambiguous successful exchange missing its token', async () => {
     jest.mocked(fetch).mockResolvedValue(response({ user: fixture('bad').user }));
     mount(true); await flush();
-    expect(screen.getByRole('alert')).toHaveTextContent('No token received');
+    expect(screen.getByRole('alert')).toHaveTextContent('could not confirm your sign-in');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     expect(auth.isAuthenticated).toBe(false);
   });
 });
@@ -207,7 +219,8 @@ describe('VP-006 provided cache and auth transition races', () => {
   });
   it('does not reauthenticate a password login that resolves after logout', async () => {
     const late = deferred<Response>(); mount();
-    jest.mocked(fetch).mockReturnValue(late.promise);
+    jest.mocked(fetch).mockImplementation(url => url === API_ROUTES.AUTH.LOGIN_RECOVERY_CANCEL
+      ? Promise.resolve(response({ ok: true })) : late.promise);
     let login!: ReturnType<typeof auth.login>;
     act(() => { login = auth.login({ email: 'A@example.invalid', password: 'synthetic-only' }); });
     await act(async () => { await auth.logout(); });
@@ -321,5 +334,52 @@ describe('returning to a saved session', () => {
     expect(auth.user?.userId).toBe('B');
     expect(client.getQueryData(['private'])).toBe('B-data');
     expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBe('synthetic-B');
+  });
+});
+
+describe('sign-in entry preserves existing sessions', () => {
+  function mountSignIn() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    clients.push(client);
+    render(<QueryClientProvider client={client}><AuthProvider><Probe />
+      <MemoryRouter initialEntries={['/auth/sign-in']}><Routes>
+        <Route path="/auth/sign-in" element={<SignInPage />} />
+        <Route path="/co-pilot/strategy" element={<ProtectedRoute><p>Existing Strategy fixture</p></ProtectedRoute>} />
+      </Routes></MemoryRouter>
+    </AuthProvider></QueryClientProvider>);
+  }
+
+  it('retries a saved session instead of offering a replacement login after a temporary check failure', async () => {
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'synthetic-A');
+    sessionStorage.setItem(SESSION_KEYS.SNAPSHOT, 'same-snapshot');
+    localStorage.setItem(STORAGE_KEYS.PERSISTENT_STRATEGY, 'same-strategy');
+    jest.mocked(fetch).mockResolvedValueOnce(response({}, 503)).mockResolvedValueOnce(response({
+      ...fixture('A'), sessionId: 'session-A', profile: { id: 'profile-A', userId: 'A' },
+    }));
+    mountSignIn(); await flush();
+    expect(screen.queryByRole('button', { name: 'Sign In' })).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/check your saved session/i);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Try again' })); });
+    expect(screen.getByText('Existing Strategy fixture')).toBeInTheDocument();
+    expect(auth.sessionId).toBe('session-A');
+    expect(sessionStorage.getItem(SESSION_KEYS.SNAPSHOT)).toBe('same-snapshot');
+    expect(localStorage.getItem(STORAGE_KEYS.PERSISTENT_STRATEGY)).toBe('same-strategy');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(jest.mocked(fetch).mock.calls.every(([url]) => url === API_ROUTES.AUTH.ME)).toBe(true);
+    expect(closeAllSSE).not.toHaveBeenCalled();
+  });
+
+  it('shows a second-session refusal in the password form without authenticating or automatically retrying', async () => {
+    const message = 'You already have an active session. Log out of that session before starting a new one.';
+    jest.mocked(fetch).mockResolvedValue(response({ error: 'session_already_active', message }, 409));
+    mountSignIn(); await flush();
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'driver@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'synthetic-only' } });
+    await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }).closest('form')!); });
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    await act(async () => { jest.advanceTimersByTime(60 * 60 * 1000); });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(auth.isAuthenticated).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
   });
 });

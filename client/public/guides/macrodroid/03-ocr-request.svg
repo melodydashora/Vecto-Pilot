@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" role="img" aria-labelledby="title desc">
+<title id="title">Step 3: Build the request from OCR — schematic illustration</title>
+<desc id="desc">Schematic illustration. Read Screenshot Contents captures the current screen into ocr_arr. Set the req dictionary text value using the OCR magic text. Serialize the req dictionary into body_json using JSON Output. It does not read the saved screenshot file.</desc>
+<rect width="640" height="460" rx="24" fill="#F3F7FA"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<rect x="28" y="24" width="82" height="30" rx="15" fill="#087E83"/>
+<text x="43" y="46" font-size="16" fill="#FFFFFF" font-weight="700">STEP 3</text>
+<text x="124" y="46" font-size="16" fill="#486174" font-weight="700">SETUP DIAGRAM</text>
+<text x="28" y="91" font-size="30" fill="#132E41" font-weight="700">Build the request from OCR</text>
+<rect x="28" y="113" width="584" height="80" rx="16" fill="#FFFFFF" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="145" font-size="24" fill="#132E41" font-weight="700">Read Screenshot Contents</text><text x="48" y="174" font-size="21" fill="#132E41">Save the OCR output → ocr_arr</text><path d="M 320 195 v 12 m -5 -5 l 5 5 l 5 -5" fill="none" stroke="#087E83" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="28" y="213" width="584" height="76" rx="16" fill="#FFFFFF" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="243" font-size="24" fill="#132E41" font-weight="700">Set Variable</text><text x="48" y="274" font-size="22" fill="#132E41" font-family="monospace">req[text] = {lv=ocr_arr}</text><path d="M 320 292 v 12 m -5 -5 l 5 5 l 5 -5" fill="none" stroke="#087E83" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="28" y="310" width="584" height="80" rx="16" fill="#E3F3F0"/><text x="48" y="342" font-size="24" fill="#132E41" font-weight="700">JSON Output</text><text x="48" y="372" font-size="22" fill="#132E41" font-family="monospace">req → body_json</text>
+<text x="28" y="429" font-size="19" fill="#486174">OCR reads the screen visible at that moment.</text>
+</g>
+</svg>

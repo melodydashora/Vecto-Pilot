@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" role="img" aria-labelledby="title desc">
+<title id="title">Step 6: Connect the reply and voice — schematic illustration</title>
+<desc id="desc">Schematic illustration. Wait for the HTTP Request to finish. Save its response to resp and status code to code. Parse the response into dictionary r. Inside the code equals 200 branch, use r notification for the notification and r voice for Speak Text. A successful HTTP response is not proof that an offer was durably stored.</desc>
+<rect width="640" height="460" rx="24" fill="#F3F7FA"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<rect x="28" y="24" width="82" height="30" rx="15" fill="#087E83"/>
+<text x="43" y="46" font-size="16" fill="#FFFFFF" font-weight="700">STEP 6</text>
+<text x="124" y="46" font-size="16" fill="#486174" font-weight="700">SETUP DIAGRAM</text>
+<text x="28" y="91" font-size="30" fill="#132E41" font-weight="700">Connect the reply and voice</text>
+<rect x="28" y="113" width="584" height="75" rx="16" fill="#FFFFFF" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="146" font-size="24" fill="#132E41" font-weight="700">Wait for the HTTP response</text><text x="48" y="175" font-size="21" fill="#132E41">Response → resp     Status → code</text><path d="M 320 192 v 12 m -5 -5 l 5 5 l 5 -5" fill="none" stroke="#087E83" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="28" y="211" width="584" height="77" rx="16" fill="#FFFFFF" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="244" font-size="24" fill="#132E41" font-weight="700">JSON Parse: resp → r</text><text x="48" y="273" font-size="21" fill="#132E41">Continue only when code = 200.</text><path d="M 320 292 v 12 m -5 -5 l 5 5 l 5 -5" fill="none" stroke="#087E83" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="28" y="311" width="584" height="81" rx="16" fill="#E3F3F0"/><text x="48" y="344" font-size="22" fill="#132E41" font-family="monospace">Notification: r[notification]</text><text x="48" y="374" font-size="22" fill="#132E41" font-family="monospace">Speak Text: r[voice]</text>
+<text x="28" y="429" font-size="19" fill="#486174">Check a fresh reply; HTTP 200 alone does not prove storage.</text>
+</g>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" role="img" aria-labelledby="title desc">
+<title id="title">Step 1: Allow required access — schematic illustration</title>
+<desc id="desc">Schematic illustration, not a phone screenshot. Enable Usage Access for MacroDroid. Grant accessibility and screen capture when required for current-screen OCR, and access to your screenshot folder. Android menu names vary.</desc>
+<rect width="640" height="460" rx="24" fill="#F3F7FA"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<rect x="28" y="24" width="82" height="30" rx="15" fill="#087E83"/>
+<text x="43" y="46" font-size="16" fill="#FFFFFF" font-weight="700">STEP 1</text>
+<text x="124" y="46" font-size="16" fill="#486174" font-weight="700">SETUP DIAGRAM</text>
+<text x="28" y="91" font-size="30" fill="#132E41" font-weight="700">Allow required access</text>
+<rect x="28" y="113" width="584" height="282" rx="16" fill="#FFFFFF" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="146" font-size="24" fill="#132E41" font-weight="700">Usage Access</text><text x="48" y="176" font-size="20" fill="#486174">MacroDroid → Allow usage tracking</text><rect x="524" y="132" width="64" height="32" rx="16" fill="#E3F3F0"/><text x="542" y="155" font-size="18" fill="#087E83" font-weight="700">ON</text><path d="M 46 200 H 594" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="236" font-size="24" fill="#132E41" font-weight="700">Accessibility / screen capture</text><text x="48" y="266" font-size="20" fill="#486174">Allow the access requested for OCR.</text><path d="M 46 286 H 594" stroke="#D6E1E7" stroke-width="2"/><text x="48" y="324" font-size="24" fill="#132E41" font-weight="700">Screenshot folder access</text><text x="48" y="354" font-size="20" fill="#486174">Select Pictures/Screenshots when asked.</text>
+<text x="28" y="429" font-size="19" fill="#486174">Android menu names vary by version.</text>
+</g>
+</svg>

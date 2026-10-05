@@ -1,6 +1,6 @@
 import { beforeEach, expect, jest, test } from '@jest/globals';
 import { getTableName } from 'drizzle-orm';
-import { PgDialect } from 'drizzle-orm/pg-core';
+import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 
 let validationResult, geocodeResult, rows, failTable, beforeUpdate, beforeHash, beforeVerify, passwordValid, transactionTail, transactionActive;
 const dialect = new PgDialect();
@@ -31,12 +31,19 @@ function insert(table) {
   const name = getTableName(table);
   return { values(value) {
     let committed = false;
+    let conflictColumn = null;
     const run = async () => {
       if (name === failTable) throw new Error('Synthetic persistence failure');
+      for (const column of getTableConfig(table).columns) {
+        if (column.notNull && value[column.name] === null) throw new Error(`Null value for required ${name}.${column.name}`);
+      }
+      if (!committed && conflictColumn && rows[name].some(row => row[conflictColumn] === value[conflictColumn])) return [];
       if (!committed) { rows[name].push({ id: 'synthetic-row-' + name, ...value }); committed = true; }
       return [rows[name].at(-1)];
     };
-    return { returning: run, then: (resolve, reject) => run().then(resolve, reject) };
+    const query = { returning: run, then: (resolve, reject) => run().then(resolve, reject),
+      onConflictDoNothing({ target }) { conflictColumn = target.name; return query; } };
+    return query;
   } };
 }
 const db = {
@@ -119,13 +126,14 @@ jest.unstable_mockModule('../../server/lib/location/address-validation.js', () =
 const { default: router } = await import('../../server/api/auth/auth.js');
 const handler = path => router.stack.find(layer => layer.route?.path === path && layer.route.methods.post).route.stack.at(-1).handle;
 async function post(path, body, auth) {
-  const res = { statusCode: 200, status(n) { this.statusCode = n; return this; }, json(value) { this.body = value; return this; } };
+  const res = { headers: {}, set(name, value) { this.headers[name] = value; return this; },
+    statusCode: 200, status(n) { this.statusCode = n; return this; }, json(value) { this.body = value; return this; } };
   await handler(path)({ body, auth, headers: {}, protocol: 'https', get: () => 'example.test' }, res);
   return res;
 }
 beforeEach(() => {
   validationResult = { skipped: true }; geocodeResult = null;
-  rows = { users: [], driver_profiles: [], driver_vehicles: [], auth_credentials: [], verification_codes: [], oauth_states: [] };
+  rows = { users: [], driver_profiles: [], driver_vehicles: [], auth_credentials: [], verification_codes: [], oauth_states: [], auth_login_attempts: [] };
   failTable = null;
   beforeUpdate = null;
   beforeHash = null;
@@ -145,7 +153,8 @@ test.each(['driver_vehicles', 'auth_credentials'])('a %s failure rolls back ever
   failTable = null;
   expect((await post('/register', signup)).statusCode).toBe(201);
   expect(rows.auth_credentials).toHaveLength(1);
-  expect(tokenSigner).toHaveBeenCalledWith({ sub: rows.users[0].user_id, sid: rows.users[0].session_id });
+  expect(rows.users[0].session_id).toBeNull();
+  expect(tokenSigner).toHaveBeenCalledWith({ sub: rows.users[0].user_id, sid: expect.any(String) });
   expect(forbidden).not.toHaveBeenCalled();
 });
 test('password reset revokes the session in the same transaction', async () => {
@@ -287,6 +296,330 @@ test('password login returns the same saved revision, chosen services and active
   expect(result.body).toMatchObject({ sessionId: rows.users[0].session_id, settingsRevision: 7,
     profile: { selectedServices: ['comfort'], settingsRevision: 7 }, vehicle: { id: 'current' } });
   expect(rows.users[0]).toMatchObject({ current_snapshot_id: null, current_main_run_id: null });
+});
+
+function liveSessionFixture() {
+  passwordLoginFixture();
+  rows.users[0].session_start_at = new Date(Date.now() - 59 * 60 * 1000);
+  rows.users[0].last_active_at = new Date(Date.now() - 59 * 60 * 1000);
+}
+
+test.each(['password', 'google'])('%s login refuses another live session without changing its guidance or clock', async method => {
+  liveSessionFixture();
+  rows.driver_profiles[0].google_id = 'synthetic-google-subject';
+  rows.oauth_states.push({ id: 'synthetic-state-id', state: 'synthetic-state' });
+  const previous = structuredClone(rows.users[0]);
+  const credentials = structuredClone(rows.auth_credentials[0]);
+  const result = method === 'password'
+    ? await post('/login', { email: 'test@example.test', password: 'old-password' })
+    : await post('/google/exchange', { code: 'synthetic-code', state: 'synthetic-state' });
+  expect(result.statusCode).toBe(409);
+  expect(result.body).toEqual({ error: 'session_already_active',
+    message: 'You already have an active session. Log out of that session before starting a new one.' });
+  expect(rows.users[0]).toEqual(previous);
+  expect(rows.auth_credentials[0]).toEqual(credentials);
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test('simultaneous password sign-ins issue only one session token', async () => {
+  passwordLoginFixture();
+  let arrivals = 0, bothVerified, releaseVerify;
+  const atVerify = new Promise(resolve => { bothVerified = resolve; });
+  const resume = new Promise(resolve => { releaseVerify = resolve; });
+  beforeVerify = async () => { if (++arrivals === 2) bothVerified(); await resume; };
+  const requests = [1, 2].map(() => post('/login', { email: 'test@example.test', password: 'old-password' }));
+  await atVerify; releaseVerify();
+  const results = await Promise.all(requests);
+  expect(results.map(result => result.statusCode).sort()).toEqual([200, 409]);
+  expect(results.find(result => result.statusCode === 200).body.sessionId).toBe(rows.users[0].session_id);
+  expect(tokenSigner).toHaveBeenCalledTimes(1);
+});
+
+test('wrong credentials cannot discover or replace another active session', async () => {
+  liveSessionFixture(); passwordValid = false;
+  const previous = structuredClone(rows.users[0]);
+  const result = await post('/login', { email: 'test@example.test', password: 'wrong-password' });
+  expect(result.statusCode).toBe(401);
+  expect(result.body.error).toBe('INVALID_CREDENTIALS');
+  expect(rows.users[0]).toEqual(previous);
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test.each(['idle expiry', 'hard expiry', 'logout'])('%s permits a fresh session without extending the old lifetime', async state => {
+  liveSessionFixture();
+  if (state === 'idle expiry') {
+    rows.users[0].session_start_at = new Date(Date.now() - 90 * 60 * 1000);
+    rows.users[0].last_active_at = new Date(Date.now() - 61 * 60 * 1000);
+  } else if (state === 'hard expiry') {
+    rows.users[0].session_start_at = new Date(Date.now() - 121 * 60 * 1000);
+    rows.users[0].last_active_at = new Date();
+  } else {
+    expect((await post('/logout', {}, { userId: 'synthetic-user', sessionId: 'old-session' })).statusCode).toBe(200);
+  }
+  const result = await post('/login', { email: 'test@example.test', password: 'old-password' });
+  expect(result.statusCode).toBe(200);
+  expect(result.body.sessionId).not.toBe('old-session');
+  expect(rows.users[0]).toMatchObject({ session_id: result.body.sessionId, current_snapshot_id: null, current_main_run_id: null });
+});
+
+test('password registration leaves first sign-in available and its compatibility token cannot own that session', async () => {
+  const signupResult = await post('/register', signup);
+  expect(signupResult.statusCode).toBe(201);
+  expect(signupResult.body.sessionId).toBeNull();
+  expect(rows.users[0].session_id).toBeNull();
+  const compatibilitySid = tokenSigner.mock.calls[0][0].sid;
+  const loginResult = await post('/login', { email: signup.email, password: signup.password });
+  expect(loginResult.statusCode).toBe(200);
+  expect(loginResult.body.sessionId).toBe(rows.users[0].session_id);
+  expect(loginResult.body.sessionId).not.toBe(compatibilitySid);
+});
+
+test('new Google signup creates exactly one usable session with its account', async () => {
+  rows.oauth_states.push({ id: 'synthetic-state-id', state: 'synthetic-state' });
+  const result = await post('/google/exchange', { code: 'synthetic-code', state: 'synthetic-state' });
+  expect(result.statusCode).toBe(200);
+  expect(result.body.isNewUser).toBe(true);
+  expect(result.body.sessionId).toBe(rows.users[0].session_id);
+  expect(tokenSigner).toHaveBeenCalledTimes(1);
+  expect(tokenSigner).toHaveBeenCalledWith({ sub: rows.users[0].user_id, sid: rows.users[0].session_id,
+    issuedAt: rows.users[0].session_start_at });
+});
+
+test('verified password account cannot be linked through Google while its current session is live', async () => {
+  liveSessionFixture();
+  rows.driver_profiles[0].email = 'google@example.test';
+  rows.driver_profiles[0].email_verified = true;
+  rows.oauth_states.push({ id: 'synthetic-state-id', state: 'synthetic-state' });
+  const previous = structuredClone({ user: rows.users[0], profile: rows.driver_profiles[0], credentials: rows.auth_credentials[0] });
+  const result = await post('/google/exchange', { code: 'synthetic-code', state: 'synthetic-state' });
+  expect(result.statusCode).toBe(409);
+  expect(result.body.error).toBe('session_already_active');
+  expect({ user: rows.users[0], profile: rows.driver_profiles[0], credentials: rows.auth_credentials[0] }).toEqual(previous);
+});
+
+test('concurrent Google adoption can revoke the unverified registrant only once', async () => {
+  liveSessionFixture();
+  rows.driver_profiles[0].email = 'google@example.test';
+  rows.driver_profiles[0].email_verified = false;
+  rows.driver_profiles[0].phone = 'unverified-phone';
+  rows.oauth_states.push({ id: 'one', state: 'state-one' }, { id: 'two', state: 'state-two' });
+  // Hold both requests outside transactions so both see the unlinked profile.
+  let releaseTransactions;
+  transactionTail = new Promise(resolve => { releaseTransactions = resolve; });
+  let arrivals = 0, bothRead;
+  const readCredentials = db.select;
+  const atRead = new Promise(resolve => { bothRead = resolve; });
+  db.select = (...args) => {
+    const query = readCredentials(...args);
+    if (!transactionActive && args[0]?.password_hash && ++arrivals === 2) bothRead();
+    return query;
+  };
+  try {
+    const requests = ['one', 'two'].map(suffix => post('/google/exchange', { code: 'code-' + suffix, state: 'state-' + suffix }));
+    await atRead; releaseTransactions();
+    const results = await Promise.all(requests);
+    expect(results.map(result => result.statusCode).sort()).toEqual([200, 409]);
+    const winner = results.find(result => result.statusCode === 200).body;
+    expect(winner.passwordRevoked).toBe(true);
+    expect(rows.users[0].session_id).toBe(winner.sessionId);
+    expect(rows.auth_credentials[0].password_hash).toBeNull();
+    expect(rows.driver_profiles[0]).toMatchObject({ google_id: 'synthetic-google-subject', email_verified: true, phone: null });
+    expect(tokenSigner).toHaveBeenCalledTimes(1);
+  } finally { db.select = readCredentials; releaseTransactions(); }
+});
+
+test('password and linked Google sign-ins share the one-session admission rule', async () => {
+  passwordLoginFixture(); rows.driver_profiles[0].google_id = 'synthetic-google-subject';
+  rows.oauth_states.push({ id: 'one', state: 'state-one' });
+  const results = await Promise.all([
+    post('/login', { email: 'test@example.test', password: 'old-password' }),
+    post('/google/exchange', { code: 'code-one', state: 'state-one' }),
+  ]);
+  expect(results.map(result => result.statusCode).sort()).toEqual([200, 409]);
+  expect(results.find(result => result.statusCode === 200).body.sessionId).toBe(rows.users[0].session_id);
+  expect(tokenSigner).toHaveBeenCalledTimes(1);
+});
+
+test.each(['password', 'google'])('%s signing failure rolls back session creation so sign-in can be retried', async method => {
+  passwordLoginFixture(); rows.driver_profiles[0].google_id = 'synthetic-google-subject';
+  const previous = structuredClone(rows);
+  const attempt = () => {
+    rows.oauth_states.push({ id: 'one', state: 'state-one' });
+    return method === 'password'
+      ? post('/login', { email: 'test@example.test', password: 'old-password' })
+      : post('/google/exchange', { code: 'code-one', state: 'state-one' });
+  };
+  tokenSigner.mockRejectedValueOnce(new Error('Synthetic token signing failure'));
+  expect((await attempt()).statusCode).toBe(500);
+  expect(rows.users).toEqual(previous.users);
+  expect(rows.auth_credentials).toEqual(previous.auth_credentials);
+  expect((await attempt()).statusCode).toBe(200);
+});
+
+test('new Google signup signing failure rolls back account and session together', async () => {
+  rows.oauth_states.push({ id: 'one', state: 'state-one' });
+  tokenSigner.mockRejectedValueOnce(new Error('Synthetic token signing failure'));
+  expect((await post('/google/exchange', { code: 'code-one', state: 'state-one' })).statusCode).toBe(500);
+  expect(rows.users).toEqual([]);
+  expect(rows.driver_profiles).toEqual([]);
+  expect(rows.auth_credentials).toEqual([]);
+});
+
+const proof = 'a'.repeat(64);
+const secondProof = 'b'.repeat(64);
+const recover = recoveryProof => post('/login/recovery', { recoveryProof });
+const cancel = recoveryProof => post('/login/recovery/cancel', { recoveryProof });
+
+test('lost password response recovers its same session and original token clock without touching guidance', async () => {
+  passwordLoginFixture();
+  const original = await post('/login', { email: 'test@example.test', password: 'old-password', recoveryProof: proof });
+  expect(original.statusCode).toBe(200);
+  const firstClaims = structuredClone(tokenSigner.mock.calls.at(-1)[0]);
+  Object.assign(rows.users[0], { current_snapshot_id: 'current-snapshot', current_main_run_id: 'current-run' });
+  // A phone may return after the processing deadline; completed receipts live
+  // only as long as the original session, not the shorter work deadline.
+  rows.auth_login_attempts[0].expires_at = new Date(Date.now() - 60000);
+  const before = structuredClone(rows.users[0]);
+  const response = await recover(proof);
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toMatchObject({ recovered: true, sessionId: original.body.sessionId, settingsRevision: 7 });
+  expect(response.headers['Cache-Control']).toBe('no-store');
+  expect(rows.users[0]).toEqual(before);
+  expect(tokenSigner.mock.calls.at(-1)[0]).toEqual(firstClaims);
+  expect(rows.auth_login_attempts[0].proof_hash).not.toBe(proof);
+  expect(JSON.stringify(rows.auth_login_attempts)).not.toContain(proof);
+});
+
+test('lost Google response recovers consumed code and exact signup flags without a second provider exchange', async () => {
+  rows.oauth_states.push({ id: 'one', state: 'state-one' });
+  const body = { code: 'code-one', state: 'state-one', recoveryProof: proof };
+  const first = await post('/google/exchange', body);
+  expect(first.statusCode).toBe(200);
+  expect(rows.oauth_states).toHaveLength(0);
+  const replay = await post('/google/exchange', body);
+  expect(replay.statusCode).toBe(200);
+  expect(replay.body).toMatchObject({ sessionId: first.body.sessionId, isNewUser: true, passwordRevoked: false, recovered: true });
+  expect(exchangeGoogle).toHaveBeenCalledTimes(1);
+  expect(rows.users).toHaveLength(1);
+});
+
+test('Google adoption recovery preserves the password-revoked flag', async () => {
+  liveSessionFixture(); rows.driver_profiles[0].email = 'google@example.test';
+  rows.driver_profiles[0].email_verified = false;
+  rows.oauth_states.push({ id: 'one', state: 'state-one' });
+  const first = await post('/google/exchange', { code: 'code-one', state: 'state-one', recoveryProof: proof });
+  expect(first.body.passwordRevoked).toBe(true);
+  expect((await recover(proof)).body).toMatchObject({ sessionId: first.body.sessionId, isNewUser: false, passwordRevoked: true });
+});
+
+test('unknown recovery remains pending, and cancellation before arrival fences a late password request', async () => {
+  passwordLoginFixture();
+  expect((await recover(proof)).statusCode).toBe(202);
+  expect(rows.auth_login_attempts).toHaveLength(0);
+  expect((await cancel(proof)).statusCode).toBe(200);
+  const before = structuredClone(rows.users[0]);
+  expect((await post('/login', { email: 'test@example.test', password: 'old-password', recoveryProof: proof })).statusCode).toBe(410);
+  expect(rows.users[0]).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
+  expect((await cancel(proof)).statusCode).toBe(200);
+  expect((await recover(proof)).statusCode).toBe(410);
+});
+
+test('cancel during password verification prevents late session creation and a duplicate cannot reverify', async () => {
+  passwordLoginFixture();
+  let reachedVerify, releaseVerify, verificationCount = 0;
+  const atVerify = new Promise(resolve => { reachedVerify = resolve; });
+  const resume = new Promise(resolve => { releaseVerify = resolve; });
+  beforeVerify = async () => { verificationCount += 1; reachedVerify(); await resume; };
+  const body = { email: 'test@example.test', password: 'old-password', recoveryProof: proof };
+  const pendingLogin = post('/login', body);
+  await atVerify;
+  expect((await recover(proof)).statusCode).toBe(202);
+  expect((await post('/login', body)).statusCode).toBe(202);
+  expect(verificationCount).toBe(1);
+  expect((await cancel(proof)).statusCode).toBe(200);
+  releaseVerify();
+  expect((await pendingLogin).statusCode).toBe(410);
+  expect(rows.users[0].session_id).toBe('old-session');
+  expect(rows.auth_login_attempts[0].status).toBe('cancelled');
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test('cancel during Google token exchange prevents late account/session creation', async () => {
+  rows.oauth_states.push({ id: 'one', state: 'state-one' });
+  let reachedExchange, releaseExchange;
+  const atExchange = new Promise(resolve => { reachedExchange = resolve; });
+  const resume = new Promise(resolve => { releaseExchange = resolve; });
+  exchangeGoogle.mockImplementationOnce(async () => { reachedExchange(); await resume; return { id_token: 'synthetic-token' }; });
+  const pendingLogin = post('/google/exchange', { code: 'code-one', state: 'state-one', recoveryProof: proof });
+  await atExchange;
+  expect((await cancel(proof)).statusCode).toBe(200);
+  releaseExchange();
+  expect((await pendingLogin).statusCode).toBe(410);
+  expect(rows.users).toHaveLength(0);
+  expect(rows.driver_profiles).toHaveLength(0);
+  expect(rows.auth_login_attempts[0].status).toBe('cancelled');
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test('cancel after commit revokes only its own session and is safe to retry after another login', async () => {
+  passwordLoginFixture();
+  const body = { email: 'test@example.test', password: 'old-password', recoveryProof: proof };
+  const original = await post('/login', body);
+  expect(original.statusCode).toBe(200);
+  expect((await cancel(proof)).statusCode).toBe(200);
+  expect(rows.users[0]).toMatchObject({ session_id: null, current_snapshot_id: null, current_main_run_id: null });
+  expect((await recover(proof)).statusCode).toBe(410);
+  const next = await post('/login', { ...body, recoveryProof: secondProof });
+  expect(next.statusCode).toBe(200);
+  const before = structuredClone(rows.users[0]);
+  expect((await cancel(proof)).statusCode).toBe(200);
+  expect(rows.users[0]).toEqual(before);
+});
+
+test.each(['logout', 'reset', 'different session', 'inactivity', 'hard limit'])('%s prevents completed proof from restoring an ended session', async reason => {
+  passwordLoginFixture();
+  const original = await post('/login', { email: 'test@example.test', password: 'old-password', recoveryProof: proof });
+  expect(original.statusCode).toBe(200);
+  if (reason === 'logout') await post('/logout', {}, { userId: 'synthetic-user', sessionId: original.body.sessionId });
+  if (reason === 'reset') await post('/reset-password', { token: 'synthetic-reset', newPassword: 'next-password' });
+  if (reason === 'different session') rows.users[0].session_id = 'different-session';
+  if (reason === 'inactivity') Object.assign(rows.users[0], {
+    session_start_at: new Date(Date.now() - 90 * 60000), last_active_at: new Date(Date.now() - 61 * 60000) });
+  if (reason === 'hard limit') rows.users[0].session_start_at = new Date(Date.now() - 121 * 60000);
+  const before = structuredClone(rows.users[0]);
+  expect((await recover(proof)).statusCode).toBe(410);
+  expect(rows.users[0]).toEqual(before);
+});
+
+test('a different browser proof cannot acquire an existing session even with valid credentials', async () => {
+  passwordLoginFixture();
+  const body = { email: 'test@example.test', password: 'old-password' };
+  const original = await post('/login', { ...body, recoveryProof: proof });
+  expect(original.statusCode).toBe(200);
+  const before = structuredClone(rows.users[0]);
+  expect((await recover(secondProof)).statusCode).toBe(202);
+  expect((await post('/login', { ...body, recoveryProof: secondProof })).statusCode).toBe(409);
+  expect((await recover(secondProof)).statusCode).toBe(410);
+  expect(rows.users[0]).toEqual(before);
+});
+
+test('failed credentials terminate their receipt without rolling back lockout attempts', async () => {
+  passwordLoginFixture(); passwordValid = false;
+  expect((await post('/login', { email: 'test@example.test', password: 'wrong', recoveryProof: proof })).statusCode).toBe(401);
+  expect(rows.auth_credentials[0].failed_login_attempts).toBe(1);
+  expect(rows.auth_login_attempts[0].status).toBe('failed');
+  expect((await recover(proof)).statusCode).toBe(410);
+});
+
+test.each(['bad', 'A'.repeat(64), null, 123])('invalid proof %s is rejected before any receipt or session write', async badProof => {
+  passwordLoginFixture();
+  const before = structuredClone(rows);
+  expect((await post('/login', { email: 'test@example.test', password: 'old-password', recoveryProof: badProof })).statusCode).toBe(400);
+  expect((await recover(badProof)).statusCode).toBe(400);
+  expect((await cancel(badProof)).statusCode).toBe(400);
+  expect(rows).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
 });
 
 test('a password reset during password verification cannot be followed by a session from the old password', async () => {

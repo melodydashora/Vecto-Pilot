@@ -21,25 +21,31 @@ function getSecretKey() {
 }
 
 /**
- * @param {{ sub: string, sid?: string|null }} claims
+ * @param {{ sub: string, sid?: string|null, issuedAt?: Date|string|number|null }} claims
  *   sid — 2026-09-10 (security finding [9]): the users.session_id this token was issued
  *   under. requireAuth rejects a token whose sid no longer matches the live session, so
  *   logout, a new login elsewhere, and a password reset invalidate earlier tokens.
  *   Optional so tokens minted before this change keep working until they expire.
+ *   issuedAt — trusted server session_start_at. Recovery uses the original issue
+ *   time so returning the token cannot extend its expiration.
  */
-export async function signJWT({ sub, sid = null }) {
+export async function signJWT({ sub, sid = null, issuedAt = null }) {
   if (!sub || typeof sub !== 'string' || sub.length < 8) {
     throw new Error('signJWT: sub (userId) is required and must be a string of length >= 8');
   }
   if (sid !== null && (typeof sid !== 'string' || sid.length < 8)) {
     throw new Error('signJWT: sid (sessionId), when given, must be a string of length >= 8');
   }
+  const issuedSeconds = issuedAt === null ? Math.floor(Date.now() / 1000) : Math.floor(new Date(issuedAt).getTime() / 1000);
+  if (!Number.isFinite(issuedSeconds) || issuedSeconds > Math.floor(Date.now() / 1000)) {
+    throw new Error('signJWT: issuedAt must be a valid nonfuture session start');
+  }
   const key = getSecretKey();
   return await new SignJWT(sid ? { sid } : {})
     .setProtectedHeader({ alg: JWT_ALG })
     .setSubject(sub)
-    .setIssuedAt()
-    .setExpirationTime(JWT_TTL)
+    .setIssuedAt(issuedSeconds)
+    .setExpirationTime(issuedSeconds + 2 * 60 * 60)
     .setIssuer(JWT_ISSUER)
     .setAudience(JWT_AUDIENCE)
     .sign(key);
