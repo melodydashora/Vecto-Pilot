@@ -19,9 +19,14 @@ const MIN_N_FOR_HEADLINE = 3;
 
 function fmtRow(r) {
   const parts = [`${r.n} offer${r.n === 1 ? '' : 's'}`];
-  if (r.accept_pct != null) parts.push(`analyzer accepted ${r.accept_pct}%`);
+  if (r.accept_pct != null) parts.push(`Offer Analyzer accepted ${r.accept_pct}%`);
   if (r.avg_pm != null) parts.push(`avg $${Number(r.avg_pm).toFixed(2)}/mi`);
-  if (r.taken > 0) parts.push(`you took ${r.taken}${r.avg_earned != null ? ` (avg $${Number(r.avg_earned).toFixed(2)} earned)` : ''}`);
+  if (r.taken > 0) {
+    const earnings = r.reported > 0 && r.avg_earned != null
+      ? `avg $${Number(r.avg_earned).toFixed(2)} earned across ${r.reported} reported`
+      : 'earnings unreported';
+    parts.push(`you took ${r.taken} (${earnings})`);
+  }
   return parts.join(', ');
 }
 
@@ -31,7 +36,7 @@ function keyLabel(dim, key) {
 }
 
 /**
- * @param {Array<{dim:string,key:string|number,n:number,accept_pct:number|null,avg_pm:number|null,taken:number,avg_earned:number|null}>} rows
+ * @param {Array<{dim:string,key:string|number,n:number,accept_pct:number|null,avg_pm:number|null,taken:number,reported:number,avg_earned:number|null}>} rows
  * @param {{ windowDays?: number, total?: number }} meta
  * @returns {string} '' when there is nothing worth saying (< 3 offers)
  */

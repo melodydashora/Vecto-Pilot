@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-06-11
+> **Documentation checked:** 2026-10-04. Migrations were tested in disposable databases; no application-database migration or deployment was performed.
 
 # Migrations
 
@@ -12,7 +12,7 @@ in Drizzle" note, which never matched practice — see _Manual vs Drizzle_ below
 | Path | What it is |
 |------|-----------|
 | `migrations/*.sql` | **Canonical** hand-written migrations, applied at boot by `server/db/run-migrations.js` (and by `npm run db:migrate`) — all DDL: tables, columns, indexes, triggers, RLS, functions. |
-| `migrations/00000_baseline.sql` | **Full-schema baseline** (pg_dump of dev, 2026-09-13, `BASELINE_THROUGH: 20260913_schema_repair.sql`). Executed ONLY on an empty database; recorded-and-skipped everywhere else. The only path from an empty DB to the real schema — 38 tables have no other CREATE DDL in the repo. Regenerate by re-dumping after a migration lands and bumping the marker; verified to rebuild dev exactly (0 diffs) on 2026-09-13. |
+| `migrations/00000_baseline.sql` | **Schema-only baseline** (2026-09-13; `BASELINE_THROUGH: 20260913_schema_repair.sql`). Fresh bootstrap atomically executes the reviewed dump and airport seed with the covered ledger. Regeneration requires reviewing the source/checksum manifest and preserving prior coverage mappings. See [bootstrap and recovery](../docs/architecture/DATABASE_BOOTSTRAP.md); the historical zero-difference catalog result did not verify reference data. |
 | `migrations/manual/` | **Legacy** drizzle-kit-generated migrations (`0000`–`0012`, auto-named) plus a `meta/` journal of snapshot JSON. Not part of the `db:migrate` run; kept for history. |
 | `drizzle/` | The output dir configured in `drizzle.config.*` (`out: "./drizzle"`). **Currently empty/unused** — no live `.sql` files; new schema work goes through `migrations/*.sql`. |
 
@@ -82,8 +82,8 @@ YYYYMMDD_description.sql   # Date-prefixed for manual migrations (current style)
 # Via npm script (applies migrations/*.sql in order)
 npm run db:migrate
 
-# Manually
-psql $DATABASE_URL -f migrations/001_init.sql
+# Opt-in read-only metadata inspection; does not apply DDL
+npm run check:schema
 ```
 
 ## Manual vs Drizzle Migrations
@@ -98,7 +98,7 @@ psql $DATABASE_URL -f migrations/001_init.sql
 | `migrations/manual/` | Legacy drizzle-kit-generated migrations + `meta/` journal. Historical only; not in the `db:migrate` run. |
 | `drizzle/` | Configured drizzle-kit output dir (`out: "./drizzle"`); currently unused/empty. |
 
-`shared/schema.js` (Drizzle schema) remains the runtime source of truth the app reads from;
+`shared/schema.js` (Drizzle schema) remains the runtime mirror the app reads from;
 schema *changes* are shipped as `migrations/*.sql`, with `shared/schema.js` updated to match.
 
 **Source-of-truth decision (2026-09-13):** `migrations/*.sql` is the DDL source of truth;
@@ -112,5 +112,17 @@ method (getTableConfig vs information_schema); 0 diffs is the required state.
 
 ## See Also
 
-- [shared/schema.js](../shared/schema.js) — Drizzle schema (runtime source of truth)
+- [shared/schema.js](../shared/schema.js) — Drizzle runtime mirror, verified against applied SQL and the catalog
+- [Fresh database bootstrap](../docs/architecture/DATABASE_BOOTSTRAP.md) — atomic initialization, interruption recovery and reference-data limits
 - [migrations/manual/](manual/) — legacy drizzle-generated migrations + meta journal
+
+
+## Deployment verification limits
+
+Review every pending migration before publishing, including row guards and any
+data changes; the gateway runs the canonical runner during boot. Do not substitute
+`drizzle-kit push` or individually replay historical SQL to fix a failed parity check.
+A nonzero `check:schema` result is a finding to inspect, not authorization to alter data.
+The checker has deliberately bounded metadata coverage (see `server/db/README.md`).
+A schema-only baseline and a matching ledger do not establish reference-data parity:
+a fresh initialization must separately prove required airport identity seeds exist.

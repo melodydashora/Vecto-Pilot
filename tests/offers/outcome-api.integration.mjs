@@ -13,10 +13,19 @@ const require = createRequire(import.meta.url);
 const { PGlite } = require('@electric-sql/pglite');
 const userA = '00000000-0000-4000-8000-00000000000a', userB = '00000000-0000-4000-8000-00000000000b';
 const now = new Date('2026-09-10T12:00:00.000Z');
-let syntheticDb, app;
+let syntheticDb, app, afterOfferRead;
 const dialect = new PgDialect();
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: {
-  execute: statement => { const query = dialect.sqlToQuery(statement); return syntheticDb.query(query.sql, query.params); },
+  execute: async statement => {
+    const query = dialect.sqlToQuery(statement);
+    const result = await syntheticDb.query(query.sql, query.params);
+    if (afterOfferRead && query.sql.includes('FROM offer_intelligence oi')) {
+      const change = afterOfferRead;
+      afterOfferRead = null;
+      await change();
+    }
+    return result;
+  },
 } }));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({ requireAuth(req, res, next) {
   const userId = { 'Bearer synthetic-a': userA, 'Bearer synthetic-b': userB }[req.headers.authorization];
@@ -27,8 +36,11 @@ jest.unstable_mockModule('../../server/lib/offers/ruleset-store.js', () => ({ ha
 // Fix only the clock boundary; production period validation/calculation is still executed.
 jest.unstable_mockModule('../../server/lib/offers/outcome-input.js', () => ({ parseOutcomeInput, offerPeriod: key => offerPeriod(key, now) }));
 const { default: router } = await import('../../server/api/offer-analyzer/index.js');
+const { rideshareCoachDAL } = await import('../../server/lib/ai/rideshare-coach-dal.js');
 const migration = await fs.readFile(new URL('../../migrations/20260910_offer_outcome_revision_other.sql', import.meta.url), 'utf8');
 const removalMigration = await fs.readFile(new URL('../../migrations/20260928_offer_removal.sql', import.meta.url), 'utf8');
+// WASM database startup can exceed 20 seconds on a shared, CPU-limited runner.
+// Keep individual query/handler test deadlines unchanged.
 beforeAll(async () => {
   syntheticDb = new PGlite();
   await syntheticDb.exec(`
@@ -40,6 +52,7 @@ beforeAll(async () => {
       total_miles double precision, total_minutes integer, pickup_minutes integer, pickup_miles double precision,
       pickup_address text, dropoff_address text, product_type text, platform text, surge double precision,
       confidence_score double precision, input_mode text, user_override text, response_time_ms integer, raw_text text,
+      day_part text, day_of_week integer, local_date text,
       parsed_data_json jsonb NOT NULL DEFAULT '{}'
     );
   `);
@@ -48,8 +61,8 @@ beforeAll(async () => {
   await syntheticDb.exec(removalMigration);
   await syntheticDb.query('INSERT INTO users (user_id) VALUES ($1), ($2)', [userA, userB]);
   app = express(); app.use(express.json()); app.use('/api/offer-analyzer', router);
-}, 20000);
-beforeEach(async () => { await syntheticDb.exec('DELETE FROM offer_outcomes; DELETE FROM offer_intelligence;'); });
+}, 60000);
+beforeEach(async () => { afterOfferRead = null; await syntheticDb.exec('DELETE FROM offer_outcomes; DELETE FROM offer_intelligence;'); });
 afterAll(async () => { await syntheticDb?.close(); });
 async function offer({ user = userA, decision = 'ACCEPT', created = '2026-09-09T12:00:00Z', price = 12.5 } = {}) {
   const id = randomUUID();
@@ -281,4 +294,47 @@ test('local-day validation fails loud and empty days return zero complete counts
   expect(fallBack.status).toBe(200);
   expect(new Date(fallBack.body.period.start).toISOString()).toBe('2026-11-01T05:00:00.000Z');
   expect(new Date(fallBack.body.period.end).toISOString()).toBe('2026-11-02T06:00:00.000Z');
+});
+
+test.each(['insert', 'remove'])('a concurrent %s cannot contradict a complete daily list count', async change => {
+  const original = await offer();
+  afterOfferRead = async () => {
+    if (change === 'insert') await offer();
+    else await syntheticDb.query('UPDATE offer_intelligence SET removed_at = NOW() WHERE id = $1', [original]);
+  };
+  const response = await get('/offers?date=2026-09-09&timeZone=UTC');
+  expect(response.status).toBe(200);
+  expect(afterOfferRead).toBeNull(); // The write occurred between completed reads, not by timing chance.
+  expect(response.body.total).toBe(response.body.offers.length);
+});
+
+async function patternOffer(decision, actualPay, owner = userA) {
+  const id = await offer({ created: new Date().toISOString() });
+  await syntheticDb.query(`UPDATE offer_intelligence SET per_mile = 2, day_part = 'evening',
+    day_of_week = 5, product_type = 'UberX', pickup_address = '1 Test St, Fixture City',
+    local_date = '2026-10-04' WHERE id = $1`, [id]);
+  await syntheticDb.query(`INSERT INTO offer_outcomes(user_id,offer_intelligence_id,driver_decision,actual_pay)
+    VALUES ($1,$2,$3,$4)`, [owner, id, decision, actualPay]);
+  return id;
+}
+
+test('Coach pattern averages exclude unknown earnings and untaken rides while including explicit zero', async () => {
+  await patternOffer('Accepted', 30);
+  await patternOffer('Accepted', null);
+  await patternOffer('Completed', null);
+  await patternOffer('Completed', 0);
+  await patternOffer('Rejected', 999); // Legacy earnings on an untaken ride must stay excluded.
+  const patterns = await rideshareCoachDAL.getOfferPatterns(userA);
+  expect(patterns).toMatchObject({ total: 5, windowDays: 180 });
+  expect(patterns.rows).toHaveLength(5);
+  for (const row of patterns.rows) expect(row).toMatchObject({ n: 5, taken: 4, reported: 2, avg_earned: 15 });
+});
+
+test('Coach patterns preserve all-unknown earnings and reject mismatched outcome ownership', async () => {
+  await patternOffer('Accepted', null);
+  await patternOffer('Completed', null);
+  await patternOffer('Accepted', 777, userB); // Inconsistent legacy row, as covered by the editor API.
+  const patterns = await rideshareCoachDAL.getOfferPatterns(userA);
+  expect(patterns.total).toBe(3);
+  for (const row of patterns.rows) expect(row).toMatchObject({ n: 3, taken: 2, reported: 0, avg_earned: null });
 });

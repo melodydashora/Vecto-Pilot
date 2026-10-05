@@ -24,6 +24,7 @@
 
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
+import { haversineMiles } from '../location/geo.js';
 import { assertMainRunForSnapshot, withCurrentMainRun, MainRunAdmissionError } from '../main-run-admission.js';
 import { mergeVenueCacheMetrics, assertCurrentStrategySource } from '../strategy/strategy-source-store.js';
 import { StrategySourceChangedError } from '../strategy/strategy-source.js';
@@ -60,35 +61,6 @@ import { getRoleConfig } from '../ai/model-registry.js';
 import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
 import { needsReadTimeValidation, validateEvent } from '../events/pipeline/validateEvent.js';
 import { readMarketEvents, toBriefingEvent } from '../events/market-event-reader.js';
-
-/**
- * 2026-04-11 (fix): Haversine distance between two lat/lng points, in miles.
- *
- * Used by fetchTodayDiscoveredEventsWithVenue to filter events to the driver's
- * reachable radius and sort them closest-first. Without this, state-scoped queries
- * return events from across the state (Austin, Houston for a DFW driver) that the
- * prompt showed in unsorted order, polluting VENUE_SCORER's candidate pool with
- * unreachable events and forcing the model to guess distances from raw coordinates.
- *
- * Returns Infinity when either point has null coordinates — callers treat this as
- * "filtered out" when a max-distance cap is applied.
- *
- * @param {number|null} lat1
- * @param {number|null} lon1
- * @param {number|null} lat2
- * @param {number|null} lon2
- * @returns {number} Distance in miles (or Infinity if any coord is null)
- */
-function haversineMiles(lat1, lon1, lat2, lon2) {
-  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
-  const R = 3958.7613; // Earth radius in miles
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 /**
  * 2026-09-29: Fetch current country/metro events through the shared reader and

@@ -23,10 +23,8 @@
 ## Testing
 <!-- Describe how you tested these changes -->
 
-- [ ] Ran seed script: `node scripts/seed-dev.js`
-- [ ] Jest tests pass: `npm run test:blocks`
-- [ ] Playwright tests pass: `npx playwright test`
-- [ ] Full test suite: `./scripts/test-all.sh`
+- [ ] Ran `npm run verify` in an isolated checkout; record actual results below
+- [ ] Ran relevant additional integration/E2E checks against an explicitly prepared target, or recorded why they remain unverified
 - [ ] Manual testing in browser
 - [ ] Tested on mobile/responsive
 
@@ -44,9 +42,9 @@
 <!-- If this PR modifies the database schema -->
 
 - [ ] No database changes
-- [ ] Added new columns/tables (ran `npm run db:push`)
+- [ ] Added reviewed, versioned SQL migrations; documented the target and rollback/forward-repair plan
 - [ ] Updated Drizzle schema in `shared/schema.js`
-- [ ] Tested migration locally
+- [ ] Verified migrations through `npm run db:migrate` against an explicitly prepared disposable database, or recorded that this remains unverified
 - [ ] Updated seed script if needed
 
 ## Checklist
@@ -75,7 +73,7 @@ Related to #
 
 ---
 
-**CI Status**: GitHub Actions will automatically run:
-- ✅ TypeScript & ESLint checks (PR)
-- ✅ Jest unit tests (on merge)
-- ✅ Playwright E2E tests (on merge)
+The **Verify** workflow runs JSON syntax, lint, TypeScript, backend/client/UI
+fixture tests and the client build. Report its actual result. Live providers,
+database migrations, device capture and Playwright E2E remain separate checks;
+the workflow does not publish the app.

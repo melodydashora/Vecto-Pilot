@@ -1,5 +1,10 @@
 # Offer Analyzer — current source and boundaries
 
+**Naming:** Offer Analyzer is the feature. An offer is the ride or delivery proposal
+it analyzes; offers are the records tracked in Daily Offers and history. Existing
+`offer*` routes, fields and table names describe those records. See the
+[canonical lexicon](../../LEXICON.md).
+
 > Source review: 2026-09-29, working tree based on `6e98390697dfd3d677702bc64fe206b2383f5279`.
 > This describes repository code, including uncommitted changes. It is not a deployment,
 > device-certification, latency, or live-database receipt. Historical material replaced
@@ -12,7 +17,7 @@
 
 ## 1. Purpose and boundaries
 
-The Analyzer reduces the arithmetic and screen-reading a driver must do during a short
+The Offer Analyzer reduces the arithmetic and screen-reading a driver must do during a short
 ride-offer window. It reads the offer, applies the current owner’s rules and speaks a
 short decision. Pickup travel is work: full-ride calculations include both pickup and
 passenger legs. The driver’s home is not the pickup origin.
@@ -21,13 +26,13 @@ Keep these distinctions:
 
 - Selected services describe work the driver chose. Vehicle eligibility describes what
   the vehicle can support. One must not be inferred from the other.
-- The Analyzer decides a current offer. Coach discusses saved evidence and patterns;
+- The Offer Analyzer decides a current offer. Coach discusses saved evidence and patterns;
   it does not issue a new live-offer verdict.
 - Physical road/access safety is not a neighborhood, demographic or crime prediction.
   Do not invent safety knowledge from a place’s name.
 - MAIN’s snapshot → briefing → Strategist → VenuePlanner flow is separate from the
-  Analyzer’s Phase 1 → Phase 2 flow. New Analyzer-to-MAIN integration is held for a
-  later decision after Analyzer corrections. Admission retains the config receipt for
+  Offer Analyzer’s Phase 1 → Phase 2 flow. New Offer Analyzer-to-MAIN integration is held for a
+  later decision after Offer Analyzer corrections. Admission retains the config receipt for
   stale-settings checks; `mainDriverContext()` projects only profile/vehicle into the
   Strategist and VenuePlanner prompts. The receipt contains saved rules, not offer history.
 
@@ -60,8 +65,8 @@ Sources: [hook](../../server/api/hooks/analyze-offer.js),
 
 | Record | Meaning |
 |---|---|
-| `offer_intelligence.decision` | Original Analyzer decision delivered in Phase 1, including `NO DATA`. |
-| `offer_intelligence.user_override` | Driver’s immediate disagreement (`ACCEPT`/`REJECT`); it does not rewrite the Analyzer’s decision. |
+| `offer_intelligence.decision` | Original Offer Analyzer decision delivered in Phase 1, including `NO DATA`. |
+| `offer_intelligence.user_override` | Driver’s immediate disagreement (`ACCEPT`/`REJECT`); it does not rewrite the Offer Analyzer’s decision. |
 | `offer_outcomes` | Driver-reported actual action, optional earnings and reasoning, saved separately with revision checks. |
 
 Phase 2 may store its own `deep_decision` and disagreement evidence. It must not replace
@@ -282,7 +287,7 @@ configuration was used; current rules do not reconstruct an old configuration by
 | Pay/time/distance preferences | Tier controls and `basis`; hourly is ride telemetry, but a delivery hourly floor is an explicit separate rule. |
 | Avoided places / physical access | `avoid[]`, visual road-access rules and later coordinate audit; no demographic inference. |
 | Immediate short spoken response | `voice`/`notification`, not the original four-line written report. |
-| Actual driver action retained | Overrides and revisioned outcomes are separate from Analyzer decisions. |
+| Actual driver action retained | Overrides and revisioned outcomes are separate from Offer Analyzer decisions. |
 | Home-return calculations | `home` remains declared but inert; no UI controls, per recorded D2. |
 | Per-area scope overrides | `geo` remains declared but no active caller supplies its scope; no UI controls, per D2. |
 
@@ -520,13 +525,13 @@ delivery-only explicit selection hides ride gates/rates/limits/geography/vision 
 other hidden settings remain saved.
 
 The Continue setup boundary permits legacy-null selection unchanged only when the
-otherwise complete profile/vehicle and valid saved Analyzer rules are present. Explicit
+otherwise complete profile/vehicle and valid saved Offer Analyzer rules are present. Explicit
 empty, invalid or ineligible selections still fail validation; missing saved rules are
 not silently invented. The summary shows saved limits and distinguishes unchosen
 services. This fixes the reproduced source regression, not a claim to have reproduced
 Melody’s exact account state or error through runtime access.
 
-`SetupCard.tsx` offers the browser quick analyzer, deployment-specific setup downloads,
+`SetupCard.tsx` offers the browser Offer Analyzer capture, deployment-specific setup downloads,
 a token-free Android browser launcher and a separately labeled legacy iPhone shortcut.
 The launcher opens a signed-in screenshot chooser; it does not silently capture another
 app. Existing native automation is a separate phone setup.
@@ -570,7 +575,7 @@ Active GPT live voice delegates substantive questions to the same `/api/chat` br
 its bounded session bootstrap is not the full data layer. Legacy realtime/Gemini
 routes carry reduced context and must not be mistaken for the active full-context path.
 Coach’s legacy model-emitted offer mutation actions are retired (§11.5). Other
-validated Coach actions are separate. There is no automatic Analyzer-rule tuning
+validated Coach actions are separate. There is no automatic Offer Analyzer-rule tuning
 from chat or outcomes.
 
 ## 16. Models, latency, and the <3s target
@@ -655,7 +660,7 @@ an older “shipped” paragraph or treat a historical handoff as the current ch
 
 ## Appendix A — Change log
 
-- 2026-09-29: Source-based reconciliation after Melody requested Analyzer root-cause
+- 2026-09-29: Source-based reconciliation after Melody requested Offer Analyzer root-cause
   fixes before MAIN integration. Replaced contradictory runtime claims, retained source
   paths/numbered sections and separated present behavior from historical evidence.
 - 2026-09-10/11: Outcome revisions, chart/source continuity and browser launcher work

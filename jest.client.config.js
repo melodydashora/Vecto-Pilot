@@ -35,12 +35,13 @@ export default {
     '/.worktrees/',
     // 2026-09-15: AI-session coordination bundles under .config/ carry test copies too.
     '/.config/',
-    // 2026-09-15: these suites use CommonJS `jest.mock` hoisting and run under their own
-    // harness configs (tests/*/jest.*.config.cjs) via `npm run test:client:harness`.
-    // Under this ESM config `jest.mock` is a no-op, so they only fail spuriously here.
+    // Dedicated CommonJS harnesses run separately through test:client:harness.
+    // Their jest.mock hoisting is incompatible with this ESM configuration;
+    // the airport suite also belongs to its dedicated harness, exactly once.
     '/tests/offers/.*\\.ui\\.test\\.tsx$',
     '/tests/feedback/.*\\.ui\\.test\\.tsx$',
     '/tests/settings/',
+    '/tests/briefing/airport-status\\.ui\\.test\\.tsx$',
   ],
   collectCoverageFrom: [
     'client/src/**/*.{ts,tsx}',

@@ -4,6 +4,10 @@ This is a navigation index. Current code establishes behavior; specifications re
 intent; tests and dated receipts establish what was verified. Historical audits explain
 earlier findings. Read these together instead of treating a filename as proof of accuracy.
 
+Use the root [lexicon](../../LEXICON.md) for canonical terminology and the
+[October 4 readiness map](audits/PIPELINE_READINESS_2026-10-04.md) for the current
+review candidate, verified checks and remaining live acceptance work.
+
 ## Pipeline entry points
 
 These are source locations to trace, not a claim that every pipeline has been audited.
@@ -20,7 +24,7 @@ Follow imports and consumers for the full path.
 | Coach | [Chat route](../../server/api/chat/chat.js), [owner data access](../../server/lib/ai/rideshare-coach-dal.js), [saved source context](../../server/lib/ai/coach-source-context.js) | [Coach guide](RIDESHARE_COACH.md) |
 | Offer Analyzer | [Hook](../../server/api/hooks/analyze-offer.js), [adjudication](../../server/lib/offers/phase1-decision.js), [rules](../../server/lib/offers/rules-engine.js) | [Full source trace](OFFER_ANALYZER.md), [remaining gates](OFFER_ANALYZER_ROADMAP.md) |
 
-The Analyzer reference was reconciled with source on September 29. The other guides
+The Offer Analyzer reference was reconciled with source on September 29. The other guides
 need their own source review when those pipelines are touched. A source review is not
 a production deployment or physical-device verification.
 
@@ -47,7 +51,7 @@ when investigating startup; check startup effects before running a server.
 
 - [Partnership agreement](../../AI_PARTNERSHIP_AGREEMENT.md), [CLAUDE.md](../../CLAUDE.md)
   and [AGENTS.md](../../AGENTS.md) define collaboration and continuity.
-- [Melody's Analyzer specification](../OFFER_ANALYZER_DRIVER_RULESET.md) retains her
+- [Melody's Offer Analyzer specification](../OFFER_ANALYZER_DRIVER_RULESET.md) retains her
   authored requirements. A requirement is not evidence of implementation.
 - [Decisions](DECISIONS.md), [deprecations](DEPRECATED.md), [dated audits](audits/README.md)
   and [handoffs](../coordination/) preserve reasoning and reported observations; verify

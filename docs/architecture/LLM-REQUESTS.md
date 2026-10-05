@@ -13,7 +13,7 @@
 4. [Strategy Generation](#4-strategy-generation)
 5. [Briefing Pipeline LLM Calls](#5-briefing-pipeline-llm-calls)
 6. [Public Concierge](#6-public-concierge)
-7. [Offer Analysis (Siri Integration)](#7-offer-analysis-siri-integration)
+7. [Offer Analyzer (browser and device capture)](#7-offer-analyzer-browser-and-device-capture)
 8. [Translation](#8-translation)
 9. [Text-to-Speech (TTS)](#9-text-to-speech-tts)
 10. [Gemini Bridge (CLI Tool)](#10-gemini-bridge-cli-tool)
@@ -132,10 +132,10 @@ Provides cross-provider fallback:
 | `UTIL_RESEARCH` | gemini-pro-latest | search | General research |
 | `UTIL_MARKET_PARSER` | OpenAI (GPT-5 reasoning) — see registry | reasoningEffort=low | Market data parsing |
 
-#### Offer Analysis
+#### Offer Analyzer
 
 `OFFER_ANALYZER` and `OFFER_ANALYZER_DEEP` use pinned role configurations from
-`model-registry.js`. See [the Analyzer source reference](OFFER_ANALYZER.md) for
+`model-registry.js`. See [the Offer Analyzer source reference](OFFER_ANALYZER.md) for
 reconciliation, selected services, deadline cancellation and enrichment limits.
 
 ### Override Env Vars
@@ -288,7 +288,12 @@ N/A — Concierge uses share tokens, not user JWT. Share tokens don't expire (th
 
 ---
 
-## 7. Offer Analysis (device shortcuts → Offer Analyzer)
+<a id="7-offer-analysis-siri-integration"></a>
+
+## 7. Offer Analyzer (browser and device capture)
+
+**Offer Analyzer** is the feature; **offers** are its analyzed proposals and saved
+records. Names follow the [canonical lexicon](../../LEXICON.md).
 
 `POST /api/hooks/analyze-offer` accepts browser/tokened phone capture or anonymous
 input. Owner token resolution supplies rules/services; supplied invalid personal rules
@@ -302,7 +307,7 @@ resolution and successful storage are required for a row; no durable queue is cl
 Deadline signals propagate through router/adapter requests and prevent retry after
 abort, without proving provider billing stopped.
 
-Canonical details: [Analyzer §§4–10](OFFER_ANALYZER.md). Model pins/settings are in
+Canonical details: [Offer Analyzer §§4–10](OFFER_ANALYZER.md). Model pins/settings are in
 `server/lib/ai/model-registry.js`, not an environment override table or historical bench.
 
 ---
@@ -421,8 +426,8 @@ All read from `process.env`. No values stored in code.
 | Briefing (7 LLM calls) | `requireAuth` (via waterfall) | Gemini 3.1 Pro (search) | Working |
 | Concierge search | Share token | Gemini 3.1 Pro (search) | Working |
 | Concierge chat | Share token | Gemini 3.1 Pro (search) | Working |
-| Offer analysis (Phase 1) | **None** | Gemini 3 Flash (vision) | Working |
-| Offer analysis (Phase 2) | **None** | Gemini 3.1 Pro | Working |
+| Offer Analyzer (Phase 1) | Optional shortcut token; rate-limited | `OFFER_ANALYZER` registry role | Source traced; live verification separate |
+| Offer Analyzer (Phase 2) | Same request/owner context | `OFFER_ANALYZER_DEEP` registry role | In-process enrichment; storage not guaranteed by Phase 1 |
 | Translation | `requireAuth` | Gemini Flash Lite | Working |
 | TTS | `requireAuth` | OpenAI tts-1-hd | Working |
 | Venue scoring | `requireAuth` (via waterfall) | GPT-5.4 | Working |
@@ -433,7 +438,7 @@ All read from `process.env`. No values stored in code.
 
 ## 14. Known Gaps
 
-1. **Offer analysis endpoint is unauthenticated** — Any client can submit images for AI analysis. Should require device_id registration or API key.
+1. **Offer Analyzer permits legacy anonymous analysis** — Ingestion is token-optional and rate-limited. A valid shortcut token supplies owner rules; hook history/mutations require that token, and editor APIs require authenticated ownership. Changing anonymous access is a policy change, not missing device-ID authentication.
 
 2. **No mid-pipeline auth validation** — The blocks-fast waterfall runs 60–90 seconds with no auth recheck. If session expires mid-pipeline, results are stored but client can't retrieve them until re-login.
 
@@ -455,7 +460,7 @@ All read from `process.env`. No values stored in code.
 
 ## 15. TODO — Hardening Work
 
-- [ ] **Add auth to offer analysis** — Require device registration or API key. At minimum, rate-limit by IP
+- [ ] **Review Offer Analyzer anonymous-access policy** — Token identity and rate limiting already exist. Verify the intended legacy contract before changing public ingestion; a device ID is not authentication.
 - [ ] **Add per-user LLM call budget** — Track calls per user per hour. Enforce limits on Coach chat (e.g., 50 messages/hour)
 - [ ] **Add LLM response caching** — Cache briefing data by coord_key + time window. Share across nearby users
 - [ ] **Remove or use Vertex adapter** — Either route roles through it or delete the dead code
@@ -484,7 +489,7 @@ All read from `process.env`. No values stored in code.
 | `server/lib/briefing/briefing-service.js` | Briefing pipeline LLM calls (3,103 lines) |
 | `server/api/concierge/concierge.js` | Public concierge endpoints |
 | `server/lib/concierge/concierge-service.js` | Concierge search + chat logic |
-| `server/api/hooks/analyze-offer.js` | Offer analysis (Siri) |
+| `server/api/hooks/analyze-offer.js` | Offer Analyzer ingestion (browser/device capture) |
 | `server/api/hooks/translate.js` | Siri translation endpoint |
 | `server/api/chat/tts.js` | TTS endpoint |
 | `server/lib/ai/rideshare-coach-dal.js` | Context injection for AI prompts |

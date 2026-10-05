@@ -1,5 +1,8 @@
 # Offer Analyzer — remaining work and decision history
 
+Use **Offer Analyzer** for the feature and **offers** for the proposals and records
+it analyzes and tracks; see the [canonical lexicon](../../LEXICON.md).
+
 > Reviewed against source on 2026-09-29. This is the forward plan, not a deployment
 > receipt. Current behavior is in [OFFER_ANALYZER.md](OFFER_ANALYZER.md).
 > Prior task/memory IDs below are historical pointers, not a fresh continuity read.
@@ -7,7 +10,7 @@
 
 ## 0 · Current scope
 
-Melody’s current direction is to fix the Analyzer’s root causes and reconcile its source
+Melody’s current direction is to fix the Offer Analyzer’s root causes and reconcile its source
 and documentation before deciding the next MAIN integration. Minimize unnecessary setup
 controls: the user’s selected services should determine relevant offer-rule controls,
 and keeping saved preferences must remain a valid path.
@@ -19,7 +22,7 @@ phone usability or live-data completion.
 
 The earlier 2026-08-11 priority statement remains relevant: “solidify everything we do
 have, make it look really good, get it out there, get it selling.” The stated order was
-security, a good/safe Coach and a working Analyzer before new features.
+security, a good/safe Coach and a working Offer Analyzer before new features.
 
 ## 1 · Acceptance gates
 
@@ -29,7 +32,7 @@ saved-rule provenance, matching speech, stale-response rejection, non-offer/manu
 handling and visible history. Measure complete tap-to-speech, not just server response
 time. August synthetic endpoint timings are historical, not current phone acceptance.
 
-**G2 — iPhone automation.** The current SetupCard includes a browser quick analyzer and a
+**G2 — iPhone automation.** The current SetupCard includes a browser Offer Analyzer capture and a
 separately labeled legacy iCloud shortcut. The previously agreed text/vision shortcut
 spec remains a build contract, not proof that updated shared shortcuts have been
 installed or certified. Melody and Claude retain external shortcut ownership unless
@@ -128,7 +131,7 @@ rules are supplied as structured owner data rather than cached architecture pros
 Rules/outcomes do not tune settings automatically.
 
 MAIN admissions retain a configuration receipt for stale-settings fencing. Current
-Strategist and VenuePlanner prompt projection is profile/vehicle only; Analyzer rule
+Strategist and VenuePlanner prompt projection is profile/vehicle only; Offer Analyzer rule
 injection is withheld pending the next integration decision. Offer history is not part
 of that receipt. A future geographic subset needs mode-aware interpretation: a
 `heads_toward` trip condition does not ban the anchor venue.

@@ -1,7 +1,12 @@
 # TESTING.md — Comprehensive Testing Documentation
 
-> **Canonical reference** for test pyramid, test catalog, load testing, CI/CD pipeline, mocking strategies, and coverage targets.
-> Last updated: 2026-04-14
+> **Historical test plan and inventory**, last broadly reviewed April 14, 2026.
+> Current runnable commands, fixture boundaries and the verification gate are in
+> [tests/README.md](../../tests/README.md). The older counts, commands, gaps and
+> CI proposals below describe the dated plan, not today's test execution results.
+> October 4 correction: `npm run verify` and the **Verify** workflow cover static
+> checks, isolated fixtures and client compilation; live providers, database
+> migrations, phone capture and browser E2E require separate evidence.
 
 ## Supersedes
 - `docs/architecture/TEST_STRATEGY.md` — Previous testing overview (absorbed and expanded into definitive doc)

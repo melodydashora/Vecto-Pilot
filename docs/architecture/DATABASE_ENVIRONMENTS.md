@@ -1,7 +1,7 @@
 # Database Environments: Dev vs. Prod
 
-> **Last Updated:** 2026-09-29 (runtime TLS contract; provider history retained)
-> **Status:** Verified — **dev = Replit Helium local**; **prod = Neon serverless**. The 2026-04-05 "both Helium" claim was incorrect; see changelog.
+> **Last Updated:** 2026-10-04 (bootstrap and verification boundaries; provider history retained)
+> **Provider history:** development was Replit Helium; production was Neon serverless at the recorded inspections below. The current supplied development connection was checked read-only; current production provider, schema and deployed revision were not inspected in this review.
 > **Priority:** CRITICAL — Read this document at every session start
 
 ---
@@ -14,11 +14,13 @@
 | **When active** | Replit workspace / editor | Published deployment (Cloud Run) |
 | **DATABASE_URL** | Auto-injected by Replit (dev Helium: `host=helium`) | Auto-injected by Replit (prod Neon: `host=ep-noisy-cake-afv3ojg3.c-2.us-...`) |
 | **Data** | Test data, dev accounts | Real driver data, real conversations |
-| **Schema** | Identical to prod | Identical to dev |
+| **Schema** | Verify this connection against the source; a development result is scoped to development. | Requires a separate current check; do not infer parity from development. |
 | **Data sync** | None — completely isolated | None — completely isolated |
 | **SSL** | **No** (Helium runs locally, `sslmode=disable`) | **Yes** (Neon requires SSL; valid certs → `rejectUnauthorized: true`) |
 
-**Golden Rule:** `DATABASE_URL` is the ONLY variable that matters. Replit injects it automatically. The application code does NOT need to know which database it's talking to.
+The provider table and diagram retain historical environment observations, not a current production receipt. Treat either database as containing valuable data until its actual contents and purpose are established.
+
+**Golden Rule:** `DATABASE_URL` selects the connection. Use the supplied environment and verify the intended target without printing credentials; application code must not invent a second database selector.
 
 ---
 
@@ -84,12 +86,13 @@ this policy; they do **not** prove a live remote TLS handshake. See
 
 ### 3. Schema Synchronization
 
-- **Schema parity is AUTOMATED at boot (since 2026-08-06):**
+- **Versioned migration application runs at boot (since 2026-08-06):**
   `server/db/run-migrations.js` runs at the top of `gateway-server.js` bootstrap
-  and applies `/migrations/*.sql` in filename order, each exactly once, tracked
+  and applies unrecorded `/migrations/*.sql` in filename order, tracked
   in the `schema_migrations` table and serialized across autoscale instances by
   a pg advisory lock. **Fail-loud**: a bad migration crashes boot visibly.
-  Files older than the `20260703` baseline cutoff were recorded as
+  Successful ledger entries prevent replay; the ledger alone does not verify
+  schema or reference-data effects. Files older than the `20260703` cutoff were recorded as
   already-applied without execution (both DBs verifiably predate-applied them).
 - **Doctrine note (Melody, 2026-08-06):** "no prod migrations without explicit
   human approval" is satisfied at *design time* — a migration file reviewed,
@@ -97,12 +100,15 @@ this policy; they do **not** prove a live remote TLS handshake. See
   deterministically. Migrations MUST be idempotent/additive (`IF NOT EXISTS`,
   `ON CONFLICT`, type guards) — the runner re-executes post-cutoff files on any
   DB that hasn't recorded them.
-- **Empty-database path (2026-09-13):** `migrations/00000_baseline.sql` (full pg_dump
-  of dev, marker `BASELINE_THROUGH`) is executed by the runner only when
-  `public.snapshots` does not exist; on dev/prod it is recorded as baselined and never
-  runs. Verified: an empty Helium database built through the runner matched dev with 0
-  diffs across tables, columns, constraints, indexes, functions, triggers and policies.
-- **Pre-publish check for `20260913_schema_repair.sql` (prod has not run it yet):** it
+- **Empty-database path (corrected 2026-10-04):** the core `public.snapshots` table
+  must be absent and the ledger empty. The reviewed baseline, airport identity
+  seed and all covered ledger rows commit together. Incomplete executed-baseline
+  history and unledgered existing schemas stop before historical replay. Read
+  [the bootstrap contract](DATABASE_BOOTSTRAP.md), including extension requirements
+  and the unresolved current `app_rules` restoration prerequisite. The September
+  13 zero-difference report concerned schema catalogs, not seeded reference data.
+- **Historical pre-publish check for `20260913_schema_repair.sql`** (production
+  had not run it at that recorded review; current production state is unknown): it
   drops 11 tables ONLY if they are empty and RAISES (boot fails loud) otherwise. Before
   publishing, open Database Studio → Production Database and confirm zero rows in
   `block_jobs, llm_venue_suggestions, eidolon_snapshots, venue_events, traffic_zones,
@@ -126,9 +132,9 @@ this policy; they do **not** prove a live remote TLS handshake. See
 
 ### DO:
 - Always use `process.env.DATABASE_URL` for connections
-- Trust that Replit provides the correct database for the current environment
-- Test migrations on dev before deploying to prod
-- Use seed scripts (`scripts/seed-dev.js`) only in dev
+- Verify the supplied connection's intended environment before writing
+- Test migrations on an explicitly prepared disposable database before deployment
+- Inspect seed-script effects and preserve existing data before considering a run
 
 ### DO NOT:
 - Hard-code any database connection strings
@@ -141,7 +147,8 @@ this policy; they do **not** prove a live remote TLS handshake. See
 - **From Claude Code in the workspace:** You are hitting the DEV database
 - **From the live app:** Users are hitting the PROD database
 - **To see prod data:** Use Replit's Database Studio UI (dropdown: "Production Database")
-- **To run migrations:** Use `npm run db:push` (runs against current env's DATABASE_URL)
+- **To inspect schema metadata:** `npm run check:schema` performs a read-only check using the supplied `DATABASE_URL` and the same TLS policy as the app. Its coverage is documented in `server/db/README.md`; it is not proof of full schema or data parity.
+- **To apply reviewed migrations:** `npm run db:migrate` runs canonical `migrations/*.sql` against the supplied `DATABASE_URL`. Review pending SQL and confirm the intended environment before execution. `db:push` is not the canonical migration path.
 
 ---
 

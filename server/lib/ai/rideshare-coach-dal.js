@@ -1314,12 +1314,12 @@ export class RideshareCoachDAL {
       prompt += `\n\n   Use these notes to personalize your advice. You can reference them naturally.`;
     }
 
-    // ========== OFFER ANALYSIS HISTORY (Siri Shortcuts) ==========
-    // 2026-02-16: Ride offer analysis log for pattern-aware coaching
+    // ========== OFFER ANALYZER HISTORY ==========
+    // Saved analyzed offers for pattern-aware coaching.
     const { offerHistory } = context;
     if (offerHistory?.stats && offerHistory.stats.total > 0) {
       const s = offerHistory.stats;
-      prompt += `\n\n=== RIDE OFFER ANALYSIS LOG ===`;
+      prompt += `\n\n=== OFFER ANALYZER HISTORY ===`;
       prompt += `\nStats (last ${s.total} offers):`;
       prompt += `\n   Accept rate: ${s.accept_rate_pct}% (${s.accepted} accepted, ${s.rejected} rejected)`;
       if (s.avg_per_mile) prompt += `\n   Avg $/mile: $${s.avg_per_mile}`;
@@ -1486,7 +1486,7 @@ export class RideshareCoachDAL {
    * 2026-08-17: Per-user offer PATTERNS for the Coach — aggregation over the driver's
    * offer_intelligence rows (⟕ offer_outcomes) in the last 180 days by time of day,
    * weekday, pickup area, product, and month. Rows: { dim, key, n, accept_pct, avg_pm,
-   * taken, avg_earned }. Rendered by server/lib/offers/offer-patterns.js. Read-only.
+   * taken, reported, avg_earned }. Rendered by server/lib/offers/offer-patterns.js. Read-only.
    * Fail-soft: any error → null (the Coach simply has no pattern block).
    */
   async getOfferPatterns(userId, windowDays = 180) {
@@ -1496,9 +1496,16 @@ export class RideshareCoachDAL {
         WITH mine AS (
           SELECT oi.decision, oi.per_mile, oi.day_part, oi.day_of_week, oi.product_type,
                  oi.pickup_address, oi.local_date,
-                 oo.driver_decision, oo.total_earned
+                 oo.driver_decision,
+                 -- The generated total is zero even when every money component
+                 -- is NULL. Only explicitly reported earnings enter the average;
+                 -- an actual reported zero remains a valid observation.
+                 CASE WHEN oo.driver_decision IN ('Accepted', 'Completed')
+                   AND (oo.actual_pay IS NOT NULL OR oo.reimbursements IS NOT NULL
+                     OR oo.extras IS NOT NULL OR oo.other IS NOT NULL)
+                   THEN oo.total_earned END AS reported_earned
           FROM offer_intelligence oi
-          LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
+          LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id AND oo.user_id = oi.user_id
           WHERE oi.user_id = ${userId}
             AND oi.removed_at IS NULL
             AND oi.decision IN ('ACCEPT', 'REJECT')
@@ -1509,38 +1516,43 @@ export class RideshareCoachDAL {
                  round(100.0 * avg((decision = 'ACCEPT')::int))::int AS accept_pct,
                  round(avg(per_mile)::numeric, 2) AS avg_pm,
                  count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int AS taken,
-                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2) AS avg_earned
+                 count(reported_earned)::int AS reported,
+                 round(avg(reported_earned)::numeric, 2) AS avg_earned
           FROM mine WHERE day_part IS NOT NULL GROUP BY day_part
           UNION ALL
           SELECT 'dow', day_of_week::text, count(*)::int,
                  round(100.0 * avg((decision = 'ACCEPT')::int))::int,
                  round(avg(per_mile)::numeric, 2),
                  count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
-                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+                 count(reported_earned)::int,
+                 round(avg(reported_earned)::numeric, 2)
           FROM mine WHERE day_of_week IS NOT NULL GROUP BY day_of_week
           UNION ALL
           SELECT 'city', trim(split_part(pickup_address, ',', -1)), count(*)::int,
                  round(100.0 * avg((decision = 'ACCEPT')::int))::int,
                  round(avg(per_mile)::numeric, 2),
                  count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
-                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+                 count(reported_earned)::int,
+                 round(avg(reported_earned)::numeric, 2)
           FROM mine WHERE pickup_address IS NOT NULL AND pickup_address <> '' GROUP BY 2
           UNION ALL
           SELECT 'product', product_type, count(*)::int,
                  round(100.0 * avg((decision = 'ACCEPT')::int))::int,
                  round(avg(per_mile)::numeric, 2),
                  count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
-                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+                 count(reported_earned)::int,
+                 round(avg(reported_earned)::numeric, 2)
           FROM mine WHERE product_type IS NOT NULL GROUP BY product_type
           UNION ALL
           SELECT 'month', substr(local_date, 1, 7), count(*)::int,
                  round(100.0 * avg((decision = 'ACCEPT')::int))::int,
                  round(avg(per_mile)::numeric, 2),
                  count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
-                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+                 count(reported_earned)::int,
+                 round(avg(reported_earned)::numeric, 2)
           FROM mine WHERE local_date IS NOT NULL GROUP BY 2
         )
-        SELECT dim, key, n, accept_pct, avg_pm, taken, avg_earned,
+        SELECT dim, key, n, accept_pct, avg_pm, taken, reported, avg_earned,
                (SELECT count(*)::int FROM mine) AS total
         FROM agg WHERE key IS NOT NULL AND key <> ''
         ORDER BY dim, n DESC
@@ -1554,6 +1566,7 @@ export class RideshareCoachDAL {
           accept_pct: r.accept_pct == null ? null : Number(r.accept_pct),
           avg_pm: r.avg_pm == null ? null : Number(r.avg_pm),
           taken: Number(r.taken) || 0,
+          reported: Number(r.reported) || 0,
           avg_earned: r.avg_earned == null ? null : Number(r.avg_earned),
         })),
         total,

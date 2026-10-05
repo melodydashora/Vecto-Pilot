@@ -69,7 +69,7 @@ export default function QuickAnalyzePage() {
       body.append('longitude', fix.lng.toFixed(6));
       body.append('source', 'vecto_browser');
       const response = await fetch(API_ROUTES.OFFER_ANALYZER.ANALYZE, { method: 'POST', headers: { 'X-Shortcut-Token': token }, body, signal: abort.signal });
-      if (!response.ok) throw new Error('Offer analysis is unavailable. Decide manually when safe.');
+      if (!response.ok) throw new Error('Offer Analyzer is unavailable. Decide manually when safe.');
       const next = readSpokenOfferResult(await response.json());
       if (abort.signal.aborted) return;
       setResult(next);
@@ -88,7 +88,7 @@ export default function QuickAnalyzePage() {
 
   return (
     <main className="max-w-xl mx-auto p-4 pb-28 space-y-5 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-gray-100">
-      <h1 className="text-2xl font-bold">Analyze an offer</h1>
+      <h1 className="text-2xl font-bold">Offer Analyzer</h1>
       <p className="text-gray-600 dark:text-gray-300">Choose a current offer screenshot. Vecto checks your personal rules and speaks the result. Set up and select files while safely stopped.</p>
       <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Offer screenshot" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void analyze(file); }} />
       <Button className="w-full min-h-20 text-lg" disabled={!token || busy} onClick={() => fileInput.current?.click()}>{busy ? <Loader2 className="h-6 w-6 mr-3 animate-spin" /> : <Camera className="h-6 w-6 mr-3" />}{busy ? 'Checking location and your rules...' : 'Choose screenshot and analyze'}</Button>

@@ -350,10 +350,11 @@ router.get('/offers', async (req, res) => {
       AND oi.created_at < ((${day.date}::date + 1)::timestamp AT TIME ZONE ${day.timezone})` : sql``;
     const removedFilter = includeRemoved ? sql`` : sql`AND oi.removed_at IS NULL`;
     const conditions = sql`oi.user_id = ${req.auth.userId} ${dayFilter} ${removedFilter}`;
-    const countResult = await db.execute(sql`
+    // A complete local day needs only one read. A separate count can race an
+    // arriving/removing offer and contradict the list's completeness contract.
+    const countResult = day ? null : await db.execute(sql`
       SELECT count(*)::integer AS total FROM offer_intelligence oi WHERE ${conditions}
     `);
-    const total = countResult.rows?.[0]?.total ?? 0;
     const result = await db.execute(sql`
       SELECT oi.id, oi.price, oi.per_mile, oi.total_miles, oi.total_minutes,
              oi.pickup_minutes, oi.pickup_miles, oi.pickup_address, oi.dropoff_address,
@@ -376,6 +377,7 @@ router.get('/offers', async (req, res) => {
       ${day ? sql`` : sql`LIMIT ${limit} OFFSET ${offset}`}
     `);
     const offers = result.rows || [];
+    const total = day ? offers.length : (countResult.rows?.[0]?.total ?? 0);
     const activeOffers = offers.filter((offer) => offer.removed_at == null);
 
     const stats = {

@@ -24,8 +24,8 @@ await db.insert(rankings).values({
 
 **Three Tables, Three Purposes:**
 
-1.  **`driver_profiles`**: Identity (who you are) - **FOREVER**.
-2.  **`users`**: Session (who's online now) - **TEMPORARY** (60 min TTL).
+1.  **`driver_profiles`**: Permanent driver profile.
+2.  **`users`**: Permanent identity key and current session pointer; only the session expires.
 3.  **`snapshots`**: Activity (what you did when) - **FOREVER**.
 
 **Session Rules:**
@@ -43,8 +43,8 @@ await db.insert(rankings).values({
 The `snapshots` table is the authoritative source for location and time context.
 
 - **Ownership**: Includes `user_id` for ownership verification (required for `requireSnapshotOwnership` middleware).
-- **Market Data**: Now captures `market` from `driver_profiles.market` at creation time.
-- **Holiday Data**: Now captures `holiday` and `is_holiday` flags at creation time.
+- **Market Data**: `market` is resolved from the current snapshot location; a driver's home-profile market is not current location.
+- **Holiday Data**: Holiday enrichment lives in `briefings.holiday`, not the snapshot (July 6 migration).
 - **Density Analysis**: Includes `h3_r8` (H3 geohash) for density analysis.
 - **Location**: Uses `coord_key` to link to `coords_cache`. Legacy fields (`city`, `state`, etc.) are deprecated.
 - **Airport Data**: `airport_context` dropped (2026-01-14). Airport data now lives in `briefings`.
@@ -70,17 +70,26 @@ The `db-client.js` module manages the persistent `LISTEN` connection for Real-ti
 
 ## Connection Manager & Pooling (2026-02-26)
 
-The `connection-manager.js` module handles the standard query pool configuration, optimized for **Replit Helium (PostgreSQL 16)**.
+The `connection-manager.js` module handles the standard query pool configuration, shared by development and deployment; only `DATABASE_URL` selects its target.
 
 - **Pool Configuration**:
   - **Max Connections**: Increased to **25** (Issue #22). Accounts for high concurrency (Strategy + Briefing + Blocks = ~8-11 connections per user).
-  - **Idle Timeout**: Relaxed to **10000ms** (10s). Migrated from Neon to Helium, removing the risk of Neon's aggressive proxy termination.
+  - **Idle Timeout**: **10000ms** (10s). The configured target still determines provider connection behavior.
   - **Connection Timeout**: **15s**. Slightly increased to handle connection spikes safely.
   - **Statement Timeout**: **30s** global timeout to prevent long-running queries from blocking.
   - **TCP Keepalive**: Enabled (10s delay) to maintain stable connections.
-  - **SSL Configuration**: Dynamically disabled in development (Helium runs locally) and enabled for production deployments.
+  - **SSL Configuration**: `databaseConnectionConfig()` preserves explicit local TLS and requires verified certificates/hostnames for remote targets. Runtime deployment flags do not disable verification.
 - **Monitoring & Health**:
   - **Capacity Warning**: Monitors pool usage every 30s. Logs a warning if usage exceeds **80%** (20 connections).
-  - **Health Check**: `getAgentState()` statically reports healthy (`degraded: false`) as Replit manages the underlying Postgres availability.
+  - **Health Check**: `getAgentState()` is a legacy compatibility status, not a database probe. Readiness routes run their own checks.
 - **Error Handling**:
   - **57P01 (Admin Shutdown)**: Previously common with Neon's proxy, now rare in Helium. Still treated as a warning (not fatal) and the pool auto-recovers by evicting the dead client.
+
+## Schema changes and verification
+
+Canonical DDL lives in `migrations/*.sql`; `shared/schema.js` is its runtime mirror.
+Keep column types, nullability and constraints synchronized. Preserve applied
+migration bytes and fix forward. Apply reviewed migrations with `npm run db:migrate`
+only against the intended environment; do not use Drizzle push to reconcile drift.
+`npm run check:schema` reads metadata only and uses the shared connection policy.
+Read `server/db/README.md` for exact coverage and limitations.

@@ -1692,6 +1692,8 @@ export const offer_intelligence = pgTable("offer_intelligence", {
   index('idx_oi_override').on(table.device_id, table.user_override).where(sql`user_override is not null`),
   // User linkage
   index('idx_oi_user_id').on(table.user_id).where(sql`user_id is not null`),
+  // Mirrors migrations/20260928_offer_removal.sql; revisions cannot be negative.
+  check('offer_intelligence_removal_revision_check', sql`${table.removal_revision} >= 0`),
   // Authenticated offer history and local-day queues.
   index('idx_oi_user_created').on(table.user_id, table.created_at.desc(), table.id.desc()).where(sql`user_id is not null`),
   // Best offers ranking

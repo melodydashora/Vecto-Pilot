@@ -16,6 +16,23 @@ export function haversineDistanceMiles(lat1, lon1, lat2, lon2) {
   return haversineDistanceKm(lat1, lon1, lat2, lon2) * 0.621371;
 }
 
+/**
+ * Great-circle miles for event filtering and home-distance context.
+ * Missing coordinates return Infinity so distance filters exclude unknown locations.
+ * Preserve the callers' 3958.7613-mile radius; haversineDistanceMiles above uses
+ * the meter-based ETA helper and has a different radius and missing-value contract.
+ */
+export function haversineMiles(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
+  const R = 3958.7613; // Earth radius in miles
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // 2026-07-03 (todo #10): bearing math for the offer geography rules
 // ("trip heads toward <avoid place>"). Initial great-circle bearing, 0-360° from north.
 export function bearingDegrees(lat1, lon1, lat2, lon2) {

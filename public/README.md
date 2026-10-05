@@ -1,24 +1,15 @@
-> **Last Verified:** 2026-01-06
+# Root public directory
 
-# Public
+Vite builds static web assets from [client/public](../client/public), using the
+client root configured in [vite.config.js](../vite.config.js). The gateway serves
+`client/dist`; the canonical robots input is
+[client/public/robots.txt](../client/public/robots.txt).
 
-Static files served directly by the web server.
+The duplicate root robots file was removed on October 4, 2026. The former guide
+incorrectly claimed the gateway served this whole root directory. The
+[make-jwks utility](../scripts/make-jwks.mjs) still writes
+`public/.well-known/jwks.json`; that write alone does not establish a public
+serving route. Preserve that tooling boundary when changing static assets.
 
-## Files
-
-| File | Purpose |
-|------|---------|
-| `robots.txt` | Search engine crawling rules |
-| `privacy-policy.html` | Privacy policy page |
-| `.well-known/` | Standard well-known URIs |
-
-## Serving
-
-Files are served from the root URL path:
-- `/robots.txt` → `public/robots.txt`
-- `/privacy-policy.html` → `public/privacy-policy.html`
-
-## Notes
-
-- Keep files minimal - most content served via React app
-- Used for SEO and compliance requirements
+Original documentation and duplicate bytes are retained in the external Astra
+cleanup archive and the `b4bba633` Git tree.

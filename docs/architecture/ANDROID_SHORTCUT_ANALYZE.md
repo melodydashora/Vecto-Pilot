@@ -1,5 +1,8 @@
 # Offer Analyzer on Android
 
+Feature names follow the [canonical lexicon](../../LEXICON.md): **Offer Analyzer**
+analyzes and tracks **offers**.
+
 > Repository-source review: 2026-09-29. Current setup is a signed-in browser capture
 > flow with an optional HTTP Shortcuts **browser launcher** download. This document
 > separates it from historical direct-upload automation. No current device import,
@@ -9,7 +12,7 @@
 
 1. Sign in to your deployment, open **Offer Analyzer → Phone Setup**, and review
    selected services and saved rules. Keeping the saved choices is valid.
-2. Choose **Open quick analyzer**. In Chrome, use **Add to Home screen** or the
+2. Choose **Open Offer Analyzer capture**. In Chrome, use **Add to Home screen** or the
    install option if offered while `/co-pilot/analyze` is selected.
 3. Configure and test while stopped. Open the icon, choose a current JPEG, PNG or
    WebP screenshot no larger than 5 MiB, allow precise location and hear the result.
@@ -24,7 +27,7 @@ an offer for you. Sources: `QuickAnalyzePage.tsx`, `offer-capture.ts`, `SetupCar
 
 SetupCard generates `Vecto-Android-launcher.json`. If using HTTP Shortcuts, import it
 with the normal **Import / Export** action, preserving existing shortcuts, then add
-**Vecto Offer** to the home screen. It opens the same deployment’s browser page;
+**Offer Analyzer** to the home screen. It opens the same deployment’s browser page;
 sign-in and screenshot selection still occur there.
 
 `client/src/lib/android-launcher.ts` exports a `browser` shortcut using schema version

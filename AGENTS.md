@@ -1,5 +1,31 @@
 # Codex startup and collaboration
 
+## First standing rule — Melody
+
+**Never use Replit Agent.** Do not invoke it directly, through tools or plugins,
+or indirectly through another agent or automation. For Replit work, use direct
+SSH and shell commands within Melody's authorized scope. This rule applies
+across sessions and projects; broad access or historical instructions do not
+override it.
+
+## Current product naming — Melody, October 4, 2026
+
+The feature is **Offer Analyzer**. An **offer** is an individual observation it
+analyzes; **offers** are the records the product tracks. Use **Offer Analyzer**
+when naming the feature in navigation, headings, documentation, reports and
+agent communication. Do not shorten the feature name to "Offer" or use a
+record-list name as the name of the whole feature. Melody corrected this because
+inconsistent names confused previous model sessions.
+
+Apply the distinction by meaning: record labels such as "Today's offers" and
+existing data/API identifiers can correctly use `offer` or `offers`. A label
+correction is not an instruction to rename persisted tables, public routes or
+every identifier containing that word.
+
+Read the [canonical lexicon](LEXICON.md) for these definitions,
+pipeline roles, decision/outcome distinctions and naming by surface. Maintain
+that one reference when an accepted term or contract changes.
+
 Provenance: Codex/Astra, September 10, 2026, at Melody's request to make Codex
 usable in the same Replit project as Claude. This is a startup entry point into
 the existing partnership and continuity system, not a replacement agreement.

@@ -7,6 +7,7 @@ describe('HTTP Shortcuts Android launcher export', () => {
     expect(exported.version).toBe(91);
     expect(exported.compatibilityVersion).toBe(90);
     const shortcut = exported.categories[0].shortcuts[0];
+    expect(shortcut.name).toBe('Offer Analyzer');
     expect(shortcut.executionType).toBe('browser');
     expect(shortcut.url).toBe('https://driver.example.test/co-pilot/analyze');
     expect(shortcut.launcherShortcut).toBe(true);

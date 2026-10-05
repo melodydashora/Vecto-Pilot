@@ -147,7 +147,15 @@ class CodexPersistenceTests(unittest.TestCase):
             path.mkdir()
             (path / "process-only-sentinel").write_text("fixture", encoding="utf-8")
         with closing(socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)) as listener:
-            listener.bind(str(self.home / "fixture.sock"))
+            # Bind a short relative path: the full temporary home can exceed
+            # AF_UNIX's address limit even though the filesystem path is valid.
+            previous_directory = Path.cwd()
+            try:
+                os.chdir(self.home)
+                listener.bind("fixture.sock")
+            finally:
+                os.chdir(previous_directory)
+            self.assertTrue((self.home / "fixture.sock").is_socket())
             checkpoint = self.persistence().checkpoint()
         snapshot = Path(checkpoint["snapshot"])
         self.assertEqual(list(snapshot.rglob("process-only-sentinel")), [])

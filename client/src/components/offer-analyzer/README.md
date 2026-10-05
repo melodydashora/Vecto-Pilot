@@ -2,16 +2,19 @@
 
 `OfferAnalyzerPage.tsx` owns the rules form and explicit Save Rules flow.
 Current source reference: [Offer Analyzer](../../../../docs/architecture/OFFER_ANALYZER.md).
+The [canonical lexicon](../../../../LEXICON.md) names the feature **Offer Analyzer**;
+**offers** are the proposals and saved records it analyzes and tracks. Daily Offers
+is a record-list section within the feature.
 
 - `RateTargetsCard.tsx`: shows economic groups applicable to confirmed selected
   services using `shared/driver-services.js`, the same routing used by evaluation.
   Service identity differs from vehicle eligibility and economic tier. Legacy null
   selection is visibly unverified; hidden cards do not delete saved thresholds.
-- `SetupCard.tsx`: opens the signed-in browser quick analyzer and produces a
+- `SetupCard.tsx`: opens signed-in Offer Analyzer capture and produces a
   token-free Android browser launcher; existing native iPhone automation remains
   separately labeled legacy. A browser launcher still needs screenshot selection.
 
-- `OffersCard.tsx`: latest 25 analyzed offers across all dates; driver-scoped query
+- `OffersCard.tsx`: all analyzed offers for the selected local day; driver-scoped query
   and SSE/focus refresh. Failed background refreshes retain cached rows and open
   drafts. Older offers with unsaved changes remain until Save or Cancel. Changing
   accounts remounts the editor boundary and cancels prior requests.
@@ -19,8 +22,8 @@ Current source reference: [Offer Analyzer](../../../../docs/architecture/OFFER_A
   revision conflict recovery, confirmed compact summary and Edit. Other/error is a
   distinct outcome. Offered pay is a draft default only for a new outcome; saved
   zero and unknown values are preserved. Accepted includes completed for reporting.
-- `OffersDecisionChart.tsx`: independently loads complete rolling 7/30/90-day counts.
-  Analyzer recommendations and driver decisions are labeled separately. Only saved,
+- `OffersDecisionChart.tsx`: independently loads complete selected-day or rolling 7/30/90-day counts.
+  Offer Analyzer recommendations and driver decisions are labeled separately. Only saved,
   driver-reported monetary entries count as earnings; rejected offers are not savings.
   Inconsistent count partitions or interval bounds show an error. Date labels use
   the GPS-resolved timezone through the shared adapter, with original instants in

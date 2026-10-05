@@ -1,16 +1,20 @@
 # Offer Analyzer on iPhone
 
+Feature names follow the [canonical lexicon](../../LEXICON.md): **Offer Analyzer**
+analyzes and tracks **offers**. The legacy iCloud shortcut retains its actual name
+**Analyze 2** in the setup instructions below.
+
 > Repository-source review: 2026-09-29. Current setup UI is
 > `client/src/components/offer-analyzer/SetupCard.tsx`; browser capture is
 > `client/src/pages/co-pilot/QuickAnalyzePage.tsx`. This is not a new iCloud-shortcut
-> release or a physical-phone test. [Analyzer contract](OFFER_ANALYZER.md).
+> release or a physical-phone test. [Offer Analyzer contract](OFFER_ANALYZER.md).
 
 ## Part 1 · Current browser setup
 
 1. Sign in to the deployment you use and open **Offer Analyzer → Phone Setup**.
 2. Review your selected services and saved rules. You can keep existing choices;
    setup does not require inventing new thresholds.
-3. Choose **Open quick analyzer**. In Safari, use **Share → Add to Home Screen**
+3. Choose **Open Offer Analyzer capture**. In Safari, use **Share → Add to Home Screen**
    while `/co-pilot/analyze` is the selected page.
 4. Configure and test while stopped. Opening the icon takes you to Vecto; choose a
    current JPEG, PNG or WebP offer screenshot (at most 5 MiB), allow precise location
@@ -36,7 +40,7 @@ For an existing shortcut:
 - Use the request URL shown by **your deployment’s** SetupCard, ending in
   `/api/hooks/analyze-offer`. Do not copy a different environment’s domain or token.
 - Put the owner token in the actual `X-Shortcut-Token` header. Keep it out of shared
-  shortcut exports. Rotate it on the Analyzer page if it was exposed.
+  shortcut exports. Rotate it on the Offer Analyzer page if it was exposed.
 - Use canonical field names. The server tolerates legacy `lattitude`, but the correct
   name is `latitude`. Fields such as OCR text belong in the body, not HTTP headers.
 - Speak the returned `voice`; show `notification`. Notification formatting is not a

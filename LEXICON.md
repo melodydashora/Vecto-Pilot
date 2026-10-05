@@ -1,734 +1,112 @@
-[SYSTEM TAG: STRUCTURAL_INDEX | NON_EXECUTABLE]
-AGENT DIRECTIVE: This is a read-only map of the system. Do not modify this file unless explicitly instructed to document a new architectural paradigm.
-
-# LEXICON.md
-
-**Vecto Pilot Terminology & Codebase Reference**
-
-> **Scope:** This file is a TERMINOLOGY GLOSSARY. For endpoint inventories see [API routes registry](docs/api-routes-registry.md). For architecture see [docs/architecture/README.md](docs/architecture/README.md). For AI roles see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md).
-
-This document defines the core terminology used throughout Vecto Pilot and maps each concept to its implementation in the codebase.
-
----
-
-## 🤖 AI & Intelligence Systems
-
-### Agent (Atlas Agent)
-**What it is:** Workspace intelligence layer providing secure file system operations, shell commands, and database access.
-
-**Key Characteristics:**
-- Token-based authentication
-- Unrestricted shell command execution
-- Direct database access (DDL/DML)
-- File system operations (read/write/delete)
-
-**Codebase Files:**
-- `agent-server.js` - Main HTTP server (port 43717)
-- `server/agent/index.ts` - TypeScript implementation
-- `server/agent/embed.js` - Gateway integration
-- `server/agent/routes.js` - API route definitions
-- `server/agent/agent-override-llm.js` - AI model integration (Claude only, no fallback chain)
-- `server/agent/context-awareness.js` - Memory and project context
-- `server/agent/enhanced-context.js` - Deep workspace analysis
-- `server/agent/thread-context.js` - Conversation threading
-- `server/agent/config-manager.js` - Configuration file management
-
-**Environment Variables:**
-- `AGENT_PORT` (default: 43717)
-- `AGENT_TOKEN` - Bearer auth token
-- `AGENT_SHELL_WHITELIST` - Allowed shell commands
-- `AGENT_OVERRIDE_API_KEY_C` - Claude API key
-
-**API Endpoints:**
-- `/agent/health` (also bare `/healthz`) - Health check
-- `/agent/fs/read` - Read file contents
-- `/agent/fs/write` - Write file contents
-- `/agent/shell` - Execute shell commands
-- `/agent/sql/query` - Read-only SQL queries
-- `/agent/sql/execute` - DML/DDL operations
-- `/agent/context` - Project context
-- `/agent/memory/*` - Memory operations
-
-**Memory Tables:**
-- `agent_memory` - Session state tracking
-
----
-
-### Eidolon (Enhanced SDK)
-**What it is:** Project and session state management system with snapshot capabilities.
-
-**Key Characteristics:**
-- Cross-chat awareness
-- Workspace intelligence
-- Predictive intelligence
-- MCP diagnostics
-- Code map generation
-
-**Codebase Files:**
-- `server/eidolon/index.ts` - Main export point
-- `server/eidolon/core/code-map.ts` - Workspace code analysis
-- `server/eidolon/core/context-awareness.ts` - Project context
-- `server/eidolon/core/memory-enhanced.ts` - Enhanced memory system
-- `server/eidolon/core/memory-store.ts` - JSON-based persistence
-- `server/eidolon/core/deep-thinking-engine.ts` - Advanced reasoning
-- `server/eidolon/core/deployment-tracker.ts` - Deployment monitoring
-- `server/eidolon/policy-loader.js` - Policy enforcement
-- `server/eidolon/memory/pg.js` - PostgreSQL adapter
-- `server/eidolon/memory/compactor.js` - Memory optimization
-
-**Environment Variables:**
-- `EIDOLON_PORT` or `SDK_PORT` (default: 3102)
-
-**Memory Tables:**
-- `eidolon_memory` - Project state storage
-- `eidolon_snapshots` - State snapshots
-
-**Configuration:**
-- `config/eidolon-policy.json` - Access control policy
-
----
-
-### Assistant (Replit Assistant Override)
-**What it is:** Persistent conversation history and user preference system.
-
-**Key Characteristics:**
-- User-scoped memory
-- Conversation threading
-- Preference tracking
-- Policy-based access control
-
-**Codebase Files:**
-- `server/gateway/assistant-proxy.ts` - Request proxy layer
-- `server/eidolon/policy-loader.js` - Policy enforcement (shared with Eidolon)
-
-**Memory Tables:**
-- `assistant_memory` - Conversation history and user preferences
-
-**Configuration:**
-- `config/assistant-policy.json` - Access control policy
-
----
-
-### Rideshare Coach (Multi-Model System)
-**What it is:** Real-time strategic analysis system using multiple AI models in a waterfall pipeline.
-
-**Key Characteristics:**
-- Multi-provider pipeline (models swappable via env vars)
-- Real-time event analysis
-- Venue recommendations
-- Tactical planning
-
-**Codebase Files:**
-- `server/api/chat/chat.js` - Chat interface endpoint
-- `server/lib/ai/rideshare-coach-dal.js` - Data access layer
-- `client/src/components/RideshareCoach.tsx` - UI component
-- `server/api/chat/chat-context.js` - Context builder
-- `strategy-generator.js` - Background worker process
-
-**API Endpoints:**
-- `/api/chat` - Chat interface
-- `/api/chat/context` - Context snapshot
-- `/api/chat/history` - Conversation history
-
-**Related Documentation:**
-- `docs/COACH_RUNBOOK.md` - Coach runbook (data access patterns)
-
----
-
-## 🧠 LLM (Large Language Models)
-
-### Architecture Overview
-**What it is:** A model-agnostic, multi-provider AI system. Code references **ROLES** (e.g., `VENUE_SCORER`), never model names. Models are swappable via environment variables without code changes.
-
-**⚠️ CRITICAL (Rule 14):** Do NOT hardcode model names in business logic. The adapter layer owns model routing. Default models listed below are current defaults in `model-registry.js` — they can be changed at any time via env vars.
-
----
-
-### LLM Router
-**What it is:** Multi-provider routing with hedging, circuit breakers, and cross-provider fallback chains.
-
-**Codebase Files:**
-- `server/lib/ai/adapters/index.js` - callModel dispatcher (instantiates the HedgedRouter; cross-provider fallback, Gemini 503 same-provider retry)
-- `server/lib/ai/router/hedged-router.js` - HedgedRouter (hedging, circuit breaker; siblings concurrency-gate.js, error-classifier.js)
-- `server/lib/ai/model-registry.js` - FALLBACK_ENABLED_ROLES + getFallbackConfig()
-
-**Configuration and fallback:** Current pinned role/model/fallback definitions are in
-`server/lib/ai/model-registry.js`; request/retry/cancellation behavior is in the router
-and adapters. Analyzer cross-provider fallback eligibility is distinct from the
-adapter's same-provider retry, which must not restart after cancellation. Old model
-selection environment variables are not the current registry contract.
-
----
-
-### Providers & Adapters
-**What it is:** Provider-specific API clients with a unified interface. Each adapter normalizes a provider's SDK into a common response format.
-
-**Unified Response Interface:**
-```javascript
-{ ok: boolean, output: string, error?: string }
-```
-
-**Dispatcher:**
-- `server/lib/ai/adapters/index.js` - `callModel(role, params)` entry point + HedgedRouter
-- `callModelStream(role, params)` - Streaming variant (provider must support it)
-
-#### Provider: Anthropic (Claude family)
-**Adapter:** `server/lib/ai/adapters/anthropic-adapter.js`
-**API Key Env Var:** `ANTHROPIC_API_KEY`
-**Functions:** `callAnthropic()`, `callAnthropicWithWebSearch()`
-
-| Parameter | Format | Notes |
-|-----------|--------|-------|
-| Max tokens | `max_tokens` | Standard parameter name |
-| Temperature | `temperature` | Supported on all Claude models |
-| Web search | `web_search_20250305` tool | Max 5 search uses per call |
-
-**Raw HTTP variant:** `server/lib/ai/adapters/anthropic-sonnet45.js` — Direct Messages API (no SDK)
-
-#### Provider: OpenAI (GPT / o-series family)
-**Adapter:** `server/lib/ai/adapters/openai-adapter.js`
-**API Key Env Var:** `OPENAI_API_KEY`
-**Functions:** `callOpenAI()`, `callOpenAIWithWebSearch()`
-
-| Parameter | Format | Notes |
-|-----------|--------|-------|
-| Max tokens | `max_completion_tokens` | NOT `max_tokens` (deprecated for reasoning models) |
-| Temperature | **NOT supported** | Use `reasoning_effort` instead for reasoning models |
-| Reasoning | `reasoning_effort: 'low'\|'medium'\|'high'` | Controls depth of chain-of-thought |
-| Web search | Separate search model | Uses dedicated search-capable model variant |
-
-#### Provider: Google (Gemini family)
-**Adapter:** `server/lib/ai/adapters/gemini-adapter.js`
-**SDK:** `@google/genai` (`GoogleGenAI` class)
-**API Key Env Var:** `GEMINI_API_KEY`
-**Functions:** `callGemini()`, `callGeminiStream()`
-
-| Parameter | Format | Notes |
-|-----------|--------|-------|
-| Max tokens | `maxOutputTokens` | NOT `max_tokens` |
-| Temperature | `temperature` | Supported |
-| Thinking | `thinkingConfig: { thinkingLevel }` | Extended reasoning |
-| Web search | `googleSearch: {}` tool | Native grounding with citation suppression |
-| Vision | `images: [{mimeType, data}]` | Multimodal input |
-| JSON mode | `responseMimeType: 'application/json'` | Structured output |
-| Safety | All HARM categories set to OFF | Required for news/traffic/civic content |
-
-**Thinking Level Constraints:**
-| Model tier | Allowed levels |
-|------------|----------------|
-| Pro models | `LOW`, `HIGH` only (NO `MEDIUM` — runtime validated) |
-| Flash models | `MINIMAL`, `LOW`, `MEDIUM`, `HIGH` |
-
-#### Provider: Google Vertex AI
-**Adapter:** `server/lib/ai/adapters/vertex-adapter.js`
-**Auth:** Google Cloud Application Default Credentials (ADC) or service account
-**Functions:** `callVertexAI()`, `callVertexAIStream()`, `isVertexAIAvailable()`
-
-| Env Var | Purpose | Required |
-|---------|---------|----------|
-| `VERTEX_AI_ENABLED` | Set to `'true'` to enable | Yes |
-| `GOOGLE_CLOUD_PROJECT` | GCP project ID | Yes |
-| `GOOGLE_CLOUD_LOCATION` | Region (default: `us-central1`) | No |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path | No (uses ADC) |
-
-**Notes:** Same parameter format as Gemini adapter. Enables access to Vertex-only models (e.g., native audio).
-
-#### Provider: Perplexity
-**Client:** `server/lib/external/perplexity-api.js` (`searchPerplexity`, model hardcoded to `sonar-pro`) — not routed through `callModel`
-**API Key Env Var:** `PERPLEXITY_API_KEY`
-**Default Model:** `sonar-pro`
-**Purpose:** AI-powered web research for event discovery and holiday detection
-
----
-
-### Provider Auto-Detection
-The adapter layer detects provider from model ID prefix:
-
-| Model ID prefix | Provider |
-|----------------|----------|
-| `gpt-*`, `o1-*`, `o3*`, `o4-*` | OpenAI |
-| `claude-*` | Anthropic |
-| `gemini-*` | Google |
-
-**⚠️ This is the ONLY place model names matter.** All other code uses role names.
-
----
-
-### AI Pipeline Roles
-**What it is:** Canonical role names following `{TABLE}_{FUNCTION}` convention. The model-registry maps each role to a default model + parameters, all overridable via env vars.
-
-**Naming Convention:** `{TABLE}_{FUNCTION}`
-- `BRIEFING_*` - Roles that populate the `briefings` table
-- `STRATEGY_*` - Roles that populate the `strategies` table
-- `VENUE_*` - Roles that populate `ranking_candidates` (SmartBlocks)
-- `AI_COACH` / `COACH_*` - Roles that populate `coach_conversations`
-- `OFFER_*` - Roles for real-time offer analysis (Siri Shortcuts)
-- `CONCIERGE_*` - Roles for public event/venue discovery
-- `UTIL_*` - Utility roles for validation/parsing (no direct DB write)
-- `DOCS_*` - Internal documentation generation
-
-**Current role registry:** `server/lib/ai/model-registry.js` is authoritative for
-pinned models, settings and fallback eligibility; see
-[AI preflight](docs/preflight/ai-models.md). The retired environment-override table
-is recoverable at the September29 reconciliation base commit.
-
-`OFFER_ANALYZER` handles immediate extraction/judgment; `OFFER_ANALYZER_DEEP`
-enriches eligible captures in process. The driver receives reconciled speech, while
-Coach reads stored evidence/current owner rules and does not issue live-offer verdicts.
-See [Analyzer boundaries](docs/architecture/OFFER_ANALYZER.md).
-
-**Usage Pattern:**
-```javascript
-import { callModel } from './lib/ai/adapters/index.js';
-
-// Use {TABLE}_{FUNCTION} role names — NEVER model names
-const result = await callModel('STRATEGY_CORE', { system, user });
-const filtered = await callModel('VENUE_FILTER', { system, user });
-const events = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
-
-// Streaming (Rideshare Coach only — provider must support it)
-const stream = await callModelStream('AI_COACH', { system, messageHistory });
-```
-
-**Legacy Role Mapping (deprecated, still functional):**
-| Legacy Name | Maps To |
-|-------------|---------|
-| `strategist` | `STRATEGY_CORE` |
-| `briefer` | `STRATEGY_CONTEXT` |
-| `consolidator` | `STRATEGY_TACTICAL` |
-| `venue_planner` | `VENUE_SCORER` |
-| `venue_filter` | `VENUE_FILTER` |
-| `haiku` | `VENUE_FILTER` |
-| `coach` | `AI_COACH` |
-| `COACH_CHAT` | `AI_COACH` |
-
-**Key Principles:**
-1. Role names indicate **output destination** (table) + **function**
-2. Code references **ROLES**, never model names
-3. Model assignments are **configuration** (env vars in `model-registry.js`)
-4. Adapters folder is the only place provider-specific model IDs appear
-5. Any role can be pointed at any compatible provider via its env var override
-6. Legacy role names are supported but deprecated
-
-**API Key Requirements:**
-
-| Env Var | Provider | Required |
-|---------|----------|----------|
-| `ANTHROPIC_API_KEY` | Anthropic | Yes (strategy roles) |
-| `OPENAI_API_KEY` | OpenAI | Yes (venue/tactical roles) |
-| `GEMINI_API_KEY` | Google | Yes (briefing/coach roles) |
-| `PERPLEXITY_API_KEY` | Perplexity | Optional (event research) |
-
-**Codebase Files:**
-- `server/lib/ai/model-registry.js` - Canonical role definitions, defaults, parameter quirks
-- `server/lib/ai/adapters/index.js` - Role dispatcher with HedgedRouter fallback
-- `server/config/env-registry.js` - Centralized env var definitions
-
----
-
-### Model Registry
-**What it is:** Centralized configuration for all AI model interactions — the single source of truth.
-
-**Codebase Files:**
-- `server/lib/ai/model-registry.js` — Role definitions, model defaults, env overrides, quirks
-
-**Documentation:**
-- `docs/preflight/ai-models.md` — Human-readable model landscape and parameter constraints
-
-**Removed (2026-02-26):** MODEL.md (sync burden). `server/lib/ai/models-dictionary.js` remains in-tree but has zero imports (superseded by model-registry.js); `tools/research/` still holds archived model-research snapshots.
-
----
-
-## 📡 APIs & Services
-
-### Google Places API
-**What it is:** Venue enrichment service providing business details, hours, and coordinates.
-
-**Codebase Files:**
-- `server/lib/venue/venue-enrichment.js` - Main enrichment logic
-
-**Environment Variables:**
-- `GOOGLE_PLACES_API_KEY` - API key
-
-**Database Tables:**
-- `places_cache` - Cached API responses
-
----
-
-### Google Routes API
-**What it is:** Real-time distance and drive time calculation service.
-
-**Codebase Files:**
-- `server/lib/external/routes-api.js` - API client
-
-**Features:**
-- Traffic-aware routing
-- Multiple route alternatives
-- Polyline encoding
-
----
-
-### Google Geocoding API
-**What it is:** Address resolution and reverse geocoding service.
-
-**Codebase Files:**
-- `server/lib/location/geocode.js` - Main implementation
-- `server/api/location/location.js` - HTTP endpoints (mounted under /api/location)
-
-**API Endpoints:**
-- `/api/location/geocode/reverse` - Coordinates → address
-- `/api/location/geocode/forward` - Address → coordinates
-
----
-
-### Weather & Air Quality APIs
-**What it is:** Environmental data providers (OpenWeatherMap, Google Air Quality).
-
-**Codebase Files:**
-- `server/api/location/location.js` - Location/weather/air quality resolver
-- `client/src/contexts/location-context-clean.tsx` - Client-side location context
-
-**API Endpoints:**
-- `/api/location/resolve` - Unified location/weather/air quality
-
----
-
-## 🏢 Venue Identity System
-
-### Core Identity Fields
-
-| Field | Format | Example | Description |
-|-------|--------|---------|-------------|
-| `place_id` | Google Place ID | `ChIJfTlLXrk8TIYRi7jESAUBky8` | Authoritative Google identifier |
-| `coord_key` | 6-decimal lat_lng | `33.090780_-96.821596` | Precise coordinate key for cache |
-| `normalized_name` | Lowercase, stripped | `ifly indoor skydiving frisco` | Deduplication key |
-| `venue_id` | UUID | `5a51a3c4-a97c-49de-9b62...` | Internal primary key |
-
-### Place ID Types
-
-| Prefix | Type | Trust Level | Use for API? |
-|--------|------|-------------|--------------|
-| `ChIJ...` | Valid Google Place ID | HIGH | ✅ YES |
-| `Ei...` | Synthetic Address ID | NONE | ❌ NEVER |
-| `null` | Missing | UNKNOWN | Needs resolution |
-
-**CRITICAL:** Ei* IDs are Base64-encoded addresses, NOT database references. They often point to wrong locations (e.g., highway segments instead of businesses).
-
-### Canonical Modules
-
-| Module | Purpose | Status |
-|--------|---------|--------|
-| `server/lib/venue/venue-address-resolver.js` | Authoritative place resolution | ✅ CORRECT |
-| `server/lib/venue/venue-cache.js` | Venue CRUD operations | ⚠️ Uses fuzzy matching |
-| `server/lib/venue/venue-enrichment.js` | Places API caching | ✅ Keys places_cache by coords_key (D-013 fixed 2026-01-10) |
-| `server/scripts/sync-events.mjs` | Event ETL pipeline | ✅ Captures place_id (audit fix 2026-01-10) |
-
-### Resolution Priority
-
-1. **place_id exact match** (most reliable)
-2. **coord_key exact match** (6-decimal precision = ~11cm)
-3. **normalized_name + city + state** (last resort)
-
-**Standard:** "venue identification should be place_id-first (not name similarity)"
-
-### Related Documentation
-
-- `docs/AUDIT_LEDGER.md` - Current pipeline issues
-- `docs/DOC_DISCREPANCIES.md` - doc/code discrepancy ledger (D-013 places_cache resolved 2026-01-10)
-
----
-
-### FAA ASWS (Aviation System Status)
-**What it is:** Airport delay and disruption data service.
-
-**Codebase Files:**
-- `server/lib/external/faa-asws.js` - API client (Ground_Stop_List parsing)
-- `server/lib/briefing/pipelines/airport.js` - Briefing airport pipeline consumer
-- `server/api/location/location.js` - travel_disruptions cache writer
-
-**Database Tables:**
-- `travel_disruptions` - Airport status cache
-
----
-
-### Perplexity Research API
-**What it is:** AI-powered research engine for event discovery.
-
-**Codebase Files:**
-- `server/lib/external/perplexity-api.js` - Perplexity search client (searchPerplexity)
-
-**Environment Variables:**
-- `PERPLEXITY_API_KEY` - API key
-
----
-
-### Venue Intelligence API
-**What it is:** Event-aware venue recommendation system.
-
-**Codebase Files:**
-- `server/lib/venue/venue-intelligence.js` - Intelligence engine
-- `server/lib/venue/venue-event-verifier.js` - Event validation
-- `server/api/venue/venue-intelligence.js` - HTTP endpoints
-
-**API Endpoints** (router mounted at `/api/venues` via `server/bootstrap/routes.js`): `GET /api/venues/nearby`, `GET /api/venues/traffic`, `GET /api/venues/smart-blocks`, `GET /api/venues/last-call`. There is no `/intelligence` route, and `/api/venues/events` is gone — venue-events.js was unmounted 2026-02-17 and is dead code.
-
----
-
-## 🏗️ Architecture Components
-
-### Gateway Server
-**What it is:** Main HTTP server routing requests to SDK/Agent services.
-
-**Codebase Files:**
-- `gateway-server.js` - Main entry point
-- `server/middleware/*` - Request middleware
-- `server/api/health/health.js` - Health endpoints
-
-**Port:** 5000 (default)
-
-**Modes:**
-- `mono` - All services in one process
-- `split` - Separate SDK/Agent processes
-
-**Environment Variables:**
-- `APP_MODE` (default: 'mono')
-- `DISABLE_SPAWN_AGENT` - Prevent Agent auto-spawn
-
----
-
-### SDK Server (Embedded)
-**What it is:** Business logic and data services layer.
-
-**Codebase Files:**
-- `sdk-embed.js` - Express router factory
-- `server/api/*` - API route handlers (domain-organized)
-
-**API Prefix:** `/api` (default)
-
-**Key Routes (by domain):**
-- `/api/blocks-fast` - Smart blocks generation
-- `/api/briefing/*` - Events, traffic, news
-- `/api/auth/*` - Authentication
-- `/api/location/*` - Location resolution
-
----
-
-### Strategy Generator (Background Worker)
-**What it is:** Asynchronous AI pipeline processor.
-
-**Codebase Files:**
-- `strategy-generator.js` - Worker entry point
-- `server/jobs/triad-worker.js` - LISTEN-only worker logic (startConsolidationListener)
-
-**Process Management:**
-- Spawned by Gateway in mono mode
-- Listens for `strategy_ready` database notifications (emits `blocks_ready` when SmartBlocks are written)
-- Auto-restarts on failure
-
----
-
-### Database Connection Pool
-**What it is:** Shared PostgreSQL connection manager.
-
-**Codebase Files:**
-- `server/db/pool.js` - Shared pool instance
-- `server/db/connection-manager.js` - Health monitoring
-
-**Environment Variables:**
-- `DATABASE_URL` - The only DB selector (dev vs prod is decided by its value, never by separate env vars)
-
-**Tables:** See `scripts/create-all-tables.sql`
-
----
-
-## 📊 Data Pipeline
-
-### SmartBlocks (Strategy Venue Recommendations)
-**What it is:** The venue cards displayed on the Strategy page — specific tactical venue recommendations generated by the VENUE_SCORER role during the strategy pipeline. These are the primary "where to go RIGHT NOW" outputs that drivers see.
-
-**⚠️ Common confusion:** The codebase file `enhanced-smart-blocks.js` generates these. Despite the name overlap, SmartBlocks are **venue recommendations**, not raw intelligence data.
-
-**Pipeline (how SmartBlocks are generated):**
-1. VENUE_SCORER role generates 4-6 venue names + coordinates from strategy context
-2. Google Routes API calculates distances and drive times
-3. Google Places API enriches with addresses, business hours, open/closed status
-4. Events from `discovered_events` DB are matched to venues
-5. Results stored in `ranking_candidates` table, displayed as venue cards in UI
-
-**⚠️ SmartBlocks are AI-generated, NOT pulled from `venue_catalog`.** The AI model behind the VENUE_SCORER role uses its training knowledge to recommend venues for the driver's current location. The `venue_catalog` is only used by the separate Bar Tab/nightlife feature.
-
-**Codebase Files:**
-- `server/lib/venue/enhanced-smart-blocks.js` - Venue generation engine (orchestrates pipeline)
-- `server/lib/strategy/tactical-planner.js` - VENUE_SCORER AI prompt + response parsing
-- `server/lib/venue/venue-enrichment.js` - Google Places/Routes API enrichment
-- `server/api/strategy/blocks-fast.js` - HTTP endpoint (pipeline trigger)
-- `client/src/components/SmartBlocksStatus.tsx` - Pipeline status UI
-- `client/src/pages/co-pilot/StrategyPage.tsx` - Strategy page venue card display
-
-**Database Tables:**
-- `ranking_candidates` - Scored venue recommendations linked to a strategy/snapshot
-- `rankings` - Parent record for a set of venue candidates
-
-**API Endpoints:**
-- `POST /api/blocks-fast` - Trigger venue recommendation generation
-- `GET /api/blocks-fast?snapshot_id=<id>` - Fetch generated venue results
-
----
-
-### Briefing Blocks (Intelligence Inputs)
-**What it is:** Modular units of contextual market data (Traffic, Events, Weather, News) gathered during the briefing pipeline. These are **inputs** to the strategy generation process, NOT displayed as venue cards.
-
-**Codebase Files:**
-- `server/api/strategy/content-blocks.js` - Block generation (mounted at /api/blocks)
-
-**What Briefing Blocks ARE:**
-- Traffic intelligence blocks
-- Event discovery blocks
-- Weather condition blocks
-- News/disruption blocks
-
----
-
-### Venue Candidates (Bar Tab / Nightlife)
-**What it is:** Upscale bars and nightlife venues discovered via Google Places API for the "Lounges & Bars" tab. These are a **separate system** from SmartBlocks — they use a cache-first pattern backed by the `venue_catalog` table.
-
-**⚠️ NOT the same as SmartBlocks.** SmartBlocks = strategy venue recommendations (AI-generated). Venue Candidates = nightlife discovery (Google Places API + venue_catalog cache).
-
-**Codebase Files:**
-- `server/lib/venue/venue-intelligence.js` - Discovery engine (Google Places API + cache)
-- `server/lib/venue/venue-cache.js` - venue_catalog CRUD and cache lookup
-- `client/src/components/BarsMainTab.tsx` - "Lounges & Bars" driver UI
-- `client/src/hooks/useBarsQuery.ts` - Client-side data fetching
-
-**Database Tables:**
-- `venue_catalog` - Persistent library of all known nightlife venues (cache-first pattern)
-
-**Key Distinction:**
-| Term | Source | UI Location | Example |
-|------|--------|-------------|---------|
-| SmartBlock | VENUE_SCORER role (AI-generated) | Strategy page venue cards | "Legacy West - position at north entrance for pickup surge" |
-| Briefing Block | Briefing pipeline | Intelligence feed | "Traffic is heavy on I-35" |
-| Venue Candidate | Google Places API + venue_catalog | Lounges & Bars tab | "Concrete Cowboy bar, $$$, 4.7★, Open" |
-
-**API Endpoints:**
-- `GET /api/venues/nearby` - Discover nearby nightlife venues
-
----
-
-### Strategy Pipeline (Multi-Stage)
-**What it is:** Multi-provider AI pipeline for strategic analysis. Models are role-based and swappable — do NOT assume a specific provider for any stage.
-
-**Stages (by role, not by model):**
-1. **STRATEGY_CORE** - Strategic overview and plan generation
-2. **VENUE_SCORER** - Tactical venue recommendations (JSON schema with coords)
-3. **STRATEGY_CONTEXT** - Real-time context enrichment and validation
-4. **STRATEGY_TACTICAL** - Immediate 1-hour actionable strategy
-
-**Codebase Files:**
-- `server/lib/ai/providers/consolidator.js` - STRATEGY_TACTICAL runs directly from snapshot + briefing (no separate STRATEGY_CORE stage)
-- `server/lib/strategy/tactical-planner.js` - VENUE_SCORER role implementation
-- `server/lib/venue/enhanced-smart-blocks.js` - SmartBlocks orchestrator (calls VENUE_SCORER + Google APIs)
-- `server/lib/strategy/strategy-generator.js` - Pipeline orchestrator
-
-**Documentation:**
-- `ARCHITECTURE.md` - Pipeline architecture (sections 1-9)
-
----
-
-### Event Research Pipeline
-**What it is:** Perplexity-powered event discovery and verification.
-
-**Codebase Files:**
-- `server/lib/venue/venue-event-verifier.js` - Verification logic
-
-**Database Tables:**
-- `venue_events` - Discovered events
-
----
-
-## 🔐 Security & Authentication
-
-### JWT (JSON Web Tokens)
-**What it is:** User authentication token system.
-
-**Codebase Files:**
-- `server/lib/jwt.js` - Token generation/validation
-- `server/middleware/auth.js` - Auth middleware
-- `scripts/make-jwks.mjs` - JWKS generation
-- `scripts/sign-token.mjs` - Token signing utility
-
-**Environment Variables:**
-- `JWT_SECRET` - Token signing secret (required)
-
-**Public Key:**
-- `public/.well-known/jwks.json` - JSON Web Key Set
-
----
-
-### RLS (Row Level Security)
-**What it is:** Database-level user data isolation.
-
-**Codebase Files:**
-- `server/db/rls-middleware.js` - RLS enforcement
-- `migrations/003_rls_security.sql` - RLS policies
-
-**Helper Functions:**
-- `app.current_user_id()` - Extract user ID from JWT session setting
-
----
-
-## 📍 Location & GPS
-
-### Location Context
-**What it is:** Unified GPS, weather, and air quality state manager.
-
-**Codebase Files:**
-- `client/src/contexts/location-context-clean.tsx` - React context
-
-**Features:**
-- Browser Geolocation API
-- Google Geolocation API fallback
-- Debouncing and caching
-- GPS refresh management
-
----
-
-## 📚 Documentation Files
-
-- `ARCHITECTURE.md` - System architecture and AI pipeline
-- `docs/preflight/ai-models.md` - AI model reference and parameter constraints
-- `LEXICON.md` - This file (terminology reference)
-- `replit.md` - Replit-specific documentation
-
----
-
-## 🛠️ Development Tools
-
-### Scripts
-- `scripts/seed-dev.js` - Database seeding
-
-### Research Tools
-- `tools/research/` - Archived model-research snapshots (JSON + parse scripts)
-
----
-
-**Version:** 1.4.0
-**Last Updated:** March 28, 2026
-**Maintainer:** Vecto Pilot Development Team (Melody Dashora, architect)
-
----
-
-## 📝 Lexicon Update Protocol
-
-When you notice terminology confusion, use this command:
-
-```
-Lexicon Update: [Term] should be [Correct Definition]
-```
-
-Example: `Lexicon Update: Bar venues should be called "Venue Candidates" not "Smart Blocks"`
-
-The AI will:
-1. Open LEXICON.md
-2. Apply the correction
-3. Re-read the file to update its understanding
+# VectoPilot lexicon
+
+Updated October 4, 2026 by Codex/Astra. Melody explicitly requested one lexicon
+after correcting the feature name to **Offer Analyzer**. That naming decision
+governs current product labels, documentation and agent communication. The
+remaining definitions below describe the reviewed source; they do not assert
+deployment or completion of proposed features.
+
+This retains the existing root `LEXICON.md` entry point. Its older definitions
+are recoverable from the reviewed base commit and the external cleanup archive.
+Contradictory MAIN stage order, model-environment overrides, invented GPS accuracy
+and a Coach-as-MAIN definition have been retired.
+
+Use this document for meanings and the linked implementation for exact contracts.
+Keep one definition here and link to it from guides. When behavior or an accepted
+term changes, update its definition and consumers in the same change. Preserve
+historical evidence as dated history rather than rewriting past receipts.
+
+## Feature names and pipeline roles
+
+| Term | Meaning and use | Implementation or current guide |
+|---|---|---|
+| **Offer Analyzer** | The feature that reads a captured offer, applies the driver's rules, returns a decision and supports tracking offers and outcomes. Use the full name for the feature; retire `Offer`, `Offers`, `Analyzer`, and `Offer Intelligence` as standalone feature names. | [Feature contract](docs/architecture/OFFER_ANALYZER.md), [page](client/src/pages/co-pilot/OfferAnalyzerPage.tsx), `/api/offer-analyzer` |
+| **offer / offers** | One observed work opportunity / the opportunities being analyzed and tracked. Appropriate in record labels such as “Today's offers,” counts, filters and identifiers. These nouns do not name the whole feature. | `offer_intelligence` records; [schema](shared/schema.js) |
+| **MAIN** | The prepared-context and explicitly admitted Strategy pipeline. GPS/snapshot and Briefing preparation precede Strategy admission. | [Ordered trace](docs/architecture/ai-pipeline.md) |
+| **snapshot** | A saved point-in-time context with owned GPS evidence and environmental observations. Retain original times, accuracy and source identity. | [Snapshot contract](docs/architecture/SNAPSHOT.md), [writer](server/lib/location/main-run-snapshot.js) |
+| **Briefing** | Saved contextual intelligence required by MAIN. Required sections must be complete and tied to the current generation before Strategy can use them. | [MAIN trace](docs/architecture/ai-pipeline.md), [Briefing aggregator](server/lib/briefing/briefing-aggregator.js) |
+| **Strategy** | The saved guidance/result for an explicitly admitted MAIN run, distinct from the role generating it. | [Strategy guide](docs/architecture/ai-pipeline.md), `strategies` |
+| **Strategist** | The role that generates Strategy from the admitted context and complete Briefing. The active role key is `STRATEGY_TACTICAL`; a provider model name is not the role name. | [Role registry](server/lib/ai/model-registry.js), [MAIN trace](docs/architecture/ai-pipeline.md) |
+| **VenuePlanner** | The planning stage using Strategy and verified context to produce candidate venues; role key `VENUE_SCORER`. Verified Places identities and measured Routes remain distinct from model suggestions. | [Venue contract](docs/architecture/VENUES.md) |
+| **ranking / ranking candidate** | A persisted recommendation set / an individual venue candidate within it. A completed notification refers readers to saved state. | `rankings`, `ranking_candidates`; [venue contract](docs/architecture/VENUES.md) |
+| **Smart Blocks** | The Strategy page's venue recommendations. Candidates need verified identity and measured route evidence before publication; a suggested venue name or model coordinate alone is insufficient. | [Venue contract](docs/architecture/VENUES.md), [generation](server/lib/venue/enhanced-smart-blocks.js) |
+| **Coach** | The independent assistant using owned saved context, conversation and longitudinal evidence. Saved Offer Analyzer patterns inform it; it does not issue a fresh live Offer Analyzer decision. | [Coach contract](docs/architecture/RIDESHARE_COACH.md) |
+| **Bars/Lounges** | Independent nearby venue discovery, sharing verified venue data with other consumers. | [Venue contract](docs/architecture/VENUES.md), [query](client/src/hooks/useBarsQuery.ts) |
+| **Public Concierge** | Public token/GPS-driven venue and event assistance with its own request lifecycle. | [Independent pipelines](docs/architecture/INDEPENDENT_PIPELINES.md), [route](server/api/concierge/concierge.js) |
+| **Translation / Welcome** | Separate assistance entry points with their own contracts and provider results. | [Independent pipelines](docs/architecture/INDEPENDENT_PIPELINES.md) |
+
+## Offer Analyzer decisions and evidence
+
+| Term | Exact meaning | Existing representation |
+|---|---|---|
+| **Offer Analyzer decision** | The original Phase 1 decision returned to the driver. | `offer_intelligence.decision`: `ACCEPT`, `REJECT`, `NO DATA`; historical `UNKNOWN` rows can exist. |
+| **Phase 1** | Synchronous normalization, extraction, rules/adjudication and spoken response. | [Hook](server/api/hooks/analyze-offer.js), [adjudication](server/lib/offers/phase1-decision.js) |
+| **Phase 2** | Later enrichment and storage. It preserves the original Phase 1 decision while recording deep-model dissent separately. Current execution is process-local after the response. | `offer_intelligence.parsed_data_json.deep_decision` and original decision provenance; [feature contract](docs/architecture/OFFER_ANALYZER.md) |
+| **driver override** | Immediate driver disagreement with the Offer Analyzer decision. It does not prove a completed trip. | `offer_intelligence.user_override`: `ACCEPT` / `REJECT`. |
+| **driver outcome** | The separately reported driver action and optional earnings, saved with revision checks. | `offer_outcomes.driver_decision`: `Accepted`, `Rejected`, `Cancelled`, `Completed`, `Other` or unknown/null. |
+| **offered pay** | Pay displayed for the observed offer. | Existing `price` field, stored in dollars; not realized income. |
+| **reported earnings** | Explicitly entered outcome money components. A generated zero with every component null is still unreported. | `actual_pay`, `reimbursements`, `extras`, `other`; database-generated `total_earned`. |
+| **platform** | The observed provider identity. | Current normalized analysis: `uber`, `lyft`, `unknown`. Preserve missing evidence. |
+| **product** | A provider's displayed work/service label. | `product_type`; canonicalization in [driver services](shared/driver-services.js). |
+| **selected service** | Work the driver explicitly chose to receive/evaluate. | `selected_services`; the shared service IDs differ from provider product labels. |
+| **vehicle eligibility** | Work the vehicle can support. It does not establish the driver's selections. | [Preferences](docs/architecture/USER_PREFERENCES.md), [driver services](shared/driver-services.js). |
+| **ruleset / rule tier** | Saved analysis policy / an economic evaluation group within that policy. Product identity, selected service and rule tier are related but separate. | [Ruleset store](server/lib/offers/ruleset-store.js), [rules engine](server/lib/offers/rules-engine.js). |
+| **pickup leg / ride leg** | Travel to pickup / travel for the offered trip. Their estimates remain separate; complete totals include both. | `pickup_miles`, `pickup_minutes`, `ride_miles`, `ride_minutes`; current totals use miles/minutes. |
+| **driver location / pickup / dropoff** | Where the driver was observed / offered pickup location / offered destination. | Distinct driver/pickup/dropoff fields in [schema](shared/schema.js). |
+| **capture / analysis / outcome** | The source observation / the feature's interpretation / the driver's separately recorded action. | Capture input, `offer_intelligence`, `offer_outcomes`; neither disappearance nor notification removal establishes an outcome. |
+
+`ACCEPT (FALLBACK)` is display wording, not a fourth decision enum. “Accepted” in
+a driver outcome and `ACCEPT` in an Offer Analyzer decision are different facts. An
+analysis error or missing data must remain distinguishable from a rejection.
+
+## Identity, lifecycle and verification
+
+| Term | Meaning |
+|---|---|
+| **account owner** | The user established by authentication or resolved shortcut token. A self-reported device ID does not authenticate a user. |
+| **capture ID** | The GPS observation request identity used to control capture publication. |
+| **MAIN admission / run ID** | The explicit Strategy intent and its pinned settings/source receipt, stored in `main_run_admissions`. |
+| **generation** | A particular Briefing/source version. Matching a snapshot alone does not establish a matching generation. |
+| **revision** | A record version used for optimistic edits or removal checks. It is not interchangeable with an observation timestamp. |
+| **idempotency / duplicate delivery** | Replaying the same operation without a second effect. This differs from deciding whether similar observations represent one real-world offer. |
+| **SSE / notification** | A signal telling a consumer to read current saved state. Receipt of the signal does not itself prove pipeline completion. |
+| **schema mirror** | `shared/schema.js`, the declared ORM shape. Applied SQL, the actual catalog and the mirror must be compared; one alone does not prove all environments match. |
+| **migration ledger** | Recorded migration filenames/checksums. A `baseline=true` row means recorded without execution; it does not prove reference-data effects. |
+| **implemented / tested / deployed** | A source change exists / specified checks actually passed / the identified running release contains it. Record these as separate statuses. |
+| **unknown / zero / empty** | Missing evidence / a measured or explicitly reported numeric zero / a collection with no returned records. Do not substitute one for another. |
+
+## Shared infrastructure terms
+
+| Term | Meaning and source |
+|---|---|
+| **venue catalog** | Shared persisted place identity/evidence used by multiple pipelines; not an exclusive synonym for Bars/Lounges. See [venue contracts](docs/architecture/VENUES.md). |
+| **place ID / venue ID / coordinate key** | Provider place identity / internal database identity / a coordinate lookup key. These serve different purposes; six-decimal formatting does not measure GPS accuracy. See [location](docs/architecture/LOCATION.md) and [venues](docs/architecture/VENUES.md). |
+| **discovered event** | An observed event with venue/date/time/source evidence. It differs from a work offer and from an internal message/event callback. See [event pipeline](server/lib/events/pipeline/README.md). |
+| **role / model / adapter** | A task responsibility / a configured provider model / the code implementing its call contract. See [registry](server/lib/ai/model-registry.js) and [adapters](server/lib/ai/adapters/index.js). |
+| **Gateway** | The application HTTP entry and startup lifecycle in [gateway-server.js](gateway-server.js). Startup includes database migrations. |
+| **Agent / Eidolon** | Existing development/workspace integration names. These do not name Coach, Offer Analyzer or a phone permission level. Consult their actual entry points and access checks before using capabilities. |
+| **MCP** | The tool protocol used by [mcp-server.js](mcp-server.js), including project continuity tools. A successful tool read retrieves particular saved records; it does not transfer another chat's entire memory. |
+| **JWT / RLS** | An authentication token format / PostgreSQL row-level security. These are different layers. Their definitions do not establish that every current route or table is protected; consult [authentication](docs/architecture/AUTH.md) and [security](docs/architecture/SECURITY.md). |
+| **Google Places / Routes / FAA ASWS** | Place evidence / measured route information / aviation disruption observations. A successful response from one does not substitute for missing evidence from another. See [venues](docs/architecture/VENUES.md) and [FAA client](server/lib/external/faa-asws.js). |
+
+## Names by surface
+
+| Surface | Convention and boundary |
+|---|---|
+| UI feature labels, current prose, agent reports | `Offer Analyzer` in full. `offers` remains valid for tracked records. |
+| Database | Preserve existing table and column identifiers such as `offer_intelligence`, `offer_outcomes`, `driver_decision`. Renaming a feature label does not migrate stored data. |
+| Routes and hooks | `/api/offer-analyzer` names the feature API; `/api/hooks/analyze-offer` names the action; child `/offers` routes name record collections. Keep deployed contracts compatible. |
+| Modules and functions | `OfferAnalyzerPage` names the feature page; `parseOfferText`, `offer-patterns` and record-oriented `offers/` paths describe their data/action. Semantic use determines correctness. |
+| Model calls | Role keys such as `OFFER_ANALYZER`, `STRATEGY_TACTICAL`, `VENUE_SCORER` identify responsibilities. Resolve provider/model settings through the registry. |
+| Legacy names | Retain exact historical identifiers where compatibility or evidence requires them; explain their meaning rather than silently assigning them a new one. |
+
+The proposed automatic collection event contract uses integer minor currency
+units, meters and seconds. Those proposed units are **not** the current stored
+Offer Analyzer dollar/mile/minute fields. Its durable outbox, notification
+adapter and area-coverage metrics remain separate implementation work; naming
+them here does not mean they are running.
+
+For actual checks and open acceptance work, use the
+[current readiness map](docs/architecture/audits/PIPELINE_READINESS_2026-10-04.md). Older naming and
+standards documents may describe historical intent or unverified enforcement;
+the current user correction and verified source take precedence.

@@ -19,8 +19,8 @@ export function createAndroidLauncher(origin: string): string {
       // IDs are omitted intentionally: the importer assigns new IDs, preserving
       // existing shortcuts. No account token or driver identity is exported.
       shortcuts: [{
-        name: 'Vecto Offer',
-        description: 'Open Vecto, choose a current offer screenshot, and hear the verified decision.',
+        name: 'Offer Analyzer',
+        description: 'Open Offer Analyzer, choose a current offer screenshot, and hear the verified decision.',
         executionType: 'browser',
         url: `${deployment.origin}/co-pilot/analyze`,
         launcherShortcut: true,

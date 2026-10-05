@@ -8,7 +8,7 @@
     "build:client": "vite build",
     "start": "node gateway-server.js",
     "dev": "APP_RUNTIME=workspace node gateway-server.js",
-    "db:push": "drizzle-kit generate && drizzle-kit push",
+    "db:push": "node -e \"console.error('db:push is disabled: direct schema push bypasses versioned migrations. Review migrations/ and use npm run db:migrate only against an explicitly prepared database.'); process.exit(1)\"",
     "db:migrate": "node -e \"import('./server/db/run-migrations.js').then(m => m.runMigrations()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
     "pull-coach-memos": "node scripts/pull-coach-memos.mjs",
     "build": "vite build",
@@ -19,8 +19,12 @@
     "agent": "node agent-server.js",
     "mcp": "node mcp-server.js",
     "mcp:stdio": "node mcp-server.js --stdio",
-    "test": "npm run test:unit && npm run test:client && npm run test:client:harness && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:node && npm run test:offers:api && npm run test:feedback:api && npm run test:client && npm run test:client:harness && npm run test:startup && npm run test:e2e",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest tests/ --verbose",
+    "test:node": "node --test tests/briefing/*.node.test.mjs",
+    "test:offers:api": "NODE_OPTIONS='--experimental-vm-modules' jest -c tests/offers/jest.api.config.cjs --runInBand",
+    "test:feedback:api": "NODE_OPTIONS='--experimental-vm-modules' jest -c tests/feedback/jest.api.config.cjs --runInBand",
+    "test:startup": "python3 -m unittest discover -s tests/startup -p 'test_*.py' -v",
     "test:client": "NODE_OPTIONS='--experimental-vm-modules' jest -c jest.client.config.js",
     "test:e2e": "playwright test tests/e2e/copilot.spec.ts",
     "test:seed": "node scripts/seed-dev.js && npm run test:unit",
@@ -28,7 +32,8 @@
     "guard:json": "node scripts/check-json.mjs",
     "guard:deps": "npm ls --all --omit=dev > /dev/null",
     "guard:js": "npm run lint",
-    "check:ts": "npm run typecheck || true",
+    "check:ts": "npm run typecheck",
+    "verify": "npm run guard:json && npm run lint && npm run typecheck && npm run test:unit -- --runInBand && npm run test:node && npm run test:offers:api && npm run test:feedback:api && npm run test:client -- --runInBand && npm run test:client:harness && npm run test:startup && NODE_ENV=production npm run build:client",
     "build:dev": "npm run build:client",
     "build:deploy": "npm run guard && npm run build:client",
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
@@ -37,7 +42,7 @@
     "guard:models": "node scripts/check-model-pins.mjs",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.integration.config.js --runInBand",
     "check:schema": "node scripts/check-schema.mjs",
-    "test:client:harness": "jest -c tests/offers/jest.ui.config.cjs && jest -c tests/feedback/jest.ui.config.cjs && jest -c tests/settings/jest.settings.config.cjs && jest -c tests/briefing/jest.airport-ui.config.cjs"
+    "test:client:harness": "jest -c tests/offers/jest.ui.config.cjs --runInBand && jest -c tests/feedback/jest.ui.config.cjs --runInBand && jest -c tests/settings/jest.settings.config.cjs --runInBand && jest -c tests/briefing/jest.airport-ui.config.cjs --runInBand"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
@@ -141,7 +146,7 @@
     "zod": "^4.1.12"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
   },
   "keywords": [
     "ai",

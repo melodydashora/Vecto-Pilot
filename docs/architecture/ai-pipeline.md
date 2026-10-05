@@ -42,7 +42,7 @@ SSE wakes readers to fetch saved state; receiving an event never proves that thi
 - [main-runs.js](../../server/api/strategy/main-runs.js) exposes setup and explicit Continue. When Strategy starts, [main-run-admission.js](../../server/lib/main-run-admission.js) locks the current driver/session, reads canonical profile, one active primary vehicle and a valid ruleset, and verifies expected settings revision, rules version/hash, current run, prepared snapshot and request identity.
 - The admitted row pins relevant profile/service/vehicle fields and effective rules into `main_run_admissions.configuration`, plus the prepared snapshot/Briefing source receipt; `users.current_main_run_id` selects the active intent. Repeated request identities replay their original receipt; changed settings, source identity or a different current run conflict. A canceled client request cannot make a late response the current client run.
 - If an admission response is lost, its retry keeps the original request ID and complete expected-revision/run/snapshot body, even when canonical readback reveals the admitted snapshot clone. An edit or changed configuration/source abandons that retry; success consumes it so a later explicit Refresh creates a new intent. A replay with `current:false` reopens the held review instead of installing the old run.
-- The pinned rules establish setup identity. [driver-preferences.js](../../server/lib/driver-preferences.js) projects only the authorized MAIN profile/vehicle context to Strategist/planner. It does not expose Analyzer offer history, live verdicts, or introduce home-radius policy. Null selected services remain service-neutral; eligibility is not selection.
+- The pinned rules establish setup identity. [driver-preferences.js](../../server/lib/driver-preferences.js) projects only the authorized MAIN profile/vehicle context to Strategist/planner. It does not expose Offer Analyzer offer history, live verdicts, or introduce home-radius policy. Null selected services remain service-neutral; eligibility is not selection.
 
 The additive [MAIN admission migration](../../migrations/20260929_main_run_admissions.sql) is required by these sources. A source/test pass does not mean it has been applied to the supplied database.
 
@@ -102,7 +102,7 @@ The ignored `sent-to-strategist.txt` artifact is a snapshot-scoped saved-row dia
 
 The [venue trace](VENUES.md) covers [tactical-planner.js](../../server/lib/strategy/tactical-planner.js), [enhanced-smart-blocks.js](../../server/lib/venue/enhanced-smart-blocks.js), Places resolution, Routes, event evidence, persistence and display in detail.
 
-The planner receives saved Strategy, filtered Briefing and admitted driver context. An already verified Google place keeps that identity during enrichment; saved recommendations do not run another paid address lookup. Unknown/closed/unidentified/out-of-radius candidates and failed route cells cannot become zero-minute recommendations. The established recommendation radius remains 15 miles; no Analyzer-driven home radius or avoidance policy was added here.
+The planner receives saved Strategy, filtered Briefing and admitted driver context. An already verified Google place keeps that identity during enrichment; saved recommendations do not run another paid address lookup. Unknown/closed/unidentified/out-of-radius candidates and failed route cells cannot become zero-minute recommendations. The established recommendation radius remains 15 miles; no Offer Analyzer-driven home radius or avoidance policy was added here.
 
 Rankings and candidates publish only under the current source/admission checks. [strategy-utils.js](../../server/lib/strategy/strategy-utils.js) sends one `blocks_ready` notification from the atomic completion transaction. Saved GETs revalidate source identity. Missing ranking after a purported generation completes is a terminal failure, not perpetual pending.
 
@@ -110,7 +110,7 @@ The unrendered legacy `/api/strategy/tactical-plan` generator is retired with 41
 
 ### 6. Saved context → Coach
 
-[RIDESHARE_COACH.md](RIDESHARE_COACH.md) is the canonical source trace for text, current context, voice, TTS, actions, saved conversation and memo export. Coach is an independent request pipeline that reads owned saved evidence. It does not start MAIN. It can see eligible saved Analyzer context with freshness/ownership limits; that is not authority to recompute or announce a live offer verdict.
+[RIDESHARE_COACH.md](RIDESHARE_COACH.md) is the canonical source trace for text, current context, voice, TTS, actions, saved conversation and memo export. Coach is an independent request pipeline that reads owned saved evidence. It does not start MAIN. It can see eligible saved Offer Analyzer context with freshness/ownership limits; that is not authority to recompute or announce a live offer verdict.
 
 Recent session history uses each saved snapshot's own timezone and observation instant, including an explicit GMT offset and UTC receipt to distinguish repeated DST wall times. Missing/invalid zones remain unknown; invalid or zoneless timestamps do not acquire the current driver's or server's timezone and do not discard valid neighboring history.
 
@@ -118,7 +118,7 @@ Recent session history uses each saved snapshot's own timezone and observation i
 
 | Path | Active entry and relationship to MAIN |
 |---|---|
-| Offer Analyzer | [Analyzer API](../../server/api/offer-analyzer/index.js), [shortcut hook](../../server/api/hooks/analyze-offer.js), OCR/parse/rules/decision/speech chain; [full trace](OFFER_ANALYZER.md). Its rules are saved setup data; offer decisions remain separate from MAIN. |
+| Offer Analyzer | [Offer Analyzer API](../../server/api/offer-analyzer/index.js), [shortcut hook](../../server/api/hooks/analyze-offer.js), OCR/parse/rules/decision/speech chain; [full trace](OFFER_ANALYZER.md). Its rules are saved setup data; offer decisions remain separate from MAIN. |
 | Bars/Lounges | [nearby venues](../../server/api/venue/venue-intelligence.js) and [venue intelligence](../../server/lib/venue/venue-intelligence.js), consumed through [useBarsQuery.ts](../../client/src/hooks/useBarsQuery.ts). Independent discovery, shared verified place catalog; no MAIN completion claim. See [venues](VENUES.md). |
 | Public Concierge | [public route](../../server/api/concierge/concierge.js), [service](../../server/lib/concierge/concierge-service.js), [page](../../client/src/pages/concierge/PublicConciergePage.tsx). Anonymous token/GPS lifecycle; separate circuit and canonical verified shared venue/event writes. [Guide](MOBILE_CONCIERGE_2026-09-11.md). |
 | Translation | [shortcut translation](../../server/api/hooks/translate.js) and [translation prompt](../../server/api/translate/translation-prompt.js); independent provider result, no Briefing generation. |
@@ -135,4 +135,4 @@ Recent session history uses each saved snapshot's own timezone and observation i
 
 ## Verification and recovery
 
-The [review register](audits/PIPELINE_REVIEW_2026-09-29.md) records reproductions, bounded test receipts and unresolved limits. The [removal ledger](removals/2026-09-29-pipeline-review.md) records superseded code/docs and recovery provenance. Existing Analyzer/P1 changes were preserved. No commit, deployment, gateway startup, live provider campaign or application migration is implied by these docs.
+The [review register](audits/PIPELINE_REVIEW_2026-09-29.md) records reproductions, bounded test receipts and unresolved limits. The [removal ledger](removals/2026-09-29-pipeline-review.md) records superseded code/docs and recovery provenance. Existing Offer Analyzer/P1 changes were preserved. No commit, deployment, gateway startup, live provider campaign or application migration is implied by these docs.

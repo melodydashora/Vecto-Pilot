@@ -10,6 +10,9 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import * as schema from '../../shared/schema.js';
 import { parseVenueFeedbackInput } from '../../server/lib/venue/venue-feedback.js';
+import { completeSnapshot } from '../fixtures/complete-snapshot.js';
+import { completeBriefing } from '../fixtures/complete-briefing.js';
+import { mainRunBoundary } from '../fixtures/main-run-boundary.js';
 
 const require = createRequire(import.meta.url);
 const { PGlite } = require('@electric-sql/pglite');
@@ -23,6 +26,10 @@ const indexFeedback = jest.fn(async () => {});
 const capturelearning = jest.fn(async () => {});
 const log = new Proxy({}, { get: () => jest.fn() });
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
+// Admission SQL has its own fixtures; this suite isolates feedback persistence
+// while retaining actual snapshot, Briefing and strategy-source validation.
+const admission = mainRunBoundary(db);
+jest.unstable_mockModule('../../server/lib/main-run-admission.js', () => admission.exports);
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({ requireAuth(req, res, next) {
   const userId = { 'Bearer synthetic-a': userA, 'Bearer synthetic-b': userB }[req.headers.authorization];
   if (!userId) return res.status(401).json({ error: 'synthetic_auth_required' });
@@ -71,19 +78,24 @@ beforeAll(async () => {
 
 async function seedScope(userId = userA, ids = ['x', 'y', 'z', 'replacement', 'closer', 'low-value']) {
   const snapshotId = randomUUID(), rankingId = randomUUID();
-  await pg.query(`INSERT INTO snapshots (snapshot_id,user_id,status,formatted_address,lat,lng,city,state,country,timezone,local_iso,date,dow,hour,day_part_key,market,weather,air)
-    VALUES ($1,$2,'ok','Synthetic fixture address',33,-96,'Fixture City','TX','US','America/Chicago','2026-09-10 21:00:00','2026-09-10',4,21,'evening','Fixture Market','{}','{}')`, [snapshotId, userId]);
+  const generatedAt = new Date(clock - 2000), strategyAt = new Date(clock - 1000);
+  const token = randomUUID();
+  await sqlDb.insert(schema.snapshots).values(completeSnapshot({
+    snapshot_id: snapshotId, user_id: userId, lat: 33, lng: -96,
+    timezone: 'America/Chicago', createdAt: new Date(clock - 3000).toISOString(),
+  }));
   await pg.query('INSERT INTO rankings (ranking_id,snapshot_id,user_id,model_name) VALUES ($1,$2,$3,$4)', [rankingId, snapshotId, userId, 'synthetic']);
-  await pg.query('INSERT INTO strategies (snapshot_id,status,strategy_for_now) VALUES ($1,$2,$3)', [snapshotId, 'ok', 'Synthetic persisted guidance']);
-  const complete = {
-    weather_current: { temperature: 20, conditions: 'Cloudy' }, weather_forecast: [{ temperature: 20, conditions: 'Cloudy' }],
-    traffic_conditions: { summary: 'No reported incidents', incidents: [] },
-    events: { items: [], reason: 'Synthetic search found no events' }, news: { items: [], reason: 'Synthetic search found no news' },
-    school_closures: { items: [], reason: 'Synthetic search found no closures' },
-    airport_conditions: { airports: [], verifiedEmpty: true, reason: 'Synthetic search found no airports' }, holiday: { holiday: 'none', is_holiday: false },
-  };
-  const fields = Object.keys(complete);
-  await pg.query(`INSERT INTO briefings (snapshot_id,status,generated_at,${fields.join(',')}) VALUES ($1,'complete',now(),${fields.map((_key, i) => `$${i + 2}::jsonb`).join(',')})`, [snapshotId, ...Object.values(complete).map(JSON.stringify)]);
+  await sqlDb.insert(schema.briefings).values(completeBriefing(snapshotId, {
+    id: randomUUID(), generation_token: token, generated_at: generatedAt,
+  }));
+  await sqlDb.insert(schema.strategies).values({
+    id: randomUUID(), snapshot_id: snapshotId, user_id: userId, status: 'ok', phase: 'complete',
+    strategy_for_now: 'Synthetic persisted guidance', created_at: strategyAt, updated_at: strategyAt,
+    venue_cache_metrics: { strategy_source: {
+      snapshot_id: snapshotId, briefing_generation_token: token,
+      briefing_generated_at: generatedAt.toISOString(), strategy_generated_at: strategyAt.toISOString(),
+    } },
+  });
   for (let index = 0; index < ids.length; index++) {
     const id = ids[index], venueId = randomUUID();
     const lat = id === 'closer' ? 33.03001 : 33 + index * 0.03;

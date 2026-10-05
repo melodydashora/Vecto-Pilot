@@ -2,11 +2,16 @@
 // authority are server-owned. Every modality uses this same adjudication path.
 import { canonicalOfferProduct, offerServiceForProduct } from '../../../shared/driver-services.js';
 import { checkSanity, classifyTier, deriveEffectiveMetrics, evaluateDeterministic } from './rules-engine.js';
+import { detectPlatform } from './parse-offer-text.js';
 
 const DECISIONS = new Set(['ACCEPT', 'REJECT', 'NO DATA']);
 const NUMBERS = ['price', 'total_miles', 'total_minutes', 'pickup_miles', 'pickup_minutes',
   'ride_miles', 'ride_minutes', 'rating'];
 const round2 = value => Math.round(value * 100) / 100;
+export const normalizeOfferPlatform = value => {
+  const platform = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return platform === 'uber' || platform === 'lyft' ? platform : null;
+};
 export const offerNumber = value => {
   if (value == null || value === '') return null;
   const cleaned = typeof value === 'string' ? value.replace(/[$\s,]/g, '') : value;
@@ -23,6 +28,7 @@ export function normalizePhase1Model(value) {
   normalized.rating = normalized.rating > 0 && normalized.rating <= 5 ? normalized.rating : null;
   normalized.product_type = typeof (value.product_type ?? value.product) === 'string'
     ? (value.product_type ?? value.product).trim() : null;
+  normalized.platform = normalizeOfferPlatform(value.platform);
   normalized.decision = value.decision;
   normalized.reason = typeof (value.reason ?? value.reasoning) === 'string' ? (value.reason ?? value.reasoning) : '';
   normalized.judgment_reject = typeof value.judgment_reject === 'string' ? value.judgment_reject.trim() : '';
@@ -58,6 +64,10 @@ export function mergePhase1Extraction(preParsed, model) {
   raw.price_format = preParsed?.price_format ?? model?.price_format ?? null;
   raw.product_type = offerServiceForProduct(preParsed?.product_type)
     ? preParsed.product_type : (model?.product_type || preParsed?.product_type || null);
+  raw.platform = normalizeOfferPlatform(preParsed?.platform_hint)
+    ?? normalizeOfferPlatform(model?.platform)
+    ?? normalizeOfferPlatform(detectPlatform('', raw.product_type))
+    ?? 'unknown';
   const textProduct = canonicalOfferProduct(preParsed?.product_type);
   const modelProduct = canonicalOfferProduct(model?.product_type);
   const textService = offerServiceForProduct(textProduct);

@@ -67,6 +67,53 @@ beforeEach(() => {
 });
 afterEach(async () => { await finishBackground(); jest.restoreAllMocks(); });
 
+test.each([
+  ['UberX', 'uber'], ['Lyft', 'lyft'],
+])('image-only %s keeps its platform in stored data and the realtime event when deep analysis fails', async (product, platform) => {
+  storeExpected = true;
+  reply = success({ product });
+  const response = await analyze({ image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('ACCEPT');
+  await finishBackground();
+  expect(stored).toHaveLength(1);
+  expect(stored[0]).toMatchObject({ platform, parsed_data_json: { platform, phase1_result: { platform } } });
+  expect(notifications[0]).toMatchObject({ platform });
+});
+
+test.each([
+  [undefined, 'LYFT', 'lyft'], ['Uber', 'lyft', 'uber'], ['invented', 'invented', 'unknown'],
+])('image platform uses validated fast evidence (%s) before deep enrichment (%s)', async (fastPlatform, deepPlatform, expected) => {
+  storeExpected = true;
+  reply = success({ product: 'Comfort', platform: fastPlatform });
+  model.mockImplementation(async role => role === 'OFFER_ANALYZER' ? reply : {
+    success: true, model: 'fixture-deep-model', text: JSON.stringify({
+      decision: 'ACCEPT', parsed_data: { ...modelOffer({ product: 'Comfort' }), platform: deepPlatform },
+    }),
+  });
+  expect((await analyze({ image: 'ZmFrZQ==' })).body.decision).toBe('ACCEPT');
+  await finishBackground();
+  expect(stored).toHaveLength(1);
+  expect(stored[0]).toMatchObject({ platform: expected, parsed_data_json: { platform: expected } });
+  expect(notifications[0]).toMatchObject({ platform: expected });
+});
+
+test.each([
+  [completeText, 'uber'], [completeText.replace('UberX', 'Comfort'), 'lyft'],
+])('text platform evidence survives enrichment and unknown text permits deep identification: %s', async (text, platform) => {
+  storeExpected = true;
+  reply = success({ product: text.includes('UberX') ? 'UberX' : 'Comfort' });
+  model.mockImplementation(async role => role === 'OFFER_ANALYZER' ? reply : {
+    success: true, model: 'fixture-deep-model', text: JSON.stringify({
+      decision: 'ACCEPT', parsed_data: { ...modelOffer(), platform: 'lyft' },
+    }),
+  });
+  expect((await analyze({ text, image: 'ZmFrZQ==' })).body.decision).toBe('ACCEPT');
+  await finishBackground();
+  expect(stored).toHaveLength(1);
+  expect(stored[0]).toMatchObject({ platform, parsed_data_json: { platform } });
+  expect(notifications[0]).toMatchObject({ platform });
+});
+
 test('model failure never accepts a ride whose judgment gates were not checked, and retry is not replayed', async () => {
   reply = { success: false, error: 'Synthetic fast model unavailable' };
   const first = await analyze({ text: completeText });

@@ -1,5 +1,11 @@
 # Database runtime (`server/db/`)
 
+October 4 bootstrap correction: read
+[fresh initialization and interrupted baselines](../../docs/architecture/DATABASE_BOOTSTRAP.md)
+before preparing an empty database. Schema, reviewed airport identities and the
+covered ledger now commit together; current product-rule restoration remains a
+separate prerequisite. Existing application databases are not reseeded.
+
 > Source checked 2026-09-29. Connection and notification regressions use mocked
 > PostgreSQL clients; no deployment or remote TLS handshake is claimed here.
 
@@ -112,3 +118,28 @@ A new subscription can open its own connection while the detached old client end
 late cleanup cannot close that replacement. Explicit `getListenClient()` consumers
 retain ownership until `closeListenClient()`; current production callers use
 `subscribeToChannel`, while direct acquisition is exercised by the lifecycle tests.
+
+
+## Read-only schema metadata check
+
+`npm run check:schema` uses only the supplied `DATABASE_URL` and the shared
+`databaseConnectionConfig()` TLS policy. It does not load environment files, boot
+the gateway, apply migrations, or read application rows. Its metadata queries run
+inside `BEGIN READ ONLY`, with a 15-second statement timeout.
+
+The check counts each table object once, including historical export aliases.
+For declared columns it compares SQL types (including array element types,
+character limits and numeric precision/scale) and nullability in both directions.
+It also compares CHECK constraint names for declared tables and reports unvalidated
+checks. Missing declarations and drift return a nonzero exit status.
+
+This is a bounded guard, not a full parity claim: it does not compare CHECK
+expressions, indexes, primary/foreign/unique keys, defaults, generated expressions,
+triggers, functions, policies, extra columns/tables, or reference-data contents.
+Two different CHECK expressions with the same name still require review. A matching
+migration ledger does not prove schema effects or required seed data exist.
+
+`tests/schema-validation.test.js` covers drift fixtures and the offer-removal
+revision mirror; `tests/db/schema-check-cli.test.js` verifies read-only queries,
+TLS configuration, drift exit status and redacted errors with a mocked client.
+No live database or deployment is exercised by those tests.

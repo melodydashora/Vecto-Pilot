@@ -154,26 +154,26 @@ export default function SetupCard() {
           Phone Setup
         </CardTitle>
         <CardDescription>
-          Open Vecto from your phone screen and hear your current offer decision.
+          Open Offer Analyzer from your phone screen and hear your current offer decision.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
-          <a href="/co-pilot/analyze"><Smartphone className="mr-2 h-4 w-4" />Open quick analyzer</a>
+          <a href="/co-pilot/analyze"><Smartphone className="mr-2 h-4 w-4" />Open Offer Analyzer capture</a>
         </Button>
         <div className="space-y-3 text-sm text-gray-600">
-          <p><strong>iPhone:</strong> Open the quick analyzer in Safari, tap Share, then Add to Home Screen. Keep the analyzer page selected when adding it.</p>
-          <p><strong>Android:</strong> Open the quick analyzer in Chrome, open the menu, then Add to Home screen (or Install app if offered).</p>
+          <p><strong>iPhone:</strong> Open Offer Analyzer capture in Safari, tap Share, then Add to Home Screen. Keep that page selected when adding it.</p>
+          <p><strong>Android:</strong> Open Offer Analyzer capture in Chrome, open the menu, then Add to Home screen (or Install app if offered).</p>
           <p>Configure this while parked. Opening the icon is one tap; the browser still asks you to choose an offer screenshot. Your account supplies your rules and the result is spoken.</p>
           <Button type="button" variant="outline" onClick={() => {
             const url = `${window.location.origin}/co-pilot/analyze`;
-            const guide = `Vecto phone setup\n\nOpen: ${url}\n\niPhone: Safari > Share > Add to Home Screen.\nAndroid: Chrome > Menu > Add to Home screen.\n\nSign in to the same Vecto account and review your Offer Analyzer rules.\nChoose a current offer screenshot while safely stopped. Allow precise location and listen to the result.\nA result is valid only when personal rules are verified and its timestamp is current.\nThis browser launcher cannot silently capture another app. Native screenshot automation needs separate phone setup.\nNo account token is included in this file.\n`;
+            const guide = `Offer Analyzer phone setup\n\nOpen: ${url}\n\niPhone: Safari > Share > Add to Home Screen.\nAndroid: Chrome > Menu > Add to Home screen.\n\nSign in to the same Vecto account and review your Offer Analyzer rules.\nChoose a current offer screenshot while safely stopped. Allow precise location and listen to the result.\nA result is valid only when personal rules are verified and its timestamp is current.\nThis browser launcher cannot silently capture another app. Native screenshot automation needs separate phone setup.\nNo account token is included in this file.\n`;
             downloadSetupFile(guide, 'Vecto-iPhone-Android-setup.txt', 'text/plain;charset=utf-8');
           }}><Download className="mr-2 h-4 w-4" />Download phone setup guide</Button>
         </div>
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2 text-sm text-gray-700">
           <p className="font-medium">Android launcher download</p>
-          <p>Already using <a href="https://http-shortcuts.rmy.ch/" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">HTTP Shortcuts</a>? Import this file with its Import / Export menu, then add Vecto Offer to your home screen. Use the normal import option to keep existing shortcuts.</p>
+          <p>Already using <a href="https://http-shortcuts.rmy.ch/" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">HTTP Shortcuts</a>? Import this file with its Import / Export menu, then add Offer Analyzer to your home screen. Use the normal import option to keep existing shortcuts.</p>
           <Button type="button" variant="outline" onClick={() => {
             try {
               downloadSetupFile(createAndroidLauncher(window.location.origin), 'Vecto-Android-launcher.json', 'application/json');
@@ -181,7 +181,7 @@ export default function SetupCard() {
               toast({ title: 'Launcher unavailable', description: error instanceof Error ? error.message : 'Open Vecto using its secure address.', variant: 'destructive' });
             }
           }}><Download className="mr-2 h-4 w-4" />Download Android launcher</Button>
-          <p className="text-xs">This opens the quick analyzer in your browser. Sign in there and choose a current screenshot while safely stopped. The file contains no account token. Import and speech still need a check on your phone.</p>
+          <p className="text-xs">This opens Offer Analyzer capture in your browser. Sign in there and choose a current screenshot while safely stopped. The file contains no account token. Import and speech still need a check on your phone.</p>
         </div>
         <details className="text-sm text-gray-600">
           <summary className="cursor-pointer font-medium">Existing iPhone screenshot automation</summary>

@@ -23,7 +23,7 @@ import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-of
 import { normalizeOfferBody, normalizeShortcutSystem } from '../../lib/offers/normalize-offer-body.js';
 import { downscaleOfferImage } from '../../lib/offers/downscale-offer-image.js';
 import { parseModelJson } from '../../lib/offers/parse-model-json.js';
-import { adjudicatePhase1, mergePhase1Extraction, normalizePhase1Model, offerNumber } from '../../lib/offers/phase1-decision.js';
+import { adjudicatePhase1, mergePhase1Extraction, normalizeOfferPlatform, normalizePhase1Model, offerNumber } from '../../lib/offers/phase1-decision.js';
 // 2026-06-20: Unified rules engine — single source for the prompts AND the
 // deterministic fallback (replaces the inline PHASE1_PROMPTS + JS ladder below).
 // 2026-07-03 (todo #10): v3 — per-driver rules. classifyTier now comes from the
@@ -762,7 +762,6 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-02-28: Fire-and-forget after res.json(). Images stay in closure scope.
     // Process-local work, not a durable queue: failure/restart can prevent storage.
     // ═══════════════════════════════════════════════════════════════════════
-    const platform = preParsed?.platform_hint || phase1Result.platform || 'unknown';
     const deviceId = device_id || 'anonymous_device';
 
     (async () => {
@@ -851,6 +850,10 @@ PRE-PARSED DATA (server-verified):
         // outcomes card show a recommendation that never happened. Deep dissent
         // is preserved as data (deep_decision + prefixed reasoning), not history.
         const dbParsedData = deepResult?.parsed_data || phase1Result;
+        // Preserve fast/text evidence; deep extraction may fill an unidentified
+        // platform. Keep the typed row, raw JSON and realtime event consistent.
+        const platform = normalizeOfferPlatform(phase1Result.platform)
+          ?? normalizeOfferPlatform(dbParsedData.platform) ?? 'unknown';
         const phase1NumbersComplete = phase1Result.price > 0 && phase1Result.total_miles > 0 && phase1Result.total_minutes > 0;
         // Choose one extraction bundle. Never combine a Phase-1 total with different
         // deep-model legs, or fill only the stored duration from another source.
@@ -874,6 +877,7 @@ PRE-PARSED DATA (server-verified):
           ...(preParsed || {}),
           ...dbParsedData,
           ...storageNumbers,
+          platform,
           // Versioned adjudication provenance applies only to newly analyzed rows.
           // Keep the original fast extraction when a deep bundle fills its blanks.
           phase1_contract_version: 1,

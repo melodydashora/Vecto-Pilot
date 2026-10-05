@@ -58,7 +58,7 @@ export const offerHookLimiter = rateLimit({
   max: 20,
   message: {
     ok: false,
-    error: 'Offer analysis rate limit exceeded. Please wait a moment.'
+    error: 'Offer Analyzer rate limit exceeded. Please wait a moment.'
   },
   standardHeaders: true,
   validate: { keyGeneratorIpFallback: false },

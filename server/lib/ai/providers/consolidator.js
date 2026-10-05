@@ -11,6 +11,7 @@ import { normalizeTime } from '../../events/pipeline/normalizeEvent.js';
 import { db } from '../../../db/drizzle.js';
 import { assertBriefingReady } from '../../briefing/briefing-readiness.js';
 import { assertSnapshotReady } from '../../location/snapshot-readiness.js';
+import { haversineMiles } from '../../location/geo.js';
 import { strategyMatchesBriefing, StrategySourceChangedError } from '../../strategy/strategy-source.js';
 import { readStrategySource, writeStrategySource, claimStrategySource } from '../../strategy/strategy-source-store.js';
 import { filterFreshNews } from '../../strategy/strategy-utils.js';
@@ -770,22 +771,6 @@ function optimizeAirportForLLM(airport) {
 // the plan file section 5 and docs/review-queue/pending.md as follow-up work.
 // Missing columns or values remain unknown; no economic defaults are supplied.
 // ============================================================================
-
-/**
- * Haversine distance in miles between two lat/lng points. Returns Infinity
- * when either point has null coordinates so callers can filter or sort
- * "unknown distance" events to the bottom without special-casing.
- */
-function haversineMiles(lat1, lon1, lat2, lon2) {
-  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
-  const R = 3958.7613; // Earth radius in miles
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 /** Unknown values retain the shared shape without inventing driver preferences. */
 // 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)

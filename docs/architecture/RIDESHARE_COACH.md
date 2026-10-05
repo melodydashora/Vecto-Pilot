@@ -91,7 +91,9 @@ A database write already in flight may complete; cancellation is not transaction
 rollback and callers must check saved receipts before retrying an uncertain action.
 The close listener is removed in the route's final cleanup.
 
-## Saved Analyzer evidence boundary
+<a id="saved-analyzer-evidence-boundary"></a>
+
+## Saved Offer Analyzer evidence boundary
 
 Owner offer history is bounded to 20 nonremoved rows; pattern reads cover an
 owner-scoped 180-day window. Both can contain legacy evidence. Current owner rules
@@ -101,16 +103,16 @@ hash/config. Raw stored-hash verification and migrated effective rules are diffe
 receipts. Selected services are choices; eligibility is capability.
 
 The current rules do not prove what produced an older offer. Coach must compare
-that offer's receipt, preserve its original Analyzer decision, distinguish driver
+that offer's receipt, preserve its original Offer Analyzer decision, distinguish driver
 outcome from AI evidence, and identify legacy rows whose current decision contract
 is unverified. Saved Phase 2 evidence is reread on later turns; Coach does not wait
 for the MAIN Strategy pipeline to finish to discuss available saved information.
 
-Architecture documents and registry source text are not runtime Analyzer rules.
+Architecture documents and registry source text are not runtime Offer Analyzer rules.
 `LOG_OFFER_DECISION`, `UPDATE_OFFER_DECISION` and `BACKFILL_OFFER_INTEL` tags are
 recognized only to return explicit not-saved errors; their mutations are retired.
-Driver outcome and override controls remain in the Analyzer API/UI. Coach changes
-here do not send Analyzer records into MAIN Snapshot, Briefing, Strategist or Venue
+Driver outcome and override controls remain in the Offer Analyzer API/UI. Coach changes
+here do not send Offer Analyzer records into MAIN Snapshot, Briefing, Strategist or Venue
 Planner prompts. See [Offer Analyzer](OFFER_ANALYZER.md#15-coach-integration).
 
 ## Supported actions and durable evidence

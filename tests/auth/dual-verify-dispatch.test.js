@@ -11,9 +11,18 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-secret-key-for-auth-003-dual-verify-32-chars-min';
 
 import crypto from 'crypto';
-import { describe, it, expect } from '@jest/globals';
+import process from 'node:process';
+import { describe, it, expect, jest, afterEach } from '@jest/globals';
 import { signJWT } from '../../server/lib/jwt.js';
-import { verifyAppToken } from '../../server/middleware/auth.js';
+
+// Token dispatch is a local cryptographic contract; session storage belongs to
+// requireAuth tests. Refuse any storage access instead of opening an app pool.
+const unexpectedDatabaseAccess = jest.fn(() => { throw new Error('Database access forbidden in token-dispatch fixtures'); });
+jest.unstable_mockModule('../../server/db/drizzle.js', () => ({
+  db: new Proxy({}, { get: unexpectedDatabaseAccess }),
+}));
+const { verifyAppToken } = await import('../../server/middleware/auth.js');
+afterEach(() => { expect(unexpectedDatabaseAccess).not.toHaveBeenCalled(); });
 
 const TEST_USER_ID = 'ab85999f-e9aa-49c1-a77f-5723c5c80356';
 

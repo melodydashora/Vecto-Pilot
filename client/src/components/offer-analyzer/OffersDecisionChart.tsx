@@ -19,7 +19,7 @@ interface Summary {
   };
 }
 const config = {
-  analyzer: { label: 'Analyzer recommendation', color: 'hsl(var(--primary))' },
+  analyzer: { label: 'Offer Analyzer recommendation', color: 'hsl(var(--primary))' },
   driver: { label: 'Your recorded decision', color: 'hsl(var(--success))' },
 } satisfies ChartConfig;
 
@@ -126,7 +126,7 @@ export default function OffersDecisionChart({ refreshToken, selectedDate: select
         {' '}Local time: {zone.timeZone}, {zone.source === 'GPS' ? 'resolved from GPS' : 'resolved from device timezone'}.
       </p>}
       {stats.analyzed === 0 ? <p className="text-sm text-gray-500">No analyzed offers in this period.</p> : <>
-        <ChartContainer config={config} className="h-[180px] w-full" aria-label={`Analyzer: ${stats.analyzer_accepted} accept, ${stats.analyzer_rejected} reject. You: ${stats.driver_accepted} accepted, ${stats.driver_rejected} rejected.`}>
+        <ChartContainer config={config} className="h-[180px] w-full" aria-label={`Offer Analyzer: ${stats.analyzer_accepted} accept, ${stats.analyzer_rejected} reject. You: ${stats.driver_accepted} accepted, ${stats.driver_rejected} rejected.`}>
           <BarChart data={bars} accessibilityLayer margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid vertical={false} /><XAxis dataKey="decision" /><YAxis allowDecimals={false} width={36} />
             <ChartTooltip content={<ChartTooltipContent className="[&_.tabular-nums]:ml-2" />} />
@@ -134,11 +134,11 @@ export default function OffersDecisionChart({ refreshToken, selectedDate: select
           </BarChart>
         </ChartContainer>
         <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-          <p><span aria-hidden="true" className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-primary" /><span className="font-medium">Analyzer:</span> {stats.analyzer_accepted} accept · {stats.analyzer_rejected} reject</p>
+          <p><span aria-hidden="true" className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-primary" /><span className="font-medium">Offer Analyzer:</span> {stats.analyzer_accepted} accept · {stats.analyzer_rejected} reject</p>
           <p><span aria-hidden="true" className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-success" /><span className="font-medium">You:</span> {stats.driver_accepted} accepted · {stats.driver_rejected} rejected</p>
         </div>
       </>}
-      <p className="text-xs text-gray-500">Accepted includes completed. Separate: {stats.cancelled} cancelled · {stats.other} other/error · {stats.unrecorded} not recorded. Analyzer NO DATA: {stats.analyzer_no_data}.</p>
+      <p className="text-xs text-gray-500">Accepted includes completed. Separate: {stats.cancelled} cancelled · {stats.other} other/error · {stats.unrecorded} not recorded. Offer Analyzer NO DATA: {stats.analyzer_no_data}.</p>
       <p className="text-sm text-gray-700"><strong>${stats.reported_total.toFixed(2)}</strong> driver-reported earnings across {stats.reported_count} accepted/completed offers with amounts recorded.</p>
       <p className="text-xs text-gray-500">Offered amounts and rejected offers are not earnings or savings. These counts do not measure VectoPilot’s financial impact.</p>
     </>}
