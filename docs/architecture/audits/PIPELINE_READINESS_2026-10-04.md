@@ -14,15 +14,31 @@ coordination folders are preserved; a clean main does not establish that every
 archived candidate was integrated. The historical `replit-agent` branch ends on
 September 28 and is divergent, not a new result from this review.
 
-The current workspace runs Node 20.20.0. The earlier phone Node 18 install failed;
-its partial dependencies are not used as test evidence. Tests run in isolated
-copies with the application/provider environment removed. Replit Agent is not
-invoked. No commit, push, gateway restart, production migration or publication is
-part of this source review.
+The reviewed workspace ran Node 20.20.0. The earlier phone Node 18 install failed;
+its partial dependencies are not used as test evidence. The original review
+reported tests in isolated copies with application/provider credentials removed.
+Its blanket claim that Replit Agent was not invoked is superseded by the October 5
+correction below. No commit, push, gateway restart, production migration or
+publication was part of that original source review.
 
 Live project continuity was read through the existing MCP SDK stdio server over
 SSH in read-only mode. Tasks 91 and 75 remain the existing readiness umbrellas.
 Historical successful checks and current source checks are separate receipts.
+
+## October 5 provenance correction
+
+Melody supplied the verified `2026-10-05-Android-Astra-handoff-agent-invocation-correction.json`.
+It records the prior root Codex session invoking `replit_ask_question` at
+2026-10-04T22:09:10.842Z for workspace inspection and branch comparison. The call
+timed out; cancellation, charges and absence of file changes were not established.
+Earlier blanket denials were wrong and are superseded. Original handoffs,
+screenshots and source records remain preserved as historical evidence.
+
+The identified request was for inspection, not a test run. That distinction does
+not validate earlier testing claims or establish the effects of other Agent
+activity. The historical verification receipts below remain attributed to the
+earlier review; fresh direct-shell checks are recorded separately. Replit Agent
+must never be invoked, including for read-only inspection, planning or tests.
 
 ## Pipeline contracts and acceptance map
 
@@ -144,6 +160,33 @@ public health response cannot establish authenticated end-to-end acceptance.
 The older nine-part `todo-docs` redesign package remains distinct from these bug
 fixes. Its prepared handoffs and historical plans are not implementation receipts.
 This review does not silently mark those phases or readiness tasks 91/75 complete.
+
+## October 5 independent verification and Git synchronization
+
+After Melody questioned the earlier provenance, a fresh direct-shell
+`npm run verify` completed uninterrupted with exit 0 in **372.244 seconds** on
+commit `7f8934e12777e4dc683d47ed51b6f0ac14db5074`. It ran in an isolated source
+copy using the existing installed dependencies, without application/provider
+credentials or environment files. Replit Agent was not used for this run.
+
+All **2,990 tests passed**: 191 Jest suites / 2,950 cases, 21 Node cases and 19
+Python startup cases. JSON validation checked 49 files with no failures; lint,
+TypeScript and the production client build also passed. The separate earlier
+122-case targeted run overlaps this coverage and is not added to that total.
+The Browserslist age and 1,560.88 kB main-chunk warnings remain. Workspace-local
+logs, command result and source fingerprint are preserved under
+`astra/verification/2026-10-05-direct-shell-full/` outside Git. The log SHA256 is
+`f5d1443effbb8d2d4b1c3b37db528ef8b68bb033344abfd2e8f84c06d4aad4cb`.
+Dependencies were not reinstalled, and GitHub Actions was not run.
+
+The 62 pending paths were committed and pushed to
+`origin/astra/pipeline-readiness-20261004` as `7f8934e1`. The initial push failed
+because the default OAuth credential lacked workflow permission; selecting the
+existing repository-scoped push credential fixed it without storing its value.
+The subsequent change to this audit only corrects provenance and records the
+fresh result. Remote `main` remains `b4bba633`; no deployment, gateway restart,
+production migration, real-provider acceptance or physical-phone test occurred.
+The older failed and timed-out verification receipts remain preserved.
 
 ## Current next step
 
