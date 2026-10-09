@@ -106,6 +106,7 @@ export interface AuthState {
 export interface LoginCredentials {
   email: string;
   password: string;
+  replaceSessionId?: string;
 }
 
 export interface RegisterData {

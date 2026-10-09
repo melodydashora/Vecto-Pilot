@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Session contract updated:** 2026-10-09; see [authentication](../../../docs/architecture/AUTH.md) for verification boundaries.
 
 # Auth API (`server/api/auth/`)
 
@@ -18,19 +18,23 @@ Full authentication system with JWT tokens, session management, password reset, 
 ```
 POST /api/auth/register         - Create new driver account
 POST /api/auth/login            - Authenticate with email/password
+POST /api/auth/login/recovery   - Recover an interrupted login's original session
+POST /api/auth/login/recovery/cancel - Cancel only the saved login attempt
 POST /api/auth/logout           - End session (clear session_id, preserves data)
 POST /api/auth/token            - Generate JWT (DEV ONLY, disabled in prod)
 ```
 
-### Social Login (Stubs - Not Yet Implemented)
+### Social Login
 ```
-GET  /api/auth/google           - Google OAuth redirect (stub → returns error)
+GET  /api/auth/google           - Begin Google OAuth with one-time state
+POST /api/auth/google/exchange  - Verify Google identity and admit a session
 GET  /api/auth/apple            - Apple Sign In redirect (stub → returns error)
 ```
 
-> **Note (2026-01-06):** Social login routes are stubs that redirect back to
-> `/auth/sign-in?error=social_not_implemented&provider={google|apple}`.
-> The frontend displays "Coming soon!" message. TODO: Implement full OAuth.
+Google sign-in is implemented. A replacement action starts a fresh Google flow
+with `replaceSessionId` bound to server-stored OAuth state. Apple remains a stub.
+See [the complete contract](../../../docs/architecture/AUTH.md) for account
+adoption, incomplete profiles, recovery and terms handling.
 
 ### Password Management
 ```
@@ -44,29 +48,35 @@ GET  /api/auth/me               - Get current user profile
 PUT  /api/auth/profile          - Update profile
 ```
 
-## Session Architecture (2026-01-05)
+## Session Architecture
 
 Three-table architecture for clean separation of concerns:
 
 | Table | Purpose | Lifecycle |
 |-------|---------|-----------|
 | `driver_profiles` | **Identity** - who you are | Forever (created at signup) |
-| `users` | **Session** - who's online now | Temporary (login → logout/TTL) |
+| `users` | Permanent identity and current session pointer | Row survives logout/TTL; session fields expire |
 | `snapshots` | **Activity** - what you did when | Forever (historical record) |
 
 ### Session Flow
 
 **Login:**
 1. Verify credentials against `driver_profiles` + `auth_credentials`
-2. UPSERT `users` row: UPDATE if exists, INSERT if new (preserves FK relationships)
-3. Reset `session_start_at` and `last_active_at` to now
-4. Return JWT token
+2. Lock the credential and owner rows; recheck the verified credentials and current session
+3. Return `409 session_already_active` with `activeSessionId` if an ordinary login finds a live session
+4. An explicit replacement must supply the matching `replaceSessionId` and a fresh recovery proof; a stale confirmation cannot replace a newer session
+5. Rotate the admitted session, reset its clocks and current snapshot/MAIN pointers, and sign the session-bound JWT within the transaction
+6. Commit before returning the token and public profile/vehicle projection
+
+Registration leaves `session_id` null; the web client asks the driver to sign in.
+The registration compatibility token is bound to an unused session ID and cannot
+authenticate the account.
 
 > **CRITICAL (2026-01-05):** Login uses UPDATE, NOT DELETE+INSERT!
 > DELETE caused CASCADE delete of `driver_profiles` and `auth_credentials`, destroying all user data.
 
 **Logout:**
-1. UPDATE `users` row: set `session_id = NULL`, `current_snapshot_id = NULL`
+1. UPDATE only the request's current session: clear session, snapshot and MAIN pointers
 2. Preserves user row - does NOT delete (prevents cascade data loss)
 3. Client clears JWT from localStorage
 
@@ -75,12 +85,15 @@ Three-table architecture for clean separation of concerns:
 - Hard limit: 2 hours from `session_start_at`
 - If expired: UPDATE `users` row to clear session, return 401
 
-### Highlander Rule
+### One current session, explicit replacement
 
-"There can be only one." New login on any device invalidates all existing sessions:
-- User logs in on phone → session created
-- User logs in on laptop → phone's session deleted
-- Phone's next API call returns 401 (session not found)
+A verified conflicting login offers **Close other sessions and sign in**. It
+does not replace a live session until the driver chooses that action. Passwords
+are verified again; Google uses a fresh OAuth flow and its stored target session.
+Replacement changes the session pointer, preserves account data and invalidates
+tokens bound to the former session. A delayed logout or recovery cannot affect
+the new session. Legacy tokens without session binding remain a separate
+retirement limitation; see [authentication](../../../docs/architecture/AUTH.md).
 
 ## Security
 
@@ -101,15 +114,20 @@ Three-table architecture for clean separation of concerns:
 ## Response Shapes
 
 ### Login/Register Success
-```json
-{
-  "ok": true,
-  "token": "uuid.signature",
-  "user": { "userId": "uuid", "email": "..." },
-  "profile": { /* full profile object */ },
-  "vehicle": { /* primary vehicle */ }
-}
-```
+
+Both return `ok`, `token` and the explicit public
+[`driverProfileResponse`](../../lib/driver-profile-response.js) projection:
+`user`, `sessionId`, `settingsRevision`, `profile` and `vehicle`. Whole database
+rows and credentials are never serialized. Login returns a session-bound JWT;
+registration has the non-authenticating token and null session described above.
+
+### Active Session (409)
+
+`error: 'session_already_active'`, `message` and `activeSessionId` are returned
+only after credentials have been verified. The session ID identifies the target
+for an explicit replacement; it is not an authentication credential. A stale
+target returns a new active-session conflict or `session_changed` without
+replacing anything.
 
 ### Session Expired (401)
 ```json

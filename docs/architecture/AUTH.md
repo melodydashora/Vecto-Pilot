@@ -1,6 +1,6 @@
 # Authentication and session ownership
 
-Source traced October 5, 2026. This replaces the April implementation guide;
+Source traced October 9, 2026. This replaces the April implementation guide;
 its useful history (JWT migration, logout data preservation and zombie-snapshot
 races) is retained below. Source is authoritative. Verification uses mocked routes,
 synthetic isolated PostgreSQL/PGlite databases and browser API fixtures, not a
@@ -14,10 +14,10 @@ production login or application database read.
 | Entry | Current behavior |
 |---|---|
 | `POST /register` | Validates submitted identity/password/phone/terms/profile, resolves address when available, transactionally creates account/profile/vehicle/credentials with no active session. The web client asks the driver to sign in afterward. The compatibility token is bound to an unused UUID and cannot authenticate; `sessionId` is null. Address-provider uncertainty is not confirmation; see [independent pipelines](INDEPENDENT_PIPELINES.md). |
-| `POST /login` | Reads profile/credentials and compares bcrypt outside the transaction. Under the credential row lock it rechecks the same stored hash and lockout state; five failed attempts impose a 15-minute lock. A verified login locks the owner row and rejects another live session with 409. Successful credential/session writes and local token signing complete in one transaction. |
+| `POST /login` | Reads profile/credentials and compares bcrypt outside the transaction. Under the credential row lock it rechecks the same stored hash and lockout state; five failed attempts impose a 15-minute lock. A verified login locks the owner row and reports another live session with 409. Explicit replacement requires `replaceSessionId` and a fresh `recoveryProof`, rechecks credentials, and must match the current session. Successful credential/session writes and local token signing complete in one transaction. |
 | `POST /login/recovery` | Uses the browser's saved login-attempt proof to recover only that attempt's committed, still-live session. It never creates a session or advances its clocks. |
 | `POST /login/recovery/cancel` | Records cancellation even if the original request has not arrived. A completed attempt can clear only its own current session; a delayed login cannot commit after cancellation. |
-| `GET /google`, `POST /google/exchange` | Google authorization-code flow with one-time expiring state and verified Google identity. New OAuth profiles can be incomplete. Account/session writes use transactions and the same response projection as password login. |
+| `GET /google`, `POST /google/exchange` | Google authorization-code flow with one-time expiring state and verified Google identity. Explicit replacement starts a fresh OAuth flow; the GET binds the target session to stored state, and exchange uses only that stored target. New OAuth profiles can be incomplete. Account/session writes use transactions and the same response projection as password login. |
 | `GET /me` | Requires authentication. Reads the owner profile and active primary vehicle under the shared owner row lock so one response cannot mix settings revisions. |
 | `PUT /profile` | Requires the saved settings revision and a live driver session; see [preferences and admission](USER_PREFERENCES.md). |
 | `POST /forgot-password`, `POST /reset-password` | Email token or SMS code reset. Reset claims are consumed atomically with credential changes and session invalidation; replay cannot succeed twice. |
@@ -61,13 +61,34 @@ and applies [session-policy.js](../../server/lib/auth/session-policy.js):
   session return 401. Invalid timestamp state does not authenticate.
 
 Password and Google login use [createDriverSession](../../server/lib/auth/driver-session.js)
-under a `users` row lock. An existing live session returns
-`409 { error: 'session_already_active', message: 'You already have an active session. Log out of that session before starting a new one.' }`.
-That refusal leaves its session UUID, activity clock and current pointers intact;
-it also rolls back successful-login credential writes. Only an absent, expired or
-invalid session can be replaced. Successful admission resets both current pointers
-and reads a consistent profile/vehicle revision. Token signing happens before
-commit so a signing failure cannot strand a live session without a usable token.
+under a `users` row lock. An ordinary verified login encountering a live session
+returns `409` with `error: 'session_already_active'`, a user-facing message and
+`activeSessionId`. That refusal leaves its session UUID, activity clock and current
+pointers intact; it also rolls back successful-login credential writes.
+
+Melody requested explicit session replacement on October 9 after an inaccessible
+session prevented sign-in. The client offers a separate action to close the other
+session and sign in here. Password replacement resubmits credentials for verification
+with the warning's `activeSessionId` as `replaceSessionId` and a new recovery proof.
+Google replacement begins a new authorization flow using `GET /google?replaceSessionId=…`.
+The UUID is bound to one-time server state in `oauth_states.redirect_uri` as
+`login:replace:<uuid>`; exchange ignores replacement intent from its request body,
+verifies Google identity again, and requires a recovery proof for replacement.
+
+Under the owner lock, replacement must match that account's current session ID.
+A newer live session returns a fresh conflict requiring another explicit choice;
+an absent or nonlive mismatched session returns `session_changed` without creating
+a session. This prevents delayed confirmation from closing a newer login. The
+session rotation, both current-pointer resets, profile/vehicle read and local
+token signing commit together. A signing failure rolls back replacement, keeping
+the prior session usable. Ordinary login can still admit an absent, expired or
+invalid session without replacement intent. No new migration is needed for this
+replacement option; it uses the existing session, OAuth-state and recovery tables.
+
+Tokens with the old `sid` fail subsequent authentication after replacement; retained
+streams close when their existing authentication recheck detects the change.
+The legacy/unbound-token limitation above remains separate retirement work, so
+replacement does not establish revocation of every historical token format.
 The login, `/me`, profile-save and setup surfaces use
 [driver-profile-response.js](../../server/lib/driver-profile-response.js): explicit
 public fields, session ID, settings revision, selected services and active primary
@@ -142,7 +163,9 @@ and two-hour absolute limits; it does not extend JWT or database session lifetim
 The sign-in entry also shows the same recoverable session-check screen when
 initial `/me` verification fails temporarily, so opening a saved sign-in URL in
 another tab does not invite a replacement login. Same-origin tabs reuse the stored
-session; a separate login receives the existing-session warning.
+session; a separate verified login receives the existing-session warning and an
+explicit replacement action. Neither opening the page nor a normal login silently
+replaces a live session.
 
 Logout tears down local auth immediately, cancels/clears queries, closes SSE and
 clears saved snapshot/Strategy state before the server call completes. Its captured
@@ -176,8 +199,9 @@ but is not interchangeable with the live-session-enforcing `requireAuth`.
 
 ## Constraints and evidence
 
-The server session is one current row per user; another login must wait for logout
-or expiry of the prior live session. There is no refresh-token endpoint or JWT blacklist. Session checks are
+The server session is one current row per user; another login requires logout,
+expiry or the explicitly confirmed replacement described above. There is no
+refresh-token endpoint or JWT blacklist. Session checks are
 lazy; no background job is required to delete accounts, and logout must never
 DELETE `users` because dependent account data must survive. Historical April
 “zombie snapshot” fixes established the need for both provider cleanup and auth
@@ -201,6 +225,10 @@ Local SQL tests use isolated databases and synthetic account rows. PGlite's sing
 connection does not reproduce PostgreSQL lock scheduling across multiple server
 processes; separate PostgreSQL connection tests cover the recovery lock races.
 Browser checks intercept API responses and do not establish production acceptance.
-Recovery depends on retaining the saved proof: deleting browser storage, losing
-the device, or using an older client without proof still requires ending the old
-session or waiting for expiry. The no-takeover rule remains in force.
+Recovery depends on retaining the saved proof. After deleting browser storage,
+losing the device, or using an older client without proof, the original response
+cannot be recovered through that mechanism. A fresh verified login can offer the
+explicit replacement action instead. This October 9 option supersedes the prior
+requirement to end the session elsewhere or wait for expiry; it preserves ordinary
+login refusal and the original-session recovery contract. Source and synthetic
+checks do not establish that a running deployment contains the option.

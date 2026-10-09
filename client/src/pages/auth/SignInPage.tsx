@@ -1,7 +1,7 @@
 // client/src/pages/auth/SignInPage.tsx
 // Sign in page with email/password and social login (Google, Apple)
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -73,6 +73,9 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const submitting = useRef(false);
+  const credentialsVersion = useRef(0);
 
   // Check if user just registered successfully
   const justRegistered = searchParams.get('registered') === 'true';
@@ -149,17 +152,32 @@ export default function SignInPage() {
     return <SessionCheck error={sessionCheckError} onRetry={refreshProfile} />;
   }
 
-  const onSubmit = async (data: SignInFormData) => {
+  const onSubmit = async (data: SignInFormData, replaceSessionId?: string) => {
+    if (submitting.current) return;
+    submitting.current = true;
+    const version = credentialsVersion.current;
     setIsLoading(true);
     setError(null);
+    setActiveSessionId(null);
 
-    const result = await login(data);
-
-    if (!result.success) {
-      setError(result.error || 'Login failed');
+    try {
+      const result = await login({ ...data, ...(replaceSessionId ? { replaceSessionId } : {}) });
+      if (!result.success && credentialsVersion.current === version) {
+        setError(result.error || 'Login failed');
+        if (result.code === 'session_already_active' && result.activeSessionId) {
+          setActiveSessionId(result.activeSessionId);
+        }
+      }
+    } finally {
+      submitting.current = false;
+      setIsLoading(false);
     }
+  };
 
-    setIsLoading(false);
+  const clearSessionConflict = () => {
+    credentialsVersion.current += 1;
+    setActiveSessionId(null);
+    setError(null);
   };
 
   // Social login handlers - redirect to OAuth endpoints
@@ -202,12 +220,15 @@ export default function SignInPage() {
 
           {error && (
             <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>
+                <p>{error}</p>
+                {activeSessionId && <p className="mt-2">This signs out your other devices.</p>}
+              </AlertDescription>
             </Alert>
           )}
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(data => onSubmit(data))} className="space-y-4">
               <FormField
                 control={form.control}
                 name="email"
@@ -220,6 +241,7 @@ export default function SignInPage() {
                         placeholder="driver@example.com"
                         className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-400"
                         {...field}
+                        onChange={event => { clearSessionConflict(); field.onChange(event); }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -239,6 +261,7 @@ export default function SignInPage() {
                         placeholder="Enter your password"
                         className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-400"
                         {...field}
+                        onChange={event => { clearSessionConflict(); field.onChange(event); }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -269,6 +292,19 @@ export default function SignInPage() {
                   'Sign In'
                 )}
               </Button>
+              {activeSessionId && <Button
+                type="button"
+                className="w-full h-auto min-h-10 whitespace-normal px-3 py-2"
+                disabled={isLoading || socialLoading !== null}
+                onClick={() => {
+                  const version = credentialsVersion.current;
+                  void form.handleSubmit(data => {
+                    if (version === credentialsVersion.current) return onSubmit(data, activeSessionId);
+                  })();
+                }}
+              >
+                Close other sessions and sign in
+              </Button>}
             </form>
           </Form>
 

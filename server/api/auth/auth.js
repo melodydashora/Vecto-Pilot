@@ -33,7 +33,7 @@ import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeEmail, isEmai
 import { sendPasswordResetSMS, isSmsConfigured, validatePhoneNumber } from '../../lib/auth/sms.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { isUniqueViolation, resolveGoogleIdentity } from '../../lib/auth/identity-policy.js';
-import { ActiveDriverSessionError, createDriverSession } from '../../lib/auth/driver-session.js';
+import { ActiveDriverSessionError, DriverSessionChangedError, createDriverSession } from '../../lib/auth/driver-session.js';
 import { LoginAttemptError, validRecoveryProof, beginLoginAttempt, withLoginAttempt,
   completeLoginAttempt, failLoginAttempt, recoverLoginAttempt, cancelLoginAttempt } from '../../lib/auth/login-recovery.js';
 import { ensureMarket } from '../../lib/markets/ensure-market.js';
@@ -48,6 +48,16 @@ import { driverProfileResponse } from '../../lib/driver-profile-response.js';
 import { withDriverSettingsLock, MainRunAdmissionError, validSettingsRevision, validateSelectedServices } from '../../lib/main-run-admission.js';
 
 const router = Router();
+const REPLACE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const GOOGLE_SESSION_REPLACEMENT_PREFIX = 'login:replace:';
+
+function replacementSessionId(value) {
+  if (value === undefined) return null;
+  if (typeof value !== 'string' || !REPLACE_SESSION_ID.test(value)) {
+    throw new LoginAttemptError(400, 'invalid_session_replacement', 'A valid session to close is required. Please sign in again.');
+  }
+  return value.toLowerCase();
+}
 
 // 2026-03-17: SECURITY FIX (F-10) — No hardcoded fallback secret.
 // REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
@@ -615,6 +625,10 @@ router.post('/login', async (req, res) => {
   let recoveryAttempt = null;
   try {
     const { email, password } = req.body;
+    const replaceSessionId = replacementSessionId(req.body.replaceSessionId);
+    if (replaceSessionId !== null && !validRecoveryProof(req.body.recoveryProof)) {
+      throw new LoginAttemptError(400, 'invalid_recovery_proof', 'A valid sign-in recovery proof is required to close another session.');
+    }
 
     if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
       return res.status(400).json({
@@ -726,7 +740,7 @@ router.post('/login', async (req, res) => {
       await tx.update(auth_credentials).set({ failed_login_attempts: 0, locked_until: null,
         last_login_at: now, last_login_ip: req.ip || req.headers['x-forwarded-for'] || 'unknown', updated_at: now })
         .where(eq(auth_credentials.user_id, profile.user_id));
-      const created = await createDriverSession(tx, profile.user_id, newSessionId);
+      const created = await createDriverSession(tx, profile.user_id, newSessionId, { replaceSessionId });
       // Local signing failure must not leave a session the driver cannot use
       // or log out of. The token is returned only after the transaction commits.
       const token = await generateAuthToken(profile.user_id, email, newSessionId, created.sessionStartedAt);
@@ -763,6 +777,9 @@ router.post('/login', async (req, res) => {
       return res.status(err.status).json({ error: err.code, message: err.message });
     }
     if (err instanceof ActiveDriverSessionError) {
+      return res.status(409).json({ error: err.code, message: err.message, activeSessionId: err.activeSessionId });
+    }
+    if (err instanceof DriverSessionChangedError) {
       return res.status(409).json({ error: err.code, message: err.message });
     }
     matrixLog.error({
@@ -1439,6 +1456,8 @@ router.post('/logout', requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 router.get('/google', async (req, res) => {
   try {
+    const replaceSessionId = replacementSessionId(req.query.replaceSessionId);
+    const mode = replaceSessionId ? 'login' : req.query.mode === 'signup' ? 'signup' : 'login';
     // Check that Google OAuth is configured
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       matrixLog.error({
@@ -1458,22 +1477,27 @@ router.get('/google', async (req, res) => {
       state,
       provider: 'google',
       user_id: '00000000-0000-0000-0000-000000000000', // Nil UUID - user not authenticated yet
-      redirect_uri: req.query.mode === 'signup' ? 'signup' : 'login',
+      // This column stores the local flow mode, not Google's callback URL.
+      // Keep replacement consent in the expiring one-time state, not the exchange body.
+      redirect_uri: replaceSessionId ? `${GOOGLE_SESSION_REPLACEMENT_PREFIX}${replaceSessionId}` : mode,
       expires_at: expiresAt,
     });
 
     // 2026-02-13: Derive base URL for redirect_uri.
     // Priority: CLIENT_URL env > request origin (handles both dev and prod)
     const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
-    const authUrl = getGoogleAuthUrl({ state, mode: req.query.mode, baseUrl });
+    const authUrl = getGoogleAuthUrl({ state, mode, baseUrl });
     matrixLog.info({
       category: 'AUTH',
       connection: 'API',
       action: 'OAUTH_INITIATE',
       location: 'auth.js:googleOAuthInit',
-    }, `Google OAuth initiated (mode: ${req.query.mode || 'login'})`);
+    }, `Google OAuth initiated (mode: ${mode})`);
     res.redirect(authUrl);
   } catch (err) {
+    if (err instanceof LoginAttemptError) {
+      return res.status(err.status).json({ error: err.code, message: err.message });
+    }
     matrixLog.error({
       category: 'AUTH',
       action: 'OAUTH_INITIATE_FAIL',
@@ -1533,6 +1557,12 @@ router.post('/google/exchange', async (req, res) => {
         error: 'INVALID_STATE',
         message: 'Invalid or expired OAuth state. Please try again.'
       });
+    }
+    const replaceSessionId = typeof storedState.redirect_uri === 'string' &&
+      storedState.redirect_uri.startsWith(GOOGLE_SESSION_REPLACEMENT_PREFIX)
+      ? replacementSessionId(storedState.redirect_uri.slice(GOOGLE_SESSION_REPLACEMENT_PREFIX.length)) : null;
+    if (replaceSessionId !== null && !validRecoveryProof(req.body.recoveryProof)) {
+      throw new LoginAttemptError(400, 'invalid_recovery_proof', 'A valid sign-in recovery proof is required to close another session.');
     }
 
     // 2. Exchange authorization code for tokens
@@ -1683,9 +1713,9 @@ router.post('/google/exchange', async (req, res) => {
         }
         passwordRevoked = currentVerdict.revokePassword;
       }
-      // Account/link writes and admission commit together. If a prior session is
-      // live, refusal also rolls back a verified existing account's Google link.
-      const created = await createDriverSession(tx, activeProfile.user_id, newSessionId);
+      // Account/link writes and admission commit together. Refused replacement
+      // also rolls back a verified existing account's Google link.
+      const created = await createDriverSession(tx, activeProfile.user_id, newSessionId, { replaceSessionId });
       const token = await generateAuthToken(activeProfile.user_id, activeProfile.email, newSessionId, created.sessionStartedAt);
       await completeLoginAttempt(tx, recoveryAttempt, { userId: activeProfile.user_id, sessionId: newSessionId,
         isNewUser: !profile, passwordRevoked });
@@ -1715,6 +1745,9 @@ router.post('/google/exchange', async (req, res) => {
       return res.status(err.status).json({ error: err.code, message: err.message });
     }
     if (err instanceof ActiveDriverSessionError) {
+      return res.status(409).json({ error: err.code, message: err.message, activeSessionId: err.activeSessionId });
+    }
+    if (err instanceof DriverSessionChangedError) {
       return res.status(409).json({ error: err.code, message: err.message });
     }
     matrixLog.error({

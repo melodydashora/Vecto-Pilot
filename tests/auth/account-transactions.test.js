@@ -1,8 +1,9 @@
 import { beforeEach, expect, jest, test } from '@jest/globals';
+import process from 'node:process';
 import { getTableName } from 'drizzle-orm';
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 
-let validationResult, geocodeResult, rows, failTable, beforeUpdate, beforeHash, beforeVerify, passwordValid, transactionTail, transactionActive;
+let validationResult, geocodeResult, rows, failTable, beforeUpdate, beforeHash, beforeVerify, passwordValid, transactionTail, transactionActive, replacementAttemptNumber;
 const dialect = new PgDialect();
 const { structuredClone } = globalThis;
 
@@ -27,6 +28,8 @@ const findFirst = name => async ({ where }) => {
 };
 const tokenSigner = jest.fn(async () => 'synthetic-token');
 const exchangeGoogle = jest.fn(async () => ({ id_token: 'synthetic-provider-token' }));
+const googleAuthUrl = jest.fn(() => 'https://accounts.google.test/authorize');
+const googleState = jest.fn(() => 'synthetic-generated-state');
 function insert(table) {
   const name = getTableName(table);
   return { values(value) {
@@ -105,9 +108,9 @@ jest.unstable_mockModule('../../server/lib/auth/password.js', () => ({
   getResetTokenExpiry: forbidden, getVerificationCodeExpiry: forbidden,
 }));
 jest.unstable_mockModule('../../server/lib/auth/oauth/google-oauth.js', () => ({
-  getGoogleAuthUrl: forbidden, exchangeGoogleCode: exchangeGoogle,
+  getGoogleAuthUrl: googleAuthUrl, exchangeGoogleCode: exchangeGoogle,
   verifyGoogleIdToken: async () => ({ sub: 'synthetic-google-subject', given_name: 'Synthetic', family_name: 'Driver', name: 'Synthetic Driver', email: 'google@example.test' }),
-  generateState: forbidden,
+  generateState: googleState,
 }));
 jest.unstable_mockModule('../../server/lib/auth/email.js', () => ({
   sendPasswordResetEmail: forbidden, sendEmailVerification: forbidden,
@@ -141,6 +144,7 @@ beforeEach(() => {
   passwordValid = true;
   transactionTail = Promise.resolve();
   transactionActive = false;
+  replacementAttemptNumber = 0;
   jest.clearAllMocks();
 });
 const signup = { firstName: 'Synthetic', lastName: 'Driver', email: 'test@example.test', phone: 'synthetic', password: 'synthetic', address1: 'synthetic', city: 'synthetic', stateTerritory: 'synthetic', market: 'synthetic', vehicleYear: 2026, vehicleMake: 'synthetic', vehicleModel: 'synthetic', termsAccepted: true };
@@ -315,7 +319,7 @@ test.each(['password', 'google'])('%s login refuses another live session without
     : await post('/google/exchange', { code: 'synthetic-code', state: 'synthetic-state' });
   expect(result.statusCode).toBe(409);
   expect(result.body).toEqual({ error: 'session_already_active',
-    message: 'You already have an active session. Log out of that session before starting a new one.' });
+    message: 'Another session is still signed in. You can close it and sign in here.', activeSessionId: 'old-session' });
   expect(rows.users[0]).toEqual(previous);
   expect(rows.auth_credentials[0]).toEqual(credentials);
   expect(tokenSigner).not.toHaveBeenCalled();
@@ -343,6 +347,164 @@ test('wrong credentials cannot discover or replace another active session', asyn
   expect(result.body.error).toBe('INVALID_CREDENTIALS');
   expect(rows.users[0]).toEqual(previous);
   expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+const replaceSessionId = '00000000-0000-4000-8000-0000000000aa';
+const changedSessionId = '00000000-0000-4000-8000-0000000000bb';
+function replacementFixture() {
+  liveSessionFixture();
+  rows.users[0].session_id = replaceSessionId;
+  rows.driver_profiles[0].google_id = 'synthetic-google-subject';
+}
+function replaceLogin(method, body = {}) {
+  const recoveryProof = (++replacementAttemptNumber).toString(16).padStart(64, '0');
+  if (method === 'password') return post('/login', { email: 'test@example.test', password: 'old-password', replaceSessionId, recoveryProof, ...body });
+  rows.oauth_states.push({ id: 'replacement-state-id', state: 'replacement-state', redirect_uri: `login:replace:${replaceSessionId}` });
+  return post('/google/exchange', { code: 'fresh-code', state: 'replacement-state', recoveryProof, ...body });
+}
+
+test.each(['password', 'google'])('%s replacement requires a recovery proof before closing a session', async method => {
+  replacementFixture();
+  const before = structuredClone(rows.users);
+  const result = await replaceLogin(method, { recoveryProof: undefined });
+  expect(result.statusCode).toBe(400);
+  expect(result.body.error).toBe('invalid_recovery_proof');
+  expect(rows.users).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
+  expect(exchangeGoogle).not.toHaveBeenCalled();
+});
+
+test.each(['password', 'google'])('%s explicit replacement creates one new session while preserving account data', async method => {
+  replacementFixture();
+  const profiles = structuredClone(rows.driver_profiles);
+  const vehicles = structuredClone(rows.driver_vehicles);
+  const result = await replaceLogin(method);
+  expect(result.statusCode).toBe(200);
+  expect(result.body.sessionId).not.toBe(replaceSessionId);
+  expect(rows.users).toHaveLength(1);
+  expect(rows.users[0]).toMatchObject({ session_id: result.body.sessionId, current_snapshot_id: null, current_main_run_id: null });
+  expect(rows.driver_profiles).toEqual(profiles);
+  expect(rows.driver_vehicles).toEqual(vehicles);
+  expect(tokenSigner).toHaveBeenCalledWith({ sub: 'synthetic-user', sid: result.body.sessionId, issuedAt: rows.users[0].session_start_at });
+});
+
+test('replacement requires a fresh valid password and does not expose the active session on failure', async () => {
+  replacementFixture(); passwordValid = false;
+  const before = structuredClone(rows.users);
+  const result = await replaceLogin('password');
+  expect(result.statusCode).toBe(401);
+  expect(result.body).not.toHaveProperty('activeSessionId');
+  expect(rows.users).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test.each([null, true, 'bad', [replaceSessionId], { value: replaceSessionId }])('invalid replacement consent %j is rejected before any writes', async invalid => {
+  replacementFixture();
+  const before = structuredClone(rows);
+  const result = await replaceLogin('password', { replaceSessionId: invalid, recoveryProof: 'c'.repeat(64) });
+  expect(result.statusCode).toBe(400);
+  expect(result.body.error).toBe('invalid_session_replacement');
+  expect(rows).toEqual(before);
+});
+
+test('password replacement accepts a normalized UUID from the conflict response', async () => {
+  replacementFixture();
+  expect((await replaceLogin('password', { replaceSessionId: replaceSessionId.toUpperCase() })).statusCode).toBe(200);
+});
+
+test.each(['password', 'google'])('%s stale replacement returns the current live conflict without revoking it', async method => {
+  replacementFixture();
+  rows.users[0].session_id = changedSessionId;
+  const before = structuredClone(rows.users);
+  const result = await replaceLogin(method);
+  expect(result.statusCode).toBe(409);
+  expect(result.body).toMatchObject({ error: 'session_already_active', activeSessionId: changedSessionId });
+  expect(rows.users).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test.each(['ended', 'expired'])('stale replacement cannot create a session when the changed session is %s', async kind => {
+  replacementFixture();
+  rows.users[0].session_id = kind === 'ended' ? null : changedSessionId;
+  if (kind === 'expired') rows.users[0].last_active_at = rows.users[0].session_start_at = new Date(Date.now() - 65 * 60000);
+  const before = structuredClone(rows.users);
+  const result = await replaceLogin('password');
+  expect(result.statusCode).toBe(409);
+  expect(result.body.error).toBe('session_changed');
+  expect(result.body).not.toHaveProperty('activeSessionId');
+  expect(rows.users).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test('simultaneous replacements of the same session produce one winner', async () => {
+  replacementFixture();
+  let arrivals = 0, bothVerified, releaseVerify;
+  const atVerify = new Promise(resolve => { bothVerified = resolve; });
+  const resume = new Promise(resolve => { releaseVerify = resolve; });
+  beforeVerify = async () => { if (++arrivals === 2) bothVerified(); await resume; };
+  const requests = [1, 2].map(() => replaceLogin('password'));
+  await atVerify; releaseVerify();
+  const results = await Promise.all(requests);
+  expect(results.map(result => result.statusCode).sort()).toEqual([200, 409]);
+  const winner = results.find(result => result.statusCode === 200).body.sessionId;
+  expect(rows.users[0].session_id).toBe(winner);
+  expect(results.find(result => result.statusCode === 409).body.activeSessionId).toBe(winner);
+  expect(tokenSigner).toHaveBeenCalledTimes(1);
+});
+
+test.each(['password', 'google'])('%s token-signing failure rolls back replacement and preserves the old session', async method => {
+  replacementFixture();
+  const before = structuredClone({ users: rows.users, profiles: rows.driver_profiles, credentials: rows.auth_credentials });
+  tokenSigner.mockRejectedValueOnce(new Error('Synthetic token signing failure'));
+  expect((await replaceLogin(method)).statusCode).toBe(500);
+  expect({ users: rows.users, profiles: rows.driver_profiles, credentials: rows.auth_credentials }).toEqual(before);
+});
+
+test('Google exchange ignores body replacement when its one-time state has no consent', async () => {
+  replacementFixture();
+  rows.oauth_states.push({ id: 'ordinary-state-id', state: 'ordinary-state', redirect_uri: 'login' });
+  const before = structuredClone(rows.users);
+  const result = await post('/google/exchange', { code: 'ordinary-code', state: 'ordinary-state', replaceSessionId });
+  expect(result.statusCode).toBe(409);
+  expect(result.body.error).toBe('session_already_active');
+  expect(rows.users).toEqual(before);
+});
+
+test('Google replacement cannot bypass an identity conflict', async () => {
+  replacementFixture();
+  rows.driver_profiles[0].google_id = 'different-google-subject';
+  rows.driver_profiles[0].email = 'google@example.test';
+  const before = structuredClone(rows.users);
+  const result = await replaceLogin('google');
+  expect(result.statusCode).toBe(409);
+  expect(result.body.error).toBe('ACCOUNT_CONFLICT');
+  expect(rows.users).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
+
+test('Google replacement intent is bound to newly issued one-time state', async () => {
+  replacementFixture();
+  const originalId = process.env.GOOGLE_CLIENT_ID;
+  const originalSecret = process.env.GOOGLE_CLIENT_SECRET;
+  process.env.GOOGLE_CLIENT_ID = 'synthetic-id';
+  process.env.GOOGLE_CLIENT_SECRET = 'synthetic-secret';
+  try {
+    const getGoogle = router.stack.find(layer => layer.route?.path === '/google' && layer.route.methods.get).route.stack.at(-1).handle;
+    const res = { redirect: jest.fn() };
+    await getGoogle({ query: { replaceSessionId: replaceSessionId.toUpperCase(), mode: 'signup' }, protocol: 'https', get: () => 'example.test' }, res);
+    expect(rows.oauth_states[0]).toMatchObject({ state: 'synthetic-generated-state', provider: 'google', redirect_uri: `login:replace:${replaceSessionId}` });
+    expect(googleAuthUrl).toHaveBeenCalledWith(expect.objectContaining({ state: 'synthetic-generated-state', mode: 'login' }));
+    expect(res.redirect).toHaveBeenCalledWith('https://accounts.google.test/authorize');
+    const first = await post('/google/exchange', { code: 'fresh-code', state: 'synthetic-generated-state', recoveryProof: proof });
+    expect(first.statusCode).toBe(200);
+    const before = structuredClone(rows.users);
+    expect((await post('/google/exchange', { code: 'fresh-code', state: 'synthetic-generated-state', recoveryProof: secondProof })).body.error).toBe('INVALID_STATE');
+    expect(rows.users).toEqual(before);
+    expect(exchangeGoogle).toHaveBeenCalledTimes(1);
+  } finally {
+    if (originalId === undefined) delete process.env.GOOGLE_CLIENT_ID; else process.env.GOOGLE_CLIENT_ID = originalId;
+    if (originalSecret === undefined) delete process.env.GOOGLE_CLIENT_SECRET; else process.env.GOOGLE_CLIENT_SECRET = originalSecret;
+  }
 });
 
 test.each(['idle expiry', 'hard expiry', 'logout'])('%s permits a fresh session without extending the old lifetime', async state => {
@@ -469,6 +631,38 @@ const proof = 'a'.repeat(64);
 const secondProof = 'b'.repeat(64);
 const recover = recoveryProof => post('/login/recovery', { recoveryProof });
 const cancel = recoveryProof => post('/login/recovery/cancel', { recoveryProof });
+
+test.each(['password', 'google'])('lost %s replacement response recovers exactly its new session without renewing it', async method => {
+  replacementFixture();
+  const original = await replaceLogin(method, { recoveryProof: proof });
+  expect(original.statusCode).toBe(200);
+  const claims = structuredClone(tokenSigner.mock.calls.at(-1)[0]);
+  const before = structuredClone(rows.users);
+  const recovered = await recover(proof);
+  expect(recovered.statusCode).toBe(200);
+  expect(recovered.body).toMatchObject({ recovered: true, sessionId: original.body.sessionId });
+  expect(rows.users).toEqual(before);
+  expect(tokenSigner.mock.calls.at(-1)[0]).toEqual(claims);
+  if (method === 'google') expect(exchangeGoogle).toHaveBeenCalledTimes(1);
+});
+
+test('replacement uses a fresh proof after the original conflict receipt has ended', async () => {
+  replacementFixture();
+  const conflict = await post('/login', { email: 'test@example.test', password: 'old-password', recoveryProof: proof });
+  expect(conflict.statusCode).toBe(409);
+  expect((await replaceLogin('password', { recoveryProof: proof })).statusCode).toBe(410);
+  expect(rows.users[0].session_id).toBe(replaceSessionId);
+  expect((await replaceLogin('password', { recoveryProof: secondProof })).statusCode).toBe(200);
+});
+
+test('cancelled replacement attempt preserves the session it offered to close', async () => {
+  replacementFixture();
+  await cancel(proof);
+  const before = structuredClone(rows.users);
+  expect((await replaceLogin('password', { recoveryProof: proof })).statusCode).toBe(410);
+  expect(rows.users).toEqual(before);
+  expect(tokenSigner).not.toHaveBeenCalled();
+});
 
 test('lost password response recovers its same session and original token clock without touching guidance', async () => {
   passwordLoginFixture();

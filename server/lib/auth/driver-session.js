@@ -3,17 +3,26 @@ import { users, driver_profiles, driver_vehicles } from '../../../shared/schema.
 import { sessionIsLive } from './session-policy.js';
 
 export class ActiveDriverSessionError extends Error {
-  constructor() {
-    super('You already have an active session. Log out of that session before starting a new one.');
+  constructor(activeSessionId) {
+    super('Another session is still signed in. You can close it and sign in here.');
     this.name = 'ActiveDriverSessionError';
     this.code = 'session_already_active';
+    this.activeSessionId = activeSessionId;
+  }
+}
+
+export class DriverSessionChangedError extends Error {
+  constructor() {
+    super('The other session has changed or ended. Please sign in again.');
+    this.name = 'DriverSessionChangedError';
+    this.code = 'session_changed';
   }
 }
 
 // Caller owns the transaction. The users lock serializes admission with other
 // logins, logout, setup saves, Continue and publication. A rejected login writes
 // no session clock or current pointers and must roll back its credential writes.
-export async function createDriverSession(tx, userId, sessionId) {
+export async function createDriverSession(tx, userId, sessionId, { replaceSessionId = null } = {}) {
   const readOwner = () => tx.select().from(users).where(eq(users.user_id, userId)).for('update').limit(1);
   let [existing] = await readOwner();
   if (!existing) {
@@ -24,7 +33,14 @@ export async function createDriverSession(tx, userId, sessionId) {
   // Take the clock after waiting for the lock. A request's earlier start time
   // can predate the winning session, incorrectly classifying it as invalid.
   const now = new Date();
-  if (sessionIsLive(existing, now.getTime())) throw new ActiveDriverSessionError();
+  const live = sessionIsLive(existing, now.getTime());
+  // Consent applies only to the session shown in the verified login conflict.
+  // A delayed request cannot replace a different session, even after it expires.
+  if (replaceSessionId !== null && existing?.session_id !== replaceSessionId) {
+    if (live) throw new ActiveDriverSessionError(existing.session_id);
+    throw new DriverSessionChangedError();
+  }
+  if (live && replaceSessionId === null) throw new ActiveDriverSessionError(existing.session_id);
   await tx.update(users).set({ session_id: sessionId, current_snapshot_id: null,
     current_main_run_id: null, session_start_at: now, last_active_at: now, updated_at: now })
     .where(eq(users.user_id, userId));

@@ -94,3 +94,20 @@ test('overlapping isolated database admissions yield one winner without replacin
   const winner = sessions[outcomes.findIndex(result => result.status === 'fulfilled')];
   expect((await pg.query('SELECT session_id FROM users')).rows[0].session_id).toBe(winner);
 });
+
+test('explicit replacement revokes the old bound token and preserves account rows in PostgreSQL', async () => {
+  expect((await authenticate()).next).toHaveBeenCalledTimes(1);
+  await pg.query('UPDATE users SET current_snapshot_id=$1,current_main_run_id=$1', [sessionId]);
+  const replacement = '00000000-0000-4000-8000-000000000005';
+  await orm.transaction(tx => createDriverSession(tx, userId, replacement, { replaceSessionId: sessionId }));
+  expect((await pg.query('SELECT session_id,current_snapshot_id,current_main_run_id FROM users')).rows[0])
+    .toEqual({ session_id: replacement, current_snapshot_id: null, current_main_run_id: null });
+  expect((await pg.query('SELECT user_id FROM driver_profiles')).rows).toEqual([{ user_id: userId }]);
+  const stale = await authenticate();
+  expect(stale.res.statusCode).toBe(401);
+  expect(stale.next).not.toHaveBeenCalled();
+  const before = (await pg.query('SELECT * FROM users')).rows;
+  await expect(orm.transaction(tx => createDriverSession(tx, userId, sessionId, { replaceSessionId: sessionId })))
+    .rejects.toMatchObject({ code: 'session_already_active', activeSessionId: replacement });
+  expect((await pg.query('SELECT * FROM users')).rows).toEqual(before);
+});

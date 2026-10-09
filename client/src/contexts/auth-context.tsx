@@ -23,11 +23,12 @@ import { cancelLoginAttempt, createLoginAttempt, listLoginAttempts, postLoginReq
   isLoginSessionCancelled, type LoginAttempt } from '@/lib/login-recovery';
 
 type GoogleAuthResponse = AuthApiResponse & { isNewUser?: boolean; passwordRevoked?: boolean };
-type LoginResult = { success: boolean; error?: string; recoveryPending?: boolean };
+type LoginResult = { success: boolean; error?: string; recoveryPending?: boolean;
+  code?: 'session_already_active'; activeSessionId?: string };
 
 interface AuthContextValue extends AuthState {
   completeLogin: (data: AuthApiResponse) => void;
-  login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
+  login: (credentials: LoginCredentials) => Promise<LoginResult>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   hasPendingLogout: boolean;
@@ -175,6 +176,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ? 'An account was just created with this email. Return to sign in and try again.'
               : typeof data.message === 'string' ? data.message : 'Sign-in could not be completed. Please sign in again.';
           setLoginRecoveryError(error);
+          if (!recovering && response.status === 409 && data.error === 'session_already_active' &&
+              typeof data.activeSessionId === 'string' &&
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.activeSessionId)) {
+            return { success: false, error, code: 'session_already_active', activeSessionId: data.activeSessionId };
+          }
           return { success: false, error };
         }
         if (!response.ok) throw new Error('Unconfirmed sign-in');
@@ -496,7 +502,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.sessionCheckError, state.isAuthenticated, state.isLoading, state.token, fetchProfile]);
 
-  const login = useCallback(async (credentials: LoginCredentials) => {
+  const login = useCallback(async (credentials: LoginCredentials): Promise<LoginResult> => {
     if (localStorage.getItem(STORAGE_KEYS.PENDING_LOGOUT_TOKEN)) {
       return { success: false, error: 'Finish signing out of your previous session before signing in.' };
     }

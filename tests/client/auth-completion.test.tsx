@@ -22,6 +22,9 @@ const { RunSetupProvider } = await import('@/contexts/run-setup-context');
 const { queryClient: unusedClient } = await import('@/lib/queryClient');
 
 const fixture = (id: string): AuthApiResponse => ({ token: `synthetic-${id}`, user: { userId: id, email: `${id}@example.invalid` } });
+const activeSessionId = '11111111-1111-4111-8111-111111111111';
+const sessionConflict = { error: 'session_already_active', activeSessionId,
+  message: 'You already have an active session. You can close your other sessions and sign in here.' };
 const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -115,16 +118,44 @@ describe('VP-002 shared login completion', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/account/i);
     await act(async () => { jest.advanceTimersByTime(10000); });
     expect(fetch).toHaveBeenCalledTimes(1); expect(auth.isAuthenticated).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Close other sessions and sign in' })).not.toBeInTheDocument();
   });
   it('shows the existing-session warning after Google sign-in without retrying or storing a token', async () => {
-    const message = 'You already have an active session. Log out of that session before starting a new one.';
-    jest.mocked(fetch).mockResolvedValue(response({ error: 'session_already_active', message }, 409));
+    jest.mocked(fetch).mockResolvedValue(response(sessionConflict, 409));
     mount(true, true); await flush();
-    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('alert')).toHaveTextContent(sessionConflict.message);
+    expect(screen.getByRole('button', { name: 'Close other sessions and sign in' })).toBeEnabled();
+    expect(screen.getByText(/Google will verify your account again/)).toBeInTheDocument();
     await act(async () => { jest.advanceTimersByTime(60 * 60 * 1000); });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(auth.isAuthenticated).toBe(false);
     expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
+  });
+  it('holds duplicate Google replacement clicks without exchanging the consumed callback again', async () => {
+    jest.mocked(fetch).mockResolvedValue(response(sessionConflict, 409));
+    mount(true, true); await flush();
+    const replace = screen.getByRole('button', { name: 'Close other sessions and sign in' });
+    fireEvent.click(replace);
+    fireEvent.click(replace);
+    expect(screen.getByRole('button', { name: 'Opening Google…' })).toBeDisabled();
+    await flush();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(auth.isAuthenticated).toBe(false);
+  });
+  it.each([
+    [400, sessionConflict],
+    [401, sessionConflict],
+    [409, { ...sessionConflict, error: 'ACCOUNT_CONFLICT' }],
+    [409, { ...sessionConflict, activeSessionId: undefined }],
+    [409, { ...sessionConflict, activeSessionId: 'invalid-session' }],
+  ])('does not expose replacement metadata for an unverified conflict (%s, %j)', async (status, body) => {
+    jest.mocked(fetch).mockResolvedValue(response(body, status));
+    mount(); await flush();
+    let result!: Awaited<ReturnType<typeof auth.login>>;
+    await act(async () => { result = await auth.login({ email: 'driver@example.invalid', password: 'synthetic-only' }); });
+    expect(result).not.toHaveProperty('code');
+    expect(result).not.toHaveProperty('activeSessionId');
+    expect(auth.isAuthenticated).toBe(false);
   });
   it('holds the password-revocation notice until Continue', async () => {
     jest.mocked(fetch).mockResolvedValue(response({ ...fixture('google'), passwordRevoked: true }));
@@ -369,17 +400,70 @@ describe('sign-in entry preserves existing sessions', () => {
     expect(closeAllSSE).not.toHaveBeenCalled();
   });
 
-  it('shows a second-session refusal in the password form without authenticating or automatically retrying', async () => {
-    const message = 'You already have an active session. Log out of that session before starting a new one.';
-    jest.mocked(fetch).mockResolvedValue(response({ error: 'session_already_active', message }, 409));
+  it('offers explicit replacement in the password form without authenticating or automatically retrying', async () => {
+    jest.mocked(fetch).mockResolvedValue(response(sessionConflict, 409));
     mountSignIn(); await flush();
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'driver@example.invalid' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'synthetic-only' } });
     await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }).closest('form')!); });
-    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('alert')).toHaveTextContent(sessionConflict.message);
+    expect(screen.getByRole('button', { name: 'Close other sessions and sign in' })).toBeEnabled();
     await act(async () => { jest.advanceTimersByTime(60 * 60 * 1000); });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(auth.isAuthenticated).toBe(false);
     expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
+  });
+
+  it('rechecks credentials with a fresh proof only on explicit replacement and guards duplicate clicks', async () => {
+    const replacement = deferred<Response>();
+    jest.mocked(fetch).mockResolvedValueOnce(response(sessionConflict, 409)).mockReturnValueOnce(replacement.promise);
+    mountSignIn(); await flush();
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'driver@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'synthetic-only' } });
+    await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }).closest('form')!); });
+    const first = JSON.parse(jest.mocked(fetch).mock.calls[0][1]!.body as string);
+    expect(first).not.toHaveProperty('replaceSessionId');
+    const replace = screen.getByRole('button', { name: 'Close other sessions and sign in' });
+    await act(async () => { fireEvent.click(replace); fireEvent.click(replace); });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const retry = JSON.parse(jest.mocked(fetch).mock.calls[1][1]!.body as string);
+    expect(retry).toEqual(expect.objectContaining({ email: 'driver@example.invalid', password: 'synthetic-only', replaceSessionId: activeSessionId }));
+    expect(retry.recoveryProof).not.toBe(first.recoveryProof);
+    expect(retry.recoveryProof).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(localStorage)).not.toContain('synthetic-only');
+    expect(JSON.stringify(sessionStorage)).not.toContain('synthetic-only');
+    expect(auth.isAuthenticated).toBe(false);
+    await act(async () => { replacement.resolve(response(fixture('driver'))); });
+    expect(screen.getByText('Existing Strategy fixture')).toBeInTheDocument();
+    expect(auth.user?.userId).toBe('driver');
+  });
+
+  it.each(['Email', 'Password'])('clears replacement consent when %s changes', async label => {
+    jest.mocked(fetch).mockResolvedValue(response(sessionConflict, 409));
+    mountSignIn(); await flush();
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'driver@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'synthetic-only' } });
+    await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }).closest('form')!); });
+    expect(screen.getByRole('button', { name: 'Close other sessions and sign in' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(label), { target: { value: label === 'Email' ? 'other@example.invalid' : 'changed-password' } });
+    expect(screen.queryByRole('button', { name: 'Close other sessions and sign in' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }).closest('form')!); });
+    const retry = JSON.parse(jest.mocked(fetch).mock.calls[1][1]!.body as string);
+    expect(retry).not.toHaveProperty('replaceSessionId');
+  });
+
+  it('leaves replacement consent out of an ordinary password retry', async () => {
+    jest.mocked(fetch).mockResolvedValue(response(sessionConflict, 409));
+    mountSignIn(); await flush();
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'driver@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'synthetic-only' } });
+    const submit = async () => act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Sign In' }).closest('form')!); });
+    await submit();
+    await submit();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    for (const [_url, request] of jest.mocked(fetch).mock.calls) {
+      expect(JSON.parse(request!.body as string)).not.toHaveProperty('replaceSessionId');
+    }
   });
 });

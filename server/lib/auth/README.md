@@ -11,7 +11,7 @@ Authentication and verification utilities for the VectoPilot driver authenticati
 | `password.js` | Password hashing (bcrypt), token generation, validation |
 | `email.js` | SendGrid email service (password reset, verification, welcome) |
 | `sms.js` | Twilio SMS service (password reset, phone verification) |
-| `driver-session.js` | Transactional login admission under the user row lock; refuses replacement of a live session |
+| `driver-session.js` | Transactional login admission under the user row lock; warns about a live session and permits only explicit replacement matching that session's ID |
 | `login-recovery.js` | Durable login-attempt claims, exact-session recovery and cancellation of interrupted sign-in |
 | `session-policy.js` | Shared 60-minute inactivity and two-hour absolute session limits |
 | `index.js` | Barrel export |
@@ -73,5 +73,6 @@ APP_URL=https://vectopilot.com
 
 ## See Also
 
+- [Authentication and session ownership](../../../docs/architecture/AUTH.md) - Verified replacement, recovery and token-binding limits
 - [server/api/auth/](../../api/auth/) - Auth API endpoints
 - [shared/schema.js](../../../shared/schema.js) - Database tables

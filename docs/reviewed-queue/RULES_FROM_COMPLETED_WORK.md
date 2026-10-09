@@ -66,6 +66,14 @@ WHERE market = 'Dallas';
 
 ## Session Architecture Rules
 
+> **Historical examples, superseded:** The January 5 session snippets below do
+> not describe current behavior. `users` is a permanent identity row and must not
+> be deleted on logout or expiry. Following Melody's October 9, 2026 request, a
+> verified conflicting login offers explicit replacement of the identified
+> session; an ordinary login does not silently replace it. Use the current
+> [authentication contract](../architecture/AUTH.md) for implementation, including
+> session binding, recovery and the legacy-token limitation.
+
 ### Rule: Three-Table Session Pattern
 
 **Source:** Session Architecture Implementation (2026-01-05)

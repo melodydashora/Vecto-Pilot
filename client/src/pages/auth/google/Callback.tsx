@@ -32,10 +32,13 @@ export const GoogleCallbackPage: React.FC = () => {
     isAuthenticated, sessionCheckError, refreshProfile } = useAuth();
   const [status, setStatus] = useState<'processing' | 'terms' | 'success' | 'error'>('processing');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const restarting = useRef(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [pendingAuth, setPendingAuth] = useState<GoogleAuthResponse | null>(null);
   const [passwordRevoked, setPasswordRevoked] = useState(false);
-  // Reuse a one-time exchange during StrictMode effect replay; never retry conflicts.
+  // Reuse a one-time exchange during StrictMode replay. Replacement starts fresh OAuth.
   const exchangeRef = useRef<{ key: string; promise: ReturnType<typeof loginWithGoogle> } | null>(null);
   const sawPendingRecovery = useRef(false);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -55,6 +58,7 @@ export const GoogleCallbackPage: React.FC = () => {
 
     // Google returns error param if user denied consent
     if (error) {
+      setActiveSessionId(null);
       setStatus('error');
       setErrorMsg(
         error === 'access_denied'
@@ -65,6 +69,7 @@ export const GoogleCallbackPage: React.FC = () => {
     }
 
     if (!code || !state) {
+      setActiveSessionId(null);
       setStatus('error');
       setErrorMsg('Missing authorization code or state. Please try again.');
       return;
@@ -73,6 +78,7 @@ export const GoogleCallbackPage: React.FC = () => {
     let active = true;
     const key = JSON.stringify([code, state]);
     if (exchangeRef.current?.key !== key) {
+      setActiveSessionId(null);
       exchangeRef.current = { key, promise: loginWithGoogle(code, state) };
     }
     exchangeRef.current.promise.then(result => {
@@ -80,9 +86,11 @@ export const GoogleCallbackPage: React.FC = () => {
       if (!result.success && !result.recoveryPending) {
         setStatus('error');
         setErrorMsg(result.error || 'Google authentication failed. Please try again.');
+        setActiveSessionId(result.code === 'session_already_active' ? result.activeSessionId ?? null : null);
       }
     }).catch(err => {
       if (!active) return;
+      setActiveSessionId(null);
       setStatus('error');
       setErrorMsg(err instanceof Error ? err.message : 'Failed to complete Google sign-in. Please try again.');
     });
@@ -153,6 +161,13 @@ export const GoogleCallbackPage: React.FC = () => {
     } finally {
       setIsAccepting(false);
     }
+  };
+
+  const handleReplaceSession = () => {
+    if (!activeSessionId || restarting.current) return;
+    restarting.current = true;
+    setIsRestarting(true);
+    window.location.href = `${API_ROUTES.AUTH.GOOGLE}?replaceSessionId=${encodeURIComponent(activeSessionId)}`;
   };
 
   if (hasPendingLogout) return <div className="p-6"><Link to="/auth/sign-in">Finish signing out before signing in again</Link></div>;
@@ -251,8 +266,18 @@ export const GoogleCallbackPage: React.FC = () => {
               <div className="text-center">
                 <p className="font-medium text-lg text-red-600">Sign-In Failed</p>
                 <p role="alert" className="text-sm text-gray-500 mt-2">{errorMsg}</p>
+                {activeSessionId && <>
+                  <p className="text-sm text-gray-600 mt-3">
+                    Google will verify your account again, then close your other sessions and sign you in here. Any other signed-in devices will be signed out.
+                  </p>
+                  <Button className="mt-4 w-full h-auto min-h-10 whitespace-normal px-3 py-2" onClick={handleReplaceSession} disabled={isRestarting}>
+                    {isRestarting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isRestarting ? 'Opening Google…' : 'Close other sessions and sign in'}
+                  </Button>
+                </>}
                 <button
                   onClick={() => navigate('/auth/sign-in')}
+                  disabled={isRestarting}
                   className="mt-4 px-4 py-2 text-sm text-blue-600 hover:underline"
                 >
                   Back to Sign In

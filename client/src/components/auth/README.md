@@ -75,8 +75,20 @@ responses before they can change the new owner's state.
 
 The sign-in page also uses `SessionCheck` after temporary saved-session verification
 failure. Opening a saved sign-in URL in another tab retries the existing session
-instead of offering a replacement login. Password and Google login display the
-server's existing-session warning when a separate login is refused.
+instead of offering a replacement login. A separate verified password or Google
+login displays the server's existing-session warning with **Close other sessions
+and sign in**. The action is explicit: ordinary sign-in does not replace another
+live session.
+
+Password replacement resubmits the entered credentials with the conflict's
+session ID and a fresh recovery proof. Editing credentials clears the old
+conflict. Google replacement starts fresh OAuth so Google verifies the account
+again; the consumed authorization code is never reused. The server binds that
+replacement to one-time OAuth state and checks that the targeted session still
+belongs to the verified account. A newer session requires a new warning and
+choice. Passwords are not persisted, and interrupted replacement uses the same
+login recovery flow below. See [authentication](../../../../docs/architecture/AUTH.md)
+for session-bound token invalidation and the legacy unbound-token limitation.
 
 If server logout fails, the sign-in page shows **Finish signing out** and offers
 an explicit retry. Private state and the active token are cleared immediately;

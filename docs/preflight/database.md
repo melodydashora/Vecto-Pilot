@@ -32,7 +32,7 @@ await db.insert(rankings).values({
 - **Ephemeral**: on logout or inactivity (60 min TTL) the `users` row is KEPT and its `session_id` is set NULL (2026-01-06: DELETE was blocked by RESTRICT FKs from driver_profiles/auth_credentials). Do not store permanent settings here.
 - **No Location Data**: All location data goes to the `snapshots` table.
 - **Sliding Window**: `last_active_at` updates on every request.
-- **One live session per user**: Login from another browser/device returns `session_already_active`; the driver must log out of the prior session first. Same-session app switching retains the 60-minute inactivity window and two-hour hard limit. See [authentication](../architecture/AUTH.md).
+- **One live session per user**: A verified login from another browser/device returns `session_already_active` and the current `activeSessionId`. An explicit replacement rechecks credentials and matches `replaceSessionId` against the locked owner row before rotating the session and clearing current snapshot/MAIN pointers together. A stale target cannot replace a newer session. Same-session app switching retains the 60-minute inactivity window and two-hour hard limit. See [authentication](../architecture/AUTH.md).
 - **Lazy Cleanup**: expired sessions are cleared (session_id → NULL) on the next `requireAuth` check; see server/middleware/auth.js.
 
 Interrupted-login receipts live in `auth_login_attempts`, created by
