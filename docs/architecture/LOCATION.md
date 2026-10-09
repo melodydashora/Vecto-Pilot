@@ -41,6 +41,12 @@ only after that read confirms matching owner/session/source and complete
 snapshot/Briefing evidence. No device ID or client-provided city, timezone,
 weather or market can replace the server checks.
 
+The snapshot request has a 30-second client deadline covering both response
+headers and the JSON body. A stalled request releases Refresh with a visible
+retry message; late responses cannot publish context or end the current session.
+Manual retry captures fresh GPS with a new capture identity. This deadline does
+not change the separate progressive Briefing lifecycle or its timing.
+
 [Run setup](../../client/src/contexts/run-setup-context.tsx) separates saving and
 confirming preferences from starting Strategy. Strategy Continue/Refresh calls
 `POST /api/main-runs/continue` with `expectedSnapshotId`, the canonical saved
@@ -91,6 +97,12 @@ market.
 boundary. `getTimezoneForCoords` keeps the older soft `zone|null` contract for
 its callers. Fresh geocoding and timezone requests have bounded eight-second
 signals; there is no market/cache timezone shortcut in MAIN capture.
+
+Collection failures keep the public `snapshot_collection_failed` response.
+Server diagnostics identify the provider stage and an allowlisted failure
+category; raw provider messages, request URLs, credentials and coordinates are
+excluded. A denied request identifies a provider problem, but requires a
+private provider check to distinguish billing, API configuration and key issues.
 
 ## Environmental evidence and concurrency
 

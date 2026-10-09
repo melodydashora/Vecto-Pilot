@@ -588,6 +588,22 @@ from August are historical evidence, not current phone p95 or safety guarantees.
 Timeout/cancellation tests verify bounded behavior under their fixtures; they do not
 measure radio, capture, OCR, provider tail latency or tap-to-speech on a real phone.
 
+October 9, 2026, Melody's direction for tonight: both Offer Analyzer roles send
+text-only requests directly to OpenAI, using the registry's exact pin and the
+existing OCR text and prompts. They do not attempt Google first or retry Google
+after an OpenAI failure. Requests containing an image, including mixed text/image
+requests, select the registry's explicit vision configuration and stay on the
+existing Gemini vision path. A future Google model addition is deferred; it is
+not part of this change.
+
+The OpenAI path uses JSON mode, disables SDK retries and completion storage, and rejects
+dummy credentials, cancellation, refusal, truncation and incomplete responses.
+The hook still validates/adjudicates the returned data; a model outage does not
+authorize an invented ride acceptance. Resolved model provenance follows the
+successful response. This change does not restore Google geocoding, timezone,
+weather or air-quality access, and it does not add a city-based acceptance rule.
+The existing Phase 2 timezone/storage requirements continue to apply.
+
 ### 16.1 Current bounds and caches
 
 These are implementation settings, not measured latency guarantees.
@@ -626,6 +642,9 @@ service selection, multimodal reconciliation, read failures, owner scope, revisi
 original-decision preservation, current response speech and bounded model cancellation.
 Consult the current task receipt for commands/results. This document does not repeat
 obsolete passing-test counts or claim a live device/database/deployment check.
+Text-primary dispatch and transport contracts are covered by
+`tests/ai/offer-openai-fallback.test.js`, `tests/ai/openai-offer-adapter.test.js`
+and `tests/ai/offer-cancellation.test.js`.
 
 ## 19. Key files
 
@@ -660,6 +679,10 @@ an older “shipped” paragraph or treat a historical handoff as the current ch
 
 ## Appendix A — Change log
 
+- 2026-10-09: Set OpenAI as the text-only primary at Melody's direction, preserving
+  vision routing, cancellation, response-validation and provenance boundaries.
+  Preserved replaced model comments
+  in [the removal record](removals/2026-10-09-offer-analyzer-text-backup.md).
 - 2026-09-29: Source-based reconciliation after Melody requested Offer Analyzer root-cause
   fixes before MAIN integration. Replaced contradictory runtime claims, retained source
   paths/numbered sections and separated present behavior from historical evidence.

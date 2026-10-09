@@ -21,6 +21,9 @@ function chainFromRole(role) {
   if (!role || typeof role !== 'string') return null;
   // Special case: AI_COACH should chain as [COACH], not [AI] [COACH]
   if (role === 'AI_COACH') return { parent: 'COACH' };
+  if (role === 'OFFER_ANALYZER' || role === 'OFFER_ANALYZER_DEEP') {
+    return { parent: 'HOOKS', sub: role };
+  }
   const idx = role.indexOf('_');
   if (idx === -1) return { parent: role };
   return { parent: role.slice(0, idx), sub: role.slice(idx + 1) };
@@ -60,7 +63,9 @@ function _aiDebug(...args) {
 let client;
 
 function getClient() {
-  if (!client) {
+  // A cached live client must never turn an unrelated dummy-key fixture into a
+  // network request. Offer Analyzer rejects dummy credentials before this call.
+  if (!client || process.env.OPENAI_API_KEY?.startsWith('sk-dummy')) {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("Missing OPENAI_API_KEY in environment variables");
     }
@@ -103,8 +108,15 @@ function getClient() {
   return client;
 }
 
-export async function callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort, role }) {
+export async function callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort, jsonMode, signal, role }) {
+  const isOfferAnalyzer = role === 'OFFER_ANALYZER' || role === 'OFFER_ANALYZER_DEEP';
   try {
+    signal?.throwIfAborted();
+    if (isOfferAnalyzer && (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('sk-dummy'))) {
+      const error = 'OpenAI provider not configured for Offer Analyzer';
+      logAiError(role, 'OpenAI error', new Error(error));
+      return { ok: false, output: '', error };
+    }
     const openai = getClient();
     // Allow passing full messages array OR build from system/user
     let finalMessages = messages;
@@ -119,10 +131,10 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
       messages: finalMessages
     };
 
-    // o1 models and gpt-5 family use max_completion_tokens, other models use max_tokens
-    const isGPT5Family = model.startsWith("gpt-5");
+    // GPT-5/GPT-6 and o1 use completion-token budgets and reasoning controls.
+    const isReasoningGPTFamily = /^gpt-[56](?:[.-]|$)/.test(model);
     const isO1Family = model.startsWith("o1-");
-    const useCompletionTokens = isGPT5Family || isO1Family;
+    const useCompletionTokens = isReasoningGPTFamily || isO1Family;
 
     if (useCompletionTokens) {
       body.max_completion_tokens = maxTokens;
@@ -130,32 +142,35 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
       body['max_tokens'] = maxTokens;
     }
 
-    // GPT-5 family model behavior:
-    // - GPT-5.2: reasoning_effort only, NO temperature support
-    // - GPT-5.2: reasoning_effort only, NO temperature support (only default=1 allowed)
-    // - o1 models: reasoning_effort only, NO temperature support
-
-    // Add reasoning_effort for models that support it
-    if (reasoningEffort && (isGPT5Family || isO1Family)) {
+    if (reasoningEffort && useCompletionTokens) {
       body.reasoning_effort = reasoningEffort;
     }
 
-    // GPT-5 family and o1 models do NOT support custom temperature
-    // Only add temperature for older GPT-4 models
-    if (temperature !== undefined && !isGPT5Family && !isO1Family) {
+    // Preserve the existing temperature omission for reasoning-model requests.
+    if (temperature !== undefined && !useCompletionTokens) {
       body.temperature = temperature;
     }
+    if (jsonMode) body.response_format = { type: 'json_object' };
+    if (isOfferAnalyzer) body.store = false;
 
     logAiRequest(role, `request (${maxTokens} tokens)`);
 
-    const res = await openai.chat.completions.create(body);
+    const requestOptions = {};
+    if (signal) requestOptions.signal = signal;
+    // The Offer Analyzer router owns the shared deadline and fallback attempt.
+    if (isOfferAnalyzer) requestOptions.maxRetries = 0;
+    const res = Object.keys(requestOptions).length
+      ? await openai.chat.completions.create(body, requestOptions)
+      : await openai.chat.completions.create(body);
+    // Some transports may resolve after cancellation; never publish that answer.
+    signal?.throwIfAborted();
 
     const choice = res?.choices?.[0];
-    const output = choice?.message?.content?.trim() || "";
+    const output = typeof choice?.message?.content === 'string' ? choice.message.content.trim() : '';
     const finishReason = choice?.finish_reason || null;
 
     // 2026-08-06: finish_reason=length is a contract violation, not a response.
-    // On gpt-5 family, reasoning tokens count against max_completion_tokens — a
+    // On reasoning models, reasoning tokens count against max_completion_tokens — a
     // budget consumed entirely by reasoning yields EMPTY content with
     // finish_reason=length, which previously misreported as "Empty response".
     if (finishReason === 'length') {
@@ -163,12 +178,31 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
       return { ok: false, output, truncated: true, error: `truncated at max_tokens=${maxTokens} (finish_reason=length)` };
     }
 
+    if (isOfferAnalyzer && (
+      finishReason !== 'stop' || choice?.message?.refusal ||
+      choice?.message?.tool_calls?.length || choice?.message?.function_call
+    )) {
+      const error = 'OpenAI did not return a complete analysis';
+      logAiError(role, 'OpenAI error', new Error(error));
+      return { ok: false, output: '', error };
+    }
+
     logAiDone(role, `response (${output?.length ?? 0} chars)`);
 
     return output
-      ? { ok: true, output }
+      ? { ok: true, output, model: res?.model || model }
       : { ok: false, output: "", error: `Empty response from OpenAI${finishReason ? ` (finish_reason=${finishReason})` : ''}` };
   } catch (err) {
+    if (isOfferAnalyzer) {
+      // Provider exceptions can contain OCR, addresses, or request credentials.
+      const error = signal?.aborted
+        ? 'OpenAI request cancelled'
+        : Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599
+          ? `OpenAI provider returned HTTP ${err.status}`
+          : 'OpenAI provider request failed';
+      logAiError(role, 'OpenAI error', new Error(error));
+      return { ok: false, output: '', error };
+    }
     logAiError(role, `OpenAI error`, err);
     return { ok: false, output: "", error: err?.message || String(err) };
   }

@@ -59,3 +59,14 @@ test('timezone cancellation blocks both an expired dispatch and a transport that
   });
   await expect(getTimezoneDataForCoords(0, 0, { fetchImpl, signal: during.signal })).rejects.toThrow();
 });
+
+test.each(['geocode', 'timezone'])('fresh GPS failure retains the internal %s source without logging the transport error', async stage => {
+  const cause = new Error('private-fixture-secret https://example.invalid/?key=secret&lat=1.123456789');
+  const original = fetchImpl.getMockImplementation();
+  fetchImpl.mockImplementation(async url => {
+    if (String(url).includes(stage === 'geocode' ? '/geocode/' : '/timezone/')) throw cause;
+    return original(url);
+  });
+  await expect(resolveFreshGpsLocation(1.123456789, 2, { fetchImpl })).rejects.toMatchObject({ snapshotStage: stage, cause });
+  expect(JSON.stringify(output)).not.toContain('private-fixture-secret');
+});

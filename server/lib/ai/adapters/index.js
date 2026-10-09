@@ -36,7 +36,7 @@ const router = new HedgedRouter({
       if (!config) throw new Error('No config for openai');
 
       const { system, user, messages } = req.params;
-      const { model, maxTokens, temperature, reasoningEffort, useWebSearch } = config;
+      const { model, maxTokens, temperature, reasoningEffort, useWebSearch, jsonMode } = config;
 
       // 2026-04-30: pass role so the adapter can chain-prefix log lines on
       // the LEFT (e.g. [BRIEFING] [TRAFFIC] [AI] gpt-5-search-api request)
@@ -45,7 +45,7 @@ const router = new HedgedRouter({
       if (useWebSearch) {
         result = await callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort, role: req.role });
       } else {
-        result = await callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort, role: req.role });
+        result = await callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort, jsonMode, signal, role: req.role });
       }
       if (!result.ok) throw new Error(result.error);
       return result;
@@ -112,7 +112,7 @@ export async function callModel(role, params) {
   // 1. Get primary configuration
   let primaryConfig;
   try {
-    primaryConfig = getRoleConfig(role);
+    primaryConfig = getRoleConfig(role, { hasImages: Boolean(params.images?.length) });
   } catch (err) {
     throw new Error(`Model Role '${role}' not found in registry: ${err.message}`);
   }
@@ -154,7 +154,8 @@ export async function callModel(role, params) {
   try {
     // 3. Execute via Router
     const result = await router.execute({
-      role,
+      // Adapters enforce role-specific contracts using the registry's canonical name.
+      role: primaryConfig.role,
       params,
       configs
     }, {
@@ -189,7 +190,7 @@ export async function callModel(role, params) {
       ok: true,
       text: response.output, // Ensure 'text' property is available for legacy code
       output: response.output,
-      model: primaryConfig.model, // 2026-06-11: expose the RESOLVED model id so callers log the truth, not a hardcoded literal
+      model: response.model || configs[result.provider]?.model || primaryConfig.model,
       provider: result.provider,
       latencyMs: result.latencyMs,
       citations: response.citations

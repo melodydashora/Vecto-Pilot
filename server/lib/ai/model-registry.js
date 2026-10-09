@@ -307,19 +307,25 @@ export const MODEL_ROLES = {
   // Keep deep enrichment off that response path. The under-three-second target
   // (todo #43) requires real-device verification; it is not a measured guarantee.
   // Models are pinned here, never selected through environment overrides.
-  // Temperature 0.1 is Melody's setting; the JSON adapter honors lower values.
+  // Melody, 2026-10-09: OCR text uses OpenAI directly tonight. Image-bearing
+  // requests retain the existing Gemini configuration so image evidence is kept.
   // On model failure the server may prove a rejection, but cannot invent a passed
   // judgment check to ACCEPT a ride. See offers/phase1-decision.js.
   // Historical model comparisons and rationale are preserved in:
   // docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md
   // docs/architecture/removals/2026-09-29-offer-analyzer-doc-reconciliation.md
   OFFER_ANALYZER: {
-    model: 'gemini-3.5-flash-lite',
+    model: 'gpt-6-luna',
     purpose: 'Phase 1: Phone-bound offer analysis from screenshot, OCR or both (ACCEPT/REJECT/NO DATA)',
     maxTokens: 1024,
-    temperature: 0.1, // near-deterministic; honored by gemini-adapter (min with the JSON cap)
-    thinkingLevel: 'MINIMAL',
-    features: ['vision'], // documentary — no adapter reads this; vision works via images[] inlineData
+    reasoningEffort: 'none',
+    jsonMode: true,
+    vision: {
+      model: 'gemini-3.5-flash-lite',
+      temperature: 0.1, // Melody's setting; honored by the Gemini JSON adapter.
+      thinkingLevel: 'MINIMAL',
+      features: ['vision'],
+    },
   },
 
   // Phase 2 enriches saved evidence after the phone response. Its reasoning
@@ -327,12 +333,17 @@ export const MODEL_ROLES = {
   // role when changing other roles; report the model actually used on retries.
   // In-process execution is not a durable queue; see OFFER_ANALYZER.md §10.
   OFFER_ANALYZER_DEEP: {
-    model: 'gemini-3.1-pro-preview',
+    model: 'gpt-6-luna',
     purpose: 'Phase 2: Async deep analysis (visual + text) for offer_intelligence enrichment — runs after Siri response',
     maxTokens: 2048,
-    temperature: 0.2,
-    thinkingLevel: 'LOW', // Pro only supports LOW/HIGH; LOW gives reasoning boost without full latency
-    features: ['vision'],
+    reasoningEffort: 'none',
+    jsonMode: true,
+    vision: {
+      model: 'gemini-3.1-pro-preview',
+      temperature: 0.2,
+      thinkingLevel: 'LOW', // Preserve the existing Gemini deep-analysis setting.
+      features: ['vision'],
+    },
   },
 
   // ==========================
@@ -414,9 +425,7 @@ export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_CONTEXT',
   'VENUE_FILTER',           // 2026-01-14: Added for Anthropic credit fallback
   'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
-  // 2026-02-26: OFFER_ANALYZER removed — vision mode can't be hedged to non-vision fallback.
-  // OpenAI adapter doesn't pass images → GPT-5.2 responds first with empty data, discarding
-  // Gemini's actual vision analysis. Gemini-only is correct for image-based offer analysis.
+  // Offer Analyzer uses OpenAI for text and Gemini for images, with no cross-provider fallback.
 ];
 
 /**
@@ -494,15 +503,19 @@ export function resolveRoleName(role) {
 /**
  * Get full configuration for a role
  * @param {string} role - Role key (e.g., 'BRIEFING_TRAFFIC' or legacy 'strategist')
+ * @param {{hasImages?: boolean}} options - Select an explicit vision configuration when images are present.
  * @returns {Object} Full role configuration with resolved model
  */
-export function getRoleConfig(role) {
+export function getRoleConfig(role, { hasImages = false } = {}) {
   const canonicalRole = resolveRoleName(role);
-  const roleConfig = MODEL_ROLES[canonicalRole];
+  const roleDefinition = MODEL_ROLES[canonicalRole];
 
-  if (!roleConfig) {
+  if (!roleDefinition) {
     throw new Error(`Unknown model role: ${role} (resolved to: ${canonicalRole})`);
   }
+  const roleConfig = hasImages && roleDefinition.vision
+    ? { ...roleDefinition, ...roleDefinition.vision }
+    : roleDefinition;
 
   // 2026-09-15 (Melody's decision): model names live HERE and only here. There is no
   // env override and no Replit Secret for a model name — dev and prod resolve identically,

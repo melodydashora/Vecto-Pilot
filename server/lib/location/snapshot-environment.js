@@ -91,7 +91,13 @@ export function createSnapshotEnvironment({ fetchImpl = (...args) => fetch(...ar
         throw new Error(`Snapshot ${section} observation is stale or future-dated`);
       }
       return value;
-    })();
+    })().catch(cause => {
+      // Preserve source attribution across Promise.all without exposing URLs,
+      // keys, coordinates or raw provider responses in snapshot diagnostics.
+      throw Object.assign(new Error(cause instanceof Error ? cause.message : 'Snapshot environment provider failed', { cause }), {
+        snapshotStage: section === 'air' ? 'air_quality' : 'weather',
+      });
+    });
     inFlight.set(key, pending);
     try { return structuredClone(await pending); }
     finally { if (inFlight.get(key) === pending) inFlight.delete(key); }

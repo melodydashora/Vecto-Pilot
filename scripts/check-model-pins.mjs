@@ -63,9 +63,11 @@ const PROVIDERS = {
 // Group pins by provider
 const byProvider = new Map();
 for (const [role, cfg] of Object.entries(MODEL_ROLES)) {
-  const provider = getProviderForModel(cfg.model);
-  if (!byProvider.has(provider)) byProvider.set(provider, []);
-  byProvider.get(provider).push({ role, model: cfg.model });
+  for (const [label, pin] of [[role, cfg], ...(cfg.vision ? [[`${role}:vision`, cfg.vision]] : [])]) {
+    const provider = getProviderForModel(pin.model);
+    if (!byProvider.has(provider)) byProvider.set(provider, []);
+    byProvider.get(provider).push({ role: label, model: pin.model });
+  }
 }
 
 let failures = 0;
@@ -97,6 +99,6 @@ for (const [provider, pins] of byProvider) {
   }
 }
 
-const total = Object.keys(MODEL_ROLES).length;
+const total = [...byProvider.values()].reduce((sum, pins) => sum + pins.length, 0);
 console.log(`\n${total - failures - skipped} verified, ${skipped} skipped, ${failures} failed of ${total} pins`);
 process.exit(failures ? 1 : 0);

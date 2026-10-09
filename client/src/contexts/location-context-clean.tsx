@@ -59,6 +59,24 @@ function freshPosition(signal: AbortSignal): Promise<Fix> {
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   });
 }
+// Bound snapshot transport separately from the longer progressive Briefing.
+// Include the response body, and settle even if a transport ignores cancellation.
+async function withSnapshotDeadline<T>(signal: AbortSignal, request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  let rejectPending!: (reason: Error) => void;
+  const pending = new Promise<never>((_resolve, reject) => { rejectPending = reject; });
+  const stop = (error: Error) => { rejectPending(error); controller.abort(); };
+  const aborted = () => stop(new DOMException('Aborted', 'AbortError'));
+  const timer = setTimeout(() => stop(new Error('Saving your location timed out. Use Refresh when you’re ready to try again.')), 30_000);
+  signal.addEventListener('abort', aborted, { once: true });
+  try {
+    if (signal.aborted) { aborted(); return await pending; }
+    return await Promise.race([request(controller.signal), pending]);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', aborted);
+  }
+}
 const emptyLocation = {
   currentCoords: null, currentLocationString: 'Getting location…', city: null, state: null, timeZone: null,
   isUpdating: false, lastUpdated: null, overrideCoords: null, weather: null, airQuality: null,
@@ -154,15 +172,18 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     try {
       const fix = await freshPosition(controller.signal);
       if (!current()) return null;
-      const response = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
-        method: 'POST', headers: { Authorization: 'Bearer ' + scope.token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ captureId, lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy,
-          gps_timestamp: fix.timestamp, permission: 'granted' }), signal: controller.signal,
+      const receipt = await withSnapshotDeadline(controller.signal, async signal => {
+        const response = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
+          method: 'POST', headers: { Authorization: 'Bearer ' + scope.token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ captureId, lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy,
+            gps_timestamp: fix.timestamp, permission: 'granted' }), signal,
+        });
+        if (signal.aborted || !current()) return null;
+        if (handleRequestAuthFailure(response.status, scope.token)) return null;
+        return { response, resolved: await response.json() };
       });
-      if (!current()) return null;
-      if (handleRequestAuthFailure(response.status, scope.token)) return null;
-      const resolved = await response.json();
-      if (!current()) return null;
+      if (!current() || !receipt) return null;
+      const { response, resolved } = receipt;
       if (!response.ok || resolved.snapshot_id !== captureId) throw new Error(resolved.message || 'Your fresh location could not be saved.');
       const confirmed = confirmedLocation(resolved);
       setSaved({ scope, data: { ...confirmed, isUpdating: true } });

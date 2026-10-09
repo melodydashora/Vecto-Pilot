@@ -91,6 +91,35 @@ test('failed snapshot HTTP cannot publish ready', async () => {
   enrichHttp = 500; render(app()); await flush();
   expect(location.isLocationResolved).toBe(false); expect(published).not.toHaveBeenCalled();
 });
+test.each(['headers', 'body'])('a stalled snapshot %s releases Refresh and ignores a late receipt', async stage => {
+  let finish!: (value: any) => void;
+  let signal!: AbortSignal;
+  let lateReceipt: any;
+  const stalled = new Promise<any>(resolve => { finish = resolve; });
+  jest.mocked(fetch).mockImplementation(async (input, options) => {
+    const result = await route(input, options);
+    if (String(input) !== API_ROUTES.LOCATION.SNAPSHOT) return result;
+    signal = options!.signal as AbortSignal;
+    lateReceipt = storedSnapshot;
+    return stage === 'headers' ? stalled : { ...result, json: () => stalled };
+  });
+  render(app()); await flush();
+  expect(location.isUpdating).toBe(true);
+  await act(async () => { await jest.advanceTimersByTimeAsync(30_000); });
+  expect(signal.aborted).toBe(true);
+  expect(location.isUpdating).toBe(false); expect(location.isLoading).toBe(false);
+  expect(location.contextReady).toBe(false);
+  expect(location.locationError?.message).toMatch(/timed out.*Refresh/i);
+  await act(async () => { finish(stage === 'headers' ? response(lateReceipt) : lateReceipt); });
+  expect(location.lastSnapshotId).toBeNull(); expect(published).not.toHaveBeenCalled();
+  expect(reload).not.toHaveBeenCalled(); expect(fetch).toHaveBeenCalledTimes(1);
+
+  gps.timestamp = Date.now();
+  jest.mocked(fetch).mockImplementation(route);
+  await act(async () => { expect(await location.refreshGPS()).not.toBeNull(); });
+  expect(location.contextReady).toBe(true); expect(location.locationError).toBeNull();
+  expect(published).toHaveBeenCalledTimes(1);
+});
 test.each(['weather', 'air'])('missing saved %s measurements cannot publish ready', async field => {
   environment[field] = null;
   render(app()); await flush();

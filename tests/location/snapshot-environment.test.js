@@ -85,6 +85,14 @@ test('invalid coordinates and missing keys fail before any provider call', async
   expect(fetchImpl).not.toHaveBeenCalled();
 });
 
+test.each(['weather', 'air'])('%s failures preserve their source and private cause for safe snapshot diagnostics', async section => {
+  const cause = new Error('private-fixture-secret https://example.invalid/?key=secret');
+  fetchImpl.mockRejectedValueOnce(cause);
+  await expect(environment[section](0, 0)).rejects.toMatchObject({
+    snapshotStage: section === 'air' ? 'air_quality' : 'weather', cause,
+  });
+});
+
 
 for (const section of ['weather', 'air']) {
   const observedField = section === 'weather' ? 'currentTime' : 'dateTime';

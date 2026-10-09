@@ -185,12 +185,35 @@ export function snapshotResponse(snapshot, runId) {
   };
 }
 
+// Provider exceptions may contain request URLs, keys or coordinates. Emit only
+// known source names and classifications; keep raw messages and causes private.
+function snapshotCollectionDiagnostic(error) {
+  const source = error?.cause;
+  const stage = ['geocode', 'timezone', 'weather', 'air_quality'].includes(source?.snapshotStage)
+    ? source.snapshotStage : 'unknown';
+  const cause = source?.cause ?? source;
+  const message = typeof cause?.message === 'string' ? cause.message : '';
+  const http = /^(?:Google (?:location|timezone)|Snapshot (?:weather|air)) provider returned HTTP ([1-5]\d\d)$/.exec(message);
+  const status = /^Google (?:location|timezone) provider returned (REQUEST_DENIED|OVER_QUERY_LIMIT|OVER_DAILY_LIMIT|ZERO_RESULTS|INVALID_REQUEST|UNKNOWN_ERROR)$/.exec(message);
+  let reason = 'upstream_failed';
+  if (http) reason = `http_${http[1]}`;
+  else if (status) reason = status[1].toLowerCase();
+  else if (cause?.code === 'upstream_timeout' || cause?.name === 'TimeoutError') reason = 'timeout';
+  else if (cause?.code === 'circuit_open') reason = 'circuit_open';
+  else if (cause?.name === 'AbortError') reason = 'aborted';
+  else if (/^(?:Google location|Snapshot (?:weather|air)) provider is not configured$/.test(message)) reason = 'not_configured';
+  else if (/^Snapshot (?:weather|air) observation is stale or future-dated$/.test(message)) reason = 'stale_observation';
+  else if (/^(?:Snapshot (?:weather|air) provider returned incomplete measurements|Google reverse geocoding is incomplete: city, state, country and full address are required|Google timezone response is (?:missing timeZoneId|invalid)|Google (?:location|timezone) provider returned missing status)$/.test(message)) reason = 'incomplete_response';
+  return ` source=${stage}; reason=${reason}.`;
+}
+
 export function sendSnapshotError(res, error) {
   const classified = error instanceof MainRunAdmissionError;
   const status = classified && Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? error.status : 500;
   const code = classified && typeof error.code === 'string' && /^[a-z][a-z0-9_]{0,79}$/.test(error.code) ? error.code : 'snapshot_failed';
   const message = classified ? error.message : 'Saved location could not be prepared. Use Refresh to try again.';
-  const diagnostic = `Snapshot request failed: ${code} (HTTP ${status}).`;
+  const diagnostic = `Snapshot request failed: ${code} (HTTP ${status}).` +
+    (code === 'snapshot_collection_failed' ? snapshotCollectionDiagnostic(error) : '');
   if (status >= 500) locationLog.error(1, diagnostic, null, OP.DB);
   else locationLog.warn(1, diagnostic, OP.GPS);
   return res.status(status).json({

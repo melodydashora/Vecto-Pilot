@@ -181,24 +181,32 @@ export function pickBestGeocodeResult(results) {
 
 /** Fresh deterministic GPS context. Neither coordinate cache nor model output supplies required values. */
 export async function resolveFreshGpsLocation(lat, lng, { fetchImpl = fetch, now = Date.now } = {}) {
-  if (!GOOGLE_MAPS_API_KEY) throw new Error('Google location provider is not configured');
-  const request = async (path, params) => {
-    const url = new URL(path);
-    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
-    url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
-    const response = await fetchImpl(url, { signal: AbortSignal.timeout(8_000) });
-    if (!response.ok) throw new Error('Google location provider returned HTTP ' + response.status);
-    const data = await response.json();
-    if (data.status !== 'OK') throw new Error('Google location provider returned ' + (data.status || 'missing status'));
-    return data;
-  };
-  const data = await request(GEOCODE_API_URL, { latlng: lat + ',' + lng });
-  const best = pickBestGeocodeResult(data.results);
-  const parts = pickAddressParts(best?.address_components);
-  const formattedAddress = best?.formatted_address;
-  if (!parts.city || !parts.state || !parts.country || !formattedAddress?.trim()) {
-    throw new Error('Google reverse geocoding is incomplete: city, state, country and full address are required');
+  let snapshotStage = 'geocode';
+  try {
+    if (!GOOGLE_MAPS_API_KEY) throw new Error('Google location provider is not configured');
+    const request = async (path, params) => {
+      const url = new URL(path);
+      for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+      url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(8_000) });
+      if (!response.ok) throw new Error('Google location provider returned HTTP ' + response.status);
+      const data = await response.json();
+      if (data.status !== 'OK') throw new Error('Google location provider returned ' + (data.status || 'missing status'));
+      return data;
+    };
+    const data = await request(GEOCODE_API_URL, { latlng: lat + ',' + lng });
+    const best = pickBestGeocodeResult(data.results);
+    const parts = pickAddressParts(best?.address_components);
+    const formattedAddress = best?.formatted_address;
+    if (!parts.city || !parts.state || !parts.country || !formattedAddress?.trim()) {
+      throw new Error('Google reverse geocoding is incomplete: city, state, country and full address are required');
+    }
+    snapshotStage = 'timezone';
+    const zone = await getTimezoneDataForCoords(lat, lng, { fetchImpl, now });
+    return { ...parts, formattedAddress, timeZone: zone.timeZoneId };
+  } catch (cause) {
+    // Only the source label is eligible for snapshot logs. Retain the original
+    // exception internally, without logging its possibly sensitive message.
+    throw Object.assign(new Error(cause instanceof Error ? cause.message : 'Location provider failed', { cause }), { snapshotStage });
   }
-  const zone = await getTimezoneDataForCoords(lat, lng, { fetchImpl, now });
-  return { ...parts, formattedAddress, timeZone: zone.timeZoneId };
 }

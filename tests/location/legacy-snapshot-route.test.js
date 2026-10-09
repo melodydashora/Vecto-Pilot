@@ -139,6 +139,35 @@ test.each(['/api/snapshot', '/api/location/snapshot', '/api/location/resolve'])(
   expect(await rows()).toHaveLength(0);
 });
 
+test.each([
+  ['geocode', 'Google location provider returned HTTP 403', {}, 'http_403'],
+  ['timezone', 'Google timezone provider returned REQUEST_DENIED', {}, 'request_denied'],
+  ['weather', 'Snapshot weather provider is not configured', {}, 'not_configured'],
+  ['air_quality', 'snapshot-air: upstream_timeout', { code: 'upstream_timeout' }, 'timeout'],
+  ['weather', 'snapshot-weather: circuit_open', { code: 'circuit_open' }, 'circuit_open'],
+  ['air_quality', 'Snapshot air provider returned incomplete measurements', {}, 'incomplete_response'],
+  ['weather', 'Snapshot weather observation is stale or future-dated', {}, 'stale_observation'],
+  ['geocode', 'private-fixture-secret https://example.invalid/?key=secret&lat=1.123456789', {}, 'upstream_failed'],
+  ['private-fixture-secret', 'private-fixture-secret', { code: 'private-fixture-secret' }, 'upstream_failed'],
+])('collection logs allowlisted diagnostics for %s while keeping the public failure private', async (stage, message, extra, reason) => {
+  const cause = Object.assign(new Error(message), extra);
+  location.mockRejectedValueOnce(Object.assign(new Error('private-fixture-secret', { cause }), { snapshotStage: stage }));
+  const logged = jest.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const result = await send('/api/location/snapshot', payload());
+    expect(result.status).toBe(502);
+    expect(result.body.error).toBe('snapshot_collection_failed');
+    const output = JSON.stringify(logged.mock.calls);
+    const safeStage = stage === 'private-fixture-secret' ? 'unknown' : stage;
+    expect(output).toContain(`source=${safeStage}; reason=${reason}`);
+    for (const sensitive of ['private-fixture-secret', 'example.invalid', '1.123456789']) {
+      expect(output).not.toContain(sensitive);
+      expect(JSON.stringify(result.body)).not.toContain(sensitive);
+    }
+    expect(await rows()).toHaveLength(0);
+  } finally { logged.mockRestore(); }
+});
+
 test.each(['/api/snapshot', '/api/location/snapshot', '/api/location/resolve'])('%s hides unclassified failures instead of trusting upstream status or code', async path => {
   assertAdmission.mockRejectedValueOnce(Object.assign(new Error('private database detail'), { status: 403, code: 'upstream_private_code' }));
   const result = await send(path, payload());
