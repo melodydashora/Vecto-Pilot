@@ -371,6 +371,16 @@ export function useBriefingQueries({
   const exhausted = !!aggregateQuery.data?._exhausted;
   const generationError = isEnabled && aggregateQuery.data?.snapshot_id === snapshotId
     ? generationFailure(aggregateQuery.data) : null;
+  // Completion requests a canonical setup readback; it does not grant Strategy
+  // readiness. Retained data from a failed read cannot confirm completion.
+  const completedSnapshotId = isEnabled && aggregateQuery.data?.snapshot_id === snapshotId &&
+    aggregateQuery.data.status === 'complete' && !aggregateQuery.isError && !generationError &&
+    aggregateQuery.data._error == null && !aggregateQuery.data._authError &&
+    !aggregateQuery.data._ownershipError && !aggregateQuery.data._exhausted && !aggregateQuery.data._notGenerated &&
+    [b?.weather, b?.traffic, b?.news, b?.events, b?.school_closures, b?.airport_conditions, b?.holiday]
+      .every(section => section && typeof section === 'object' && !Array.isArray(section) &&
+        !section._pending && !section._generationFailed)
+    ? snapshotId : null;
   const settled = !!aggregateQuery.data && (aggregateQuery.data._exhausted ||
     (!isAggregateLoading(aggregateQuery.data) && !(aggregateQuery.data._error && aggregateQuery.data._error >= 500)));
 
@@ -447,6 +457,7 @@ export function useBriefingQueries({
 
   return {
     generationError,
+    completedSnapshotId,
     isRetryExhausted: exhausted,
     isFetching: aggregateQuery.isFetching,
     retryBriefing,

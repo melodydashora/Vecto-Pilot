@@ -63,6 +63,16 @@ remount restore or reconcile saved context through reads. An unfinished prior
 capture stays held for manual Refresh; unchanged reads do not clear a local
 permission/ownership hold. Previous displayed context remains during refresh.
 
+October 12 readiness correction: an unfinished server operation differs from a
+completed Briefing whose original preparation response was interrupted or whose
+pending snapshot was restored. A successful complete aggregate for the current
+source triggers a read-only canonical `/api/main-runs/setup` confirmation. The
+aggregate is a signal to reread saved state, not permission to mark context ready.
+Only canonical snapshot/Briefing readiness can update the Strategy button; owner,
+session, permission and settings gates remain in force. This confirmation starts
+no GPS capture, model request or Strategy run. Failed or still-unfinished server
+preparation stays held for explicit retry.
+
 Compatibility callers may still supply `runId` for the older admitted capture
 path. That path retains its current admission/settings checks and requires the
 GPS observation to follow admission, with one second of clock tolerance.

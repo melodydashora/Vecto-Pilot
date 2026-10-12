@@ -91,7 +91,8 @@ export function useCoPilot() {
 export function CoPilotProvider({ children, allowPartialCoach = false, allowPartialBriefing = false }: {
   children: React.ReactNode; allowPartialCoach?: boolean; allowPartialBriefing?: boolean;
 }) {
-  const { run, setup } = useRunSetup();
+  const { run, setup, reload: reloadSetup, loading: setupLoading,
+    saving: setupSaving, starting: setupStarting } = useRunSetup();
   const runRef = useRef(run);
   runRef.current = run;
   const locationContext = useLocationContext();
@@ -140,6 +141,26 @@ export function CoPilotProvider({ children, allowPartialCoach = false, allowPart
     isAuthenticated,
   });
   const generationError = briefingQueries.generationError;
+  const confirmedBriefing = useRef<{ scope: typeof authScope; sessionId: string | null; snapshotId: string } | null>(null);
+  const completedSnapshotId = briefingQueries.completedSnapshotId;
+  useEffect(() => {
+    // A restored page or interrupted preparation POST can display a completed
+    // Briefing while setup still holds its earlier pending state. Completion is
+    // only a reason to re-read canonical admission evidence, never admission.
+    // Active GPS preparation owns its own readback; do not supersede that read
+    // or a settings save/start with this read-only reconciliation.
+    if (!authScope || !completedSnapshotId || completedSnapshotId !== contextSnapshotId ||
+        locationContext.contextReady || locationContext.isUpdating || locationContext.isLoading ||
+        setupLoading || setupSaving || setupStarting) return;
+    const currentSessionId = sessionId ?? setup?.sessionId ?? null;
+    const previous = confirmedBriefing.current;
+    if (previous?.scope === authScope && previous.sessionId === currentSessionId &&
+        previous.snapshotId === completedSnapshotId) return;
+    confirmedBriefing.current = { scope: authScope, sessionId: currentSessionId, snapshotId: completedSnapshotId };
+    void reloadSetup();
+  }, [authScope, completedSnapshotId, contextSnapshotId, locationContext.contextReady,
+    locationContext.isUpdating, locationContext.isLoading, setupLoading, setupSaving,
+    setupStarting, sessionId, setup?.sessionId, reloadSetup]);
   const criticalError = useMemo(() => savedCriticalError?.type === 'auth_failed' ? savedCriticalError
     : generationError ? { type: 'briefing_failed' as const, details: generationError } : savedCriticalError,
   [savedCriticalError, generationError]);
@@ -666,6 +687,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false, allowPart
     // provider reasons reach the cards without another mapping contract.
     briefingData: {
       generationError,
+      completedSnapshotId,
       isRetryExhausted,
       isFetching: isBriefingFetching,
       retryBriefing,
@@ -715,6 +737,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false, allowPart
     timeRemainingText,
     isRetryExhausted,
     generationError,
+    completedSnapshotId,
     isBriefingFetching,
     retryBriefing,
     weatherData,

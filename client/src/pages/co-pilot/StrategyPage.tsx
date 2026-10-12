@@ -104,6 +104,7 @@ export default function StrategyPage() {
     enrichmentPhase,
     pipelinePhase,
     timeRemainingText,
+    briefingData,
     timezone
   } = useCoPilot();
   const readyContextId = locationContext.contextReady ? locationContext.lastSnapshotId : null;
@@ -266,7 +267,11 @@ export default function StrategyPage() {
   const refreshGPS: undefined | (() => Promise<unknown>) =
     locationContext?.refreshGPS ?? (locationContext as any)?.location?.refreshGPS;
   const isUpdating = locationContext?.isLoading || locationContext?.isUpdating || false;
-  const preparingContext = isUpdating && !locationContext.locationError;
+  const waitingForBriefing = locationContext.locationError?.code === 'briefing_pending' &&
+    !briefingData?.generationError && !briefingData?.isRetryExhausted && !runSetup.error;
+  const confirmingBriefing = !readyContextId && !!locationContext.lastSnapshotId &&
+    briefingData?.completedSnapshotId === locationContext.lastSnapshotId && runSetup.loading;
+  const preparingContext = (isUpdating && !locationContext.locationError) || waitingForBriefing || confirmingBriefing;
   const generatingStrategy = !!coords && !preparingContext && !locationContext.locationError &&
     !replacementFailed && !runSetup.error && (runSetup.starting || (!!runSetup.run && !immediateStrategy));
   const strategyActionReady = !!readyContextId && runSetup.canContinue &&
