@@ -72,11 +72,11 @@ const router = new HedgedRouter({
       const config = req.configs['google'];
       if (!config) throw new Error('No config for google');
 
-      const { system, user, images } = req.params;
+      const { system, user, images, responseJsonSchema } = req.params;
       const { model, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction } = config;
 
       const result = await callGemini({
-        model, system, user, images, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction, signal
+        model, system, user, images, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction, responseJsonSchema, signal
       });
       if (!result.ok) throw new Error(result.error);
       return result;
@@ -235,6 +235,7 @@ export async function callModel(role, params) {
           temperature: primaryConfig.temperature || 0.2,
           useSearch: needsSearch,
           thinkingLevel: primaryConfig.thinkingLevel,
+          responseJsonSchema: params.responseJsonSchema,
           signal: params.signal,
         });
         if (retryResult.ok) {

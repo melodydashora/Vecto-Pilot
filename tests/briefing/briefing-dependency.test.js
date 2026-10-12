@@ -321,6 +321,7 @@ describe('Briefing before Strategy orchestration', () => {
     while (!signal) await tick();
     expect(signal).toBeInstanceOf(AbortSignal);
     expect(signal.aborted).toBe(false);
+    expect(sections.airport).toHaveBeenCalledWith(expect.objectContaining({ signal }));
     gate.resolve({ events: { items: [], reason: 'Successful search found no events' } });
     expect((await pending).complete).toBe(true);
   });
@@ -405,6 +406,8 @@ describe('Briefing before Strategy orchestration', () => {
     try {
       const rejected = expect(generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot })).rejects.toThrow('completion timed out');
       await jest.advanceTimersByTimeAsync(180000);
+      expect(writes).toHaveLength(0); expect(sections.weather).not.toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(120000);
       await rejected;
       expect(row.generation_token).toBe('another-owner'); expect(writes).toHaveLength(0);
       expect(sections.weather).not.toHaveBeenCalled(); expect(model).not.toHaveBeenCalled();

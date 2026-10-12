@@ -165,7 +165,7 @@ async function generateBriefingInternal({ snapshotId, snapshot, signal }) {
   // 2026-05-02: Workstream 6 commit 5 — discoverAirport owns its writeSectionAndNotify
   // and errorMarker .catch. Returns { airport_conditions, reason }; the final-assembly
   // block below reads from the new shape.
-  const airportPromise = discoverAirport({ snapshot, snapshotId });
+  const airportPromise = discoverAirport({ snapshot, snapshotId, signal });
 
   // 2026-05-02: Workstream 6 commit 6 — discoverNews owns its writeSectionAndNotify
   // and errorMarker .catch. Returns { news: {items, reason}, reason }; the final-assembly

@@ -25,6 +25,10 @@ jest.unstable_mockModule('@/contexts/auth-context', () => ({ useAuth: () => ({
   profile: saved.profile, vehicle: saved.vehicle, updateProfile,
 }) }));
 jest.unstable_mockModule('@/utils/co-pilot-helpers', () => ({ getAuthHeader: () => ({}) }));
+jest.unstable_mockModule('@/contexts/co-pilot-context', () => ({ useCoPilot: () => ({
+  contextSnapshotId: null, criticalError: null,
+  briefingData: { generationError: null, isGathering: false, isRetryExhausted: false },
+}) }));
 jest.unstable_mockModule('@/hooks/useToast', () => ({ useToast: () => ({ toast }) }));
 jest.unstable_mockModule('@/components/GlobalHeader', () => ({ default: () => <p>Driver header</p> }));
 jest.unstable_mockModule('@/components/ui/toaster', () => ({ Toaster: () => null }));

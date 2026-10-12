@@ -11,6 +11,10 @@ const setup = { view: 'summary', reviewOpen: false, run: null, setup: { profile:
   continueWithSavedPreferences: continueRun, reload: jest.fn() };
 jest.unstable_mockModule('@/contexts/run-setup-context', () => ({ useRunSetup: () => setup }));
 jest.unstable_mockModule('@/contexts/location-context-clean', () => ({ useLocation: () => ({ locationRequested: true }) }));
+jest.unstable_mockModule('@/contexts/co-pilot-context', () => ({ useCoPilot: () => ({
+  contextSnapshotId: null, criticalError: null,
+  briefingData: { generationError: null, isGathering: false, isRetryExhausted: false },
+}) }));
 jest.unstable_mockModule('@/components/GlobalHeader', () => ({ default: () => <div>Driver header</div> }));
 jest.unstable_mockModule('@/components/co-pilot/BottomTabNavigation', () => ({ BottomTabNavigation: () => <nav><Link to="/co-pilot/offer-analyzer">Offer Analyzer</Link><Link to="/co-pilot/strategy">Strategy</Link></nav> }));
 jest.unstable_mockModule('@/components/ui/toaster', () => ({ Toaster: () => null }));

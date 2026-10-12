@@ -65,7 +65,7 @@ function Probe() {
 }
 function app() {
   return <QueryClientProvider client={client}><RunSetupProvider><LocationProvider>
-    <CoPilotProvider allowPartialBriefing><Probe /></CoPilotProvider>
+    <CoPilotProvider><Probe /></CoPilotProvider>
   </LocationProvider></RunSetupProvider></QueryClientProvider>;
 }
 async function tick(ms = 1) { await act(async () => { await jest.advanceTimersByTimeAsync(ms); }); }
@@ -161,14 +161,28 @@ test('an unmatched completion cannot release the current saved source', async ()
   expect(writes()).toHaveLength(0); expect(navigator.geolocation.getCurrentPosition).not.toHaveBeenCalled();
 });
 
-test('a terminal failed Briefing keeps the source held despite available sibling data', async () => {
+test.each([
+  ['school_closures', 'Synthetic school verification unavailable'],
+  ['airport_conditions', 'The data provider timed out.'],
+  ['airport_conditions', 'The data provider returned an invalid or incomplete response.'],
+])('terminal %s failure preserves the page and cause while Strategy remains held: %s', async (field, reason) => {
   await mount();
   aggregate = { ...aggregate, status: 'error', briefing: { ...aggregate.briefing,
-    school_closures: { _generationFailed: true, error: 'Synthetic school verification unavailable' } } };
+    [field]: { _generationFailed: true, error: reason } } };
   await act(async () => { Source.instances.find(source => source.url.includes(SOURCE))!.emit(SOURCE); }); await tick(); await tick();
-  expect(copilot.briefingData.generationError).toContain('Synthetic school verification unavailable');
+  expect(copilot.briefingData.generationError).toContain(reason);
+  expect(screen.getByTestId('strategy-page')).toBeInTheDocument();
+  expect(screen.getByTestId('strategy-page')).toHaveTextContent(reason);
+  expect(screen.getByTestId('strategy-briefing-held-card')).toHaveTextContent('Strategy is waiting for Briefing');
+  expect(screen.getByTestId('strategy-briefing-held-card')).toHaveTextContent(reason);
+  expect(screen.queryByTestId('strategy-failed-card')).not.toBeInTheDocument();
   expect(location.contextReady).toBe(false); expect(screen.getByTestId('button-start-strategy')).toBeDisabled();
   expect(screen.queryByTestId('strategy-ready-status')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('strategy-preparation-status')).not.toBeInTheDocument();
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  expect(screen.queryByText('Briefing Could Not Be Completed')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Sign Out & Start Fresh' })).not.toBeInTheDocument();
+  expect(navigator.geolocation.getCurrentPosition).not.toHaveBeenCalled();
   expect(requests(API_ROUTES.MAIN_RUNS.SETUP)).toHaveLength(1); expect(writes()).toHaveLength(0);
 });
 

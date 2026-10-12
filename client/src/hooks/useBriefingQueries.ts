@@ -50,7 +50,7 @@ const MAX_RETRY_ATTEMPTS = 12;
 const INITIAL_RETRY_MS = 2000;
 const MAX_RETRY_MS = 30000;
 const PROGRESS_POLL_MS = 2000;
-const NO_PROGRESS_TIMEOUT_MS = 180000;
+const NO_PROGRESS_TIMEOUT_MS = 300000;
 function getBackoffInterval(attemptCount: number): number {
   return Math.min(INITIAL_RETRY_MS * Math.pow(2, attemptCount), MAX_RETRY_MS);
 }
@@ -371,6 +371,12 @@ export function useBriefingQueries({
   const exhausted = !!aggregateQuery.data?._exhausted;
   const generationError = isEnabled && aggregateQuery.data?.snapshot_id === snapshotId
     ? generationFailure(aggregateQuery.data) : null;
+  // A saved pending status confirms ongoing collection. Transport failure or
+  // exhausted reads cannot honestly promise that providers are still working.
+  const isGathering = isEnabled && aggregateQuery.data?.snapshot_id === snapshotId &&
+    aggregateQuery.data.status === 'pending' && !aggregateQuery.isError && !exhausted &&
+    aggregateQuery.data._error == null && !aggregateQuery.data._authError &&
+    !aggregateQuery.data._ownershipError && !aggregateQuery.data._notGenerated;
   // Completion requests a canonical setup readback; it does not grant Strategy
   // readiness. Retained data from a failed read cannot confirm completion.
   const completedSnapshotId = isEnabled && aggregateQuery.data?.snapshot_id === snapshotId &&
@@ -458,6 +464,7 @@ export function useBriefingQueries({
   return {
     generationError,
     completedSnapshotId,
+    isGathering,
     isRetryExhausted: exhausted,
     isFetching: aggregateQuery.isFetching,
     retryBriefing,

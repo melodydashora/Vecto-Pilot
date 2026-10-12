@@ -126,11 +126,14 @@ it('successful pending reads receive a bounded inactivity allowance reset only b
  let data={...pending(),status:'pending',updated_at:'2026-10-05T12:00:00Z'};
  jest.mocked(fetch).mockImplementation(async()=>response(data));
  const {client,result}=mount();await tick();await tick(1);
- await tick(170000);expect(result.current.isRetryExhausted).toBe(false);
- data={...data,updated_at:'2026-10-05T12:02:50Z'};
+ await tick(185000);expect(result.current.isRetryExhausted).toBe(false);
+ expect(result.current.isGathering).toBe(true);
+ await tick(105000);expect(result.current.isRetryExhausted).toBe(false);
+ data={...data,updated_at:'2026-10-05T12:04:50Z'};
  await act(async()=>{await client.refetchQueries({queryKey:QUERY_KEYS.BRIEFING_AGGREGATE('fixture')});});await tick(1);
- await tick(170000);expect(result.current.isRetryExhausted).toBe(false);
+ await tick(290000);expect(result.current.isRetryExhausted).toBe(false);
  await tick(15000);expect(result.current.isRetryExhausted).toBe(true);
+ expect(result.current.isGathering).toBe(false);
  const count=jest.mocked(fetch).mock.calls.length;await tick(60000);expect(fetch).toHaveBeenCalledTimes(count);
 });
 
@@ -143,8 +146,10 @@ describe('Briefing completion signal for canonical readiness readback', () => {
   jest.mocked(fetch).mockResolvedValueOnce(response(preparing)).mockResolvedValue(response(completed()));
   const { result } = mount(); await tick(); await tick(1);
   expect(result.current.completedSnapshotId).toBeNull();
+  expect(result.current.isGathering).toBe(true);
   await tick(2000); await tick(1);
   expect(result.current.completedSnapshotId).toBe('fixture');
+  expect(result.current.isGathering).toBe(false);
   expect(jest.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
  });
 

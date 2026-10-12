@@ -61,7 +61,7 @@ Models retaining sampling keep the synchronous JSON temperature cap of `0.2`, ho
 
 ## Grounding and failures
 
-Google Search comes from the role's `google_search` feature. Synchronous JSON requests without grounding use `responseMimeType: 'application/json'`. Grounded requests omit that MIME setting because this adapter does not supply a schema; they request JSON through the prompt and existing extraction logic.
+Google Search comes from the role's `google_search` feature. Synchronous JSON requests without grounding use `responseMimeType: 'application/json'`. A caller can now supply `responseJsonSchema`, which sends JSON MIME and that schema together, including with Google Search. Airport's conditions and terminal passes use this explicit contract; the existing same-provider retry preserves the schema. Grounded callers without a schema still omit the bare MIME setting and use prompt/extraction handling. A schema constrains output structure; it does not verify source facts or replace downstream identity, completeness and truncation checks.
 
 Synchronous one-shot `callGemini()` requests use a per-request `X-Goog-FieldMask` header to omit opaque `thoughtSignature` and `responseId` fields from the provider response. The mask retains text, thought flags, finish reasons, safety ratings, grounding metadata, prompt feedback, usage counts and model version. It does not reduce thinking or change role settings. Streaming and conversation history retain their existing signature behavior; this mask must not be reused for multi-turn or tool-call history.
 

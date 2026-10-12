@@ -25,10 +25,12 @@
 
 import { briefingLog, OP, matrixLog } from '../../../logger/workflow.js';
 import { callModel } from '../../ai/adapters/index.js';
+import { getRoleConfig } from '../../ai/model-registry.js';
 import { safeJsonParse } from '../shared/safe-json-parse.js';
 import { writeSectionAndNotify, CHANNELS, errorMarker } from '../briefing-notify.js';
 import { findNearbyAirports, AIRPORT_RADIUS_MILES } from '../../location/airports.js';
 import { fetchFAADelayData } from '../../external/faa-asws.js';
+import { airportConditionsSchema, airportTerminalsSchema } from '../shared/airport-response-schema.js';
 
 /**
  * 2026-04-05: Manual airport JSON extraction — last resort when safeJsonParse fails.
@@ -155,7 +157,8 @@ function conditionsFromFAA(code, faa) {
     ? 'FAA explicitly reports no delays.' : `FAA reports ${status} conditions.`), conditionsSource: 'faa' };
 }
 
-async function fetchAirportConditions({ snapshot }) {
+async function fetchAirportConditions({ snapshot, signal, onFailureResult }) {
+  signal?.throwIfAborted();
   // Require GPS coords + timezone — selection is coords-based (no fallbacks)
   if (!Number.isFinite(snapshot?.lat) || !Number.isFinite(snapshot?.lng) || !snapshot?.timezone) {
     briefingLog.warn(2, 'Snapshot missing lat/lng/timezone - cannot select airports', OP.AI);
@@ -178,6 +181,7 @@ async function fetchAirportConditions({ snapshot }) {
 
   // STEP 1 — deterministic selection: which airports (never the model's call)
   const nearby = await findNearbyAirports(snapshot.lat, snapshot.lng);
+  signal?.throwIfAborted();
 
   if (nearby.length === 0) {
     // The seeded catalog has no coverage receipt for this radius. An empty
@@ -232,6 +236,9 @@ async function fetchAirportConditions({ snapshot }) {
     isFallback: true,
     reason: why
   });
+  // The outer deadline can settle while a provider is still pending. Retain
+  // only facts already collected if that happens; never publish late output.
+  onFailureResult?.(failureResult);
 
   // One conditions source per airport: FAA first, research only for missing
   // usable observations. Concurrent lookups share one national feed request.
@@ -241,10 +248,13 @@ async function fetchAirportConditions({ snapshot }) {
       .filter((a) => a.country === 'US')
       .map(async (a) => {
         try {
+          signal?.throwIfAborted();
           const faa = await fetchFAADelayData(a.iata, { strict: true });
+          signal?.throwIfAborted();
           if (!faa) throw new Error(`FAA returned no status for ${a.iata}`);
           faaByCode[a.iata] = faa;
         } catch {
+          signal?.throwIfAborted();
           briefingLog.warn(2, `FAA unavailable for ${a.iata}; conditions research will handle the missing source`, OP.FALLBACK);
           faaByCode[a.iata] = {
             delay_minutes: null,
@@ -261,6 +271,7 @@ async function fetchAirportConditions({ snapshot }) {
 
   try {
     await faaEnrichment;
+    signal?.throwIfAborted();
     for (const airport of nearby) {
       const conditions = conditionsFromFAA(airport.iata, faaByCode[airport.iata]);
       if (conditions) conditionsByCode.set(airport.iata, conditions);
@@ -269,11 +280,14 @@ async function fetchAirportConditions({ snapshot }) {
     if (missingConditions.length) {
       briefingLog.info(`Airport conditions fallback: ${missingConditions.map(airport => airport.iata).join(', ')}`);
       const conditionsResult = await callModel('BRIEFING_AIRPORT', {
+        signal,
+        responseJsonSchema: airportConditionsSchema(missingConditions.map(airport => airport.iata)),
         system: `Research current airport operating conditions using Google Search. Use current FAA advisories and official airport sources. Research ONLY the supplied airports. Use the driver's timezone ${timezone} for clock times. Return only JSON. Missing or stale evidence stays unreported; a failed FAA request does not mean normal operations. Do not research terminal checkpoints, pickup locations or TSA waits in this step.`,
         user: `Airport conditions fallback as of ${date}. Direct FAA data did not supply usable conditions for: ${missingConditions.map(airport => `${airport.iata} (${airport.name})`).join('; ')}.
 Find current delays, ground stops, closures, diversions and operating restrictions for exactly these airports. Use normal only when current evidence explicitly confirms it. A scoped restriction is not a whole-airport closure. Do not invent minutes, conditions or FAA observations.
 Return {"airports":[{"code":"<requested IATA>","status":"<normal|delayed|severe|closed|ground-stop|restricted|unreported>","delays":"<current source advisory, or unreported>"}]}. Include every requested airport even when its conditions are unreported.`,
       });
+      signal?.throwIfAborted();
       if (!conditionsResult.ok) return failureResult(`Airport conditions fallback failed: ${conditionsResult.error}`);
       const conditions = safeJsonParse(conditionsResult.output);
       const allowedStatuses = new Set(['normal', 'delayed', 'severe', 'closed', 'ground-stop', 'restricted', 'unreported']);
@@ -314,10 +328,28 @@ Return {"airports":[{"code":"<requested IATA>","status":"<normal|delayed|severe|
       )
       .join('\n');
 
-    const system = `You are a terminal research assistant for rideshare drivers. Airport operating conditions have already been resolved and are fixed input. Do not re-fetch, re-research, correct or replace flight delays, ground stops, closures or diversions. Use web search ONLY for terminal checkpoint waits, arrivals schedules/activity, rideshare pickup locations and typical terminal demand windows. Keep advice consistent with the supplied conditions; unknown conditions stay unknown. Research ONLY the listed airports. Express EVERY clock time in the driver's local timezone (${timezone}). Return ONLY valid JSON, without prose, markdown or code fences.`;
+    // Send only the chosen conditions source. A missing FAA advisory is not a
+    // second operating-status report; retain it in the saved section, not here.
+    const fixedConditions = nearby.map(airport => {
+      const conditions = conditionsByCode.get(airport.iata);
+      if (conditions.conditionsSource !== 'faa') return conditions;
+      const faa = faaByCode[airport.iata];
+      const advisory = Object.fromEntries(Object.entries({
+        delay_minutes: faa.delay_minutes,
+        closure_status: faa.closure_status === 'unknown' ? null : faa.closure_status,
+        closure_start: faa.closure_start,
+        closure_end: faa.closure_end,
+        ground_stops: faa.ground_stops,
+        ground_delay_programs: faa.ground_delay_programs,
+        source_updated_at: faa.source_updated_at,
+        fetched_at: faa.fetched_at,
+      }).filter(([, value]) => value != null && (!Array.isArray(value) || value.length > 0)));
+      return { ...conditions, faa: advisory };
+    });
+    const system = `You are a terminal research assistant for rideshare drivers. Airport operating conditions have already been resolved and are fixed input, with one chosen conditions source per airport. Do not re-fetch, re-research, correct or replace flight delays, ground stops, closures or diversions. Use web search ONLY for terminal checkpoint waits, arrivals schedules/activity, rideshare pickup locations and typical terminal demand windows. Keep advice consistent with the supplied conditions; unknown or unreported conditions stay unknown. Research ONLY the listed airports. Express EVERY clock time in the driver's local timezone (${timezone}). Return ONLY valid JSON, without prose, markdown or code fences.`;
     const user = `Research terminal details as of ${date} for exactly these airports: ${airportList}. All times in ${timezone} local time.
 FIXED AIRPORT CONDITIONS (read-only context; do not research these again or return replacement status/delays):
-${JSON.stringify(nearby.map(airport => ({ ...conditionsByCode.get(airport.iata), faa: faaByCode[airport.iata] ?? null })))}
+${JSON.stringify(fixedConditions)}
 ${inventoryLines ? `\nKnown terminal structure — your terminals array for these airports MUST contain one entry per terminal listed here (fill what search finds; use "unreported" for what it doesn't; Clear lanes exist ONLY where marked):\n${inventoryLines}\n` : ''}
 For EACH airport, search for:
 1. PER-TERMINAL TSA CHECKPOINT WAITS — report each available checkpoint by name with general/PreCheck/Clear waits in minutes. Use "unreported" when unavailable; never fabricate.
@@ -328,7 +360,10 @@ For EACH airport, search for:
 Return ONLY this JSON structure (placeholders in <angle brackets> are value types, not literal text):
 {"airports":[{"code":"<IATA from the given list>","busyTimes":["<HH:MM-HH:MM>"],"terminals":[{"terminal":"<terminal name>","arrivalsActivity":"<current arrivals info OR 'unreported'>","ridesharePickup":"<pickup location OR 'unreported'>","checkpoints":[{"name":"<checkpoint name OR 'unreported'>","lanes":{"general":<minutes OR "unreported">,"preCheck":<minutes OR "unreported">,"clear":<minutes OR "unreported">}}]}]}],"busyPeriods":["<HH:MM-HH:MM driver demand windows>"],"recommendations":"<2-3 sentences of terminal/pickup advice consistent with fixed conditions>"}`;
 
-    const result = await callModel('BRIEFING_AIRPORT', { system, user });
+    signal?.throwIfAborted();
+    const result = await callModel('BRIEFING_AIRPORT', { system, user, signal,
+      responseJsonSchema: airportTerminalsSchema(nearby.map(airport => airport.iata)) });
+    signal?.throwIfAborted();
 
     if (!result.ok) {
       matrixLog.error({
@@ -442,6 +477,7 @@ Return ONLY this JSON structure (placeholders in <angle brackets> are value type
       role: 'BRIEFING_AIRPORT'
     };
   } catch (err) {
+    signal?.throwIfAborted();
     briefingLog.warn(2, `Airport research error: ${err.message}`, OP.FALLBACK);
     return failureResult(`airport research error: ${err.message}`);
   }
@@ -465,24 +501,51 @@ Return ONLY this JSON structure (placeholders in <angle brackets> are value type
  * @param {string} args.snapshotId - snapshot UUID
  * @returns {Promise<{ airport_conditions: object, reason: string|null }>}
  */
-export async function discoverAirport({ snapshot, snapshotId }) {
+export async function discoverAirport({ snapshot, snapshotId, signal }) {
   let airport_conditions;
   let reason = null;
+  let knownFailureResult;
+  // Catalog/FAA, conditions research and terminal research share one allowance.
+  // Forward it through the router so a retry cannot reset the remaining time.
+  const timeoutMs = getRoleConfig('BRIEFING_AIRPORT').timeoutMs;
+  const controller = new AbortController();
+  const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+  const timer = setTimeout(() => {
+    const error = new Error(`Airport research timed out after ${timeoutMs}ms`);
+    error.name = 'TimeoutError';
+    controller.abort(error);
+  }, timeoutMs);
+  let onAbort;
 
   try {
-    airport_conditions = await fetchAirportConditions({ snapshot }) || {
+    requestSignal.throwIfAborted();
+    const cancelled = new Promise((_, reject) => {
+      onAbort = () => reject(requestSignal.reason);
+      requestSignal.addEventListener('abort', onAbort, { once: true });
+    });
+    airport_conditions = await Promise.race([
+      fetchAirportConditions({ snapshot, signal: requestSignal,
+        onFailureResult: failureResult => { knownFailureResult = failureResult; } }), cancelled,
+    ]) || {
       airports: [],
       busyPeriods: [],
       recommendations: 'No airport data available for this area',
       reason: 'Airport conditions could not be retrieved'
     };
+    requestSignal.throwIfAborted();
     reason = airport_conditions?.reason || null;
     await writeSectionAndNotify(snapshotId, { airport_conditions }, CHANNELS.AIRPORT);
   } catch (err) {
-    airport_conditions = errorMarker(err);
-    reason = err.message;
+    const marker = errorMarker(err);
+    airport_conditions = { ...knownFailureResult?.(marker.error), ...marker };
+    reason = marker.error;
     await writeSectionAndNotify(snapshotId, { airport_conditions }, CHANNELS.AIRPORT);
-    throw err;
+    // Return a failed section on this flow's deadline so final reconciliation
+    // retains known facts. Caller/generation cancellation still rejects.
+    if (signal?.aborted || !controller.signal.aborted) throw err;
+  } finally {
+    clearTimeout(timer);
+    if (onAbort) requestSignal.removeEventListener('abort', onAbort);
   }
 
   return { airport_conditions, reason };

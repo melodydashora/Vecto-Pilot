@@ -69,7 +69,7 @@ function mount(data: ReturnType<typeof aggregate>) {
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
-  render(<QueryClientProvider client={client}><CoPilotProvider allowPartialBriefing><BriefingPage /></CoPilotProvider></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><CoPilotProvider><BriefingPage /></CoPilotProvider></QueryClientProvider>);
   return client;
 }
 

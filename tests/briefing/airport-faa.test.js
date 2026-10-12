@@ -7,10 +7,10 @@ const callModel = jest.fn();
 const findNearbyAirports = jest.fn();
 const fetchFAA = jest.fn();
 const writeSection = jest.fn();
-const log = { warn: jest.fn(), done: jest.fn(), info: jest.fn(), error: jest.fn() };
+const log = { warn: jest.fn(), done: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
 jest.unstable_mockModule('../../server/logger/workflow.js', () => ({
-  briefingLog: log, matrixLog: log, OP: { AI: 'AI', FALLBACK: 'FALLBACK' }
+  briefingLog: log, matrixLog: log, createWorkflowLogger: () => log, OP: { AI: 'AI', FALLBACK: 'FALLBACK' }
 }));
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel }));
 jest.unstable_mockModule('../../server/lib/location/airports.js', () => ({ findNearbyAirports, AIRPORT_RADIUS_MILES: 50 }));
@@ -35,6 +35,12 @@ const unknownFAA = () => ({ airport_code: 'AAA', delay_minutes: null, has_delays
 const normalFAA = () => ({ airport_code: 'AAA', delay_minutes: 0, has_delays: false,
   closure_status: 'open', supported: true, ground_stops: [],
   delay_reason: 'FAA explicitly reports no delays.', source_updated_at: sourceTime, fetched_at: fetchedTime });
+const terminalConditions = () => {
+  const user = callModel.mock.calls.at(-1)[1].user;
+  const fixed = user.slice(user.indexOf('FIXED AIRPORT CONDITIONS')).split('\n')
+    .find(line => line.trim().startsWith('['));
+  return JSON.parse(fixed);
+};
 function expectFailed(result) {
   expect(result.airport_conditions.isFallback).toBe(true);
   expect(briefingSectionIssue('airport_conditions', result.airport_conditions)).not.toBeNull();
@@ -75,6 +81,22 @@ describe('FAA-first conditions and separate terminal research', () => {
     expect(result.reason).toMatch(/unparseable or truncated/);
   });
 
+  test('an unquoted procedure token remains a JSON failure while verified FAA conditions survive', async () => {
+    // Synthetic reproduction of the live syntax class, not a copied provider
+    // payload: a literal word appears outside the requested JSON string.
+    const malformed = '{"airports":[{"code":"AAA","busyTimes":[],"terminals":[{"terminal":"A","arrivalsActivity":"unreported","ridesharePickup":procedure "Synthetic curb","checkpoints":[]}]}],"busyPeriods":[],"recommendations":"Synthetic advice"}';
+    callModel.mockResolvedValue({ ok: true, output: malformed });
+    const result = await discoverAirport(args);
+    expectFailed(result);
+    expect(result.reason).toMatch(/unparseable or truncated/);
+    expect(result.airport_conditions.airports[0]).toMatchObject({
+      code: 'AAA', status: 'normal', delays: 'FAA explicitly reports no delays.', conditionsSource: 'faa',
+      faa_has_delays: false, faa_source_updated_at: sourceTime, faa_fetched_at: fetchedTime,
+    });
+    expect(result.airport_conditions.airports[0]).not.toHaveProperty('terminals');
+    expect(callModel).toHaveBeenCalledTimes(1);
+  });
+
   test('uses one terminal call after explicit FAA conditions and ignores replacement conditions in its output', async () => {
     callModel.mockResolvedValue(jsonResult({ airports: [condition('AAA', {
       status: 'closed', delays: 'Conflicting later terminal response', conditionsSource: 'gemini-search',
@@ -95,6 +117,40 @@ describe('FAA-first conditions and separate terminal research', () => {
     });
     expect(formatAirportContext(result.airport_conditions)).toContain('"conditionsSource":"faa"');
     expect(briefingSectionIssue('airport_conditions', result.airport_conditions)).toBeNull();
+  });
+
+  test('terminal input contains the selected researched conditions without a contradictory unknown FAA object', async () => {
+    fetchFAA.mockResolvedValue(unknownFAA());
+    callModel.mockResolvedValueOnce(jsonResult({ airports: [condition('AAA', {
+      status: 'normal', delays: 'Synthetic current official advisory confirms normal operations.',
+    })] }));
+    callModel.mockResolvedValueOnce(terminalResult());
+    const result = await discoverAirport(args);
+    expect(callModel).toHaveBeenCalledTimes(2);
+    expect(terminalConditions()).toEqual([{ code: 'AAA', status: 'normal',
+      delays: 'Synthetic current official advisory confirms normal operations.', conditionsSource: 'gemini-search' }]);
+    expect(callModel.mock.calls[1][1].user).not.toContain(unknownFAA().delay_reason);
+    expect(result.airport_conditions.airports[0]).toMatchObject({ status: 'normal', conditionsSource: 'gemini-search',
+      faa_has_delays: null, faa_supported: null, faa_delay_reason: unknownFAA().delay_reason });
+    expect(briefingSectionIssue('airport_conditions', result.airport_conditions)).toBeNull();
+  });
+
+  test('selected FAA conditions retain useful closure and ground-stop timing in terminal input', async () => {
+    const closureStart = '2026-10-05T10:00:00Z'; const closureEnd = '2026-10-05T11:00:00Z';
+    fetchFAA.mockResolvedValue({ ...normalFAA(), has_delays: true, closure_status: 'ground-stop',
+      delay_reason: 'Synthetic FAA ground-stop advisory.', closure_start: closureStart, closure_end: closureEnd,
+      ground_stops: [{ reason: 'Synthetic weather advisory', end_time: closureEnd }] });
+    const result = await discoverAirport(args);
+    expect(callModel).toHaveBeenCalledTimes(1);
+    const [selected] = terminalConditions();
+    expect(selected).toMatchObject({ code: 'AAA', status: 'ground-stop',
+      delays: 'Synthetic FAA ground-stop advisory.', conditionsSource: 'faa' });
+    const input = JSON.stringify(selected);
+    for (const detail of [closureStart, closureEnd, 'Synthetic weather advisory']) expect(input).toContain(detail);
+    expect(result.airport_conditions.airports[0]).toMatchObject({
+      faa_closure_start: closureStart, faa_closure_end: closureEnd,
+      faa_ground_stops: [{ reason: 'Synthetic weather advisory', end_time: closureEnd }],
+    });
   });
 
   test.each([
@@ -233,6 +289,26 @@ describe('FAA-first conditions and separate terminal research', () => {
     expect(callModel.mock.calls[0][1].user).not.toContain('BBB');
     expect(callModel.mock.calls[1][1].user).toContain('AAA (Synthetic airport');
     expect(callModel.mock.calls[1][1].user).toContain('BBB (Synthetic airport');
+    const conditionsSchema = callModel.mock.calls[0][1].responseJsonSchema;
+    expect(conditionsSchema).toMatchObject({ type: 'object', required: ['airports'], properties: {
+      airports: { type: 'array', minItems: 1, maxItems: 1, items: {
+        required: expect.arrayContaining(['code', 'status', 'delays']),
+        properties: { code: { enum: ['AAA'] }, status: { enum: expect.arrayContaining(['restricted', 'unreported']) } },
+      } },
+    } });
+    expect(conditionsSchema.properties.airports.items.properties).not.toHaveProperty('terminals');
+    const terminalsSchema = callModel.mock.calls[1][1].responseJsonSchema;
+    expect(terminalsSchema).toMatchObject({ type: 'object',
+      required: expect.arrayContaining(['airports', 'busyPeriods', 'recommendations']), properties: {
+        airports: { type: 'array', minItems: 2, maxItems: 2, items: {
+          required: expect.arrayContaining(['code', 'busyTimes', 'terminals']),
+          properties: { code: { enum: ['AAA', 'BBB'] }, terminals: { type: 'array', items: {
+            required: expect.arrayContaining(['terminal', 'arrivalsActivity', 'ridesharePickup', 'checkpoints']),
+          } } },
+        } },
+      } });
+    expect(terminalsSchema.properties.airports.items.properties).not.toHaveProperty('status');
+    expect(terminalsSchema.properties.airports.items.properties).not.toHaveProperty('delays');
     expect(result.airport_conditions.airports[0].faa_supported).toBeNull();
     expect(result.airport_conditions.airports[1]).toMatchObject({
       faa_delay_minutes: 0, faa_has_delays: false, faa_closure_status: 'open', faa_supported: true,

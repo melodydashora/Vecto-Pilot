@@ -77,23 +77,26 @@ test('one timed out category blocks cached events even when the other succeeds',
   callModel.mockImplementationOnce(() => new Promise(() => {}));
   const rejected = expect(discoverEvents(args)).rejects.toThrow('timed out');
   await jest.advanceTimersByTimeAsync(180000);
+  expect(writes).toHaveLength(0); expect(readEvents).not.toHaveBeenCalled();
+  expect(callModel).toHaveBeenCalledTimes(2);
+  await jest.advanceTimersByTimeAsync(120000);
   await rejected;
   expect(readEvents).not.toHaveBeenCalled(); expect(writes.at(-1).events._generationFailed).toBe(true);
 });
-test('complete category output after two minutes remains eligible before the three-minute deadline', async () => {
+test('complete category output after three minutes remains eligible before the five-minute deadline', async () => {
   jest.useFakeTimers();
   let providerSignal;
   callModel.mockImplementationOnce((_role, options) => {
     providerSignal = options.signal;
     return new Promise(resolve => setTimeout(() => resolve({ ok: true, output: JSON.stringify([
       { ...cachedEvent, venue: cachedEvent.venue_name, address: '123 Test Road' },
-    ]) }), 150000));
+    ]) }), 240000));
   });
   const settled = discoverEvents(args).then(value => ({ value }), error => ({ error }));
-  await jest.advanceTimersByTimeAsync(120000);
+  await jest.advanceTimersByTimeAsync(180000);
   expect(providerSignal?.aborted).toBe(false);
   expect(readEvents).not.toHaveBeenCalled(); expect(writes).toHaveLength(0);
-  await jest.advanceTimersByTimeAsync(30000);
+  await jest.advanceTimersByTimeAsync(60000);
   const result = await settled;
   expect(result.error).toBeUndefined();
   expect(result.value.events._generationFailed).toBeUndefined();
@@ -234,10 +237,10 @@ test('a complete category can finish venue verification after its model search d
   jest.useFakeTimers();
   const venue = await lookupVenue(); lookupVenue.mockClear();
   callModel.mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve({ ok: true,
-    output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) }), 170000)));
+    output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) }), 290000)));
   lookupVenue.mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve(venue), 12000)));
   const pending = discoverEvents(args);
-  await jest.advanceTimersByTimeAsync(180000);
+  await jest.advanceTimersByTimeAsync(300000);
   expect(writes).toHaveLength(0);
   await jest.advanceTimersByTimeAsync(2000);
   const result = await pending;
@@ -340,7 +343,9 @@ test('category deadline aborts the actual provider signal and discards late succ
     return new Promise(resolve => { finish = resolve; });
   });
   const rejected = expect(discoverEvents(args)).rejects.toThrow('timed out');
-  await jest.advanceTimersByTimeAsync(180000); await rejected;
+  await jest.advanceTimersByTimeAsync(299999);
+  expect(providerSignal?.aborted).toBe(false); expect(writes).toHaveLength(0);
+  await jest.advanceTimersByTimeAsync(1); await rejected;
   expect(providerSignal?.aborted).toBe(true);
   finish({ ok: true, output: JSON.stringify([{ ...cachedEvent, venue: cachedEvent.venue_name }]) });
   await jest.advanceTimersByTimeAsync(0);
@@ -353,7 +358,7 @@ test('caller cancellation aborts both running category requests and never publis
   callModel.mockImplementation((_role, options) => { signals.push(options.signal); return new Promise(resolve => completions.push(resolve)); });
   const rejected = expect(discoverEvents({ ...args, signal: controller.signal })).rejects.toThrow();
   await jest.advanceTimersByTimeAsync(0); controller.abort(new Error('caller cancelled'));
-  await jest.advanceTimersByTimeAsync(180000); await rejected;
+  await jest.advanceTimersByTimeAsync(300000); await rejected;
   expect(signals).toHaveLength(2); expect(signals.every(signal => signal?.aborted)).toBe(true);
   completions.forEach(resolve => resolve({ ok: true, output: '[]' })); await jest.advanceTimersByTimeAsync(0);
   expect(readEvents).not.toHaveBeenCalled(); expect(writes).toHaveLength(1); expect(writes[0].events._generationFailed).toBe(true);

@@ -10,6 +10,8 @@ import { BottomTabNavigation } from '@/components/co-pilot/BottomTabNavigation';
 import { Toaster } from '@/components/ui/toaster';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useRunSetup } from '@/contexts/run-setup-context';
+import { useCoPilot } from '@/contexts/co-pilot-context';
+import { BriefingStatusNotice } from '@/components/briefing/BriefingStatusNotice';
 import RunSetupSummary from '@/components/co-pilot/RunSetupSummary';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -17,6 +19,9 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 export default function CoPilotLayout() {
   const setup = useRunSetup();
   const location = useLocation();
+  const { contextSnapshotId, briefingData, criticalError } = useCoPilot();
+  const briefingError = briefingData.generationError || (criticalError?.type === 'briefing_failed'
+    ? criticalError.details || criticalError.message || 'Required Briefing information could not be gathered.' : null);
   const navigate = useNavigate();
   // 2026-04-05: Removed isStaticPage exclusion — ALL co-pilot pages get the GlobalHeader
   // so users can navigate back from hamburger menu pages (About, Help, Donate, etc.)
@@ -32,6 +37,8 @@ export default function CoPilotLayout() {
       <GlobalHeader />
 
       <main id="main-content" className="main-content-with-header pb-24">
+        <BriefingStatusNotice snapshotId={contextSnapshotId} isGathering={briefingData.isGathering}
+          error={briefingError} updatesUnavailable={briefingData.isRetryExhausted} />
         <Dialog open={setup.reviewOpen && location.locationRequested === true} onOpenChange={open => { if (!open) setup.dismissReview(); }}>
           <DialogContent className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-2xl">
             <DialogTitle>Ready for your session?</DialogTitle>

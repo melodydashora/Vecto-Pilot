@@ -31,7 +31,6 @@ jest.unstable_mockModule('@/hooks/useBarsQuery', () => ({ useBarsQuery: () => ({
 const { CoPilotProvider, useCoPilot } = await import('@/contexts/co-pilot-context');
 let current: ReturnType<typeof useCoPilot>;
 let layoutReads: string[] = [];
-let allowPartialCoach = false;
 let showProbe = true;
 function LayoutProbe({ stamp }: { stamp: string }) {
   React.useLayoutEffect(() => { layoutReads.push(document.body.textContent ?? ''); }, [stamp]);
@@ -59,7 +58,7 @@ let payloads: Record<string, unknown>;
 let venueBlocks: unknown[];
 let strategyFetch: (id: string, init?: RequestInit) => Promise<Response>;
 let snapshotFetch: (id?: string) => Promise<Response>;
-function app(client: QueryClient) { return <QueryClientProvider client={client}><CoPilotProvider allowPartialCoach={allowPartialCoach}>{showProbe && <Probe />}</CoPilotProvider><LayoutProbe stamp={`${auth.token}:${auth.isAuthenticated}`} /></QueryClientProvider>; }
+function app(client: QueryClient) { return <QueryClientProvider client={client}><CoPilotProvider>{showProbe && <Probe />}</CoPilotProvider><LayoutProbe stamp={`${auth.token}:${auth.isAuthenticated}`} /></QueryClientProvider>; }
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } }); clients.push(client);
   const view = render(app(client));
@@ -79,7 +78,6 @@ beforeEach(() => {
   savedSetup = undefined;
   admittedRun = { runId: 'run-A', snapshotId: 'snapshot-A' };
   venueBlocks = [{ name: 'Current venue', placeId: 'place-current', coordinates: { lat: 32, lng: -97 } }];
-  allowPartialCoach = false;
   auth = { isAuthenticated: true, user: { userId: 'driver-A' }, token: 'synthetic-A' };
   location = { ...location, lastSnapshotId: 'snapshot-A', city: 'Fort Worth', timeZone: 'America/Chicago' };
   payloads = { 'snapshot-A': body(), 'snapshot-B': body('snapshot-B', 'Retained server text', { status: 'pending', briefingStatus: 'pending', strategyFresh: false }) };
@@ -253,7 +251,7 @@ describe('completed strategy history and current scope', () => {
   it('hides prior-account error details before passive auth cleanup runs', async () => {
     payloads['snapshot-A'] = { snapshotId: 'snapshot-A', status: 'error', error: 'briefing_failed', message: 'Account A private failure detail' };
     const { client, rerender } = mount();
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Account A private failure detail'));
+    await waitFor(() => expect(screen.getByTestId('local-error')).toHaveTextContent('Account A private failure detail'));
     auth = { ...auth, user: { userId: 'driver-B' }, token: 'synthetic-B' };
     admittedRun = null;
     location = { ...location, lastSnapshotId: null }; rerender(app(client));
@@ -268,8 +266,7 @@ describe('completed strategy history and current scope', () => {
     expect(screen.getByRole('button', { name: 'Sign Out & Start Fresh' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open Coach' })).toBeNull();
   });
-  it('keeps the Coach route available during a data failure while still blocking authentication failure', async () => {
-    allowPartialCoach = true;
+  it('keeps application routes available during a data failure while still blocking authentication failure', async () => {
     payloads['snapshot-A'] = { snapshotId: 'snapshot-A', status: 'error', error: 'briefing_failed', message: 'Weather provider failed' };
     mount(); await waitFor(() => expect(current.criticalError?.type).toBe('briefing_failed'));
     expect(screen.getByRole('main')).toBeInTheDocument();
@@ -443,21 +440,22 @@ test.each([1, 2])('canonical saved venue revision %s supersedes an equal or olde
 });
 
 
-test('first-context Briefing failure reaches the existing red screen before any Strategy admission', async () => {
+test('first-context Briefing failure preserves the application and exact cause without admitting Strategy', async () => {
   admittedRun = null;
   briefingFailures['snapshot-A'] = 'Airport: required research failed';
   mount();
-  expect(screen.getByRole('alert')).toHaveTextContent('Briefing Could Not Be Completed');
-  expect(screen.getByRole('alert')).toHaveTextContent('Airport: required research failed');
-  expect(screen.getByRole('alert')).toHaveTextContent('You can view the collected data or open Coach.');
-  expect(screen.getByRole('link', { name: 'View Briefing' })).toHaveAttribute('href', '/co-pilot/briefing');
-  expect(screen.queryByRole('button', { name: /try again|refresh/i })).toBeNull();
-  expect(screen.getByRole('link', { name: 'Open Coach' })).toHaveAttribute('href', '/co-pilot/coach');
-  expect(screen.getByRole('button', { name: 'Sign Out & Start Fresh' })).toBeInTheDocument();
-  expect(screen.queryByRole('main')).toBeNull();
+  expect(screen.getByRole('main')).toBeInTheDocument();
+  expect(screen.getByTestId('local-error')).toHaveTextContent('Airport: required research failed');
+  expect(screen.getByTestId('current')).toBeEmptyDOMElement();
+  expect(current.criticalError?.type).toBe('briefing_failed');
+  expect(screen.queryByText('Briefing Could Not Be Completed')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Sign Out & Start Fresh' })).not.toBeInTheDocument();
   act(() => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
   expect(refreshGPS).not.toHaveBeenCalled();
   expect(jest.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Fail auth' }));
+  expect(screen.queryByRole('main')).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('Authentication Required');
 });
 
 test('a failed upstream replacement keeps completed guidance and clears when another source is selected', async () => {

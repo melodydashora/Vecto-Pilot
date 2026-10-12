@@ -68,10 +68,15 @@ export async function callGemini({
   useSearch = false,
   thinkingLevel = null, // Model-specific validation; null uses the provider's thinking default.
   skipJsonExtraction = false,
+  responseJsonSchema,
   signal,
 }) {
   try {
     signal?.throwIfAborted();
+    if (responseJsonSchema !== undefined &&
+        (!responseJsonSchema || typeof responseJsonSchema !== 'object' || Array.isArray(responseJsonSchema))) {
+      throw new Error('responseJsonSchema must be a JSON Schema object');
+    }
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error('[AI] GEMINI_API_KEY not configured');
@@ -115,15 +120,15 @@ export async function callGemini({
         ...(topP !== undefined && { topP }),
         ...(topK !== undefined && { topK }),
       }),
-      // 2026-03-02: Force JSON output when system/user requests it — prevents truncation
-      // and eliminates need for post-processing code block stripping
-      // 2026-09-29: never together with Google Search grounding. Verified live (13 provider
-      // calls): grounding plus a bare JSON mime type, with no schema, returns zero candidates
-      // after 30-75 s on the pinned Briefer model, which failed every grounded Briefing
-      // section. Grounded roles get JSON through the prompt and the extraction below.
-      // Grounding with JSON mode answers only when a JSON schema is supplied, and this
-      // adapter has no schema input.
-      ...(expectsJson && !useSearch && { responseMimeType: 'application/json' }),
+      // 2026-09-29: Grounding plus a bare JSON MIME type returned zero candidates
+      // in live tests. Grounded callers without a schema use prompted JSON and
+      // extraction below; ungrounded JSON callers can still use the MIME type.
+      // 2026-10-12: Airport supplies an explicit schema with Search. Keep the
+      // no-bare-MIME contract for other grounded callers; the schema constrains
+      // JSON syntax without weakening downstream identity/evidence validation.
+      ...(responseJsonSchema !== undefined
+        ? { responseMimeType: 'application/json', responseJsonSchema }
+        : expectsJson && !useSearch ? { responseMimeType: 'application/json' } : {}),
       // 2026-02-26: Safety filters set to OFF — news/traffic content about accidents,
       // violence, protests was being blocked. CIVIC_INTEGRITY removed (not a valid
       // adjustable category per Gemini API docs — caused silent request failures).

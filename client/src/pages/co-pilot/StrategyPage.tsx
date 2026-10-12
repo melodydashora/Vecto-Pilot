@@ -105,10 +105,12 @@ export default function StrategyPage() {
     pipelinePhase,
     timeRemainingText,
     briefingData,
+    criticalError,
     timezone
   } = useCoPilot();
   const readyContextId = locationContext.contextReady ? locationContext.lastSnapshotId : null;
-  const replacementFailed = !!strategyError || strategyData?.status === 'error' || strategyData?.status === 'failed';
+  const briefingHeld = !!briefingData?.generationError || !!briefingData?.isRetryExhausted || criticalError?.type === 'briefing_failed';
+  const replacementFailed = !briefingHeld && (!!strategyError || strategyData?.status === 'error' || strategyData?.status === 'failed');
   const refreshStrategy = async () => {
     if (!readyContextId) return;
     let snapshotId = readyContextId;
@@ -509,7 +511,9 @@ export default function StrategyPage() {
               <span className="h-2 w-2 rounded-full bg-current motion-safe:animate-pulse" />Ready
             </span>}
           </Button>
-          {!readyContextId && !preparingContext && <p className="text-sm text-muted-foreground">{locationContext.locationError?.message || 'Refresh location to prepare your Strategy.'}</p>}
+          {!readyContextId && !preparingContext && <p className="text-sm text-muted-foreground">{briefingHeld
+            ? 'Strategy will be available when the complete Briefing is confirmed.'
+            : locationContext.locationError?.message || 'Refresh location to prepare your Strategy.'}</p>}
           {readyContextId && needsSetupReview && <p className="text-sm text-muted-foreground">{runSetup.saveUnconfirmed
             ? 'Confirm your last save before starting.' : runSetup.unsavedEditors?.length
               ? 'Save or review your unsaved changes before starting.' : 'Complete the required settings to start.'}</p>}
@@ -546,6 +550,14 @@ export default function StrategyPage() {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        ) : briefingHeld ? (
+          <Card data-testid="strategy-briefing-held-card">
+            <CardContent className="p-5 text-sm">
+              <p className="font-semibold">Strategy is waiting for Briefing</p>
+              <p className="mt-1 text-muted-foreground">{briefingData?.generationError || strategyError || 'Briefing completion has not been confirmed.'}</p>
+              <p className="mt-2 text-muted-foreground">You can review the collected data, change preferences or use Coach.</p>
             </CardContent>
           </Card>
         ) : replacementFailed ? (

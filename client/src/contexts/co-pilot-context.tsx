@@ -88,9 +88,7 @@ export function useCoPilot() {
   return context;
 }
 
-export function CoPilotProvider({ children, allowPartialCoach = false, allowPartialBriefing = false }: {
-  children: React.ReactNode; allowPartialCoach?: boolean; allowPartialBriefing?: boolean;
-}) {
+export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const { run, setup, reload: reloadSetup, loading: setupLoading,
     saving: setupSaving, starting: setupStarting } = useRunSetup();
   const runRef = useRef(run);
@@ -688,6 +686,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false, allowPart
     briefingData: {
       generationError,
       completedSnapshotId,
+      isGathering: briefingQueries.isGathering,
       isRetryExhausted,
       isFetching: isBriefingFetching,
       retryBriefing,
@@ -738,6 +737,7 @@ export function CoPilotProvider({ children, allowPartialCoach = false, allowPart
     isRetryExhausted,
     generationError,
     completedSnapshotId,
+    briefingQueries.isGathering,
     isBriefingFetching,
     retryBriefing,
     weatherData,
@@ -753,10 +753,10 @@ export function CoPilotProvider({ children, allowPartialCoach = false, allowPart
     // refetchBlocks and refetchBars are EXCLUDED - they're stable refs from useQuery
   ]);
 
-  // A first failed Briefing is terminal before a Strategy can be admitted.
-  // Preserve completed guidance and allow inspection of collected Briefing data.
-  if (criticalError?.type === 'auth_failed' ||
-      (criticalError?.type === 'briefing_failed' && !previousStrategy && !allowPartialCoach && !allowPartialBriefing)) {
+  // Briefing failure holds Strategy admission, not the rest of the app. Keep
+  // navigation, preferences, collected data and Coach available with an inline
+  // notice. Only authentication failure requires the blocking session screen.
+  if (criticalError?.type === 'auth_failed') {
     return (
       <CoPilotContext.Provider value={value}>
         <CriticalError

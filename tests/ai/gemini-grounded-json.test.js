@@ -89,28 +89,31 @@ describe('request shape', () => {
   });
 });
 
-describe('Events gets its own three-minute router budget', () => {
-  test('actual role/router accepts a complete Events answer after the former two-minute limit', async () => {
+describe('Events and Airport get their own five-minute router budgets', () => {
+  test.each(['BRIEFING_EVENTS_DISCOVERY', 'BRIEFING_AIRPORT'])('actual %s role/router accepts a complete answer after three minutes', async role => {
     jest.useFakeTimers();
     let providerSignal;
     behavior = params => new Promise((resolve, reject) => {
       providerSignal = params.config.abortSignal;
-      const timer = setTimeout(() => resolve(answered('[{"title":"Complete synthetic event"}]')), 150000);
+      const timer = setTimeout(() => resolve(answered('[{"title":"Complete synthetic result"}]')), 240000);
       providerSignal.addEventListener('abort', () => {
         clearTimeout(timer); reject(providerSignal.reason);
       }, { once: true });
     });
-    const pending = callModel('BRIEFING_EVENTS_DISCOVERY', { system: 'Return JSON.', user: 'Find events.' });
-    await jest.advanceTimersByTimeAsync(120000);
+    const pending = callModel(role, { system: 'Return JSON.', user: 'Find current data.' });
+    await jest.advanceTimersByTimeAsync(180000);
     expect(providerSignal?.aborted).toBe(false);
-    await jest.advanceTimersByTimeAsync(30000);
+    await jest.advanceTimersByTimeAsync(60000);
     const result = await pending;
     expect(result.ok).toBe(true);
-    expect(JSON.parse(result.output)).toEqual([{ title: 'Complete synthetic event' }]);
+    expect(JSON.parse(result.output)).toEqual([{ title: 'Complete synthetic result' }]);
+    expect(requests[0].config.maxOutputTokens).toBe(role === 'BRIEFING_AIRPORT' ? 16384 : 32768);
+    if (role === 'BRIEFING_AIRPORT') expect(requests[0].config).not.toHaveProperty('thinkingConfig');
+    else expect(requests[0].config.thinkingConfig).toEqual({ thinkingLevel: 'high' });
     expect(requests).toHaveLength(1); expect(jest.getTimerCount()).toBe(0);
   });
 
-  test.each([['BRIEFING_EVENTS_DISCOVERY', 180000], ['BRIEFING_HOLIDAY', 120000]])(
+  test.each([['BRIEFING_EVENTS_DISCOVERY', 300000], ['BRIEFING_AIRPORT', 300000], ['BRIEFING_HOLIDAY', 120000]])(
     '%s aborts its SDK request at its own %ims limit', async (role, deadline) => {
       jest.useFakeTimers();
       let providerSignal;
@@ -130,7 +133,7 @@ describe('Events gets its own three-minute router budget', () => {
     }
   );
 
-  test('caller cancellation still interrupts Events before its extended deadline', async () => {
+  test.each(['BRIEFING_EVENTS_DISCOVERY', 'BRIEFING_AIRPORT'])('caller cancellation still interrupts %s before its extended deadline', async role => {
     jest.useFakeTimers();
     const controller = new AbortController();
     let providerSignal;
@@ -138,7 +141,7 @@ describe('Events gets its own three-minute router budget', () => {
       providerSignal = params.config.abortSignal;
       providerSignal.addEventListener('abort', () => reject(providerSignal.reason), { once: true });
     });
-    const pending = callModel('BRIEFING_EVENTS_DISCOVERY', { system: 'Return JSON.', user: 'Find events.', signal: controller.signal });
+    const pending = callModel(role, { system: 'Return JSON.', user: 'Find current data.', signal: controller.signal });
     await jest.advanceTimersByTimeAsync(0);
     controller.abort();
     expect((await pending).ok).toBe(false);

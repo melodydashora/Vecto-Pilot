@@ -20,6 +20,20 @@ Cross-provider hedging is controlled by `FALLBACK_ENABLED_ROLES` and `getFallbac
 
 ## 1 Adapter comments
 
+The October 12 Airport structured-output update superseded this adapter README
+paragraph, retained verbatim:
+
+```text
+Google Search comes from the role's `google_search` feature. Synchronous JSON requests without grounding use `responseMimeType: 'application/json'`. Grounded requests omit that MIME setting because this adapter does not supply a schema; they request JSON through the prompt and existing extraction logic.
+```
+
+The associated Briefing UI now keeps the app available with an inline notice.
+The MAIN trace's replaced sentence is retained verbatim:
+
+```text
+Verified cards remain visible alongside pending or failure notices, including through View Briefing on the first-failure screen.
+```
+
 File: `server/lib/ai/adapters/gemini-adapter.js`, header, thinking validator, and request configuration.
 
 Reason: the prior comments generalized thinking support by model family, described null as disabling thinking, and treated temperature as effective on newer Flash models. Exact model policy now validates explicit levels, and the documentation distinguishes provider defaults from the retained streaming default.

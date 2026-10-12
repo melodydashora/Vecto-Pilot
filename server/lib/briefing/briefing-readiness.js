@@ -7,8 +7,9 @@ export const BRIEFING_FIELDS = Object.freeze([
 
 const hasText = value => typeof value === 'string' && value.trim().length > 0;
 // Bound inactivity, not the whole fan-out: verified section writes can continue
-// after a three-minute Events search and advance the saved progress timestamp.
-export const BRIEFING_WAIT_TIMEOUT_MS = 180000;
+// after a long Events search and advance the saved progress timestamp.
+// 2026-10-12: Allow five minutes without progress for the extended research calls.
+export const BRIEFING_WAIT_TIMEOUT_MS = 300000;
 
 // Provider errors can contain URLs/credentials. Expose the cause, not raw responses.
 export function briefingFailureReason(error) {

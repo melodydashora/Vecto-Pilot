@@ -77,10 +77,10 @@ export const MODEL_ROLES = {
     // 2026-10-05: The prior 8192 cap returned MAX_TOKENS with only 1493 visible
     // characters during live Events discovery. Thinking shares this output cap;
     // retain HIGH and search quality with headroom below the model's 65536 limit.
-    // Complete-response validation remains unchanged. Melody requested three
-    // minutes for Events; only this role extends the router's 120-second default.
+    // Complete-response validation remains unchanged. Melody extended Events
+    // from three to five minutes on 2026-10-12; other roles keep their own budgets.
     maxTokens: 32768,
-    timeoutMs: 180000,
+    timeoutMs: 300000,
     temperature: 0.4,
     thinkingLevel: 'HIGH',
     features: ['google_search'],
@@ -116,6 +116,8 @@ export const MODEL_ROLES = {
     // failed on the cut-off output in live testing. 16384 gives headroom for
     // metros with several multi-terminal airports.
     maxTokens: 16384,
+    // 2026-10-12: Airport shares five minutes across catalog, FAA and both research phases.
+    timeoutMs: 300000,
     temperature: 0.1,
     features: ['google_search'],
   },

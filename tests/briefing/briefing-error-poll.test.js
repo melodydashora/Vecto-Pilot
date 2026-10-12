@@ -129,12 +129,12 @@ describe('stored Briefing failure polling', () => {
   test.each(['legacy', 'abandoned'])('%s cached Briefing produces an explicit new-snapshot retry', async kind => {
     strategy = { status: 'ok', strategy_for_now: 'Previous guidance' };
     if (kind === 'legacy') briefing.generation_token = null;
-    else briefing.updated_at = new Date(Date.now() - 181000);
+    else briefing.updated_at = new Date(Date.now() - 301000);
     const result = await poll();
     expect(result.status).toBe('error'); expect(result.error).toBe('briefing_failed'); expect(result.retry).toBe('new_snapshot');
     expect(updatePhase).not.toHaveBeenCalled();
   });
-  test.each([91000, 179000])('saved guidance remains pending after %ims without taking over Briefing generation', async elapsed => {
+  test.each([91000, 179000, 181000, 299000])('saved guidance remains pending after %ims without taking over Briefing generation', async elapsed => {
     strategy = { status: 'ok', phase: 'venues', strategy_for_now: 'Previous guidance', updated_at: new Date() };
     briefing.updated_at = new Date(Date.now() - elapsed);
     const savedUpdate = briefing.updated_at;

@@ -57,22 +57,22 @@ describe('Briefing completion contract', () => {
     await expect(waitForBriefing({ snapshotId: 'test-snapshot', read: async () => ({ ...completeBriefing(), status: 'pending' }), timeoutMs: 10, intervalMs: 3, now: () => time, sleep: async ms => { time += ms; } })).rejects.toThrow('timed out');
     expect(time).toBe(10);
   });
-  test('the default join allows Events to finish after the old 90-second deadline', async () => {
+  test('the default join allows Events to finish after the former three-minute deadline', async () => {
     let time = 0;
     const completed = completeBriefing();
     const pending = { ...completed, status: 'pending', generated_at: null, events: null };
     const result = await waitForBriefing({ snapshotId: completed.snapshot_id,
-      read: async () => time < 150000 ? pending : completed,
+      read: async () => time < 240000 ? pending : completed,
       now: () => time, sleep: async ms => { time += ms; } });
     expect(result).toBe(completed);
-    expect(time).toBe(150000);
+    expect(time).toBe(240000);
   });
-  test('the default join still expires at three minutes without accepting partial data', async () => {
+  test('the default join expires at five minutes without accepting partial data', async () => {
     let time = 0;
     const pending = { ...completeBriefing(), status: 'pending', generated_at: null, events: null };
     await expect(waitForBriefing({ snapshotId: pending.snapshot_id, read: async () => pending,
       now: () => time, sleep: async ms => { time += ms; } })).rejects.toThrow('timed out');
-    expect(time).toBe(180000);
+    expect(time).toBe(300000);
     expect(pending.weather_current).toEqual({ temperature: 20, conditions: 'Cloudy' });
     expect(pending.events).toBeNull();
   });
@@ -80,18 +80,18 @@ describe('Briefing completion contract', () => {
     let time = 0;
     const completed = completeBriefing();
     const result = await waitForBriefing({ snapshotId: completed.snapshot_id,
-      read: async () => time >= 240000 ? completed : { ...completed, status: 'pending', generated_at: null,
-        events: null, updated_at: new Date(time >= 120000 ? 120000 : 0) },
+      read: async () => time >= 420000 ? completed : { ...completed, status: 'pending', generated_at: null,
+        events: null, updated_at: new Date(time >= 240000 ? 240000 : 0) },
       now: () => time, sleep: async ms => { time += ms; } });
     expect(result).toBe(completed);
-    expect(time).toBe(240000);
+    expect(time).toBe(420000);
   });
   test('repeated reads of unchanged saved progress cannot extend the wait', async () => {
     let time = 0;
     await expect(waitForBriefing({ snapshotId: 'test-snapshot', read: async () => ({ ...completeBriefing(),
       status: 'pending', generated_at: null, events: null, updated_at: new Date(0) }),
       now: () => time, sleep: async ms => { time += ms; } })).rejects.toThrow('timed out');
-    expect(time).toBe(180000);
+    expect(time).toBe(300000);
   });
   test('a pending section failure waits for the owner to finish saving its other sections', async () => {
     let time = 0;
@@ -102,15 +102,17 @@ describe('Briefing completion contract', () => {
       now: () => time, sleep: async ms => { time += ms; } })).rejects.toThrow('not complete');
     expect(time).toBe(6000);
   });
-  test('cached pending work stays live through three minutes since its last saved progress', () => {
+  test('cached pending work stays live through five minutes since its last saved progress', () => {
     const updatedAt = Date.parse('2026-10-05T12:00:00Z');
     const pending = { ...completeBriefing(), status: 'pending', generated_at: null, events: null,
       generation_token: 'active-generation', updated_at: new Date(updatedAt) };
     expect(cachedBriefingRetryReason(pending, pending.snapshot_id, updatedAt + 90000)).toBeNull();
     expect(cachedBriefingRetryReason(pending, pending.snapshot_id, updatedAt + 179999)).toBeNull();
-    expect(cachedBriefingRetryReason(pending, pending.snapshot_id, updatedAt + 180000)).toContain('timed out');
-    expect(cachedBriefingRetryReason({ ...pending, updated_at: new Date(updatedAt + 120000) },
-      pending.snapshot_id, updatedAt + 180000)).toBeNull();
+    expect(cachedBriefingRetryReason(pending, pending.snapshot_id, updatedAt + 180000)).toBeNull();
+    expect(cachedBriefingRetryReason(pending, pending.snapshot_id, updatedAt + 299999)).toBeNull();
+    expect(cachedBriefingRetryReason(pending, pending.snapshot_id, updatedAt + 300000)).toContain('timed out');
+    expect(cachedBriefingRetryReason({ ...pending, updated_at: new Date(updatedAt + 240000) },
+      pending.snapshot_id, updatedAt + 420000)).toBeNull();
   });
   test('persisted section failure fails immediately rather than polling to timeout', async () => {
     await expect(waitForBriefing({ read: async () => ({ ...completeBriefing(), status: 'error' }), sleep: () => { throw new Error('should not sleep'); } })).rejects.toThrow('not complete');

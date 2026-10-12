@@ -58,7 +58,9 @@ import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVe
 // 120-second default. Melody then requested three minutes; the Events role's
 // router budget matches this caller deadline, which still cancels transport
 // and rejects late output.
-const EVENT_SEARCH_TIMEOUT_MS = 180000;
+// 2026-10-12: Melody extended each search to five minutes. The same category
+// requests, cancellation scope and verification/deduplication still apply.
+const EVENT_SEARCH_TIMEOUT_MS = 300000;
 const EVENT_VENUE_TIMEOUT_MS = 15000; // One budget for cache/Places/geocode resolution
 
 /**
