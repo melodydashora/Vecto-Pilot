@@ -25,6 +25,7 @@ import {
   news_deactivations,
   zone_intelligence,
   offer_intelligence,   // 2026-02-17: Structured offer analytics (replaces intercepted_signals)
+  offer_outcomes,
   offer_rulesets,
   coach_offer_decisions, // 2026-05-05: Driver-decision intel logged from Coach chat
   coach_memos           // 2026-05-12: Coach → Claude Code memo queue, DB-backed for Cloud Run survivability
@@ -73,13 +74,14 @@ function weatherTemperature(weather) {
  * CoachDAL - Full schema read access for AI Coach
  * 
  * Entry Point: strategy_id (visible on UI)
- * Access Pattern: strategy_id → snapshot_id → user_id + session_id → ALL tables
+ * Saved guidance uses its original snapshot_id. An independently verified Coach
+ * snapshot can supply current location without moving that saved guidance.
  * 
  * Access contract:
  * - Scoped by user_id and snapshot_id (waterfall tracking)
  * - Full read access to entire schema (no mutations)
  * - Null-safe reads (missing data returns null, not errors)
- * - Temporal alignment: Trust snapshot day/time as ground truth
+ * - Temporal alignment: preserve observation times and source identities
  */
 // 2026-09-11 (desktop-coach-review item 4, verified in the current tree): the DATA ACCESS
 // SUMMARY labelled ANY non-empty briefing object "Complete" — including the empty-arrays
@@ -159,13 +161,13 @@ export class RideshareCoachDAL {
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @returns {Promise<Object|null>} Snapshot context or null
    */
-  async getHeaderSnapshot(snapshotId) {
+  async getHeaderSnapshot(snapshotId, savedSnapshot = null) {
     try {
-      const [snap] = await db
+      const snap = savedSnapshot ?? (await db
         .select()
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
-        .limit(1);
+        .limit(1))[0];
 
       if (!snap) return null;
 
@@ -815,7 +817,7 @@ export class RideshareCoachDAL {
    * @param {string} authenticatedUserId - Optional authenticated user ID for driver profile lookup
    * @returns {Promise<Object>} Complete coach context with full schema access
    */
-  async getCompleteContext(snapshotId, strategyId, authenticatedUserId = null) {
+  async getCompleteContext(snapshotId, strategyId, authenticatedUserId = null, { coachSnapshot = null } = {}) {
     try {
       // Resolve strategy_id to snapshot_id if needed
       let activeSnapshotId = snapshotId;
@@ -839,7 +841,7 @@ export class RideshareCoachDAL {
 
       // Fetch all schema data in parallel (first batch)
       const [
-        snapshot,
+        sourceSnapshot,
         strategy,
         briefing,
         smartBlocks,
@@ -847,14 +849,30 @@ export class RideshareCoachDAL {
         venueData,
         driverActions
       ] = await Promise.all([
-        this.getHeaderSnapshot(activeSnapshotId),
-        this.getLatestStrategy(activeSnapshotId),
-        this.getComprehensiveBriefing(activeSnapshotId),
-        this.getSmartBlocks(activeSnapshotId),
-        this.getFeedback(activeSnapshotId),
-        this.getVenueData(activeSnapshotId),
-        this.getActions(activeSnapshotId),
+        activeSnapshotId ? this.getHeaderSnapshot(activeSnapshotId) : null,
+        activeSnapshotId ? this.getLatestStrategy(activeSnapshotId) : null,
+        activeSnapshotId ? this.getComprehensiveBriefing(activeSnapshotId) : { exists: false, source_state: 'missing', status: null, source_record: null },
+        activeSnapshotId ? this.getSmartBlocks(activeSnapshotId) : [],
+        activeSnapshotId ? this.getFeedback(activeSnapshotId) : { venue_feedback: [], strategy_feedback: [] },
+        activeSnapshotId ? this.getVenueData(activeSnapshotId) : [],
+        activeSnapshotId ? this.getActions(activeSnapshotId) : [],
       ]);
+      // Only the authenticated route supplies this independently verified row.
+      // All saved guidance above remains scoped to its original source ID.
+      const snapshot = coachSnapshot
+        ? await this.getHeaderSnapshot(coachSnapshot.snapshot_id, coachSnapshot) : sourceSnapshot;
+      const savedContextSource = coachSnapshot ? {
+        source_state: sourceSnapshot ? 'historical_saved_context' : 'unavailable',
+        snapshot_id: activeSnapshotId ?? null,
+        coach_snapshot_id: coachSnapshot.snapshot_id,
+        observed_at: contextTimestamp(sourceSnapshot?.permissions?.observed_at || sourceSnapshot?.created_at),
+        briefing_generated_at: contextTimestamp(briefing?.generated_at),
+        briefing_generation_token: briefing?.source_record?.generation_token ?? null,
+        location: sourceSnapshot ? { city: sourceSnapshot.city, state: sourceSnapshot.state, country: sourceSnapshot.country, timezone: sourceSnapshot.timezone } : null,
+        geography_matches: sourceSnapshot ? ['city', 'state', 'country'].every(field =>
+          typeof sourceSnapshot[field] === 'string' && typeof snapshot[field] === 'string' &&
+          sourceSnapshot[field].trim().toLowerCase() === snapshot[field].trim().toLowerCase()) : null,
+      } : null;
 
       // Fetch market intelligence, user notes, and driver profile (depends on snapshot for city/state/user_id)
       let marketIntelligence = { marketPosition: null, intelligence: [] };
@@ -903,6 +921,7 @@ export class RideshareCoachDAL {
 
       const context = {
         snapshot,
+        ...(coachSnapshot && { sourceSnapshot, savedContextSource }),
         strategy,
         briefing,
         smartBlocks,
@@ -919,7 +938,7 @@ export class RideshareCoachDAL {
         coachOfferDecisions,      // 2026-05-05: Coach-driven decision intel
         coachMemos,               // 2026-05-26: Coach's own prior memos about this driver
         coachSystemNotes,         // 2026-05-26: Coach's system-level observations for this driver
-        status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
+        status: coachSnapshot ? 'coach_context' : this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
       return { ...context, progress: getCoachContextProgress(context) };
     } catch (error) {
@@ -1102,6 +1121,7 @@ export class RideshareCoachDAL {
       if (snapshot.hour != null) prompt += ` (${snapshot.hour}:00)`;
       if (snapshot.is_weekend) prompt += ` [WEEKEND]`;
       prompt += `\n🌍 Timezone: ${snapshot.timezone}`;
+      prompt += `\n   Observation captured: ${contextTimestamp(snapshot.created_at) || 'unknown time'}; this is not continuous tracking.`;
 
       // Weather
       if (snapshot.weather) {
@@ -1119,10 +1139,15 @@ export class RideshareCoachDAL {
         if (snapshot.air.pollutants) prompt += `\n   Pollutants: ${JSON.stringify(snapshot.air.pollutants).substring(0, 100)}`;
       }
 
+      if (context.savedContextSource) {
+        prompt += `\n\n=== HISTORICAL SAVED GUIDANCE SOURCE ===\n${JSON.stringify(context.savedContextSource)}`;
+        prompt += '\nThe following saved Briefing, Strategy and venue data belong to that original source, not the current Coach observation. Different geography does not establish local conditions here. Saved venue distance/drive time describe the old origin; do not reuse them as current travel estimates.';
+      }
+
       // Airport Conditions - now in briefings.airport_conditions (not snapshot)
       // 2026-01-14: airport_context dropped from snapshots, get from briefing if passed
       if (briefing?.airport_conditions?.airports && briefing.airport_conditions.airports.length > 0) {
-        prompt += `\n\n✈️  AIRPORT CONDITIONS (30-mile radius)`;
+        prompt += `\n\n✈️  SAVED AIRPORT CONDITIONS (source's 30-mile radius)`;
         briefing.airport_conditions.airports.slice(0, 3).forEach(a => {
           prompt += `\n   ${a.name || 'Unknown'} (${a.code || 'N/A'}): ${a.distance_miles?.toFixed(1) || 'N/A'}mi`;
           if (a.delays) prompt += ` - DELAYS: ${a.delays}`;
@@ -1133,7 +1158,7 @@ export class RideshareCoachDAL {
       // Holiday — 2026-07-06: from briefings.holiday (verified detection only;
       // errorMarker/failed sections never claim a holiday)
       if (briefing?.holiday?.is_holiday === true && !briefing.holiday._generationFailed) {
-        prompt += `\n\n🎉 SPECIAL DATE: ${briefing.holiday.holiday} (surge likely)`;
+        prompt += `\n\n🎉 SAVED SOURCE SPECIAL DATE: ${briefing.holiday.holiday}`;
       }
     }
 
@@ -1149,9 +1174,9 @@ export class RideshareCoachDAL {
 
     // ========== COMPREHENSIVE BRIEFING (API Data + Perplexity + GPT-5) ==========
     if (briefing && Object.keys(briefing).length > 0) {
-      // REAL-TIME API DATA
+      // Saved API observations retain the Briefing's original generation time.
       if (briefing.weather_current) {
-        prompt += `\n\n🌤️  REAL-TIME WEATHER (from Google Weather API)`;
+        prompt += `\n\n🌤️  SAVED BRIEFING WEATHER (from Google Weather API)`;
         const w = briefing.weather_current;
         prompt += `\n   Current: ${weatherTemperature(w)}`;
         prompt += `\n   Conditions: ${w.conditions || 'N/A'}`;
@@ -1168,7 +1193,7 @@ export class RideshareCoachDAL {
       }
 
       if (briefing.traffic_conditions) {
-        prompt += `\n\nREAL-TIME TRAFFIC CONDITIONS`;
+        prompt += `\n\nSAVED BRIEFING TRAFFIC CONDITIONS`;
         prompt += `\n   Level: ${briefing.traffic_conditions.congestionLevel || 'N/A'}`;
         prompt += `\n   Summary: ${briefing.traffic_conditions.summary || 'N/A'}`;
         if (briefing.traffic_conditions.incidents?.length > 0) {
@@ -1201,7 +1226,7 @@ export class RideshareCoachDAL {
 
     // ========== SMART BLOCKS (Location Recommendations) ==========
     if (smartBlocks && smartBlocks.length > 0) {
-      prompt += `\n\n📍 RECOMMENDED LOCATIONS (Top ${Math.min(smartBlocks.length, 6)})`;
+      prompt += `\n\n📍 SAVED RECOMMENDED LOCATIONS (Top ${Math.min(smartBlocks.length, 6)})`;
       smartBlocks.slice(0, 6).forEach((block, i) => {
         prompt += `\n   ${i + 1}. ${block.name}`;
         if (block.distance_miles != null) prompt += ` - ${block.distance_miles.toFixed(1)}mi`;
@@ -1315,7 +1340,7 @@ export class RideshareCoachDAL {
     }
 
     // ========== OFFER ANALYZER HISTORY ==========
-    // Saved analyzed offers for pattern-aware coaching.
+    // Recent automatically recorded quick/deep evidence, separate from Saved Offers.
     const { offerHistory } = context;
     if (offerHistory?.stats && offerHistory.stats.total > 0) {
       const s = offerHistory.stats;
@@ -1334,8 +1359,9 @@ export class RideshareCoachDAL {
         const miles = offer.total_miles != null ? `${Number(offer.total_miles).toFixed(1)}mi` : '?';
         const pm = offer.per_mile != null ? `$${Number(offer.per_mile).toFixed(2)}/mi` : '';
         const override = offer.user_override ? ` [DRIVER OVERRIDE: ${offer.user_override}]` : '';
-        const time = new Date(offer.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        prompt += `\n   ${i + 1}. ${offer.decision} ${price}/${miles} ${pm} (${time})${override}`;
+        const time = offer.observed_at || contextTimestamp(offer.created_at) || 'unknown time';
+        prompt += `\n   ${i + 1}. ${offer.decision} ${price}/${miles} ${pm} (${time}; ${offer.observed_at_source || 'created_at'})${override}`;
+        prompt += `\n      Driver-reported outcome: ${offer.outcome?.driver_decision || 'unknown'} (does not establish an active trip)`;
       });
 
       prompt += `\n\n   Use offer patterns to advise on positioning, timing, and offer strategy.`;
@@ -1425,12 +1451,31 @@ export class RideshareCoachDAL {
       return { offers: [], stats: null, source_state: 'unavailable', limit: windowLimit };
     }
     try {
-      const history = await db
-        .select()
+      // Quick/deep work can finish out of order. Only a numeric integer sensor
+      // request time is an observation receipt; malformed/legacy values use the
+      // recorded row time explicitly, never a parsed string or invented date.
+      const observedAt = sql`CASE WHEN jsonb_typeof(${offer_intelligence.parsed_data_json}->'request_at') = 'number'
+        AND ${offer_intelligence.parsed_data_json}->>'request_at' ~ '^[0-9]{1,16}([.]0+)?$'
+        THEN CASE WHEN (${offer_intelligence.parsed_data_json}->>'request_at')::numeric <= 8640000000000000
+          THEN to_timestamp((${offer_intelligence.parsed_data_json}->>'request_at')::double precision / 1000)
+          ELSE ${offer_intelligence.created_at} END
+        ELSE ${offer_intelligence.created_at} END`;
+      const rows = await db
+        .select({ offer: offer_intelligence, outcome: offer_outcomes })
         .from(offer_intelligence)
+        .leftJoin(offer_outcomes, and(eq(offer_outcomes.offer_intelligence_id, offer_intelligence.id),
+          eq(offer_outcomes.user_id, offer_intelligence.user_id)))
         .where(and(eq(offer_intelligence.user_id, userId), isNull(offer_intelligence.removed_at)))
-        .orderBy(desc(offer_intelligence.created_at))
+        .orderBy(desc(observedAt), desc(offer_intelligence.created_at), desc(offer_intelligence.id))
         .limit(windowLimit);
+      const history = rows.map(({ offer, outcome }) => {
+        const requestAt = offer.parsed_data_json?.request_at;
+        const hasObservation = typeof requestAt === 'number' && Number.isSafeInteger(requestAt) &&
+          requestAt >= 0 && requestAt <= 8640000000000000;
+        return { ...offer, outcome: outcome ?? null,
+          observed_at: contextTimestamp(hasObservation ? new Date(requestAt) : offer.created_at),
+          observed_at_source: hasObservation ? 'request_at' : 'created_at' };
+      });
 
       if (history.length === 0) {
         return { offers: [], stats: null, source_state: 'available', limit: windowLimit };

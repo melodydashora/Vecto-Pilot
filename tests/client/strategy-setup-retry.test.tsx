@@ -71,7 +71,8 @@ beforeEach(() => {
     if (String(input) === API_ROUTES.MAIN_RUNS.SETUP) return readUnavailable
       ? response({ message: 'Temporarily unavailable.' }, 503) : response(canonical);
     if (String(input) === API_ROUTES.MAIN_RUNS.CONTINUE) return response({ ...canonical.currentRun,
-      runId: 'replacement-run', snapshotId: 'replacement-snapshot', status: 'running' });
+      runId: 'replacement-run', snapshotId: 'replacement-snapshot', status: 'running',
+      settingsRevision: canonical.settingsRevision, rulesVersion: canonical.rulesVersion, rulesHash: canonical.rulesHash });
     throw new Error('Unexpected synthetic request: ' + String(input));
   });
 });
@@ -100,13 +101,15 @@ test('a still-unavailable canonical read keeps guidance and cannot admit Strateg
   expect(jest.mocked(fetch).mock.calls.some(([input]) => input === API_ROUTES.MAIN_RUNS.CONTINUE)).toBe(false);
 });
 
-test('canonical settings changed during the interrupted read require a new preference choice', async () => {
+test('an explicit start accepts freshly verified valid settings without another preference popup', async () => {
   await mount(); await interruptRead();
   readUnavailable = false; canonical = { ...canonical, settingsRevision: 2 };
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Refresh Strategy' })); });
-  expect(setup.setup?.settingsRevision).toBe(2); expect(setup.preferencesConfirmed).toBe(false);
-  expect(setup.reviewOpen).toBe(true); expect(setup.run).toBeNull();
-  expect(jest.mocked(fetch).mock.calls.some(([input]) => input === API_ROUTES.MAIN_RUNS.CONTINUE)).toBe(false);
+  expect(setup.setup?.settingsRevision).toBe(2); expect(setup.preferencesConfirmed).toBe(true);
+  expect(setup.reviewOpen).toBe(false); expect(setup.run?.settingsRevision).toBe(2);
+  const calls = jest.mocked(fetch).mock.calls.filter(([input]) => input === API_ROUTES.MAIN_RUNS.CONTINUE);
+  expect(calls).toHaveLength(1);
+  expect(JSON.parse(String(calls[0][1]?.body))).toMatchObject({ expectedSettingsRevision: 2, expectedSnapshotId: 'prepared-source' });
 });
 
 test.each(['Briefing', 'context'])('manual setup retry cannot admit a canonical snapshot with unfinished %s', async missing => {

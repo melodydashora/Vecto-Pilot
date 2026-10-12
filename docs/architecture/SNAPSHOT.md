@@ -3,11 +3,18 @@
 > Source reconciled 2026-09-29. This replaces April descriptions of sessionStorage
 > restoration, city/TTL reuse, fallback client UUIDs and mutable client enrichment.
 
-A snapshot is the driver's saved point-in-time location and measured current
-environment for **one explicit MAIN admission**. It is deterministic source
-material for downstream work, not a model-generated summary or a browser
-cache. Guidance must not mix an old session, a new GPS callback and another
-run's weather or preferences.
+A snapshot is the driver's saved point-in-time location and measured environment.
+MAIN prepares a snapshot before explicit Strategy admission, which copies that
+source into its admitted context. Coach captures separate immutable observations
+with `permissions.context_kind = 'coach'`, without a MAIN admission or pointer
+change. Guidance retains each source's owner, session, observation time and identity.
+
+October 12 scope correction: the admission-first lifecycle below is retained as
+the September 29 record. Current MAIN preparation and admission are described in
+[Location](LOCATION.md) and [MAIN pipeline](ai-pipeline.md); independent Coach
+capture is described in the [Coach contract](RIDESHARE_COACH.md#independent-coach-snapshot).
+The replaced introduction is preserved in the
+[snapshot removal record](removals/2026-10-12-coach-snapshot-context.md).
 
 The detailed provider/input contract is in [Location](LOCATION.md). The
 end-to-end consumers are traced in [MAIN pipeline](ai-pipeline.md).

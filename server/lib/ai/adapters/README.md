@@ -1,40 +1,31 @@
-> **Last Verified:** 2026-01-08
+# AI adapters
 
-# AI Adapters (`server/lib/ai/adapters/`)
+Reviewed October 12, 2026 against the current dispatcher and Gemini request contract. Offer Analyzer text and image requests now use `gemini-3.8-flash`; Rideshare Coach and VenuePlanner retain their GPT assignments. This describes repository behavior, not proof of production deployment.
 
-## Purpose
-
-Model-agnostic API adapters that normalize calls to different AI providers. **Always use `callModel()` from index.js** - never call provider APIs directly.
+Use `callModel()` or `callModelStream()` from [index.js](index.js) for application model calls. Role names, model pins, image-specific settings, and fallback eligibility come from [model-registry.js](../model-registry.js). API keys remain environment variables; model names have no environment override.
 
 ## Files
 
-| File | Purpose | Provider |
-|------|---------|----------|
-| `index.js` | Main dispatcher - routes by role | All |
-| `anthropic-adapter.js` | Claude API calls + web search | Anthropic |
-| `openai-adapter.js` | GPT-5.2 / o1 calls | OpenAI |
-| `gemini-adapter.js` | Gemini 3.0 Pro calls + Google Search | Google (Developer API) |
-| `vertex-adapter.js` | Vertex AI Gemini calls (Google Cloud) | Google Cloud |
-| `anthropic-sonnet45.js` | Claude Sonnet 4.5 raw calls | Anthropic |
+| File | Purpose |
+| --- | --- |
+| `index.js` | Role dispatcher, hedged requests, and streaming dispatch |
+| `gemini-adapter.js` | Gemini GenerateContent and streamed GenerateContent |
+| `gemini-live-adapter.js` | Gemini Live token minting, separate from text generation |
+| `coach-responses.js` | Canonical AI Coach OpenAI Responses transport |
+| `openai-adapter.js` | OpenAI completions and web search |
+| `anthropic-adapter.js` | Anthropic messages and web search |
+| `anthropic-sonnet45.js` | Specialized Anthropic calls |
+| `vertex-adapter.js` | Separate Google Cloud Vertex AI integration |
 
-## Usage
+## Usage and responses
 
 ```javascript
 import { callModel } from './index.js';
 
-// Use {TABLE}_{FUNCTION} role names
-const result = await callModel('STRATEGY_CORE', {
-  system: 'You are a helpful assistant',
-  user: 'Generate a strategy for...'
+const result = await callModel('BRIEFING_EVENTS_DISCOVERY', {
+  system: 'You are an event researcher.',
+  user: 'Find events in Dallas, TX.',
 });
-
-const events = await callModel('BRIEFING_EVENTS_DISCOVERY', {
-  system: 'You are an event researcher',
-  user: 'Find events in Dallas, TX'
-});
-
-// Legacy names still work (auto-mapped to new names)
-const legacy = await callModel('strategist', { system, user }); // → STRATEGY_CORE
 
 if (result.ok) {
   console.log(result.output);
@@ -43,110 +34,49 @@ if (result.ok) {
 }
 ```
 
-## Available Roles
+Successful dispatched responses contain `ok`, `success`, `output`, `text`, `model`, and `provider`, with optional latency and citation fields. Failed dispatched calls return `ok: false`, `success: false`, `error`, and `text: null`; unknown roles fail during resolution. Streaming returns a provider `Response` or throws. The reported configured model does not independently establish a provider's internal alias routing.
 
-| Role | Purpose | Default Model |
-|------|---------|---------------|
-| **BRIEFINGS TABLE** |||
-| `BRIEFING_TRAFFIC` | Traffic conditions | Gemini 3 Flash |
-| `BRIEFING_NEWS` | Local news research | Gemini 3 Pro |
-| `BRIEFING_EVENTS_DISCOVERY` | Event discovery | Gemini 3 Pro |
-| `BRIEFING_EVENTS_VALIDATOR` | Event verification | Claude Opus 4.5 |
-| **STRATEGIES TABLE** |||
-| `STRATEGY_CORE` | Core strategic plan | Claude Opus 4.5 |
-| `STRATEGY_CONTEXT` | Real-time context | Gemini 3 Pro |
-| `STRATEGY_TACTICAL` | 1-hour tactical strategy | GPT-5.2 |
-| `STRATEGY_DAILY` | 8-12hr daily strategy | Gemini 3 Pro |
-| **VENUES TABLE** |||
-| `VENUE_SCORER` | Smart Blocks venue scoring | GPT-5.2 |
-| `VENUE_FILTER` | Fast venue filtering | Claude Haiku |
-| `VENUE_TRAFFIC` | Venue traffic intel | Gemini 3 Pro |
-| `VENUE_EVENT_VERIFIER` | Venue event verification | Gemini 3 Pro |
-| **COACH TABLE** |||
-| `COACH_CHAT` | AI Coach conversation | Gemini 3 Pro |
-| **UTILITIES** |||
-| `UTIL_MARKET_PARSER` | Market research parsing | GPT-5.2 |
+Use `MODEL_ROLES`, `getRoleConfig()`, and `LEGACY_ROLE_MAP` for the current role inventory. `getRoleConfig(role, { hasImages: true })` selects an explicit vision configuration when defined. Current Offer Analyzer text and image requests share the same Gemini 3.8 Flash pin.
 
-## Response Format
+## Gemini thinking and sampling
 
-```typescript
-{
-  ok: boolean,        // Success/failure
-  output: string,     // AI response text
-  error?: string,     // Error message if failed
-  citations?: array   // Web search citations (if applicable)
-}
-```
+`getGeminiModelPolicy(model)` is the single exact-model policy used by both Gemini generation paths. This capability table does not assign models to roles.
 
-## Provider-Specific Rules
+| Exact model | Accepted thinking levels | Provider default | Adapter sampling parameters |
+| --- | --- | --- | --- |
+| `gemini-3.6-flash` | `MINIMAL`, `LOW`, `MEDIUM`, `HIGH` | `MEDIUM` | Omitted |
+| `gemini-3.8-flash` | `LOW`, `MEDIUM`, `HIGH` | `MEDIUM` | Omitted |
+| `gemini-3.5-flash-lite` | `MINIMAL`, `LOW`, `MEDIUM`, `HIGH` | `MINIMAL` | Omitted |
+| `gemini-3.1-pro-preview` | `LOW`, `MEDIUM`, `HIGH` | `HIGH` | Existing behavior retained |
 
-### GPT-5.2 / o1 Models
-- NO `temperature` parameter (causes 400 error)
-- NO `top_p` parameter
-- Use `reasoning_effort` (flat string: "low", "medium", "high")
-- Use `max_completion_tokens` instead of `max_tokens`
+Explicit unsupported thinking levels fail before a provider request; they are never changed to a different level. Explicit levels also fail for a model without a verified policy. An unknown model with no explicit level remains subject to provider validation; a missing policy does not establish availability.
 
-### Gemini 3.0 Pro
-- Use nested `thinkingConfig`, NOT flat `thinking_budget`
-- Google Search enabled for roles with `features: ['google_search']`
+`callGemini()` defaults to `thinkingLevel: null`, omitting `thinkingConfig` and using the provider default. `callGeminiStream()` preserves its existing implicit `HIGH` default; explicit `null` omits its thinking configuration. Neither omission nor `MINIMAL` guarantees that thinking is off. [Google thinking guide](https://ai.google.dev/gemini-api/docs/generate-content/thinking#controlling-thinking)
 
-### Claude Opus
-- Supports web search via `web_search_20250305` tool
-- Web search enabled for roles with `features: ['web_search']`
+The SDK path sends `config.thinkingConfig.thinkingLevel` in lowercase. Streamed REST sends `generationConfig.thinkingConfig.thinkingLevel` in uppercase. These adapters do not send `thinkingBudget`; Google rejects a request combining a budget with a level. [REST reference](https://ai.google.dev/api/generate-content#ThinkingConfig), [Gemini 3 guide](https://ai.google.dev/gemini-api/docs/generate-content/gemini-3)
 
-### Vertex AI (Google Cloud)
-- Enterprise Gemini access via Google Cloud
-- Requires Google Cloud project and authentication
-- Supports Google Search grounding
-- Use model prefix `vertex-` for explicit Vertex AI routing
+Both paths omit `temperature`, `topP`, and `topK` when the exact policy sets `omitSamplingParameters`. Google documents these controls as ignored from 3.6 Flash and 3.5 Flash-Lite onward, with errors planned for future generations. HTTP 200 with a temperature proves acceptance, not that the value influenced generation. [Google migration guide](https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.6#api-changes-and-parameter-updates)
 
-```javascript
-// Using Vertex AI adapter
-import { isVertexAIAvailable, getVertexAIStatus } from './index.js';
+Models retaining sampling keep the synchronous JSON temperature cap of `0.2`, honoring lower configured values. Other synchronous requests default to `0.7`; streaming defaults to `0.7` with `topP: 0.95` and `topK: 40`. Explicit temperature `0` is retained. Google recommends default sampling settings for older Gemini 3 models. [Gemini 3 guide](https://ai.google.dev/gemini-api/docs/generate-content/gemini-3)
 
-if (isVertexAIAvailable()) {
-  console.log('Vertex AI is configured:', getVertexAIStatus());
-}
-```
+## Grounding and failures
 
-**Environment Variables:**
-```bash
-VERTEX_AI_ENABLED=true
-GOOGLE_CLOUD_PROJECT=my-project-id
-GOOGLE_CLOUD_LOCATION=us-central1  # optional, default us-central1
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # optional, uses ADC if not set
-```
+Google Search comes from the role's `google_search` feature. Synchronous JSON requests without grounding use `responseMimeType: 'application/json'`. Grounded requests omit that MIME setting because this adapter does not supply a schema; they request JSON through the prompt and existing extraction logic.
 
-## Fallback Chain
+Synchronous one-shot `callGemini()` requests use a per-request `X-Goog-FieldMask` header to omit opaque `thoughtSignature` and `responseId` fields from the provider response. The mask retains text, thought flags, finish reasons, safety ratings, grounding metadata, prompt feedback, usage counts and model version. It does not reduce thinking or change role settings. Streaming and conversation history retain their existing signature behavior; this mask must not be reused for multi-turn or tool-call history.
 
-```
-Primary Model (from env via model-registry.js)
-    ↓ (if fails)
-Claude Opus fallback (for FALLBACK_ENABLED_ROLES)
-    ↓ (if fails)
-Return error
-```
+In `callGemini()`, `MAX_TOKENS` remains a failure with `truncated: true`, even when partial text exists. Empty responses remain failures. Thinking tokens share the output cap; a parameter change does not justify accepting an incomplete result. Caller cancellation and provider errors continue through the existing failure paths. The streaming adapter returns the provider stream for its caller to consume.
 
-Fallback-enabled roles: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY`, `BRIEFING_EVENTS_DISCOVERY`, `BRIEFING_NEWS`
+Cross-provider hedging is controlled by `FALLBACK_ENABLED_ROLES` and `getFallbackConfig()` in the registry. A separate Gemini retry applies to a 503/unavailable result when the caller has not canceled, except for the two Offer Analyzer roles, which do not retry another model or provider. Parameter validation errors do not qualify. Read the source definitions for current retry targets and eligible roles.
 
-## Model pins (no environment variables)
+## Verification boundaries
 
-2026-09-15: model names are pinned per role in `../model-registry.js` (`MODEL_ROLES[role].model`).
-There is no `*_MODEL` env key and no override cascade — `getRoleConfig(role)` returns the pin.
-Verify pins against the live provider lists with `node scripts/check-model-pins.mjs`
-(part of `npm run guard`). API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`)
-remain environment variables.
+Authenticated model listing verifies catalog visibility for the configured key. A small GenerateContent probe checks that particular request shape and observed finish reason; it does not establish grounded research quality, image accuracy, voice support, or production readiness. Test each required capability on the intended model before claiming a migration is verified.
 
-## Legacy Role Mapping
+[gemini-model-parameters.test.js](../../../../tests/ai/gemini-model-parameters.test.js) covers mocked request contracts. [gemini-grounded-json.test.js](../../../../tests/ai/gemini-grounded-json.test.js) covers grounded JSON and truncation behavior. These are distinct from live provider checks. `node scripts/check-model-pins.mjs` checks registry pins against provider catalogs.
 
-Old role names are automatically mapped to new names:
+[gemini-response-field-mask.test.js](../../../../tests/ai/gemini-response-field-mask.test.js) uses the installed SDK with intercepted HTTP to verify the one-shot response mask, preserved failures, and unmasked streaming history without provider calls.
 
-| Legacy | Maps To |
-|--------|---------|
-| `strategist` | `STRATEGY_CORE` |
-| `briefer` | `STRATEGY_CONTEXT` |
-| `consolidator` | `STRATEGY_TACTICAL` |
-| `event_validator` | `BRIEFING_EVENTS_VALIDATOR` |
-| `venue_planner` | `VENUE_SCORER` |
-| `venue_filter` | `VENUE_FILTER` |
-| `coach` | `COACH_CHAT` |
+Live voice and Vertex AI use separate transports and parameter contracts. Do not apply this text-model policy to them by model-name substring.
+
+Superseded guidance is preserved in [the October 11 removals record](../../../../docs/architecture/removals/2026-10-11-gemini-parameter-contract.md).

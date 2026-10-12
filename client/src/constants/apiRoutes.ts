@@ -165,6 +165,7 @@ export const API_ROUTES = {
   },
 
   COACH: {
+    SNAPSHOT: '/api/coach/snapshot',
     NOTES: '/api/coach/notes',
     NOTES_WITH_PARAMS: '/api/coach/notes?sort=pinned&limit=50',
     NOTE: (noteId: string) => `/api/coach/notes/${noteId}`,

@@ -27,6 +27,7 @@ import StrategyMap, { type MapEvent } from '@/components/strategy/StrategyMap';
 import { PreviousStrategyCard } from '@/components/strategy/PreviousStrategyCard';
 import { StrategyText } from '@/components/strategy/StrategyText';
 import { StrategySourceTime } from '@/components/strategy/StrategySourceTime';
+import { StrategyPreparationStatus } from '@/components/strategy/StrategyPreparationStatus';
 import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
 // 2026-04-26 PHASE F: traffic incidents layer source
 import { useTrafficIncidents } from '@/hooks/useTrafficIncidents';
@@ -108,15 +109,21 @@ export default function StrategyPage() {
   const readyContextId = locationContext.contextReady ? locationContext.lastSnapshotId : null;
   const replacementFailed = !!strategyError || strategyData?.status === 'error' || strategyData?.status === 'failed';
   const refreshStrategy = async () => {
-    if (!runSetup.preferencesConfirmed) { runSetup.reviewSetup(); return; }
     if (!readyContextId) return;
     let snapshotId = readyContextId;
     if (!runSetup.canContinue) {
-      if (!runSetup.error || runSetup.loading || runSetup.saving || runSetup.saveUnconfirmed || runSetup.unsavedEditors.length) return;
+      if (runSetup.loading || runSetup.saving || runSetup.starting) return;
+      if (!runSetup.error || runSetup.saveUnconfirmed || runSetup.unsavedEditors.length) {
+        runSetup.reviewSetup();
+        return;
+      }
       const canonical = await runSetup.reload();
       if (!canonical || canonical.currentContextPending || !canonical.currentSnapshot?.ready || !canonical.currentSnapshot.briefingReady) return;
       snapshotId = canonical.currentSnapshot.snapshot_id;
     }
+    // An explicit start accepts the verified saved settings in this same action.
+    // The provider's synchronous state ref still rejects drafts or stale reads.
+    if (!runSetup.confirmPreferences()) return;
     await runSetup.continueWithSavedPreferences(snapshotId);
   };
   const venueFeedback = useVenueFeedback(lastSnapshotId, blocksData?.rankingId);
@@ -259,6 +266,22 @@ export default function StrategyPage() {
   const refreshGPS: undefined | (() => Promise<unknown>) =
     locationContext?.refreshGPS ?? (locationContext as any)?.location?.refreshGPS;
   const isUpdating = locationContext?.isLoading || locationContext?.isUpdating || false;
+  const preparingContext = isUpdating && !locationContext.locationError;
+  const generatingStrategy = !!coords && !preparingContext && !locationContext.locationError &&
+    !replacementFailed && !runSetup.error && (runSetup.starting || (!!runSetup.run && !immediateStrategy));
+  const strategyActionReady = !!readyContextId && runSetup.canContinue &&
+    !runSetup.error && !preparingContext && !generatingStrategy;
+  const canRetrySetupRead = !!runSetup.error && !runSetup.loading && !runSetup.saving &&
+    !runSetup.saveUnconfirmed && !runSetup.unsavedEditors?.length;
+  const needsSetupReview = !runSetup.canContinue && !canRetrySetupRead && !runSetup.loading && !runSetup.saving && !runSetup.starting;
+  const strategyActionDisabled = runSetup.starting || !readyContextId || !!runSetup.loading || !!runSetup.saving;
+  const strategyActionLabel = runSetup.starting ? 'Starting Strategy…'
+    : needsSetupReview ? 'Review preferences'
+      : replacementFailed ? 'Retry Strategy'
+        : previousStrategy || immediateStrategy ? 'Refresh Strategy' : 'Continue Strategy';
+  const preparationPhase = preparingContext ? 'preparing'
+    : generatingStrategy ? (runSetup.starting ? 'starting' : 'generating')
+      : strategyActionReady ? 'ready' : null;
 
   // Wrapper for GPS button that ensures feedback even if refreshGPS is undefined
   const handleEnableGPS = async () => {
@@ -450,6 +473,8 @@ export default function StrategyPage() {
         </Card>
       )}
 
+      {preparationPhase && <StrategyPreparationStatus phase={preparationPhase} progress={strategyProgress} messages={loadingMessages} />}
+
       {/* Strategy Section */}
       <div className="mb-6 space-y-4">
         <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
@@ -470,17 +495,25 @@ export default function StrategyPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => void refreshStrategy()} disabled={runSetup.starting || !readyContextId}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${runSetup.starting ? 'animate-spin' : ''}`} />
-            {runSetup.starting ? 'Starting Strategy…' : replacementFailed ? 'Retry Strategy' : previousStrategy || immediateStrategy ? 'Refresh Strategy' : 'Continue Strategy'}
+          <Button onClick={() => void refreshStrategy()} disabled={strategyActionDisabled}
+            aria-label={strategyActionLabel} data-testid="button-start-strategy" data-ready={strategyActionReady}
+            className={strategyActionReady ? 'shadow-md ring-2 ring-primary/25 ring-offset-2 ring-offset-background' : undefined}>
+            <RefreshCw aria-hidden="true" className={`mr-2 h-4 w-4 ${runSetup.starting ? 'motion-safe:animate-spin' : ''}`} />
+            {strategyActionLabel}
+            {strategyActionReady && <span aria-hidden="true" className="ml-3 flex items-center gap-1.5 text-xs">
+              <span className="h-2 w-2 rounded-full bg-current motion-safe:animate-pulse" />Ready
+            </span>}
           </Button>
-          {!readyContextId && <p className="text-sm text-muted-foreground">{locationContext.isLoading ? 'Preparing location and Briefing…' : 'Refresh location to prepare your Strategy.'}</p>}
-          {readyContextId && !runSetup.preferencesConfirmed && <p className="text-sm text-muted-foreground">Choose your preferences to continue Strategy.</p>}
+          {!readyContextId && !preparingContext && <p className="text-sm text-muted-foreground">{locationContext.locationError?.message || 'Refresh location to prepare your Strategy.'}</p>}
+          {readyContextId && needsSetupReview && <p className="text-sm text-muted-foreground">{runSetup.saveUnconfirmed
+            ? 'Confirm your last save before starting.' : runSetup.unsavedEditors?.length
+              ? 'Save or review your unsaved changes before starting.' : 'Complete the required settings to start.'}</p>}
+          {readyContextId && (runSetup.loading || runSetup.saving) && <p className="text-sm text-muted-foreground">Confirming your saved preferences…</p>}
         </div>
         {runSetup.error && <p role="alert" className="text-sm text-destructive">{runSetup.error}</p>}
 
         {/* Strategy Cards */}
-        {!coords ? (
+        {!coords && !preparingContext ? (
           <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
             <CardContent className="p-5">
               <div className="flex items-center gap-3">
@@ -524,60 +557,15 @@ export default function StrategyPage() {
               </div>
             </CardContent>
           </Card>
-        ) : !runSetup.run ? (
+        ) : !runSetup.run && !preparingContext && !runSetup.starting ? (
           <Card data-testid="strategy-ready-card">
-            <CardContent className="p-5 text-sm text-muted-foreground">Continue Strategy when your preferences and location are ready.</CardContent>
+            <CardContent className="p-5 text-sm text-muted-foreground">{strategyActionReady
+              ? 'Select Continue Strategy to build guidance with your saved preferences.'
+              : needsSetupReview ? 'Select Review preferences to resolve your saved setup.'
+                : runSetup.loading || runSetup.saving ? 'Confirming your saved setup.'
+                : 'Use Refresh location to prepare your Strategy.'}</CardContent>
           </Card>
-        ) : (
-          <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-300 shadow-md" data-testid="strategy-pending-card">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <Clock className="w-5 h-5 text-blue-600 animate-pulse flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-blue-900">⏳ Generating your strategy...</p>
-                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                      {loadingMessages.badge}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-blue-700 mb-3 transition-opacity duration-300">
-                    {loadingMessages.icon} {loadingMessages.text}
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-blue-700">
-                      <span>Progress</span>
-                      <span className="font-mono">{strategyProgress}%</span>
-                    </div>
-                    <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${Math.min(strategyProgress, 100)}%` }}
-                      />
-                    </div>
-                    <div className="space-y-1 mt-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-blue-600 italic">{loadingMessages.step}</p>
-                        {loadingMessages.timeRemaining && (
-                          <p className="text-xs text-blue-500">{loadingMessages.timeRemaining}</p>
-                        )}
-                      </div>
-                      <div className="flex gap-1 justify-center mt-1">
-                        {Array.from({ length: loadingMessages.messageCount }).map((_, i) => (
-                          <span
-                            key={i}
-                            className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                              i === loadingMessages.currentIndex ? 'bg-blue-600 scale-125' : 'bg-blue-300'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        ) : null}
         {!immediateStrategy && previousStrategy && (
           <PreviousStrategyCard strategy={previousStrategy} waiting={!!runSetup.run && !replacementFailed} />
         )}

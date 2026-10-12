@@ -1,7 +1,7 @@
 export default {
   testEnvironment: 'jsdom',
   // Keep cached repositories and recovery copies out of the module index.
-  modulePathIgnorePatterns: ['<rootDir>/\\.(?:cache|config|local|worktrees)/'],
+  modulePathIgnorePatterns: ['<rootDir>/\\.(?:cache|config|local|worktrees)/', '<rootDir>/astra/recovery/'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       useESM: true,
@@ -35,6 +35,8 @@ export default {
     '/.worktrees/',
     // 2026-09-15: AI-session coordination bundles under .config/ carry test copies too.
     '/.config/',
+    // Local recovery archives contain historical test copies, not this checkout.
+    '<rootDir>/astra/recovery/',
     // Dedicated CommonJS harnesses run separately through test:client:harness.
     // Their jest.mock hoisting is incompatible with this ESM configuration;
     // the airport suite also belongs to its dedicated harness, exactly once.

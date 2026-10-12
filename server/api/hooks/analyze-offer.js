@@ -3,7 +3,7 @@
 //
 // 2026-02-28: TWO-PHASE ARCHITECTURE
 //   Phase 1 (Sync): offer extraction + configured gates → text for the phone to speak
-//   Phase 2 (Async):  Gemini 3.1 Pro deep analysis → rich reasoning saved to DB (fire-and-forget)
+//   Phase 2 (Async):  registered deep analysis → rich reasoning saved to DB (fire-and-forget)
 //
 // Previous history:
 // 2026-02-15: REWRITTEN for speed, location capture, and SSE notification.
@@ -19,6 +19,7 @@ import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
 import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
+import { getRoleConfig } from '../../lib/ai/model-registry.js';
 import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
 import { normalizeOfferBody, normalizeShortcutSystem } from '../../lib/offers/normalize-offer-body.js';
 import { downscaleOfferImage } from '../../lib/offers/downscale-offer-image.js';
@@ -758,7 +759,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 2 — ASYNC: Deep Pro 3.1 analysis for DB enrichment
+    // PHASE 2 — ASYNC: Registered deep analysis for DB enrichment
     // 2026-02-28: Fire-and-forget after res.json(). Images stay in closure scope.
     // Process-local work, not a durable queue: failure/restart can prevent storage.
     // ═══════════════════════════════════════════════════════════════════════
@@ -792,11 +793,11 @@ PRE-PARSED DATA (server-verified):
           ? `Offer text: "${text}"`
           : 'Analyze this ride offer screenshot in detail.';
 
-        // Phase 2 AI call — OFFER_ANALYZER_DEEP (Pro 3.1) for rich reasoning
+        // Phase 2 AI call — OFFER_ANALYZER_DEEP for rich reasoning
         // The 45s deadline aborts local transport and bounds this background phase.
         // Client cancellation does not guarantee upstream computation/billing stops.
         const PHASE2_TIMEOUT_MS = 45000;
-        console.log(`[HOOKS] 🔬 PHASE 2: Calling OFFER_ANALYZER_DEEP (Pro 3.1, ${PHASE2_TIMEOUT_MS / 1000}s timeout)...`);
+        console.log(`[HOOKS] 🔬 PHASE 2: Calling OFFER_ANALYZER_DEEP (${PHASE2_TIMEOUT_MS / 1000}s timeout)...`);
         const phase2Start = Date.now();
 
         let deepResult = null;
@@ -805,7 +806,7 @@ PRE-PARSED DATA (server-verified):
         // 2026-07-03: when the model never answered (timeout/failure), the deterministic
         // engine decided — record that honestly instead of naming a model that didn't run.
         let aiModelUsed = phase1Response?.model
-          || (phase1Response?.success ? 'gemini-3.5-flash' : 'rules-engine-deterministic');
+          || (phase1Response?.success ? getRoleConfig('OFFER_ANALYZER', { hasImages: images.length > 0 }).model : 'rules-engine-deterministic');
         let phase2RawText = null;
 
         let phase2Timer;
@@ -832,7 +833,7 @@ PRE-PARSED DATA (server-verified):
               throw new Error('Phase 2 reply did not contain a valid extraction object');
             }
             deepResult = parsedDeep.value;
-            aiModelUsed = phase2Response.model || 'gemini-3.1-pro-preview'; // 2026-06-11: the model Phase 2 ACTUALLY ran (a 503 fallback correctly reports flash here)
+            aiModelUsed = phase2Response.model || getRoleConfig('OFFER_ANALYZER_DEEP', { hasImages: images.length > 0 }).model; // Preserve actual retry provenance when supplied.
             console.log(`[HOOKS] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
           } else {
             console.warn(`[HOOKS] Phase 2 AI call failed: ${phase2Response?.error || 'no response'} — falling back to Phase 1 result`);

@@ -18,6 +18,9 @@ export function strategyContextState(strategy, briefing) {
 export function getCoachContextProgress(context, readAt = new Date()) {
   const { snapshot, strategy, briefing, offerHistory } = context;
   const snapshotRecord = snapshot?.source_record ?? snapshot;
+  const sourceSnapshot = Object.hasOwn(context, 'sourceSnapshot')
+    ? context.sourceSnapshot?.source_record ?? context.sourceSnapshot : snapshotRecord;
+  const sourceTimezone = sourceSnapshot?.timezone ?? null;
   const snapshotReadiness = getSnapshotReadiness(snapshotRecord, snapshotRecord?.snapshot_id);
   const offerTimes = (offerHistory?.offers || []).map(row => contextTimestamp(row.updated_at || row.created_at)).filter(Boolean).sort();
   const briefingState = briefing?.source_state === 'read_failed' ? 'read_failed'
@@ -26,9 +29,9 @@ export function getCoachContextProgress(context, readAt = new Date()) {
         : briefing.readiness?.ready ? 'complete' : 'partial';
   return {
     read_at: contextTimestamp(readAt),
-    snapshot: { state: !snapshot ? 'missing' : snapshotReadiness.ready ? 'complete' : 'partial', observed_at: contextTimestamp(snapshot?.created_at || snapshot?.iso_timestamp) },
-    strategy: { state: strategyContextState(strategy, briefing), created_at: contextTimestamp(strategy?.created_at), updated_at: contextTimestamp(strategy?.updated_at || strategy?.strategy_timestamp) },
-    briefing: { state: briefingState, generated_at: contextTimestamp(briefing?.generated_at), updated_at: contextTimestamp(briefing?.source_record?.updated_at) },
+    snapshot: { state: !snapshot ? 'missing' : snapshotReadiness.ready ? 'complete' : 'partial', observed_at: contextTimestamp(snapshotRecord?.permissions?.observed_at || snapshot?.created_at || snapshot?.iso_timestamp), timezone: snapshotRecord?.timezone ?? null },
+    strategy: { state: strategyContextState(strategy, briefing), created_at: contextTimestamp(strategy?.created_at), updated_at: contextTimestamp(strategy?.updated_at || strategy?.strategy_timestamp), timezone: sourceTimezone },
+    briefing: { state: briefingState, generated_at: contextTimestamp(briefing?.generated_at), updated_at: contextTimestamp(briefing?.source_record?.updated_at), timezone: sourceTimezone },
     offers: { state: offerHistory?.source_state || 'unavailable', count: offerHistory?.offers?.length || 0, limit: offerHistory?.limit ?? 20, updated_at: offerTimes.at(-1) || null },
   };
 }

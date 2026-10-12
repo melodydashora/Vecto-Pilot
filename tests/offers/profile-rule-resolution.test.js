@@ -15,12 +15,12 @@ jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () 
 jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromCoords: external }));
 jest.unstable_mockModule('../../server/middleware/rate-limit.js', () => ({ offerHookLimiter: (_req, _res, next) => next() }));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({ requireAuth: (req, _res, next) => { req.auth = { userId: 'driver' }; next(); } }));
-const { resolveRuleset, _clearCache, invalidateUser, hashRuleset } = await import('../../server/lib/offers/ruleset-store.js');
+const { resolveRuleset, hashRuleset } = await import('../../server/lib/offers/ruleset-store.js');
 const { default: rulesRouter } = await import('../../server/api/offer-analyzer/index.js');
 const { default: hookRouter } = await import('../../server/api/hooks/analyze-offer.js');
 const app = express().use(express.json()).use('/rules-api', rulesRouter).use('/hooks', hookRouter);
 
-beforeEach(() => { _clearCache(); jest.clearAllMocks(); execute.mockReset(); });
+beforeEach(() => { jest.clearAllMocks(); execute.mockReset(); });
 
 test.each([true, false, null])('unsaved editor and ingestion use identical signup-derived rules (shared=%s)', async prefShared => {
   const profile = { user_id: 'driver', pref_shared: prefShared, max_deadhead_mi: 0, config: null, version: null };
@@ -48,10 +48,9 @@ test('saved analyzer gates override signup values in both consumers without writ
   expect(execute).toHaveBeenCalledTimes(2); // read paths only, no automatic persistence
 });
 
-test('profile changes invalidate unsaved inherited rules without changing frozen defaults', async () => {
+test('profile changes are read on the next offer without changing frozen defaults', async () => {
   execute.mockResolvedValueOnce({ rows: [{ user_id: 'driver', pref_shared: false, version: null }] });
   expect((await resolveRuleset('token')).ruleset.share.auto_reject).toBe(true);
-  invalidateUser('driver');
   execute.mockResolvedValueOnce({ rows: [{ user_id: 'driver', pref_shared: true, version: null }] });
   expect((await resolveRuleset('token')).ruleset.share.auto_reject).toBe(false);
   expect(DEFAULT_RULESET.share.auto_reject).toBe(true);

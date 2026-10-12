@@ -17,7 +17,7 @@ import { describe, test, expect, jest, afterEach } from '@jest/globals';
 // No database or provider initialization is needed to test the real pure export.
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db: {} }));
 jest.unstable_mockModule('../../server/lib/ai/adapters/index.js', () => ({ callModel: jest.fn() }));
-const { filterEventsToTimeWindow } = await import('../../server/lib/ai/providers/consolidator.js');
+const { filterEventsToTimeWindow, filterClosuresActiveToday } = await import('../../server/lib/ai/providers/consolidator.js');
 afterEach(() => jest.useRealTimers());
 
 process.env.NODE_ENV = 'test';
@@ -178,4 +178,53 @@ test('explicitly unknown venue timezone does not inherit driver timezone for a l
   jest.useFakeTimers(); jest.setSystemTime(new Date('2026-09-14T02:00:00Z'));
   const event = { title: 'Unknown event zone', timezone: null, event_start_date: '2026-09-13', event_end_date: '2026-09-13', event_start_time: '19:00', start_time_iso: '' };
   expect(filterEventsToTimeWindow([event], 'America/Los_Angeles')).toEqual([]);
+});
+
+describe('school closures use the current snapshot-local calendar day', () => {
+  test('distinguishes today’s break and student return while excluding future breaks', () => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-12T04:30:00Z'));
+    const active = { schoolName: 'Current district', closureStart: '2026-10-09', reopeningDate: '2026-10-14' };
+    const returned = { school_name: 'Returned district', start_date: '2026-10-09', reopening_date: '2026-10-11', end_date: '2026-10-14' };
+    const future = { schoolName: 'Future district', closureStart: '2026-10-12', reopeningDate: '2026-10-19' };
+    expect(filterClosuresActiveToday([active, returned, future], TZ)).toEqual([
+      { ...active, status: 'closed' }, { ...returned, status: 'reopening_today' },
+    ]);
+  });
+
+  test('accepts the stored items envelope and keeps a legacy last-closed date inclusive', () => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-12T04:30:00Z'));
+    const legacy = { start_date: '2026-10-09', end_date: '2026-10-11' };
+    expect(filterClosuresActiveToday({ items: [legacy] }, TZ)).toEqual([{ ...legacy, status: 'closed' }]);
+    expect(filterClosuresActiveToday({ items: [legacy] }, 'Asia/Tokyo')).toEqual([]);
+  });
+
+  test('recomputes cached status on the return day and removes it the day after', () => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-14T17:00:00Z'));
+    const record = { school_name: 'Returning district', start_date: '2026-10-09', reopening_date: '2026-10-14', status: 'closed' };
+    expect(filterClosuresActiveToday([record], TZ)).toEqual([{ ...record, status: 'reopening_today' }]);
+    expect(record.status).toBe('closed'); // Derived status never mutates saved data.
+    jest.setSystemTime(new Date('2026-10-15T17:00:00Z'));
+    expect(filterClosuresActiveToday([{ ...record, status: 'reopening_today' }], TZ)).toEqual([]);
+  });
+
+  test('the driver-local day controls closed versus reopening across midnight', () => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-14T02:00:00Z'));
+    const record = { closureStart: '2026-10-09', reopeningDate: '2026-10-14', status: 'reopening_today' };
+    expect(filterClosuresActiveToday([record], TZ)).toEqual([{ ...record, status: 'closed' }]);
+    expect(filterClosuresActiveToday([record], 'Asia/Tokyo')).toEqual([{ ...record, status: 'reopening_today' }]);
+  });
+
+  test('does not turn missing or impossible calendar dates into an active closure', () => {
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-12T04:30:00Z'));
+    expect(filterClosuresActiveToday([
+      { start_date: '2026-02-30', end_date: '2026-10-12' },
+      { start_date: '2026-10-09' },
+      { reopening_date: '2026-10-14' },
+    ], TZ)).toEqual([]);
+  });
+
+  test('missing or invalid timezone cannot silently become server time or an empty result', () => {
+    expect(() => filterClosuresActiveToday([], undefined)).toThrow(/timeZone is required/);
+    expect(() => filterClosuresActiveToday([], 'Invalid/Timezone')).toThrow();
+  });
 });

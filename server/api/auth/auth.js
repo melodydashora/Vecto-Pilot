@@ -43,7 +43,6 @@ import { validateAddress } from '../../lib/location/address-validation.js';
 import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { signJWT } from '../../lib/jwt.js';
 import { parseEconomicPreferenceUpdates } from '../../lib/driver-preferences.js';
-import { invalidateUser } from '../../lib/offers/ruleset-store.js';
 import { driverProfileResponse } from '../../lib/driver-profile-response.js';
 import { withDriverSettingsLock, MainRunAdmissionError, validSettingsRevision, validateSelectedServices } from '../../lib/main-run-admission.js';
 
@@ -1384,7 +1383,6 @@ router.put('/profile', requireAuth, async (req, res) => {
         .where(and(eq(driver_profiles.user_id, userId), eq(driver_profiles.settings_revision, updates.expectedSettingsRevision))).returning();
       return driverProfileResponse(saved, vehicle, req.auth.sessionId);
     });
-    invalidateUser(userId);
 
     matrixLog.info({
       category: 'AUTH',

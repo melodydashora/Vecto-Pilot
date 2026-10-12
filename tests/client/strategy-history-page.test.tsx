@@ -14,6 +14,7 @@ const mockRefreshBlocks = jest.fn();
 const mockRefreshGPS = jest.fn();
 const mockContinueStrategy = jest.fn(async (_snapshotId: string) => true);
 const mockReviewSetup = jest.fn();
+const mockConfirmPreferences = jest.fn(() => true);
 let mockSetup: Record<string, any>;
 let mockLocation: Record<string, any>;
 let mockState: Record<string, any>;
@@ -44,8 +45,8 @@ const originalFetch = globalThis.fetch;
 function Page() { return <QueryClientProvider client={client}><StrategyPage /></QueryClientProvider>; }
 beforeEach(() => {
   mockLocation = { refreshGPS: mockRefreshGPS, isLoading: false, contextReady: true, lastSnapshotId: 'source-b' };
-  mockSetup = { run: { runId: 'synthetic-run', sourceSnapshotId: 'source-b' }, preferencesConfirmed: true, canContinue: true, starting: false, error: null, reviewSetup: mockReviewSetup, continueWithSavedPreferences: mockContinueStrategy };
-  mockContinueStrategy.mockClear(); mockReviewSetup.mockClear();
+  mockSetup = { run: { runId: 'synthetic-run', sourceSnapshotId: 'source-b' }, preferencesConfirmed: true, canContinue: true, starting: false, error: null, unsavedEditors: [], reviewSetup: mockReviewSetup, confirmPreferences: mockConfirmPreferences, continueWithSavedPreferences: mockContinueStrategy };
+  mockContinueStrategy.mockClear(); mockReviewSetup.mockClear(); mockConfirmPreferences.mockReset().mockReturnValue(true);
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   mockState = {
     coords: { latitude: 41, longitude: -87 }, lastSnapshotId: 'snapshot-b',
@@ -166,14 +167,15 @@ test('Strategy Refresh consumes prepared context without collecting another loca
   expect(mockRefreshGPS).not.toHaveBeenCalled();
 });
 
-test('Strategy Continue opens the preference choice when no choice has been confirmed', async () => {
+test('valid saved settings start with one explicit click without a separate preference confirmation', async () => {
   mockSetup.preferencesConfirmed = false;
   mockSetup.run = null;
   mockState.previousStrategy = null;
   render(<Page />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue Strategy' })); });
-  expect(mockReviewSetup).toHaveBeenCalledTimes(1);
-  expect(mockContinueStrategy).not.toHaveBeenCalled();
+  expect(mockConfirmPreferences).toHaveBeenCalledTimes(1);
+  expect(mockReviewSetup).not.toHaveBeenCalled();
+  expect(mockContinueStrategy).toHaveBeenCalledWith('source-b');
   expect(screen.getByTestId('strategy-ready-card')).toBeVisible();
   expect(screen.queryByTestId('strategy-pending-card')).not.toBeInTheDocument();
 });
@@ -184,6 +186,76 @@ test('pending context disables Strategy start while other saved guidance stays v
   expect(screen.getByRole('button', { name: 'Refresh Strategy' })).toBeDisabled();
   expect(screen.getByTestId('previous-strategy-card')).toHaveTextContent(history.text);
   expect(mockContinueStrategy).not.toHaveBeenCalled();
+});
+
+test('location preparation restores the animated loader above Strategy before a run exists', () => {
+  mockSetup.run = null;
+  mockLocation = { ...mockLocation, contextReady: false, isLoading: true, lastSnapshotId: null };
+  mockState.coords = null; mockState.previousStrategy = null;
+  render(<Page />);
+  const loader = screen.getByTestId('strategy-preparation-status');
+  expect(loader).toHaveTextContent('Preparing location and Briefing');
+  expect(loader.compareDocumentPosition(screen.getByRole('heading', { name: 'Current Strategy' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(within(loader).getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+  expect(loader.querySelector('.motion-safe\\:animate-spin')).not.toBeNull();
+  expect(screen.queryByTestId('strategy-needs-gps')).not.toBeInTheDocument();
+  expect(screen.getByTestId('button-start-strategy')).toBeDisabled();
+  expect(mockConfirmPreferences).not.toHaveBeenCalled(); expect(mockContinueStrategy).not.toHaveBeenCalled();
+});
+
+test('Briefing completion makes unchanged saved settings visibly ready without starting automatically', async () => {
+  mockSetup.run = null; mockSetup.preferencesConfirmed = false;
+  mockState.previousStrategy = null;
+  mockLocation = { ...mockLocation, contextReady: false, isLoading: true };
+  const view = render(<Page />);
+  expect(screen.getByTestId('strategy-preparation-status')).toBeVisible();
+  mockLocation = { ...mockLocation, contextReady: true, isLoading: false };
+  view.rerender(<Page />);
+  expect(screen.queryByTestId('strategy-preparation-status')).not.toBeInTheDocument();
+  expect(screen.getByTestId('strategy-ready-status')).toHaveTextContent('Ready for your Strategy');
+  expect(screen.getByRole('button', { name: 'Continue Strategy' })).toBeEnabled();
+  expect(screen.getByTestId('button-start-strategy')).toHaveAttribute('data-ready', 'true');
+  expect(screen.queryByText(/Choose your preferences|waiting on preference/i)).not.toBeInTheDocument();
+  expect(mockContinueStrategy).not.toHaveBeenCalled(); expect(mockReviewSetup).not.toHaveBeenCalled();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue Strategy' })); });
+  expect(mockConfirmPreferences).toHaveBeenCalledTimes(1);
+  expect(mockContinueStrategy).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+  { canContinue: false, unsavedEditors: ['preferences'], hint: 'unsaved changes' },
+  { canContinue: false, saveUnconfirmed: true, hint: 'Confirm your last save' },
+  { canContinue: false, hint: 'Complete the required settings' },
+])('an incomplete saved setup stays actionable without admitting Strategy: %j', async ({ hint, ...setup }) => {
+  mockSetup = { ...mockSetup, ...setup, run: null, preferencesConfirmed: false };
+  mockState.previousStrategy = null;
+  render(<Page />);
+  expect(screen.queryByTestId('strategy-ready-status')).not.toBeInTheDocument();
+  expect(screen.getByText(new RegExp(hint))).toBeVisible();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Review preferences' })); });
+  expect(mockReviewSetup).toHaveBeenCalledTimes(1);
+  expect(mockConfirmPreferences).not.toHaveBeenCalled(); expect(mockContinueStrategy).not.toHaveBeenCalled();
+});
+
+test.each(['loading', 'saving', 'starting'])('an in-flight %s operation cannot release another Strategy start', state => {
+  mockSetup = { ...mockSetup, [state]: true, run: null };
+  mockState.previousStrategy = null;
+  render(<Page />);
+  expect(screen.getByTestId('button-start-strategy')).toBeDisabled();
+  fireEvent.click(screen.getByTestId('button-start-strategy'));
+  expect(mockContinueStrategy).not.toHaveBeenCalled();
+});
+
+test('a failed Briefing stops the preparation animation and never advertises readiness', () => {
+  mockSetup.run = null;
+  mockLocation = { ...mockLocation, contextReady: false, isLoading: false,
+    locationError: { code: 'briefing_failed', message: 'Briefing could not finish.' } };
+  render(<Page />);
+  expect(screen.queryByTestId('strategy-preparation-status')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('strategy-pending-card')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('strategy-ready-status')).not.toBeInTheDocument();
+  expect(screen.getByText('Briefing could not finish.')).toBeVisible();
+  expect(screen.getByTestId('button-start-strategy')).toBeDisabled();
 });
 
 test('failed replacement keeps previous venues and map until a completed replacement arrives', async () => {

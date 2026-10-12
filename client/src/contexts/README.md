@@ -2,6 +2,10 @@
 
 # Contexts (`client/src/contexts/`)
 
+## Current capture boundaries — October 12, 2026
+
+`location-context-clean.tsx` prepares MAIN location and Briefing; explicit Strategy admission remains separate. GPS validation and the bounded snapshot transport now live in `../lib/location/fresh-position.ts`, extracted without changing MAIN behavior. Coach uses `../hooks/coach/useCoachSnapshot.ts` and `/api/coach/snapshot` for independent observations. It never publishes MAIN snapshot events or changes MAIN pointers. Account, token and session changes fence both paths. See [current location preflight](../../../docs/preflight/location.md); earlier lifecycle examples below are historical.
+
 ## 📋 Changelog
 
 ### 2026-01-15: GPS Fetch Fix + SSE Single Source of Truth

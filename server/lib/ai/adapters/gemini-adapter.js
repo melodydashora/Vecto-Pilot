@@ -2,57 +2,55 @@
 // Generic Gemini adapter - returns { ok, output } shape
 // Updated 2026-01-05: Migrated to @google/genai SDK for Gemini 3 thinkingLevel support
 // Updated 2026-01-06: Added streaming support via callGeminiStream()
-// Updated 2026-02-15: F-002 fix — Enforce MODEL_QUIRKS thinkingLevel validation
+// Updated 2026-10-11: Thinking and sampling follow exact registry model policies.
 // Updated 2026-04-28 (Phase A of log format merge plan): per-call adapter
 //   diagnostics gated behind LOG_LEVEL=debug so model names and resp shapes do
 //   not leak into the primary stream. Errors/warnings stay visible at all levels.
 
 import { GoogleGenAI } from "@google/genai";
+import { getGeminiModelPolicy } from '../model-registry.js';
+
+// 2026-10-11: One-shot text requests do not reuse response IDs or thought
+// signatures. Omit those opaque fields on the wire while retaining completion,
+// safety, grounding and usage evidence. Do not apply this mask to chat history
+// or streaming, where thought signatures may be needed by a subsequent turn.
+const ONE_SHOT_RESPONSE_FIELDS = [
+  'candidates.content.parts.text',
+  'candidates.content.parts.thought',
+  'candidates.finishReason',
+  'candidates.safetyRatings',
+  'candidates.groundingMetadata',
+  'promptFeedback',
+  'usageMetadata',
+  'modelVersion',
+].join(',');
 
 function _aiDebug(...args) {
   if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') console.log(...args);
 }
 
 /**
- * 2026-02-15: F-002 fix — Validate and normalize thinkingLevel for Gemini models.
- * Pro models only support LOW and HIGH (MEDIUM causes 400 errors).
- * Flash models support MINIMAL, LOW, MEDIUM, and HIGH.
- * 2026-05-08: Predicate broadened from 'gemini-3' to 'gemini-' so the new
- * server-resolved aliases (gemini-pro-latest, gemini-flash-latest,
- * gemini-flash-lite-latest) also route through validation. Without this fix
- * the new aliases would skip validation entirely and 400 on MEDIUM-against-Pro.
- * 2026-05-29: Added MINIMAL to the Flash level set. gemini-3.5-flash (GA 2026-05-19)
- * exposes thinkingLevel minimal/low/medium/high (default medium) per
- * ai.google.dev/gemini-api/docs/interactions/whats-new-gemini-3.5. The SDK takes the
- * lowercase value via thinkingConfig.thinkingLevel; thinking_budget must NOT also be
- * sent (400) — this adapter never sends it, so HIGH thinking is safe here.
- * Returns the validated level in UPPERCASE for consistency; callers
- * convert to lowercase for the SDK or keep uppercase for REST API.
+ * 2026-10-11: Validate against the exact model policy in the registry. Gemini
+ * 3.8 Flash rejects MINIMAL, while 3.6 Flash supports it. Invalid configuration
+ * fails explicitly instead of silently substituting another thinking level.
+ * A null level omits thinkingConfig and uses the provider's default; it does
+ * not disable thinking. Never send thinkingBudget together with thinkingLevel.
+ * Return UPPERCASE for REST; the SDK request uses the lowercase equivalent.
  *
- * @param {string} model - The Gemini model name (e.g. "gemini-3.5-flash", "gemini-pro-latest")
+ * @param {string} model - The pinned Gemini model name
  * @param {string|null} thinkingLevel - Requested thinking level
- * @returns {string|null} Validated thinking level (UPPERCASE) or null if disabled
+ * @returns {string|null} Validated thinking level (UPPERCASE) or null for provider default
  */
 function validateThinkingLevel(model, thinkingLevel) {
-  if (!thinkingLevel || !model.includes('gemini-')) return null;
+  if (thinkingLevel == null) return null;
 
-  const normalized = thinkingLevel.toUpperCase();
-
-  // Flash models support all four levels (minimal added for 3.5 Flash)
-  if (model.includes('flash')) {
-    const flashLevels = ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'];
-    if (!flashLevels.includes(normalized)) {
-      console.warn(`[AI] Invalid thinkingLevel "${thinkingLevel}" for Flash model. Valid: ${flashLevels.join(', ')}. Defaulting to LOW.`);
-      return 'LOW';
-    }
-    return normalized;
+  const { validThinkingLevels } = getGeminiModelPolicy(model);
+  if (!validThinkingLevels) {
+    throw new Error(`No verified thinkingLevel policy for model "${model}"`);
   }
-
-  // Pro models only support LOW and HIGH — MEDIUM is not valid
-  const proLevels = ['LOW', 'HIGH'];
-  if (!proLevels.includes(normalized)) {
-    console.warn(`[AI] thinkingLevel "${thinkingLevel}" is NOT supported on Pro model (only LOW, HIGH). Auto-correcting to HIGH.`);
-    return 'HIGH';
+  const normalized = typeof thinkingLevel === 'string' ? thinkingLevel.toUpperCase() : null;
+  if (!validThinkingLevels.includes(normalized)) {
+    throw new Error(`thinkingLevel "${thinkingLevel}" is not supported by ${model}. Valid: ${validThinkingLevels.join(', ')}`);
   }
 
   return normalized;
@@ -68,7 +66,7 @@ export async function callGemini({
   topP,
   topK,
   useSearch = false,
-  thinkingLevel = null, // Gemini 3.x: "minimal"/"low"/"medium"/"high" on Flash (minimal added for 3.5), "low"/"high" on Pro — validated in validateThinkingLevel(); null = disabled
+  thinkingLevel = null, // Model-specific validation; null uses the provider's thinking default.
   skipJsonExtraction = false,
   signal,
 }) {
@@ -79,6 +77,9 @@ export async function callGemini({
       console.error('[AI] GEMINI_API_KEY not configured');
       return { ok: false, error: 'GEMINI_API_KEY not configured' };
     }
+
+    const validatedLevel = validateThinkingLevel(model, thinkingLevel);
+    const { omitSamplingParameters } = getGeminiModelPolicy(model);
 
     // WORKAROUND: The @google/genai SDK prioritizes GOOGLE_API_KEY from env over the apiKey passed in constructor
     // or emits a warning/error if both exist. We temporarily hide GOOGLE_API_KEY if it exists.
@@ -96,9 +97,8 @@ export async function callGemini({
 
     _aiDebug(`[AI] calling ${model} with max_tokens=${maxTokens}`);
 
-    // JSON responses are capped at 0.2 for parse stability; a role that configures a
-    // LOWER temperature (OFFER_ANALYZER 0.1, model-registry.js) is honored — 2026-08-17,
-    // Melody: "temp config to .1". Roles at/above 0.2 keep the previous 0.2 behavior.
+    // Models that still support sampling retain the JSON temperature cap. New
+    // Flash models ignore sampling controls, so their requests omit all three.
     const expectsJson = user.toLowerCase().includes('json') ||
                         (system && system.toLowerCase().includes('json'));
     const finalTemperature = expectsJson
@@ -108,10 +108,13 @@ export async function callGemini({
     // Build config object for new SDK
     const config = {
       ...(signal && { abortSignal: signal }),
+      httpOptions: { headers: { 'X-Goog-FieldMask': ONE_SHOT_RESPONSE_FIELDS } },
       maxOutputTokens: maxTokens,
-      temperature: finalTemperature,
-      ...(topP !== undefined && { topP }),
-      ...(topK !== undefined && { topK }),
+      ...(!omitSamplingParameters && {
+        temperature: finalTemperature,
+        ...(topP !== undefined && { topP }),
+        ...(topK !== undefined && { topK }),
+      }),
       // 2026-03-02: Force JSON output when system/user requests it — prevents truncation
       // and eliminates need for post-processing code block stripping
       // 2026-09-29: never together with Google Search grounding. Verified live (13 provider
@@ -132,9 +135,6 @@ export async function callGemini({
       ]
     };
 
-    // 2026-02-15: F-002 fix — Validate thinkingLevel before applying.
-    // Pro models only support LOW/HIGH; MEDIUM is Flash-only.
-    const validatedLevel = validateThinkingLevel(model, thinkingLevel);
     if (validatedLevel) {
       config.thinkingConfig = {
         thinkingLevel: validatedLevel.toLowerCase() // SDK expects lowercase
@@ -323,7 +323,7 @@ export async function callGeminiStream({
   maxTokens,
   temperature,
   useSearch = true,
-  thinkingLevel = "high", // Gemini 3: "low", "high" - null = disabled
+  thinkingLevel = "high", // Model-specific validation; explicit null uses the provider's default.
   timeoutMs = 90000,
   signal              // Optional caller AbortSignal — forwarded so client disconnect cancels the upstream Gemini call
 }) {
@@ -332,19 +332,21 @@ export async function callGeminiStream({
     throw new Error('GEMINI_API_KEY not configured');
   }
 
+  const validatedStreamLevel = validateThinkingLevel(model, thinkingLevel);
+  const { omitSamplingParameters } = getGeminiModelPolicy(model);
+
   _aiDebug(`[AI] Calling ${model} with ${messageHistory.length} messages, maxTokens=${maxTokens}`);
 
   // Build the request body
   const generationConfig = {
-    temperature: temperature || 0.7,
-    topP: 0.95,
-    topK: 40,
+    ...(!omitSamplingParameters && {
+      temperature: temperature ?? 0.7,
+      topP: 0.95,
+      topK: 40,
+    }),
     maxOutputTokens: maxTokens || 8192,
   };
 
-  // 2026-02-15: F-002 fix — Validate thinkingLevel before applying (matches callGemini).
-  // Pro models only support LOW/HIGH; MEDIUM is Flash-only.
-  const validatedStreamLevel = validateThinkingLevel(model, thinkingLevel);
   if (validatedStreamLevel) {
     generationConfig.thinkingConfig = {
       thinkingLevel: validatedStreamLevel // Already uppercase from validator; REST API expects uppercase

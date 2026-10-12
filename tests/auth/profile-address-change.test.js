@@ -37,11 +37,9 @@ const db = {
   } }) }),
 };
 const geocodeAddress = jest.fn();
-const invalidateUser = jest.fn();
 const forbidden = jest.fn(async () => { throw new Error('Unexpected external transport'); });
 const log = new Proxy({}, { get: () => jest.fn() });
 jest.unstable_mockModule('../../server/db/drizzle.js', () => ({ db }));
-jest.unstable_mockModule('../../server/lib/offers/ruleset-store.js', () => ({ invalidateUser }));
 jest.unstable_mockModule('../../server/middleware/auth.js', () => ({
   requireAuth: (req, _res, next) => { req.auth = { userId: 'fixture-owner', sessionId: 'fixture-session' }; next(); },
 }));
@@ -170,12 +168,10 @@ test('existing economics round-trip through profile PUT and GET with explicit ze
   expect(geocodeAddress).not.toHaveBeenCalled();
 });
 
-test('saving service and empty-pickup preferences invalidates the offer projection before responding', async () => {
+test('saving service and empty-pickup preferences persists the canonical profile before responding', async () => {
   const result = await save({ prefShared: false, maxDeadheadMi: 0 });
   expect(result.status).toBe(200);
   expect(profile).toMatchObject({ pref_shared: false, max_deadhead_mi: 0 });
-  expect(invalidateUser).toHaveBeenCalledTimes(1);
-  expect(invalidateUser).toHaveBeenCalledWith('fixture-owner');
 });
 
 test.each([
@@ -187,7 +183,6 @@ test.each([
   expect(result.status).toBe(400);
   expect(result.body.error).toBe('INVALID_PREFERENCE');
   expect(writes).toHaveLength(0);
-  expect(invalidateUser).not.toHaveBeenCalled();
 });
 
 // The market is an explicit work preference, not a geocoding side effect.

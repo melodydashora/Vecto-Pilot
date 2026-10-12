@@ -16,6 +16,12 @@ const router = Router();
  * understand what data it can access and what actions it can take.
  */
 export const rideshareCoachSchemaMetadata = {
+  request_actions: {
+    REFRESH_COACH_SNAPSHOT: {
+      description: 'Request current device GPS and Google context after a completed reply. This does not create Strategy or Briefing and is not a saved-location receipt.',
+      fields: { reason: 'Nonempty reason, at most 500 characters; no coordinates or other fields' },
+    },
+  },
   // Tables the coach can READ
   readable_tables: {
     snapshots: {
@@ -86,6 +92,11 @@ export const rideshareCoachSchemaMetadata = {
 
   // Tables the coach can WRITE to
   writable_tables: {
+    offer_rulesets: {
+      description: "Driver-directed Offer Analyzer settings edits; review alone does not authorize a change",
+      action_tag: "[UPDATE_OFFER_RULES: {...}]",
+      fields: { reason: "Reason for the requested tuning", changes: "Array of {path, value, place_id?}; only exposed controls, canonical validation and version checks" }
+    },
     user_intel_notes: {
       description: "Save notes about driver's preferences, tips, and insights",
       action_tag: "[SAVE_NOTE: {...}]",
@@ -251,6 +262,7 @@ export function formatSchemaForPrompt(schema) {
   }
 
   prompt += `\n### Data Scoping:\n`;
+  prompt += `- REFRESH_COACH_SNAPSHOT requests a device capture after completion; it does not directly write a snapshot or start Strategy/Briefing.\n`;
   prompt += `- User data is filtered by authenticated user_id\n`;
   prompt += `- Market intel is shared across all drivers\n`;
   prompt += `- You have access to the last 10 sessions for cross-session learning\n`;

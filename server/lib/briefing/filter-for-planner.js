@@ -17,7 +17,7 @@
 //       (15-mile rule) at prompt-format time in formatBriefingForPrompt.
 //   - Traffic: Summary only (briefing, keyIssues, avoidAreas)
 //   - Weather: Current conditions and driver impact
-//   - School closures: Today only
+//   - Schools: Today’s closures and explicit student return dates
 //
 // CALLED BY: enhanced-smart-blocks.js before calling tactical-planner.js
 //
@@ -25,6 +25,8 @@
 
 import { briefingLog } from '../../logger/workflow.js';
 import { formatAirportContext } from './shared/format-airport-context.js';
+import { getLocalDateString } from '../../../shared/dayparts.js';
+import { getSchoolClosureInterval, getSchoolClosureStatusOnDate } from '../../../shared/school-closures.js';
 
 // 2026-06-11: Removed LARGE_EVENT_INDICATORS / LARGE_EVENT_CATEGORIES — their only
 // consumers were the now-deleted isLargeEvent + filterEventsForPlanner (memory #258).
@@ -38,11 +40,7 @@ import { formatAirportContext } from './shared/format-airport-context.js';
  * @returns {string} Date in YYYY-MM-DD format
  */
 function getLocalDate(timezone) {
-  if (!timezone) {
-    // Fallback to UTC if no timezone - should not happen in production
-    return new Date().toISOString().split('T')[0];
-  }
-  return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  return getLocalDateString(new Date(), timezone);
 }
 
 // 2026-06-11: Removed isLargeEvent + filterEventsForPlanner (dead since 2026-04-28,
@@ -52,28 +50,22 @@ function getLocalDate(timezone) {
 // (enhanced-smart-blocks.js, tactical-planner.js, schools.js) and grepping tests/.
 
 /**
- * Filter school closures to only those active today
- * Reuses logic from consolidator.js filterClosuresActiveToday
+ * Retain today’s closures and explicit student return dates.
+ * Derive status again at read time; saved status can describe a previous day.
+ * Legacy inclusive closure ends do not establish a student return date.
  *
  * @param {Array} closures - Array of closure objects
  * @param {string} today - Today's date in YYYY-MM-DD format
- * @returns {Array} Closures active today
+ * @returns {Array} Relevant school records with current derived status
  */
 function filterClosuresToToday(closures, today) {
   if (!closures || !Array.isArray(closures) || closures.length === 0) {
     return [];
   }
 
-  return closures.filter(c => {
-    // 2026-04-16: Support both snake_case (normalized) and camelCase (legacy DB rows).
-    // New data is normalized at ingestion in fetchSchoolClosures(); this covers older rows.
-    const startDate = c.start_date || c.closureStart || c.startDate || c.closure_date || c.date;
-    const endDate = c.end_date || c.reopeningDate || c.endDate || c.reopening_date || startDate;
-
-    if (!startDate) return false;
-
-    // Check: TODAY >= start_date AND TODAY <= end_date (inclusive)
-    return today >= startDate && today <= endDate;
+  return closures.flatMap(closure => {
+    const status = getSchoolClosureStatusOnDate(closure, today);
+    return status ? [{ ...closure, status }] : [];
   });
 }
 
@@ -330,10 +322,16 @@ export function formatBriefingForPrompt(filteredBriefing) {
 
   // School closures section
   if (filteredBriefing.schoolClosures && filteredBriefing.schoolClosures.length > 0) {
-    const closureNames = filteredBriefing.schoolClosures.slice(0, 5).map(c =>
-      c.schoolName || c.name || c.district || 'School'
-    );
-    sections.push(`SCHOOL CLOSURES TODAY: ${closureNames.join(', ')}`);
+    const schools = filteredBriefing.schoolClosures.slice(0, 5).map(closure => {
+      const name = closure.school_name || closure.schoolName || closure.name || closure.district || 'School';
+      const interval = getSchoolClosureInterval(closure);
+      const status = closure.status === 'reopening_today' ? 'Students return today' : 'Closed today';
+      const dates = interval
+        ? `; closed ${interval.startDate} through ${interval.closedThroughDate}${interval.endExclusive ? `; students return ${interval.endDate}` : ''}`
+        : '';
+      return `- ${name}: ${status}${dates}`;
+    });
+    sections.push(`SCHOOL BREAKS AND RETURNS:\n${schools.join('\n')}`);
   }
 
   return sections.join('\n\n');

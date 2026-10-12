@@ -11,6 +11,7 @@ import { briefingSectionIssue, briefingFailureReason, getBriefingReadiness } fro
 import { normalizeCoordinates } from '../../../shared/coordinates.js';
 import { fetchTrafficConditions } from '../../lib/briefing/pipelines/traffic.js';
 import { db } from '../../db/drizzle.js';
+import { excludeCoachSnapshots } from '../../lib/location/snapshot-purpose.js';
 import { snapshots, discovered_events, news_deactivations } from '../../../shared/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
@@ -121,7 +122,7 @@ router.get('/current', requireAuth, async (req, res) => {
   try {
     const latestSnapshot = await db.select()
       .from(snapshots)
-      .where(eq(snapshots.user_id, req.auth.userId))
+      .where(and(eq(snapshots.user_id, req.auth.userId), excludeCoachSnapshots()))
       .orderBy(desc(snapshots.created_at))
       .limit(1);
 
@@ -816,7 +817,7 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
     // Now verify the user's most recent snapshot is in the same city/state as the event.
     const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state, country: snapshots.country })
       .from(snapshots)
-      .where(eq(snapshots.user_id, req.auth.userId))
+      .where(and(eq(snapshots.user_id, req.auth.userId), excludeCoachSnapshots()))
       .orderBy(desc(snapshots.created_at))
       .limit(1);
 
@@ -887,7 +888,7 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
     // 2026-04-04: FIX H-1 — Market authorization check (same as deactivate)
     const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state, country: snapshots.country })
       .from(snapshots)
-      .where(eq(snapshots.user_id, req.auth.userId))
+      .where(and(eq(snapshots.user_id, req.auth.userId), excludeCoachSnapshots()))
       .orderBy(desc(snapshots.created_at))
       .limit(1);
 

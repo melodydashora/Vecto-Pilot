@@ -15,6 +15,10 @@ it analyzes; offers are the records tracked in Daily Offers and history. Existin
 > and [Android](ANDROID_SHORTCUT_ANALYZE.md). [Melody’s verbatim specification](../OFFER_ANALYZER_DRIVER_RULESET.md)
 > preserves her original requirements; a requirement is not proof it is implemented.
 
+October 12 source update: section 15 describes Melody's authorized Coach settings
+action. Its implementation and release checks remain distinct from the historical
+verification receipts in this document.
+
 ## 1. Purpose and boundaries
 
 The Offer Analyzer reduces the arithmetic and screen-reading a driver must do during a short
@@ -298,8 +302,10 @@ for intentional limits; a complete schema shape is not proof every key is consum
 
 `driver_profiles.shortcut_token` maps a headless request to `user_id`.
 `offer_rulesets.user_id` supplies that owner’s config/version/hash. `ruleset-store.js`
-uses a bounded 15-second process cache and invalidates it after saves/token rotation,
-including protection against an older in-flight read repopulating invalidated data.
+reads current committed rules and selected services from the database for every
+tokened request. A save or token rotation therefore has no process-cache delay on
+the next resolution, including on another instance. An analysis already in flight
+keeps its captured rules/version/hash; it is not silently rerun under a later save.
 Unknown supplied tokens and failed/invalid personal-rule reads fail closed.
 
 Explicit selected services are independently resolved from the current owner profile.
@@ -574,9 +580,36 @@ Existing snapshot/timezone entry requirements remain; this is not before-GPS acc
 Active GPT live voice delegates substantive questions to the same `/api/chat` brain;
 its bounded session bootstrap is not the full data layer. Legacy realtime/Gemini
 routes carry reduced context and must not be mistaken for the active full-context path.
-Coach’s legacy model-emitted offer mutation actions are retired (§11.5). Other
-validated Coach actions are separate. There is no automatic Offer Analyzer-rule tuning
-from chat or outcomes.
+Coach's legacy model-emitted offer-record mutations remain retired (§11.5).
+`UPDATE_OFFER_RULES` is a separate, user-directed settings action: the driver can
+ask Coach to explain scenarios and adjust toggles or sliders using reviewed saved
+offer evidence. A request to tune settings permits Coach to choose supported
+values and explain its reasoning; reviewing or discussing offers alone does not
+authorize a write. Changes affect subsequent analyses and preserve historical
+Offer Analyzer decisions and driver outcomes.
+
+The action applies named control changes to the server-read owner config, with
+the editor's ranges, switch defaults and derived tier acceptance rule. Existing
+avoided places can be adjusted using their saved identity; adding a new place
+still uses the Places picker. Hidden or unrelated rules stay preserved. The
+existing v3 schema and `offer_rulesets` table remain canonical: no separate Coach
+rules store, model-selected owner, or new persisted schema is introduced.
+
+The editor and Coach share [the rules writer](../../server/lib/offers/ruleset-writer.js):
+strict config validation, current driver-session locking and expected-version
+concurrency. Subsequent tokened requests read authoritative saved rules directly.
+Coach additionally checks the server-loaded
+hash from its turn context. Stale, invalid or unavailable rules fail without
+silent retry. A committed version/hash plus actual before/after changes supports
+the confirmation; a no-op is reported without claiming a new save.
+
+Typed and voice completion refresh saved setup after presenting the receipt,
+preserve unsaved drafts, and keep Strategy admission separate. Valid saved setup
+needs no routine confirmation warning, while missing data, unsaved edits and
+failed readback still block admission. Coach does not automatically start Strategy
+or tune rules between turns. See the
+[Coach contract](RIDESHARE_COACH.md#user-directed-offer-analyzer-tuning) and
+[preserved wording](removals/2026-10-12-coach-offer-analyzer-tuning.md).
 
 ## 16. Models, latency, and the <3s target
 
@@ -588,21 +621,25 @@ from August are historical evidence, not current phone p95 or safety guarantees.
 Timeout/cancellation tests verify bounded behavior under their fixtures; they do not
 measure radio, capture, OCR, provider tail latency or tap-to-speech on a real phone.
 
-October 9, 2026, Melody's direction for tonight: both Offer Analyzer roles send
-text-only requests directly to OpenAI, using the registry's exact pin and the
-existing OCR text and prompts. They do not attempt Google first or retry Google
-after an OpenAI failure. Requests containing an image, including mixed text/image
-requests, select the registry's explicit vision configuration and stay on the
-existing Gemini vision path. A future Google model addition is deferred; it is
-not part of this change.
+October 12, 2026, Melody restored both Offer Analyzer roles to
+`gemini-3.8-flash` through the Gemini adapter. Text-only, image-only and combined
+inputs share that exact pin. Both phases explicitly use `LOW` thinking: it is the
+lowest supported 3.8 level, and it preserves the existing Gemini deep-analysis
+setting. The immediate/deep token caps remain 1,024/2,048, with the hook's
+20-second/45-second deadlines. `MINIMAL` is unsupported on this model.
+[Google's model guide](https://ai.google.dev/gemini-api/docs/latest-model)
 
-The OpenAI path uses JSON mode, disables SDK retries and completion storage, and rejects
-dummy credentials, cancellation, refusal, truncation and incomplete responses.
-The hook still validates/adjudicates the returned data; a model outage does not
-authorize an invented ride acceptance. Resolved model provenance follows the
-successful response. This change does not restore Google geocoding, timezone,
-weather or air-quality access, and it does not add a city-based acceptance rule.
-The existing Phase 2 timezone/storage requirements continue to apply.
+The adapter sends native JSON mode for these ungrounded prompts, omits deprecated
+sampling controls and opaque one-shot response fields, and rejects truncation,
+cancellation and invalid thinking settings. Offer Analyzer does not retry another
+model or provider after failure. Unrelated roles retain their existing retry
+policies. The hook still validates and adjudicates returned data; a model outage
+does not authorize an invented ride acceptance. The deep pass cannot overwrite
+the original spoken decision. Resolved model provenance follows the successful
+response. Existing Phase 2 timezone/storage requirements remain unchanged.
+
+The replaced text/image split and model comments are preserved in
+[the migration record](removals/2026-10-12-offer-analyzer-gemini38.md).
 
 ### 16.1 Current bounds and caches
 
@@ -612,7 +649,7 @@ These are implementation settings, not measured latency guarantees.
 |---|---|---|
 | Hook bodies/file part | 5 MiB; middleware/multer | Before model preparation; resizing cannot undo upload time. |
 | Hook rate limiter | 20/minute; `offerHookLimiter` | Identity/IP-keyed request limiting, not a completion guarantee. |
-| Rule/service cache | 15 s, maximum 500 tokens; `ruleset-store.js` | Local save/rotation invalidation; other instances can retain their cache until expiry. Unknown tokens are not cached. |
+| Rule/service resolution | Authoritative DB read per tokened request; `ruleset-store.js` | No process-cache delay for committed saves or token rotation. In-flight analyses retain their captured rules receipt. Read failure stays unavailable. |
 | Request dedup cache | 60 s, maximum 500 entries; `request-dedup.js` | Same fingerprint shares original response; waiter ceiling 30 s. Selected services are part of the fingerprint. |
 | Phase 1 model deadline | 20 s; hook | Abort model request and clear timer; not a total request deadline or the 3 s goal. |
 | Phase 2 model deadline | 45 s; hook | Abort deep request; fallback evidence may still attempt storage. |
@@ -679,6 +716,13 @@ an older “shipped” paragraph or treat a historical handoff as the current ch
 
 ## Appendix A — Change log
 
+- 2026-10-12: Restored immediate/deep text and image analysis to Gemini 3.8 Flash
+  with explicit LOW thinking, existing caps/deadlines and no Offer Analyzer model
+  retry. Coach and venue assignments are outside this change.
+
+- 2026-10-12: Added user-directed Coach tuning of existing Offer Analyzer controls,
+  canonical versioned writes and durable change receipts. Earlier offer decisions
+  and outcomes remain separate evidence; this entry does not assert publication.
 - 2026-10-09: Set OpenAI as the text-only primary at Melody's direction, preserving
   vision routing, cancellation, response-validation and provenance boundaries.
   Preserved replaced model comments

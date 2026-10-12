@@ -100,7 +100,9 @@ export const MODEL_ROLES = {
   BRIEFING_SCHOOLS: {
     model: 'gemini-3.8-flash',
     purpose: 'School closures and calendar lookup',
-    maxTokens: 8192,
+    // 2026-10-12: HIGH needs room for thinking plus the complete calendar JSON.
+    // The controlled Frisco probe used 13,482 generated tokens; 8,192 truncated.
+    maxTokens: 16384,
     temperature: 0.2,
     thinkingLevel: 'HIGH',
     features: ['google_search'],
@@ -193,7 +195,7 @@ export const MODEL_ROLES = {
     model: 'gpt-6-astra',
     purpose: 'AI Coach conversation and confirmed actions',
     maxTokens: 16384,
-    reasoningEffort: 'low',
+    reasoningEffort: 'high',
     features: ['web_search', 'vision', 'ocr'],
     requiresStreaming: true,
     streamingProvider: 'openai',
@@ -307,43 +309,33 @@ export const MODEL_ROLES = {
   // Keep deep enrichment off that response path. The under-three-second target
   // (todo #43) requires real-device verification; it is not a measured guarantee.
   // Models are pinned here, never selected through environment overrides.
-  // Melody, 2026-10-09: OCR text uses OpenAI directly tonight. Image-bearing
-  // requests retain the existing Gemini configuration so image evidence is kept.
+  // Melody, 2026-10-12: Gemini 3.8 Flash handles text and images in both phases.
+  // LOW is its lowest supported thinking level; MINIMAL is unsupported.
   // On model failure the server may prove a rejection, but cannot invent a passed
   // judgment check to ACCEPT a ride. See offers/phase1-decision.js.
   // Historical model comparisons and rationale are preserved in:
   // docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md
   // docs/architecture/removals/2026-09-29-offer-analyzer-doc-reconciliation.md
   OFFER_ANALYZER: {
-    model: 'gpt-6-luna',
+    model: 'gemini-3.8-flash',
     purpose: 'Phase 1: Phone-bound offer analysis from screenshot, OCR or both (ACCEPT/REJECT/NO DATA)',
     maxTokens: 1024,
-    reasoningEffort: 'none',
+    thinkingLevel: 'LOW',
     jsonMode: true,
-    vision: {
-      model: 'gemini-3.5-flash-lite',
-      temperature: 0.1, // Melody's setting; honored by the Gemini JSON adapter.
-      thinkingLevel: 'MINIMAL',
-      features: ['vision'],
-    },
+    features: ['vision'],
   },
 
   // Phase 2 enriches saved evidence after the phone response. Its reasoning
-  // must not rewrite the spoken decision. Preserve the separately reviewed deep
-  // role when changing other roles; report the model actually used on retries.
+  // must not rewrite the spoken decision. Both input modes use the same model;
+  // preserve the existing LOW Gemini deep-analysis level and caller deadline.
   // In-process execution is not a durable queue; see OFFER_ANALYZER.md §10.
   OFFER_ANALYZER_DEEP: {
-    model: 'gpt-6-luna',
+    model: 'gemini-3.8-flash',
     purpose: 'Phase 2: Async deep analysis (visual + text) for offer_intelligence enrichment — runs after Siri response',
     maxTokens: 2048,
-    reasoningEffort: 'none',
+    thinkingLevel: 'LOW',
     jsonMode: true,
-    vision: {
-      model: 'gemini-3.1-pro-preview',
-      temperature: 0.2,
-      thinkingLevel: 'LOW', // Preserve the existing Gemini deep-analysis setting.
-      features: ['vision'],
-    },
+    features: ['vision'],
   },
 
   // ==========================
@@ -425,7 +417,7 @@ export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_CONTEXT',
   'VENUE_FILTER',           // 2026-01-14: Added for Anthropic credit fallback
   'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
-  // Offer Analyzer uses OpenAI for text and Gemini for images, with no cross-provider fallback.
+  // Offer Analyzer uses Gemini for text and images, with no cross-provider fallback.
 ];
 
 /**
@@ -634,14 +626,33 @@ export function getRolesByTable() {
   return groups;
 }
 
-/**
- * Model-specific quirks and limitations
- * 2026-02-15: Added Pro-specific quirks (F-002). NOTE (2026-08-17): documentary — gemini-adapter.js
- * validateThinkingLevel() uses its own flash/pro string checks and does not read MODEL_QUIRKS.
- *
- * Prefix matching: hasQuirk() checks model.startsWith(prefix) || model.includes(prefix).
- * More specific prefixes (e.g. 'gemini-3-pro') are checked alongside broader ones ('gemini-').
- */
+// Exact GenerateContent contracts verified against Google's thinking and migration
+// guides on 2026-10-11. Live/audio models have separate request contracts.
+const geminiPolicy = (validThinkingLevels, omitSamplingParameters = false) =>
+  Object.freeze({ validThinkingLevels: Object.freeze(validThinkingLevels), omitSamplingParameters });
+const GEMINI_MODEL_POLICIES = Object.freeze({
+  'gemini-3.8-flash': geminiPolicy(['LOW', 'MEDIUM', 'HIGH'], true),
+  'gemini-3.7-flash': geminiPolicy(['LOW', 'MEDIUM', 'HIGH'], true),
+  'gemini-3.6-flash': geminiPolicy(['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'], true),
+  'gemini-3.5-flash': geminiPolicy(['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'], true),
+  'gemini-3.5-flash-lite': geminiPolicy(['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'], true),
+  'gemini-3-flash-preview': geminiPolicy(['MINIMAL', 'LOW', 'MEDIUM', 'HIGH']),
+  'gemini-3.1-flash-lite': geminiPolicy(['MINIMAL', 'LOW', 'MEDIUM', 'HIGH']),
+  'gemini-3.1-flash-lite-preview': geminiPolicy(['MINIMAL', 'LOW', 'MEDIUM', 'HIGH']),
+  'gemini-3.1-pro-preview': geminiPolicy(['LOW', 'MEDIUM', 'HIGH']),
+  'gemini-3.1-pro-preview-customtools': geminiPolicy(['LOW', 'MEDIUM', 'HIGH']),
+  'gemini-3-pro-preview': geminiPolicy(['LOW', 'HIGH']),
+});
+const UNKNOWN_GEMINI_POLICY = Object.freeze({ validThinkingLevels: null, omitSamplingParameters: false });
+
+/** Resolve exact model capabilities; never infer them for an unverified alias. */
+export function getGeminiModelPolicy(model) {
+  return Object.hasOwn(GEMINI_MODEL_POLICIES, model)
+    ? GEMINI_MODEL_POLICIES[model]
+    : UNKNOWN_GEMINI_POLICY;
+}
+
+/** Provider quirks. Gemini thinking and sampling use the exact policy above. */
 export const MODEL_QUIRKS = {
   // 2026-03-28: Broadened from 'gpt-5.2' to 'gpt-5' to cover entire GPT-5 family
   // (5.0, 5.1, 5.2, 5.3, 5.4+). All use max_completion_tokens + reasoning_effort.
@@ -669,37 +680,6 @@ export const MODEL_QUIRKS = {
   'gemini-': {
     useThinkingConfig: true,
     safetySettingsRequired: true,
-  },
-  // 2026-02-15: F-002 — Pro models only support LOW and HIGH thinking levels.
-  // MEDIUM is Flash-only (validateThinkingLevel() enforces this independently of this table).
-  // 2026-05-08: Added 'gemini-pro' alias prefix to cover gemini-pro-latest (Google's
-  // server-resolved alias to current Pro model). Legacy 'gemini-3-pro' / 'gemini-3.1-pro'
-  // kept so env overrides pinning to specific versions still pick up the same quirks.
-  'gemini-pro': {
-    noMediumThinking: true,
-    validThinkingLevels: ['LOW', 'HIGH'],
-  },
-  'gemini-3-pro': {
-    noMediumThinking: true,
-    validThinkingLevels: ['LOW', 'HIGH'],
-  },
-  // 2026-02-25: Gemini 3.1 Pro inherits same thinking constraints as 3 Pro
-  'gemini-3.1-pro': {
-    noMediumThinking: true,
-    validThinkingLevels: ['LOW', 'HIGH'],
-  },
-  // 2026-05-08: Flash and Flash-Lite both support MEDIUM thinking; alias prefix added
-  // for gemini-flash-latest / gemini-flash-lite-latest.
-  'gemini-flash': {
-    validThinkingLevels: ['LOW', 'MEDIUM', 'HIGH'],
-  },
-  'gemini-3-flash': {
-    validThinkingLevels: ['LOW', 'MEDIUM', 'HIGH'],
-  },
-  // 2026-05-29: gemini-3.5-flash (GA 2026-05-19) adds a MINIMAL thinking level on top of
-  // LOW/MEDIUM/HIGH (default MEDIUM). Verified via ai.google.dev/gemini-api/docs.
-  'gemini-3.5-flash': {
-    validThinkingLevels: ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'],
   },
   // 2026-05-29: claude-opus-4-8 deprecates the `temperature` request parameter —
   // sending it returns HTTP 400 ("`temperature` is deprecated for this model").

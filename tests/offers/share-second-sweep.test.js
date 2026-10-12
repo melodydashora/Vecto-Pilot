@@ -43,7 +43,6 @@ jest.unstable_mockModule('../../server/lib/events/pipeline/geocodeEvent.js', () 
 jest.unstable_mockModule('../../server/lib/venue/venue-address-resolver.js', () => ({ resolvePlaceByTextSearch: forbidden }));
 jest.unstable_mockModule('../../server/lib/location/resolveTimezone.js', () => ({ resolveTimezoneFromCoords: timezone }));
 jest.unstable_mockModule('../../server/middleware/rate-limit.js', () => ({ offerHookLimiter: (_req, _res, next) => next() }));
-const { _clearCache } = await import('../../server/lib/offers/ruleset-store.js');
 const { default: router } = await import('../../server/api/hooks/analyze-offer.js');
 const app = express().use(express.json()).use('/hooks', router);
 const text = 'UberX Share\n$10.00\n5.00 Verified\n1 min (0.2 mi) away\n10 min (3.0 mi) trip';
@@ -54,7 +53,7 @@ const flushBackground = async () => { for (let i = 0; i < 10; i++) await new Pro
 
 beforeEach(() => {
   caseId++;
-  _clearCache();
+
   jest.clearAllMocks();
   rulesKnown = true;
   currentSnapshot = null;

@@ -6,6 +6,7 @@
 import crypto from 'crypto';
 import { fromZonedTime } from 'date-fns-tz';
 import { getLocalDateString } from '../../../../shared/dayparts.js';
+import { getSchoolClosureInterval, getSchoolClosureStatusOnDate } from '../../../../shared/school-closures.js';
 import { normalizeCoordinates } from '../../../../shared/coordinates.js';
 import { normalizeTime } from '../../events/pipeline/normalizeEvent.js';
 import { db } from '../../../db/drizzle.js';
@@ -239,7 +240,7 @@ ${weatherBlock}
 
 NEWS: ${formatNewsForPrompt(optimizeNewsForLLM(briefing.news))}
 
-SCHOOL CLOSURES: ${formatSchoolClosuresSummary(briefing.school_closures, snapshot.timezone)}
+SCHOOL BREAKS AND RETURNS: ${formatSchoolClosuresSummary(briefing.school_closures, snapshot.timezone)}
 
 AIRPORT: ${formatAirportContext(briefing.airport)}
 
@@ -317,63 +318,38 @@ You understand demand patterns: events create surge at END times (exit crowds), 
 }
 
 /**
- * Format school closures for strategist summary
- * Shows count, type breakdown, distance from driver, and reopening dates
- * Limits to 8 entries to save tokens in the prompt
+ * Retain school calendar records relevant to the current snapshot-local day.
+ * The legacy export name is preserved: records can be closed or reopening today.
+ * Recompute status from dates; cached status must not outlive its calendar day.
+ * @param {Array|Object} closures - Records or their stored items envelope
+ * @param {string} timezone - Required IANA snapshot timezone
+ * @returns {Array} Records with derived closed/reopening_today status
  */
-/**
- * 2026-01-08: FIX - Filter school closures where TODAY falls between start_date and end_date
- * Uses snapshot.timezone directly - no re-fetching
- * @param {Array} closures - Array of closure objects with start_date/end_date
- * @param {string} timezone - IANA timezone from snapshot (required)
- * @returns {Array} Closures active TODAY only
- */
-function filterClosuresActiveToday(closures, timezone) {
-  if (!closures || !Array.isArray(closures) || !timezone) return [];
-
-  // Get today's date in snapshot's timezone (YYYY-MM-DD format)
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
-
-  return closures.filter(c => {
-    // 2026-04-16: Support both snake_case (normalized) and camelCase (legacy DB rows).
-    // New data is normalized at ingestion in fetchSchoolClosures(); this covers older rows.
-    const startDate = c.start_date || c.closureStart || c.startDate || c.closure_date || c.date;
-    const endDate = c.end_date || c.reopeningDate || c.endDate || c.reopening_date || startDate;
-
-    if (!startDate) return false;
-
-    // Check: TODAY >= start_date AND TODAY <= end_date (inclusive)
-    return today >= startDate && today <= endDate;
+export function filterClosuresActiveToday(closures, timezone) {
+  const today = getLocalDateString(new Date(), timezone);
+  const items = Array.isArray(closures) ? closures : closures?.items;
+  if (!Array.isArray(items)) return [];
+  return items.flatMap(closure => {
+    const status = getSchoolClosureStatusOnDate(closure, today);
+    return status ? [{ ...closure, status }] : [];
   });
 }
 
-/**
- * 2026-01-08: Format school closures as simple string list (NO JSON)
- * Output: "- Frisco ISD: Closed (Teacher In-Service)"
- * Uses snapshot.timezone directly
- * @param {Array} closures - Array of closure objects
- * @param {string} timezone - IANA timezone from snapshot
- * @returns {string} Simple formatted list
- */
+/** Format closures and explicit student return days for the strategist. */
 function formatSchoolClosuresSummary(closures, timezone) {
-  // Filter to closures active TODAY (start_date <= today <= end_date)
-  const activeClosures = filterClosuresActiveToday(closures, timezone);
+  const relevantClosures = filterClosuresActiveToday(closures, timezone);
+  if (relevantClosures.length === 0) return 'None today';
 
-  if (!activeClosures || activeClosures.length === 0) {
-    return 'None today';
-  }
-
-  // Simple string list format - NO JSON, minimal tokens
-  const lines = activeClosures.slice(0, 10).map(c => {
-    const name = c.schoolName || c.name || c.district || 'Unknown';
-    const reason = c.reason || c.closure_reason || 'Closed';
-    return `- ${name}: ${reason}`;
+  const lines = relevantClosures.slice(0, 10).map(closure => {
+    const name = closure.school_name || closure.schoolName || closure.name || closure.district || 'Unknown';
+    const interval = getSchoolClosureInterval(closure);
+    const status = closure.status === 'reopening_today' ? 'Students return today' : 'Closed today';
+    const dates = `closed ${interval.startDate} through ${interval.closedThroughDate}${interval.endExclusive ? `; students return ${interval.endDate}` : ''}`;
+    const reason = closure.closure_reason || closure.reason;
+    return `- ${name}: ${status}; ${dates}${reason ? `; ${reason}` : ''}`;
   });
 
-  if (activeClosures.length > 10) {
-    lines.push(`... and ${activeClosures.length - 10} more`);
-  }
-
+  if (relevantClosures.length > 10) lines.push(`... and ${relevantClosures.length - 10} more`);
   return lines.join('\n');
 }
 

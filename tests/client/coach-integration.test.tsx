@@ -90,6 +90,10 @@ const originalMediaDevices = Object.getOwnPropertyDescriptor(navigator, 'mediaDe
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
 const storageKey = 'vecto_coach_chat_driver-fixture_snapshot-fixture';
 const history = () => JSON.parse(localStorage.getItem(storageKey) || '{"messages":[]}').messages as Array<{ role: string; content: string }>;
+const rulesReceipt = {
+  version: 8, hash: 'synthetic-rules-hash', changed: true,
+  changes: [{ path: 'decision.min_score', label: 'Minimum score', before: 60, after: 70 }],
+};
 
 async function flush() {
   await act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -173,6 +177,96 @@ afterEach(async () => {
 });
 
 describe('mounted Coach canonical input and confirmed output', () => {
+  it('typed settings wait for completion and notify once even when the final event repeats', async () => {
+    const onOfferRulesSaved = jest.fn();
+    render(<RideshareCoach userId="driver-fixture" snapshotId="snapshot-fixture" onOfferRulesSaved={onOfferRulesSaved} />);
+    submitTyped('Raise my minimum score to 70');
+    await flush();
+    await act(async () => { chats[0].stream.event({ delta: 'I saved your settings.' }); });
+    expect(onOfferRulesSaved).not.toHaveBeenCalled();
+    const done = { done: true, response_text: 'Ready for your next offer.', actions_result: { saved: 1, offer_rules: rulesReceipt } };
+    await act(async () => {
+      chats[0].stream.event(done);
+      chats[0].stream.event(done);
+    });
+    expect(onOfferRulesSaved).not.toHaveBeenCalled();
+    await act(async () => chats[0].stream.end());
+    await flush();
+    expect(onOfferRulesSaved).toHaveBeenCalledTimes(1);
+    expect(onOfferRulesSaved).toHaveBeenCalledWith(rulesReceipt);
+    expect(history()[1].content).toContain('Offer Analyzer settings saved.');
+    expect(history()[1].content).toContain('Minimum score: 60 → 70');
+    expect(screen.getByTestId('message-assistant-1')).toHaveTextContent('Minimum score: 60 → 70');
+    expect(history()[1].content).not.toContain('I saved your settings.');
+    expect(speak).not.toHaveBeenCalled();
+  });
+
+  it.each(['no-change', 'error', 'unfinished'] as const)('a %s settings reply never refreshes saved setup', async outcome => {
+    const onOfferRulesSaved = jest.fn();
+    render(<RideshareCoach userId="driver-fixture" snapshotId="snapshot-fixture" onOfferRulesSaved={onOfferRulesSaved} />);
+    submitTyped('Check my Offer Analyzer settings');
+    await flush();
+    await act(async () => {
+      chats[0].stream.event({
+        ...(outcome !== 'unfinished' ? { done: true } : { delta: 'Saved.' }),
+        ...(outcome === 'error' ? { error: true } : {}),
+        response_text: 'Settings checked.',
+        actions_result: { saved: 0, offer_rules: { ...rulesReceipt, changed: outcome !== 'no-change' } },
+      });
+      chats[0].stream.end();
+    });
+    await flush();
+    expect(onOfferRulesSaved).not.toHaveBeenCalled();
+    if (outcome === 'no-change') expect(history()[1].content).toContain('settings already match');
+    if (outcome === 'unfinished') expect(history()[1].content).toContain('before Coach could confirm this request');
+  });
+
+  it('a confirmed settings save survives history failure and the callback changing snapshot context', async () => {
+    const onOfferRulesSaved = jest.fn();
+    function SavedContext() {
+      const [snapshotId, setSnapshotId] = useState('snapshot-fixture');
+      return <RideshareCoach userId="driver-fixture" snapshotId={snapshotId} onOfferRulesSaved={receipt => {
+        onOfferRulesSaved(receipt);
+        setSnapshotId('fresh-snapshot-fixture');
+      }} />;
+    }
+    render(<SavedContext />);
+    submitTyped('Save the minimum score');
+    await flush();
+    await act(async () => {
+      chats[0].stream.event({ done: true, response_text: 'Settings updated.',
+        actions_result: { saved: 1, offer_rules: rulesReceipt }, persistence_error: 'Synthetic history outage' });
+      chats[0].stream.end();
+    });
+    await flush();
+    expect(onOfferRulesSaved).toHaveBeenCalledTimes(1);
+    expect(history()[1].content).toContain('Minimum score: 60 → 70');
+    expect(history()[1].content).toContain('Confirmed changes above remain saved');
+    expect(screen.queryByTestId('message-assistant-1')).not.toBeInTheDocument();
+  });
+
+  it.each(['account', 'snapshot', 'unmount'] as const)('late typed settings cannot refresh setup after %s changes', async scope => {
+    const oldSaved = jest.fn(); const newSaved = jest.fn();
+    const view = render(<RideshareCoach userId="driver-fixture" snapshotId="snapshot-fixture" onOfferRulesSaved={oldSaved} />);
+    submitTyped('Save settings for the old context');
+    await flush();
+    const oldHistory = history();
+    if (scope === 'unmount') view.unmount();
+    else view.rerender(<RideshareCoach userId={scope === 'account' ? 'driver-b' : 'driver-fixture'} snapshotId="snapshot-b" onOfferRulesSaved={newSaved} />);
+    expect((chats[0].init.signal as AbortSignal).aborted).toBe(true);
+    await finishChat(0, 'Old settings saved.', { saved: 1, offer_rules: rulesReceipt });
+    expect(oldSaved).not.toHaveBeenCalled();
+    expect(newSaved).not.toHaveBeenCalled();
+    expect(history()).toEqual(oldHistory);
+    if (scope !== 'unmount') {
+      submitTyped('Save settings for the current context');
+      await flush();
+      await finishChat(1, 'Current settings saved.', { saved: 1, offer_rules: rulesReceipt });
+      expect(newSaved).toHaveBeenCalledTimes(1);
+      expect(oldSaved).not.toHaveBeenCalled();
+    }
+  });
+
   it.each(['typed-first', 'voice-first'])('%s in one synchronous act admits one turn and keeps the losing input', async order => {
     mountCoach();
     prepareTyped('Typed question');

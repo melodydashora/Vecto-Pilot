@@ -12,11 +12,11 @@ import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
 import { migrateRuleset } from '../../lib/offers/rules-engine.js';
-import { validateRuleset } from '../../lib/offers/ruleset-schema.js';
-import { hashRuleset, generateShortcutToken, invalidateUser } from '../../lib/offers/ruleset-store.js';
+import { saveOfferRules, RulesetWriteError } from '../../lib/offers/ruleset-writer.js';
+import { hashRuleset, generateShortcutToken } from '../../lib/offers/ruleset-store.js';
 import { parseOutcomeInput, offerPeriod } from '../../lib/offers/outcome-input.js';
 import { initialRulesetFromProfile } from '../../lib/offers/profile-ruleset.js';
-import { withDriverSettingsLock, MainRunAdmissionError } from '../../lib/main-run-admission.js';
+import { MainRunAdmissionError } from '../../lib/main-run-admission.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -110,76 +110,10 @@ router.get('/rules', async (req, res) => {
 // second GET (whose form.reset() could clobber a slider moved during the round-trip).
 router.put('/rules', async (req, res) => {
   try {
-    const supplied = req.body?.config;
-    // Migration fills older rules' missing fields and also supplies defaults
-    // for absent input. At the write boundary, absent/malformed rules must not
-    // reset the driver's choices or advance the saved revision.
-    if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) ||
-        !supplied.global || typeof supplied.global !== 'object' || Array.isArray(supplied.global)) {
-      return res.status(422).json({ error: 'Invalid ruleset', details: ['config: a rules object with a global rules object is required'] });
-    }
-    // Both fields belong to the original global contract. Older versions may
-    // omit newer fields, basis or tiers; an empty core is not a saved decision.
-    if (!Object.hasOwn(supplied.global, 'rating_floor') || !Object.hasOwn(supplied.global, 'require_verified')) {
-      return res.status(422).json({ error: 'Invalid ruleset', details: ['config.global: rating_floor and require_verified are required'] });
-    }
-    const config = migrateRuleset(supplied);
-    const validation = validateRuleset(config);
-    if (!validation.ok) {
-      return res.status(422).json({ error: 'Invalid ruleset', details: validation.errors });
-    }
-    const hasExpectation = req.body != null && Object.prototype.hasOwnProperty.call(req.body, 'expected_version');
-    if (!hasExpectation) return res.status(400).json({ error: 'rules_version_required', message: 'Reload saved rules before saving changes.' });
-    const rawExpected = hasExpectation ? req.body.expected_version : undefined;
-    // Strict: a JSON number that is a non-negative int4, or null. No coercion (true → 1,
-    // "" → 0, [7] → 7 would all sneak through Number()); out-of-int4 would 500 at the cast.
-    if (hasExpectation && rawExpected !== null
-      && !(typeof rawExpected === 'number' && Number.isInteger(rawExpected) && rawExpected >= 1 && rawExpected < 2147483647)) {
-      return res.status(400).json({ error: 'expected_version must be a positive integer or null' });
-    }
-    const expectedVersion = hasExpectation && rawExpected !== null ? rawExpected : null;
-
-    const hash = hashRuleset(validation.config);
-    const configJson = JSON.stringify(validation.config);
-    // IS NOT DISTINCT FROM: an expectation of null (client saw defaults) matches no
-    // existing row → 409 if someone saved first; a stale integer likewise.
-    const versionGuard = hasExpectation
-      ? sql`offer_rulesets.version IS NOT DISTINCT FROM ${expectedVersion}::integer`
-      : sql`TRUE`;
-    const result = await withDriverSettingsLock(req.auth, async tx => {
-      const current = await tx.execute(sql`SELECT version FROM offer_rulesets WHERE user_id = ${req.auth.userId} LIMIT 1`);
-      if ((current.rows?.[0]?.version ?? null) !== expectedVersion) return { rows: [] };
-      return tx.execute(sql`
-      INSERT INTO offer_rulesets (user_id, version, config, config_hash)
-      VALUES (${req.auth.userId}, 1, ${configJson}::jsonb, ${hash})
-      ON CONFLICT (user_id) DO UPDATE SET
-        config = EXCLUDED.config,
-        config_hash = EXCLUDED.config_hash,
-        version = offer_rulesets.version + 1,
-        updated_at = NOW()
-      WHERE ${versionGuard}
-      RETURNING version
-      `);
-    });
-
-    if (!result.rows?.length) {
-      const current = await db.execute(sql`
-        SELECT config, version, config_hash FROM offer_rulesets WHERE user_id = ${req.auth.userId} LIMIT 1
-      `);
-      const row = current.rows?.[0];
-      console.warn(`[offer-analyzer] Rules save REJECTED (version conflict): user=${req.auth.userId} expected v${expectedVersion ?? 'none'}, stored v${row?.version ?? 'none'}`);
-      return res.status(409).json({
-        error: 'version_conflict',
-        message: 'Your rules were changed elsewhere since this page loaded. Reload and re-apply your change.',
-        current: row ? { config: migrateRuleset(row.config), version: row.version, hash: row.config_hash } : null,
-      });
-    }
-
-    invalidateUser(req.auth.userId); // next Siri request on this instance sees the new rules
-    const version = result.rows?.[0]?.version ?? 1;
-    console.log(`[offer-analyzer] Rules saved: user=${req.auth.userId} v${version} ${hash.slice(0, 12)}`);
-    res.json({ success: true, version, hash, config: validation.config });
+    const saved = await saveOfferRules(req.auth, req.body);
+    res.json(saved);
   } catch (err) {
+    if (err instanceof RulesetWriteError) return res.status(err.status).json(err.body);
     if (err instanceof MainRunAdmissionError) return res.status(err.status).json({ error: err.code, message: err.message, ...err.details });
     console.error('[offer-analyzer/rules PUT]', err.message);
     res.status(500).json({ error: err.message });
@@ -246,7 +180,6 @@ router.post('/shortcut-token/regenerate', async (req, res) => {
     `);
     if (!result.rows?.length) return res.status(404).json({ error: 'Driver profile not found' });
 
-    invalidateUser(req.auth.userId); // the old token dies now, not at cache TTL
     console.log(`[offer-analyzer] Shortcut token ROTATED: user=${req.auth.userId}`);
     res.json({ token, created_at: new Date().toISOString() });
   } catch (err) {

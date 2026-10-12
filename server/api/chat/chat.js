@@ -16,12 +16,16 @@ import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middlew
 import { voiceTurnsLimiter } from '../../middleware/rate-limit.js';
 import { validateAction } from '../rideshare-coach/validate.js';
 import { parseActions } from './parse-actions.js';
+import { applyCoachRulesPatch, coachRulesInstructions } from '../../lib/offers/coach-rules-patch.js';
+import { saveOfferRules } from '../../lib/offers/ruleset-writer.js';
+import { formatOfferRulesReceipt } from '../../../shared/coach-offer-rules-receipt.js';
 import { saveMemoWithReceipt } from '../rideshare-coach/memos.js';
 // 2026-08-14 (voice-turns): model provenance for voice_transcript rows comes
 // from the registry (COACH_VOICE_LIVE role), never a hardcoded model string.
 import { getRoleConfig } from '../../lib/ai/model-registry.js';
 import { formatCoachSourceContext } from '../../lib/ai/coach-source-context.js';
 import { getCoachContextProgress } from '../../lib/ai/coach-context-progress.js';
+import { readOwnedCoachSnapshot } from '../../lib/location/coach-snapshot.js';
 import { readCoachResponse } from '../../lib/ai/adapters/coach-responses.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
@@ -59,8 +63,19 @@ function formatSnapshotHistoryTime(snapshot) {
 /**
  * Execute parsed actions asynchronously (non-blocking)
  */
-async function executeActions(actions, userId, snapshotId, conversationId, signal) {
+async function executeActions(actions, userId, snapshotId, conversationId, signal, auth, offerRules, currentSnapshot) {
   const results = { saved: 0, errors: [], memos: [] };
+
+  if (actions.coachSnapshotRefresh?.length) {
+    signal?.throwIfAborted();
+    if (actions.coachSnapshotRefresh.length !== 1) {
+      results.errors.push('Coach snapshot refresh: request one device capture per turn.');
+    } else {
+      const validation = validateAction('REFRESH_COACH_SNAPSHOT', actions.coachSnapshotRefresh[0]);
+      if (validation.ok) results.coach_snapshot_refresh = { requested: true, reason: validation.data.reason };
+      else results.errors.push(`Coach snapshot refresh: ${validation.errors.map(error => error.message).join('; ')}`);
+    }
+  }
 
   // Save user notes (with validation)
   for (const note of actions.notes) {
@@ -259,7 +274,7 @@ async function executeActions(actions, userId, snapshotId, conversationId, signa
       }
 
       // Get city/state from snapshot context (events need location)
-      const snapshot = snapshotId ? await rideshareCoachDAL.getHeaderSnapshot(snapshotId) : null;
+      const snapshot = currentSnapshot ?? (snapshotId ? await rideshareCoachDAL.getHeaderSnapshot(snapshotId) : null);
       const city = event.city || snapshot?.city;
       const state = event.state || snapshot?.state;
       if (!city || !state) {
@@ -496,6 +511,28 @@ async function executeActions(actions, userId, snapshotId, conversationId, signa
     if (actions[key]?.length) results.errors.push(`${label}: Coach offer writes are disabled. Use the Offer Analyzer and Daily Offers controls.`);
   }
 
+  // One atomic settings patch per completed turn. Revision and identity come
+  // from authenticated server context, never from model-supplied action fields.
+  if (actions.offerRules?.length) {
+    try {
+      signal?.throwIfAborted();
+      if (actions.offerRules.length !== 1) throw new Error('Use one combined Offer Analyzer settings action per turn.');
+      if (!['saved', 'profile_defaults'].includes(offerRules?.source_state) || !offerRules.config || !offerRules.hash) {
+        throw new Error('Current Offer Analyzer settings could not be verified. Reload before changing them.');
+      }
+      const validation = validateAction('UPDATE_OFFER_RULES', actions.offerRules[0]);
+      if (!validation.ok) throw new Error(validation.errors.map(error => error.message).join('; '));
+      const saved = await saveOfferRules(auth, { expected_version: offerRules.version }, {
+        expectedHash: offerRules.hash, signal,
+        transform: config => applyCoachRulesPatch(config, validation.data),
+      });
+      results.offer_rules = { version: saved.version, hash: saved.hash, changed: saved.changed, changes: saved.changes };
+      if (saved.changed) results.saved++;
+    } catch (error) {
+      results.errors.push(`Offer Analyzer settings: ${error.message}`);
+    }
+  }
+
   if (results.errors.length > 0) {
     console.warn(`[COACH] [ACTIONS] ${results.errors.length} errors:`, results.errors);
   }
@@ -595,23 +632,30 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
   console.log('[coach] Fetching context for snapshot:', snapshotId);
 
   try {
+    const coachSnapshotId = req.query.coachSnapshotId ??
+      (req.snapshot?.permissions?.context_kind === 'coach' ? snapshotId : null);
+    const coachSnapshot = coachSnapshotId != null ? await readOwnedCoachSnapshot(req.auth, coachSnapshotId) : null;
+    const sourceSnapshotId = req.snapshot?.permissions?.context_kind === 'coach' || coachSnapshotId === snapshotId ? null : snapshotId;
     if (req.query.summary === '1') {
-      const [snapshot, strategy, briefing, offerHistory] = await Promise.all([
-        rideshareCoachDAL.getHeaderSnapshot(snapshotId),
-        rideshareCoachDAL.getLatestStrategy(snapshotId),
-        rideshareCoachDAL.getComprehensiveBriefing(snapshotId),
+      const [sourceSnapshot, strategy, briefing, offerHistory] = await Promise.all([
+        sourceSnapshotId ? rideshareCoachDAL.getHeaderSnapshot(sourceSnapshotId) : null,
+        sourceSnapshotId ? rideshareCoachDAL.getLatestStrategy(sourceSnapshotId) : null,
+        sourceSnapshotId ? rideshareCoachDAL.getComprehensiveBriefing(sourceSnapshotId) : null,
         rideshareCoachDAL.getOfferHistory(req.auth.userId, 20),
       ]);
       res.setHeader('Cache-Control', 'no-store');
-      return res.json(getCoachContextProgress({ snapshot, strategy, briefing, offerHistory }));
+      return res.json({ ...getCoachContextProgress({ snapshot: coachSnapshot ?? sourceSnapshot, sourceSnapshot, strategy, briefing, offerHistory }),
+        ...(coachSnapshot && { coach_snapshot_id: coachSnapshot.snapshot_id, source_snapshot_id: sourceSnapshotId }) });
     }
     // Use CoachDAL for read-only access
-    const context = await rideshareCoachDAL.getCompleteContext(snapshotId, null, req.auth.userId);
+    const context = await rideshareCoachDAL.getCompleteContext(sourceSnapshotId, null, req.auth.userId, { coachSnapshot });
     
     res.json({
       snapshot_id: snapshotId,
       status: context.status,
       snapshot: context.snapshot,
+      source_snapshot: context.sourceSnapshot ?? null,
+      saved_context_source: context.savedContextSource ?? null,
       strategy: context.strategy,
       briefing: context.briefing,
       smart_blocks: context.smartBlocks,
@@ -621,8 +665,8 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
     });
   } catch (error) {
     console.error('[coach] Context fetch failed:', error.message);
-    res.status(500).json({
-      error: 'CONTEXT_FETCH_FAILED',
+    res.status(error.status || 500).json({
+      error: error.code || 'CONTEXT_FETCH_FAILED',
       message: error.message,
       snapshot_id: snapshotId
     });
@@ -637,7 +681,7 @@ router.post('/', requireAuth, async (req, res) => {
   // Conversation history is retained, but reconciliation cannot mutate app data.
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const answerOnly = body.answerOnly === true;
-  const { userId, message, threadHistory = [], snapshotId: rawSnapshotId, strategyId: rawStrategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = body;
+  const { userId, message, threadHistory = [], snapshotId: rawSnapshotId, coachSnapshotId, strategyId: rawStrategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = body;
   // 2026-09-10 (CodeQL type-confusion class): these reach `.slice()` before the try block
   // below; a non-string body value ({}/number) threw synchronously and hung the request.
   const snapshotId = typeof rawSnapshotId === 'string' && rawSnapshotId ? rawSnapshotId : null;
@@ -645,6 +689,9 @@ router.post('/', requireAuth, async (req, res) => {
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
+  }
+  if (coachSnapshotId != null && (typeof coachSnapshotId !== 'string' || !UUID_RE.test(coachSnapshotId))) {
+    return res.status(400).json({ error: 'coachSnapshotId must be a UUID' });
   }
 
   const validAttachment = attachment => attachment && typeof attachment === 'object'
@@ -687,6 +734,11 @@ router.post('/', requireAuth, async (req, res) => {
   res.on('close', onClose);
 
   try {
+    // This read validates explicit purpose, owner and live session. A rejected
+    // Coach identity must stop before provider calls or conversation writes.
+    let coachSnapshot = coachSnapshotId != null ? await readOwnedCoachSnapshot(req.auth, coachSnapshotId) : null;
+    let coachContextRequested = coachSnapshotId != null;
+    if (coachSnapshot) userTimezone = coachSnapshot.timezone || null;
     // Use CoachDAL for full schema read access with ALL tables
     let contextInfo = '';
     let fullContext = null;
@@ -696,8 +748,8 @@ router.post('/', requireAuth, async (req, res) => {
     let activeSnapshotId = snapshotId || null;
 
     try {
-      // PRIORITY: Use the snapshotId provided by the UI (always current)
-      // The UI has the authoritative snapshot ID from the current location
+      // The source ID identifies saved guidance and the conversation context.
+      // Current Coach location is independently supplied and verified above.
       if (snapshotId) activeSnapshotId = snapshotId;
       
       if (activeSnapshotId) {
@@ -710,14 +762,14 @@ router.post('/', requireAuth, async (req, res) => {
           activeSnapshotId = resolution.snapshot_id;
           console.log('[COACH] Resolved strategy_id to snapshot_id:', activeSnapshotId);
         }
-      } else {
+      } else if (!coachSnapshot) {
         // 2026-03-17: SECURITY FIX (F-6) — Use authenticated userId, not body userId.
         // Previously req.body.userId was used as fallback, allowing any authenticated
         // user to load another user's snapshot by supplying arbitrary userId.
         const [latestSnap] = await db
           .select({ snapshot_id: snapshots.snapshot_id })
           .from(snapshots)
-          .where(eq(snapshots.user_id, authUserId))
+          .where(sql`${snapshots.user_id} = ${authUserId} AND COALESCE(${snapshots.permissions}->>'context_kind', '') <> 'coach'`)
           .orderBy(desc(snapshots.created_at))
           .limit(1);
 
@@ -733,12 +785,21 @@ router.post('/', requireAuth, async (req, res) => {
       if (activeSnapshotId && (snapshotId || strategyId)) {
         const owned = await verifySnapshotOwnership(activeSnapshotId, authUserId);
         if (!owned.ok) return res.status(owned.status).json(owned.body);
+        if (owned.snapshot?.permissions?.context_kind === 'coach') {
+          coachContextRequested = true;
+          coachSnapshot ??= await readOwnedCoachSnapshot(req.auth, activeSnapshotId);
+          activeSnapshotId = null;
+        }
       }
 
       // Get COMPLETE context using CoachDAL (full schema access)
       // Pass authenticated user ID for driver profile lookup (in case snapshot has different/null user_id)
-      if (activeSnapshotId) {
-        fullContext = await rideshareCoachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
+      if (activeSnapshotId || coachSnapshot) {
+        fullContext = await rideshareCoachDAL.getCompleteContext(activeSnapshotId, null, authUserId, { coachSnapshot });
+        if (coachContextRequested && (!fullContext?.snapshot || fullContext.status === 'error' ||
+            fullContext.snapshot.snapshot_id !== coachSnapshot?.snapshot_id)) {
+          throw Object.assign(new Error('Coach location context could not be read.'), { status: 503, code: 'coach_context_unavailable' });
+        }
         contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext)
           + formatCoachSourceContext(fullContext.snapshot, fullContext.briefing, fullContext);
 
@@ -811,6 +872,7 @@ router.post('/', requireAuth, async (req, res) => {
         }
       }
     } catch (err) {
+      if (coachContextRequested || coachSnapshot || err.name === 'MainRunAdmissionError') throw err;
       console.warn('[COACH] Could not fetch context:', err.message);
       contextInfo = '\n\nContext temporarily unavailable';
     }
@@ -853,7 +915,8 @@ router.post('/', requireAuth, async (req, res) => {
           location_context: fullContext?.snapshot ? {
             city: fullContext.snapshot.city,
             state: fullContext.snapshot.state,
-            country: fullContext.snapshot.country
+            country: fullContext.snapshot.country,
+            ...(coachSnapshot && { coach_snapshot_id: coachSnapshot.snapshot_id })
           } : null,
           time_context: {
             local_time: new Date().toISOString(),
@@ -880,6 +943,14 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 - Use the supplied context and tools; do not invent facts or capabilities.
 
 **Your Capabilities:**
+
+**Independent Coach location:**
+- Activating Coach attempts one fresh device GPS and Google capture without running the MAIN pipeline. A failed capture remains explicitly unavailable or historical; do not assume activation succeeded without a supplied observation.
+- Your Coach snapshot records GPS, location, timezone, weather and air at its capture time. It is independent of Strategy and Briefing; refreshing it does not regenerate either.
+- When location-dependent advice needs a newer observation, the driver says they moved, or the snapshot is missing/stale for the question, request one device capture: \`[REFRESH_COACH_SNAPSHOT: {"reason":"Why current location is needed"}]\`.
+- Supply only the reason, never coordinates. The app attempts GPS and Google capture after this reply completes. Say that a refresh was requested, not that it succeeded, and do not invent the new location or current incidents while capture is pending.
+- After a successful requested capture, the app may run one answer-only continuation of the driver's original question using that verified Coach observation. Use your own web search to check current incidents or destination facts when needed. That continuation must not request another refresh or replay any action. Unrelated questions do not require capture.
+- Saved Briefing, Strategy and venue records retain their original source location and timestamps. Do not treat older or different-city evidence as newly verified local conditions.
 
 👁️ **Vision & Image Analysis:**
 - Analyze screenshots of apps (Uber, Lyft, earnings, maps, heatmaps)
@@ -924,13 +995,14 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 - You have LIVE web search access - use it proactively to verify events, check facts, find current information
 - When users ask you to verify something or look something up, SEARCH THE WEB for current information
 - Cross-reference briefing data with live web searches for accuracy
-- Do NOT list sources or citations at the end of your responses - just provide the information naturally
+- Keep evidence links labeled Source and separate from destination Directions and Website links. The server may append verified search sources.
 
-🗺️ **Navigation links (2026-08-14 — Melody request):**
-- When you recommend a SPECIFIC venue, staging spot, or destination — or the driver asks for a link/directions — include the full street address AND a Google Maps link built deterministically from it:
-  \`https://www.google.com/maps/search/?api=1&query=<URL-encoded address or "venue name, city">\`
-- Example: \`https://www.google.com/maps/search/?api=1&query=1%20Cowboys%20Way%2C%20Frisco%2C%20TX\`
-- Links render tappable in the chat (and voice mode surfaces them on screen while the voice says "the link's in the chat") — one link per recommended destination, never a bare "I'll send it" promise.
+🗺️ **Directions and website links:**
+- When recommending where to go from any available context, make driving Directions the primary link and show the known full street address. Do not add a venue Website unless the driver asks for it; tool citations may remain Source links.
+- Prefer the exact server-built navigation_context.items[].directions_url for that saved destination.
+- Otherwise use ONLY a known confirmed or search-verified actual address, or saved coordinates: \`https://www.google.com/maps/dir/?api=1&destination=<URL-encoded known destination>&travelmode=driving&dir_action=navigate\`. Include destination_place_id=<saved place ID> when known.
+- Never use a venue website or /maps/search as Directions. Label venue sites Website and evidence links Source. Never invent coordinates, addresses or place IDs; say the destination is unverified if these are unavailable.
+- Links render tappable in chat and voice mode surfaces them on screen. Provide the link now rather than promising to send it later. Maps may show navigation or a route preview depending on the device.
 
 **General Knowledge & Life Help:**
 - Career advice: going back to college, changing careers, certifications, financial planning
@@ -1039,12 +1111,11 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 - You DO own longitudinal offer-pattern intelligence: read the OFFER LOG / offer history context and surface where and when higher-value offers cluster for THIS driver — time of day, day of week, season, zones. Proactively suggest positioning from those patterns.
 - Expected uploads from the driver: heat maps, earnings screenshots, app-status shots — analyze those with vision for STRATEGY, never for offer verdicts.
 
-📐 **Offer Analyzer Rules (read-only — DO NOT EDIT, only consult):**
-Below is the canonical offer-analyzer doctrine + the LLM role definitions. Use these to:
-- Explain WHY the existing analyzer recommended ACCEPT/REJECT on past offers
-- Identify when your judgment in chat *disagrees* with the rules — propose changes via [COACH_MEMO]
-- Cite the rule by section number (e.g., "per §7 deterministic fallback") when you're applying it
-You do NOT have write access to these — you can only read and reason about them.
+📐 **Offer Analyzer settings — driver-directed changes:**
+${coachRulesInstructions()}
+Explain past Analyzer decisions from their saved evidence. Architecture and live
+verdicts are separate from the driver's editable settings; feature/code changes
+still use COACH_MEMO. Settings changes do not rewrite historical offer decisions.
 
 📊 **Your Data (Pre-loaded Context):**
 All available data is included in this prompt below. You do NOT have live SQL query access.
@@ -1057,14 +1128,15 @@ Your data comes from these sources (pre-fetched for you):
 - Market Intelligence: Research-backed market insights for this area
 - Zone Intelligence: Crowd-sourced zone knowledge (dead zones, honey holes, staging spots)
 - Your Notes: Previous notes you saved about this driver
-- Offer Analyzer history: Recent analyzed offers with accept/reject stats
+- Recent offers: Automatically recorded quick/deep Offer Analyzer evidence and separately reported driver outcomes, not the distinct Saved Offers feature. The latest observed offer may still be awaiting persistence; do not infer an active trip from ACCEPT or Accepted. Ask the driver when needed, and use a passenger name only if explicitly present in offer evidence or supplied by the driver.
 - Coach Decision Log: Decisions you logged from chat (with disagreement-rate vs driver verdict)
-- Offer Analyzer rules: Owner's saved configuration, selected services and provenance (read-only)
+- Offer Analyzer rules: Owner's saved configuration and provenance; directed settings changes through UPDATE_OFFER_RULES. Selected services remain read-only.
 - Session History: Recent driving sessions for pattern analysis
 
 **CRITICAL: Do NOT hallucinate or invent data.** If information is not in the context below, say "I don't have that data in my current context" — do NOT make up table names, features, or statistics.
 
 You can WRITE to these tables and files via action tags:
+- offer_rulesets → [UPDATE_OFFER_RULES: {...}] only for driver-directed settings changes
 - user_intel_notes → [SAVE_NOTE: {...}]
 - discovered_events → [ADD_EVENT: {...}] / [UPDATE_EVENT: {...}] / [DEACTIVATE_EVENT: {...}] / [REACTIVATE_EVENT: {...}]
 - zone_intelligence → [ZONE_INTEL: {...}]
@@ -1119,17 +1191,19 @@ You have elevated context access for deeper system insight.
 **YOUR ACTUAL CAPABILITIES (via this chat endpoint):**
 
 📊 Read Access:
-- Full snapshot history and strategy data for this user
+- Recent owned snapshot history, current Coach observation, and separately sourced Strategy/Briefing data
 - Market intelligence, venue catalog, zone intelligence
 - System notes and coach memos about this driver (not raw conversation history — continuity comes from the thread the client sends)
 - Driver profile and vehicle data
-- Event data, briefings, and offer intelligence
+- Event and venue evidence, recent quick/deep offers with reported outcomes, and current Offer Analyzer rules
 
 ✏️ Write Access (via action tags):
 - User notes, zone intel, system notes, event CRUD, news deactivations
 - Market intelligence — surge patterns, timing insights, market-wide analysis
 - Venue catalog — staging spots, GPS dead zones, venue intel
-- Coach memos — feature requests, TODOs, bugs (durable reported memos)
+- Offer Analyzer controls — driver-directed tuning through canonical validated settings writes
+- Coach memos — feature ideas, test requests, TODOs and bugs with a durable receipt
+- Device capture request — refresh Coach GPS/Google context, then answer the original question once; MAIN remains independent
 
 Memory & Context:
 - In-conversation continuity from the thread history the client sends with each message (this prompt does not read coach_conversations)
@@ -1239,7 +1313,7 @@ Full transparency. Maximum insight.
 
     try {
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
-      if (answerOnly) systemPrompt += '\n\nANSWER-ONLY RECONCILIATION: Read current records and answer the latest continued or corrected request. Do not emit action tags, save notes, learn tips, or change any data. Do not repeat earlier actions. If a new or changed action is needed, explain its current confirmed state and ask for a fresh confirmation. Conversation history is still recorded.';
+      if (answerOnly) systemPrompt += '\n\nANSWER-ONLY RECONCILIATION: Read current records and answer the latest continued or corrected request. Use web search when the question needs current incident or destination verification; a new GPS observation alone does not verify an accident. Do not request another Coach snapshot refresh, emit action tags, save notes, learn tips, or change any data. Do not repeat earlier actions. If a new or changed action is needed, explain its current confirmed state and ask for a fresh confirmation. Conversation history is still recorded.';
       const roleConfig = getRoleConfig('AI_COACH');
       let totalText = '';
       let actualModel = roleConfig.model;
@@ -1287,7 +1361,7 @@ Full transparency. Maximum insight.
           // 2026-03-18: FIX (C-1) — Await actions so results can be sent to client.
           // DB writes are sub-50ms each; minor latency is worth guaranteed feedback.
           try {
-            actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId, ac.signal);
+            actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId, ac.signal, req.auth, fullContext?.offerRules, fullContext?.snapshot);
             if (actionsResult.saved > 0) {
               console.log(`[COACH] Executed ${actionsResult.saved} actions`);
             }
@@ -1309,6 +1383,12 @@ Full transparency. Maximum insight.
           cleanedText += notSavedNote;
           displayResponse = cleanedText;
           res.write(`data: ${JSON.stringify({ delta: notSavedNote })}\n\n`);
+        }
+
+        const settingsReceipt = formatOfferRulesReceipt(actionsResult?.offer_rules);
+        if (settingsReceipt) {
+          cleanedText = `${settingsReceipt}\n\n${cleanedText}`;
+          displayResponse = cleanedText;
         }
 
         // Save assistant response to coach_conversations (authenticated users only)
@@ -1344,7 +1424,8 @@ Full transparency. Maximum insight.
               location_context: fullContext?.snapshot ? {
                 city: fullContext.snapshot.city,
                 state: fullContext.snapshot.state,
-                country: fullContext.snapshot.country
+                country: fullContext.snapshot.country,
+                ...(coachSnapshot && { coach_snapshot_id: coachSnapshot.snapshot_id })
               } : null
             });
             if (!savedAssistant) throw new Error('Assistant history write returned no record');
@@ -1381,7 +1462,7 @@ Full transparency. Maximum insight.
     console.error('[COACH] Error:', error);
     
     if (!res.headersSent) {
-      return res.status(500).json({ error: error.message });
+      return res.status(error.status || 500).json({ error: error.code || error.message, message: error.message });
     } else {
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();

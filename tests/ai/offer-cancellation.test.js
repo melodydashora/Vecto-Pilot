@@ -1,4 +1,5 @@
 import { jest, test, expect, beforeEach, afterEach } from '@jest/globals';
+const { process, console, AbortController } = globalThis;
 
 const requests = [];
 const openAIRequests = [];
@@ -37,24 +38,22 @@ afterEach(() => {
   if (originalOpenAIKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalOpenAIKey;
 });
 
-test.each(roles)('%s text deadline reaches the OpenAI SDK without a Gemini attempt or retry', async role => {
+test.each(roles.flatMap(role => [[role, 'text'], [role, 'vision']]))('%s %s deadline reaches Gemini SDK without an OpenAI attempt or late retry', async (role, mode) => {
   const controller = new AbortController();
-  let dispatched;
-  const started = new Promise(resolve => { dispatched = resolve; });
-  openAIBehavior = (_body, options) => new Promise((_, reject) => {
-    options.signal.addEventListener('abort', () => reject(new Error('request aborted')), { once: true });
-    dispatched();
+  let dispatched; const started = new Promise(resolve => { dispatched = resolve; });
+  behavior = ({ config }) => new Promise((_, reject) => {
+    config.abortSignal.addEventListener('abort', () => reject(new Error('request aborted')), { once: true }); dispatched();
   });
-  const pending = callModel(role, { system: 'Return JSON.', user: 'Synthetic OCR with addresses and distances', signal: controller.signal });
-  await started;
-  expect(openAIRequests[0].options.signal).toBeDefined();
-  controller.abort();
+  const pending = callModel(role, { system: 'Return JSON.', user: 'Synthetic offer', signal: controller.signal, ...(mode === 'vision' ? { images } : {}) });
+  await started; controller.abort();
   expect((await pending).ok).toBe(false);
-  expect(openAIRequests[0].options.signal.aborted).toBe(true);
-  expect(openAIRequests[0].options.maxRetries).toBe(0);
-  expect(openAIRequests[0].body.model).toBe('gpt-6-luna');
-  expect(openAIRequests).toHaveLength(1);
-  expect(requests).toHaveLength(0);
+  expect(requests).toHaveLength(1); expect(requests[0].config.abortSignal.aborted).toBe(true);
+  expect(requests[0].model).toBe('gemini-3.8-flash');
+  expect(requests[0].config.thinkingConfig).toEqual({ thinkingLevel: 'low' });
+  expect(requests[0].config.maxOutputTokens).toBe(role === 'OFFER_ANALYZER' ? 1024 : 2048);
+  expect(requests[0].config.responseMimeType).toBe('application/json');
+  expect(requests[0].config.temperature).toBeUndefined();
+  expect(openAIRequests).toHaveLength(0);
 });
 
 test.each(roles.flatMap(role => [[role, 'text'], [role, 'vision']]))('already expired %s %s work never dispatches an SDK request', async (role, mode) => {
@@ -65,26 +64,8 @@ test.each(roles.flatMap(role => [[role, 'text'], [role, 'vision']]))('already ex
   expect(openAIRequests).toHaveLength(0);
 });
 
-test.each(roles)('%s image deadline still reaches the Gemini SDK without an OpenAI attempt', async role => {
-  const controller = new AbortController();
-  let dispatched;
-  const started = new Promise(resolve => { dispatched = resolve; });
-  behavior = ({ config }) => new Promise((_, reject) => {
-    config.abortSignal?.addEventListener('abort', () => reject(new Error('request aborted')), { once: true });
-    dispatched();
-  });
-  const pending = callModel(role, { system: 'JSON', user: 'Synthetic screenshot', images, signal: controller.signal });
-  await started;
-  controller.abort();
-  expect((await pending).ok).toBe(false);
-  expect(requests).toHaveLength(1);
-  expect(requests[0].config.abortSignal.aborted).toBe(true);
-  expect(openAIRequests).toHaveLength(0);
-});
-
 test.each([
   ['BRIEFING_TRAFFIC', {}],
-  ...roles.map(role => [role, { images }]),
 ])('%s Gemini 503 retry still carries the caller deadline to the SDK', async (role, input) => {
   const controller = new AbortController();
   let retried;
@@ -111,8 +92,8 @@ test.each(['text', 'vision'])('an aborted unavailable %s result does not start a
   openAIBehavior = () => { controller.abort(); throw Object.assign(new Error('Unavailable'), { status: 503 }); };
   expect((await callModel('OFFER_ANALYZER', { system: 'JSON', user: 'Synthetic', signal: controller.signal,
     ...(mode === 'vision' ? { images } : {}) })).ok).toBe(false);
-  expect(requests).toHaveLength(mode === 'vision' ? 1 : 0);
-  expect(openAIRequests).toHaveLength(mode === 'text' ? 1 : 0);
+  expect(requests).toHaveLength(1);
+  expect(openAIRequests).toHaveLength(0);
 });
 
 test.each(['text', 'vision'])('%s SDK completion after cancellation cannot become a successful analysis', async mode => {
@@ -125,6 +106,6 @@ test.each(['text', 'vision'])('%s SDK completion after cancellation cannot becom
   const result = await callModel('OFFER_ANALYZER', { system: 'JSON', user: 'Synthetic', signal: controller.signal,
     ...(mode === 'vision' ? { images } : {}) });
   expect(result.ok).toBe(false);
-  expect(requests).toHaveLength(mode === 'vision' ? 1 : 0);
-  expect(openAIRequests).toHaveLength(mode === 'text' ? 1 : 0);
+  expect(requests).toHaveLength(1);
+  expect(openAIRequests).toHaveLength(0);
 });

@@ -163,9 +163,9 @@ export function RunSetupProvider({ children }: { children: React.ReactNode }) {
       committedSaveAwaitingReadback.current = false;
       setState(prev => ({ ...prev, scope, setup: data, confirmed: true, loading: false, error: null,
         ...(restore ? { run: restoredRun, preferencesConfirmed: restoredConfirmed, view: restoredRun ? 'running' as const : 'summary' as const,
-          reviewOpen: !restoredConfirmed } : {}),
+          reviewOpen: false } : {}),
         ...(confirmedSave ? { saveUnconfirmed: false } : {}),
-        ...(!restore && changed ? { run: null, preferencesConfirmed: false, starting: false, view: 'summary' as const, reviewOpen: true } : {}) }));
+        ...(!restore && changed ? { run: null, preferencesConfirmed: false, starting: false, view: 'summary' as const, reviewOpen: false } : {}) }));
       return data as SavedSetup;
     } catch (error) {
       if (scopeRef.current === scope && requests.current === request) {
@@ -189,7 +189,7 @@ export function RunSetupProvider({ children }: { children: React.ReactNode }) {
     setUnsavedEditors([]);
     setDraftResetVersion(version => version + 1);
     setSaving(false);
-    setState({ scope, setup: null, run: null, view: 'summary', reviewOpen: !!scope, confirmed: false, preferencesConfirmed: false, saveUnconfirmed: false, loading: !!scope, starting: false, error: null });
+    setState({ scope, setup: null, run: null, view: 'summary', reviewOpen: false, confirmed: false, preferencesConfirmed: false, saveUnconfirmed: false, loading: !!scope, starting: false, error: null });
     if (scope) void reload();
     return () => {
       decision.current++;
@@ -256,11 +256,14 @@ export function RunSetupProvider({ children }: { children: React.ReactNode }) {
   }, [hold, scope]);
   const finishSave = useCallback(async () => {
     if (scopeRef.current !== scope) return false;
+    // A durable save already happened, including saves made through Coach.
+    // Retire the prior admission before readback, even if that readback fails.
+    hold('summary', false);
+    setState(prev => ({ ...prev, saveUnconfirmed: true }));
     committedSaveAwaitingReadback.current = true;
+    localStorage.setItem('vecto-saved-setup-changed', JSON.stringify({ ownerId: scope?.ownerId, at: Date.now(), nonce: crypto.randomUUID() }));
     const saved = await reload();
     if (!saved || scopeRef.current !== scope) return false;
-    localStorage.setItem('vecto-saved-setup-changed', JSON.stringify({ ownerId: scope?.ownerId, at: Date.now(), nonce: crypto.randomUUID() }));
-    hold('summary');
     return true;
   }, [reload, hold, scope]);
 
@@ -269,7 +272,7 @@ export function RunSetupProvider({ children }: { children: React.ReactNode }) {
     const focused = () => { if (!mutations.current.size && !startRef.current) void reload(); };
     const changed = (event: StorageEvent) => {
       if (event.key !== 'vecto-saved-setup-changed' || !event.newValue) return;
-      try { if (JSON.parse(event.newValue).ownerId === scope.ownerId) { hold('summary'); void reload(); } } catch { /* Ignore unrelated malformed storage. */ }
+      try { if (JSON.parse(event.newValue).ownerId === scope.ownerId) { hold('summary', false); void reload(); } } catch { /* Ignore unrelated malformed storage. */ }
     };
     window.addEventListener('focus', focused);
     window.addEventListener('storage', changed);

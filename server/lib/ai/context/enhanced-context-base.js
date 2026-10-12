@@ -1,3 +1,4 @@
+import { excludeCoachSnapshots } from '../../location/snapshot-purpose.js';
 import { memoryPut, memoryQuery } from "../../../eidolon/memory/pg.js";
 import { getRoleConfig } from '../model-registry.js';
 import { db } from "../../../db/drizzle.js";
@@ -123,7 +124,7 @@ export async function getEnhancedProjectContextBase(identity, memoryTable, optio
 
   // Gather database context
   try {
-    const snaps = await db.select().from(snapshots).orderBy(desc(snapshots.created_at)).limit(10);
+    const snaps = await db.select().from(snapshots).where(excludeCoachSnapshots()).orderBy(desc(snapshots.created_at)).limit(10);
     context.recentSnapshots = snaps.map(s => ({
       id: s.snapshot_id,
       city: s.city,
@@ -366,7 +367,7 @@ export async function analyzeWorkspaceDeepBase(identity) {
 
   // Recent activity patterns
   try {
-    const recentSnap = await db.select().from(snapshots).orderBy(desc(snapshots.created_at)).limit(1);
+    const recentSnap = await db.select().from(snapshots).where(excludeCoachSnapshots()).orderBy(desc(snapshots.created_at)).limit(1);
     if (recentSnap.length > 0) {
       analysis.recentActivity = {
         lastSnapshot: recentSnap[0].created_at,

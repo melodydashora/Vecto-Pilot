@@ -207,7 +207,7 @@ const BriefingTab = memo(function BriefingTab({
         </Card>
       )}
 
-      <SchoolClosuresCard schoolClosuresData={schoolClosuresData} isSchoolClosuresLoading={!!isSchoolClosuresLoading} />
+      <SchoolClosuresCard schoolClosuresData={schoolClosuresData} isSchoolClosuresLoading={!!isSchoolClosuresLoading} timezone={timezone} />
     </div>
   );
 });

@@ -169,6 +169,7 @@ router.get('/db-data', requireAuth, requireOperator, async (req, res) => {
              weather IS NOT NULL as has_weather,
              air IS NOT NULL as has_air
       FROM snapshots
+      WHERE permissions->>'context_kind' IS DISTINCT FROM 'coach'
       ORDER BY created_at DESC
       LIMIT 5
     `);
@@ -348,6 +349,7 @@ router.get('/workflow-prereqs', requireAuth, requireOperator, async (req, res) =
         SELECT s.snapshot_id, s.created_at, st.snapshot_id as has_strategy
         FROM snapshots s
         LEFT JOIN strategies st ON st.snapshot_id = s.snapshot_id
+        WHERE s.permissions->>'context_kind' IS DISTINCT FROM 'coach'
         ORDER BY s.created_at DESC
         LIMIT 1
       `);
@@ -568,6 +570,7 @@ router.get('/workflow-dry-run', requireAuth, requireOperator, async (req, res) =
     const snapshotResult = await db.execute(sql`
       SELECT snapshot_id, lat, lng, formatted_address, city, state, created_at
       FROM snapshots
+      WHERE permissions->>'context_kind' IS DISTINCT FROM 'coach'
       ORDER BY created_at DESC
       LIMIT 1
     `);

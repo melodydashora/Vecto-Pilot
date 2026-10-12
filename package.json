@@ -33,7 +33,7 @@
     "guard:deps": "npm ls --all --omit=dev > /dev/null",
     "guard:js": "npm run lint",
     "check:ts": "npm run typecheck",
-    "verify": "npm run guard:json && npm run lint && npm run typecheck && npm run test:unit -- --runInBand && npm run test:node && npm run test:offers:api && npm run test:feedback:api && npm run test:client -- --runInBand && npm run test:client:harness && npm run test:startup && NODE_ENV=production npm run build:client",
+    "verify": "npm run guard:json && npm run lint && npm run typecheck && npm run test:unit -- --maxWorkers=1 --workerIdleMemoryLimit=128MB && npm run test:node && npm run test:offers:api && npm run test:feedback:api && npm run test:client -- --runInBand && npm run test:client:harness && npm run test:startup && NODE_ENV=production npm run build:client",
     "build:dev": "npm run build:client",
     "build:deploy": "npm run guard && npm run build:client",
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",

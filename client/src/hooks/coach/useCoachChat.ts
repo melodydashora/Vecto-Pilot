@@ -10,10 +10,11 @@ import { useChatPersistence, type ChatMessage } from '@/hooks/useChatPersistence
 import { useMemory } from '@/hooks/useMemory';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
-import { applyDonePayload } from '@/utils/coach/actionsResult';
+import { applyDonePayload, coachRefreshRequested } from '@/utils/coach/actionsResult';
+import { askCoachBrain } from '@/lib/voice/coachBrain';
 import { readCoachEvents } from '@/utils/coach/readCoachEvents';
 import { confirmedCoachReply } from '@/utils/coach/confirmedReply';
-import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
+import type { DonePayloadMeta, OfferRulesReceipt, CoachSnapshotRefreshHandler } from '@/utils/coach/actionsResult';
 
 export interface CoachAttachment {
   name: string;
@@ -84,6 +85,8 @@ export interface CoachSnapshotPayload {
 export interface UseCoachChatParams {
   userId: string;
   snapshotId?: string;
+  /** Independent current location; never the conversation/Strategy identity. */
+  coachSnapshotId?: string;
   strategyId?: string;
   snapshot?: CoachSnapshotPayload;
   strategyReady?: boolean;
@@ -93,6 +96,8 @@ export interface UseCoachChatParams {
   onStreamDelta?: (delta: string) => void;
   /** Fired when the server reports notes were saved via action tags (caller refetches). */
   onNotesSaved?: () => void;
+  onOfferRulesSaved?: (receipt: OfferRulesReceipt) => void;
+  onRefreshCoachSnapshot?: CoachSnapshotRefreshHandler;
   /**
    * 2026-08-14 (unified voice thread): stable conversation id shared with the
    * voice session. Read at send() time; when set, the server threads all
@@ -131,12 +136,15 @@ export interface UseCoachChatReturn {
 export function useCoachChat({
   userId,
   snapshotId,
+  coachSnapshotId,
   strategyId,
   snapshot,
   strategyReady = false,
   onStreamComplete,
   onStreamDelta,
   onNotesSaved,
+  onOfferRulesSaved,
+  onRefreshCoachSnapshot,
   conversationIdRef,
 }: UseCoachChatParams): UseCoachChatReturn {
   const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
@@ -313,9 +321,9 @@ export function useCoachChat({
     // Identity fence (2026-09-11): everything after an await checks `stale()`.
     const generation = ++generationRef.current;
     const stale = () => generation !== generationRef.current;
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
     try {
-      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const headers: Record<string, string> = { "content-type": "application/json" };
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
@@ -331,6 +339,7 @@ export function useCoachChat({
           message: messageText || "(analyzing files)",
           threadHistory: msgs,
           snapshotId,
+          coachSnapshotId,
           strategyId,
           // Unified voice thread (2026-08-14): reuse the live session's
           // conversation id when one is active so typed + spoken exchanges
@@ -434,14 +443,48 @@ export function useCoachChat({
       if (stale()) return;
       // 2026-09-11: displayed/spoken text comes from the server's durable receipts and
       // action errors (confirmedCoachReply), never from the model's own "saved" prose.
-      const displayText = confirmedCoachReply(fullResponse, completion);
-      setMsgs(m => {
+      let displayText = confirmedCoachReply(fullResponse, completion);
+      const publishReply = () => setMsgs(m => {
         const copy = [...m];
         const last = copy[copy.length - 1];
         if (last?.role === 'assistant') copy[copy.length - 1] = { ...last, content: displayText };
         return copy;
       });
+      publishReply();
+      if (coachRefreshRequested(completion) && onRefreshCoachSnapshot && !controller.signal.aborted &&
+          token === localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) {
+        try {
+          const refreshedId = await onRefreshCoachSnapshot();
+          if (stale() || controller.signal.aborted || token !== localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return;
+          if (typeof refreshedId === 'string' && refreshedId) {
+            await askCoachBrain({ userId, authToken: token, snapshotId, coachSnapshotId: refreshedId, snapshot,
+              conversationId: completion?.conversation_id || conversationIdRef?.current || undefined,
+              threadHistory: [...msgs, { role: 'user', content: messageText, attachments: filesToSend }, { role: 'assistant', content: displayText }],
+              signal: controller.signal, source: 'typed', answerOnly: true, contextRefreshContinuation: true,
+              onBrainAnswer: answer => {
+                if (stale() || controller.signal.aborted || token !== localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return;
+                displayText += `\n\n${answer}`;
+                publishReply();
+              },
+            }, `Use the newly saved Coach snapshot to finish answering this question: ${messageText}`);
+          } else if (refreshedId === null) {
+            displayText += '\n\nCoach location could not be refreshed. The previous observation is still the only available location; check the location status before relying on nearby advice.';
+            publishReply();
+          }
+        } catch {
+          if (stale() || controller.signal.aborted || token !== localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return;
+          displayText += '\n\nCoach could not complete the answer with refreshed context. Check the location status and ask again.';
+          publishReply();
+        }
+      }
+      if (stale() || controller.signal.aborted || token !== localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return;
       onStreamComplete?.(displayText, { userMessage: messageText });
+      // Refresh setup after publishing the confirmed reply: a new rules version
+      // can retire the admitted Strategy and change this Coach's snapshot props.
+      if (completion && !stale() && !controller.signal.aborted &&
+          token === localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) {
+        applyDonePayload(completion, { onOfferRulesSaved });
+      }
     } catch (err: unknown) {
       if (stale()) return;
       const error = err as Error;
@@ -462,12 +505,15 @@ export function useCoachChat({
     msgs,
     userId,
     snapshotId,
+    coachSnapshotId,
     strategyId,
     snapshot,
     strategyReady,
     setMsgs,
     scrollToBottom,
     onNotesSaved,
+    onOfferRulesSaved,
+    onRefreshCoachSnapshot,
     onStreamComplete,
     onStreamDelta,
   ]);

@@ -13,6 +13,7 @@ import { useStreamingReadAloud } from "@/hooks/coach/useStreamingReadAloud";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
 import { linkifyText } from "@/utils/coach/linkify";
 import { stripActionTags } from "@/utils/coach/stripActionTags";
+import type { OfferRulesReceipt, CoachSnapshotRefreshHandler } from '@/utils/coach/actionsResult';
 import { CoachStopBar } from "@/components/coach/CoachStopBar";
 import { CameraCaptureModal } from "@/components/coach/CameraCaptureModal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -82,21 +83,27 @@ interface SnapshotData {
 interface RideshareCoachProps {
   userId: string;
   snapshotId?: string;
+  coachSnapshotId?: string;
   strategyId?: string;
   strategy?: string;
   snapshot?: SnapshotData;
   blocks?: any[];
   strategyReady?: boolean; // Indicates if strategy is still generating or complete
+  onOfferRulesSaved?: (receipt: OfferRulesReceipt) => void;
+  onRefreshCoachSnapshot?: CoachSnapshotRefreshHandler;
 }
 
 export default function RideshareCoach({
   userId,
   snapshotId,
+  coachSnapshotId,
   strategyId,
   strategy: _strategy,
   snapshot,
   blocks: _blocks = [],
-  strategyReady = false
+  strategyReady = false,
+  onOfferRulesSaved,
+  onRefreshCoachSnapshot,
 }: RideshareCoachProps) {
   // 2026-06-11: React 19 @types removed the no-arg useRef overload — pass an explicit
   // initial value. Union with undefined preserves the prior "assign later" semantics
@@ -252,6 +259,7 @@ export default function RideshareCoach({
   const voice = useVoiceSession({
     userId,
     snapshotId,
+    coachSnapshotId,
     snapshot: snapshot ? {
       city: snapshot.city,
       state: snapshot.state,
@@ -262,6 +270,8 @@ export default function RideshareCoach({
     onVoiceTurnFinal: (role, text) => appendVoiceTurnRef.current?.(role, text),
     threadTailRef,
     onNotesSaved: fetchNotes,
+    onOfferRulesSaved,
+    onRefreshCoachSnapshot,
     onActionError: (messages) => {
       setVoiceActionErrors(messages);
       setTimeout(() => setVoiceActionErrors([]), 8000);
@@ -319,11 +329,14 @@ export default function RideshareCoach({
   } = useCoachChat({
     userId,
     snapshotId,
+    coachSnapshotId,
     strategyId,
     snapshot,
     strategyReady,
     onStreamComplete: handleStreamComplete,
     onNotesSaved: fetchNotes,
+    onOfferRulesSaved,
+    onRefreshCoachSnapshot,
     // Unified voice thread: typed sends reuse the live session's conversation
     // id (null when no session — server mints per message as before).
     conversationIdRef: voice.conversationIdRef,

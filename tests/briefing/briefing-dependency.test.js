@@ -125,12 +125,17 @@ describe('Briefing before Strategy orchestration', () => {
     expect(row.status).toBe('error');
     for (const provider of Object.values(sections)) expect(provider).not.toHaveBeenCalled();
   });
-  test('Briefing providers receive the persisted snapshot rather than a different supplied location', async () => {
-    const supplied = { ...snapshot, snapshot_id: 'another-snapshot', city: 'Wrong city', lat: 55 };
+  test('Briefing providers receive only the persisted snapshot row despite caller location and accumulated context', async () => {
+    const supplied = {
+      ...snapshot, snapshot_id: 'another-snapshot', city: 'Wrong city', lat: 55,
+      briefing: completeBriefing(), strategy: { strategy_for_now: 'Caller context' },
+      preferences: { preferred_trip_type: 'airport' }, extras: { prior_responses: ['Caller context'] },
+    };
     const result = await generateAndStoreBriefing({ snapshotId: snapshot.snapshot_id, snapshot: supplied });
     expect(result.complete).toBe(true);
     for (const provider of Object.values(sections)) {
       expect(provider).toHaveBeenCalledWith(expect.objectContaining({ snapshot: storedSnapshot }));
+      expect(Object.keys(provider.mock.calls[0][0].snapshot).sort()).toEqual(Object.keys(storedSnapshot).sort());
     }
   });
   test('a completed main run cannot launch a replacement from its old snapshot', async () => {

@@ -70,7 +70,7 @@ describe('Canonical Coach Responses contract', () => {
   });
   test('role is pinned to Astra in the registry; env cannot change it (2026-09-15 pin policy)', () => {
     process.env.AI_COACH_MODEL = 'gemini-synthetic'; process.env.AI_COACH_OVERRIDE_MODEL = 'gemini-synthetic';
-    expect(getRoleConfig('AI_COACH')).toMatchObject({ model: 'gpt-6-astra', reasoningEffort: 'low', provider: 'openai' });
+    expect(getRoleConfig('AI_COACH')).toMatchObject({ model: 'gpt-6-astra', reasoningEffort: 'high', provider: 'openai' });
   });
 });
 

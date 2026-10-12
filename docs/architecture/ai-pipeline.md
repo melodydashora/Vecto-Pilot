@@ -2,7 +2,7 @@
 
 Source review: September 29, 2026, `main` based on `6e98390697dfd3d677702bc64fe206b2383f5279` plus the working-tree changes recorded in the [review register](audits/PIPELINE_REVIEW_2026-09-29.md). This describes source behavior, not proof of deployment or live provider success. Read the register for verification and remaining limits.
 
-Entry-sequence correction: Codex/Astra, September 30, 2026, checked the current location provider, portal capture, header refresh and admission sources. Location and Briefing prepare before preference confirmation; Strategy starts only through explicit admission of that prepared context.
+Entry sequence: location and Briefing prepare independently of Strategy. Under Melody's October 12 direction, one explicit Strategy start uses valid saved settings without a routine preference-confirmation popup. Missing setup, unsaved drafts, failed readback and incomplete context remain admission gates.
 
 Melody's purpose is to reduce the attention needed to evaluate work while driving. Saved preferences must remain usable without forcing edits. Missing measurements and failed sources must remain distinguishable from measured zero, verified absence, or a recommendation. Offer Analyzer calculations and spoken decisions have their own [full trace](OFFER_ANALYZER.md); they are not a new input to MAIN.
 
@@ -26,7 +26,7 @@ flowchart TD
   H -->|Failure| X
   W --> H
   R --> H
-  Q --> C[Explicit Strategy start with confirmed preferences]
+  Q --> C[Explicit Strategy start with valid saved settings]
   C --> N[Pin settings and copy immutable snapshot and Briefing]
   N --> I[Strategist: STRATEGY_TACTICAL]
   I --> J[Venue planner: VENUE_SCORER]
@@ -39,10 +39,10 @@ SSE wakes readers to fetch saved state; receiving an event never proves that thi
 
 <a id="1-session-and-preferences--admitted-run"></a>
 
-### 1. Session and preference review
+### 1. Session and saved settings
 
 - [auth-context.tsx](../../client/src/contexts/auth-context.tsx) owns authenticated identity and cross-tab token changes. New identity clears account caches and subscriptions before loading the profile. [session-policy.js](../../server/lib/auth/session-policy.js), [auth middleware](../../server/middleware/auth.js), and [auth routes](../../server/api/auth/auth.js) enforce stored session lifetime and credential changes.
-- [run-setup-context.tsx](../../client/src/contexts/run-setup-context.tsx) loads canonical setup and saved same-session context. [RunSetupSummary.tsx](../../client/src/components/co-pilot/RunSetupSummary.tsx) offers preference confirmation or editing; [SettingsPage.tsx](../../client/src/pages/co-pilot/SettingsPage.tsx) saves edits. Confirmation holds/releases new Strategy, while location and Briefing prepare independently. Saving or confirming preferences does not itself start Strategy.
+- [run-setup-context.tsx](../../client/src/contexts/run-setup-context.tsx) loads canonical setup and saved same-session context. An explicit Strategy start uses valid saved preferences and rules without another routine confirmation. [SettingsPage.tsx](../../client/src/pages/co-pilot/SettingsPage.tsx) and user-directed Coach changes save through canonical writers. A committed change retires the prior admission before readback, preserves unsaved drafts and holds admission if readback fails. [RunSetupSummary.tsx](../../client/src/components/co-pilot/RunSetupSummary.tsx) remains available for explicit review or resolving missing/dirty setup. Saving settings does not itself start Strategy.
 - [main-runs.js](../../server/api/strategy/main-runs.js) exposes setup and explicit Continue. When Strategy starts, [main-run-admission.js](../../server/lib/main-run-admission.js) locks the current driver/session, reads canonical profile, one active primary vehicle and a valid ruleset, and verifies expected settings revision, rules version/hash, current run, prepared snapshot and request identity.
 - The admitted row pins relevant profile/service/vehicle fields and effective rules into `main_run_admissions.configuration`, plus the prepared snapshot/Briefing source receipt; `users.current_main_run_id` selects the active intent. Repeated request identities replay their original receipt; changed settings, source identity or a different current run conflict. A canceled client request cannot make a late response the current client run.
 - If an admission response is lost, its retry keeps the original request ID and complete expected-revision/run/snapshot body, even when canonical readback reveals the admitted snapshot clone. An edit or changed configuration/source abandons that retry; success consumes it so a later explicit Refresh creates a new intent. A replay with `current:false` reopens the held review instead of installing the old run.

@@ -43,7 +43,8 @@ test('a pending save and failed canonical readback never release the hold', asyn
   await act(async () => { expect(await start()).toBe(false); });
   jest.mocked(fetch).mockResolvedValue(response({ message: 'Readback unavailable' }, 503));
   await act(async () => { expect(await setup.finishSave()).toBe(false); release(); });
-  expect(setup.run).toBeNull(); expect(setup.view).toBe('editor');
+  expect(setup.run).toBeNull(); expect(setup.view).toBe('summary');
+  expect(setup.reviewOpen).toBe(false);
   expect(setup.error).toBe('Readback unavailable');
   expect(setup.canContinue).toBe(false);
   const calls = jest.mocked(fetch).mock.calls.length;
@@ -54,9 +55,9 @@ test('a pending save and failed canonical readback never release the hold', asyn
   expect(setup.canContinue).toBe(true);
 });
 
-test('each confirmed save reopens the same held review; dismissal never admits', async () => {
+test('confirmed saves stay ready without a popup; explicit review and dismissal never admit', async () => {
   await mount();
-  expect(setup.reviewOpen).toBe(true);
+  expect(setup.reviewOpen).toBe(false);
   for (let revision = 2; revision <= 3; revision++) {
     act(() => setup.editSetup());
     expect(setup.reviewOpen).toBe(false);
@@ -64,6 +65,10 @@ test('each confirmed save reopens the same held review; dismissal never admits',
     act(() => { release = setup.beginSave(); });
     saved = fixture(revision);
     await act(async () => { expect(await setup.finishSave()).toBe(true); release(); });
+    expect(setup.reviewOpen).toBe(false);
+    expect(setup.canContinue).toBe(true);
+    act(() => setup.reviewSetup());
+    await waitFor(() => expect(setup.loading).toBe(false));
     expect(setup.reviewOpen).toBe(true);
     expect(setup.setup?.settingsRevision).toBe(revision);
     expect(setup.run).toBeNull();

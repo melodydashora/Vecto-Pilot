@@ -107,6 +107,8 @@ async function flush() { await act(async () => { await Promise.resolve(); await 
 let onStreamDelta: jest.Mock;
 let onStreamComplete: jest.Mock;
 let onNotesSaved: jest.Mock;
+let onOfferRulesSaved: jest.Mock;
+let onRefreshCoachSnapshot: jest.Mock;
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -115,22 +117,144 @@ beforeEach(() => {
   onStreamDelta = jest.fn();
   onStreamComplete = jest.fn();
   onNotesSaved = jest.fn();
+  onOfferRulesSaved = jest.fn();
+  onRefreshCoachSnapshot = jest.fn();
 });
 afterEach(() => { jest.restoreAllMocks(); });
 
-function mount(initial: { userId: string; snapshotId?: string }) {
+function mount(initial: { userId: string; snapshotId?: string; coachSnapshotId?: string }) {
   return renderHook(
-    (props: { userId: string; snapshotId?: string }) => useCoachChat({
+    (props: { userId: string; snapshotId?: string; coachSnapshotId?: string }) => useCoachChat({
       ...props,
       onStreamDelta: onStreamDelta as unknown as (d: string) => void,
       onStreamComplete: onStreamComplete as unknown as (t: string, m: { userMessage: string }) => void,
       onNotesSaved: onNotesSaved as unknown as () => void,
+      onOfferRulesSaved: onOfferRulesSaved as unknown as () => void,
+      onRefreshCoachSnapshot: onRefreshCoachSnapshot as unknown as () => void,
     }),
     { initialProps: initial },
   );
 }
 
 describe('useCoachChat identity fence', () => {
+  it('finishes the same question with one read-only request after capture, without repeating any actions', async () => {
+    onRefreshCoachSnapshot.mockImplementation(async () => 'coach-new');
+    const { result } = mount({ userId: 'driver-a', snapshotId: 'main-source', coachSnapshotId: 'coach-old' });
+    let sent!: Promise<void>;
+    const attachment = { name: 'incident.txt', type: 'text/plain', data: 'data:text/plain;base64,U3ludGhldGlj' };
+    await act(async () => { sent = result.current.send('Where should I go around this accident?', [attachment]); });
+    await act(async () => {
+      fetchCalls[0].stream.sse({ done: true, conversation_id: 'same-conversation', response_text: 'Getting current context.',
+        actions_result: { saved: 0, coach_snapshot_refresh: { requested: true, reason: 'Current location needed' } } });
+      fetchCalls[0].stream.end();
+    });
+    await flush();
+    expect(fetchCalls).toHaveLength(2);
+    expect(onRefreshCoachSnapshot).toHaveBeenCalledTimes(1);
+    const followup = JSON.parse(fetchCalls[1].init.body as string);
+    expect(followup).toMatchObject({ snapshotId: 'main-source', coachSnapshotId: 'coach-new',
+      answerOnly: true, source: 'typed', conversationId: 'same-conversation' });
+    expect(followup.message).toContain('Where should I go around this accident?');
+    expect(followup.threadHistory).toContainEqual({ role: 'user', content: 'Where should I go around this accident?', attachments: [attachment] });
+    expect(result.current.isStreaming).toBe(true);
+    expect(onStreamComplete).not.toHaveBeenCalled();
+    await act(async () => {
+      fetchCalls[1].stream.sse({ done: true, response_text: 'The refreshed location is available. Here is the verified incident guidance.',
+        actions_result: { saved: 1, coach_snapshot_refresh: { requested: true, reason: 'Must not loop' },
+          offer_rules: { changed: true, version: 3, hash: 'do-not-repeat', changes: [] } } });
+      fetchCalls[1].stream.end(); await sent;
+    });
+    expect(fetchCalls).toHaveLength(2);
+    expect(onRefreshCoachSnapshot).toHaveBeenCalledTimes(1);
+    expect(onOfferRulesSaved).not.toHaveBeenCalled();
+    expect(onStreamComplete).toHaveBeenCalledTimes(1);
+    expect(result.current.messages).toHaveLength(2);
+    expect(result.current.messages[1].content).toContain('verified incident guidance');
+    expect(result.current.isStreaming).toBe(false);
+  });
+
+  it('a failed capture keeps the current reply honest and never asks the model to invent a fresh location', async () => {
+    onRefreshCoachSnapshot.mockImplementation(async () => null);
+    const { result } = mount({ userId: 'driver-a', snapshotId: 'main-source' });
+    let sent!: Promise<void>;
+    await act(async () => { sent = result.current.send('Where am I now?'); });
+    await act(async () => {
+      fetchCalls[0].stream.sse({ done: true, response_text: 'Requesting location.', actions_result: { saved: 0,
+        coach_snapshot_refresh: { requested: true, reason: 'New observation needed' } } });
+      fetchCalls[0].stream.end(); await sent;
+    });
+    expect(fetchCalls).toHaveLength(1);
+    expect(result.current.messages[1].content).toContain('could not be refreshed');
+    expect(result.current.messages[1].content).toContain('previous observation');
+  });
+
+  it('refreshes only after a complete reply and keeps its conversation across independent snapshots', async () => {
+    const { result, rerender } = mount({ userId: 'driver-a', snapshotId: 'main-source', coachSnapshotId: 'coach-one' });
+    let sent!: Promise<void>;
+    await act(async () => { sent = result.current.send('Use my current location'); });
+    expect(JSON.parse(fetchCalls[0].init.body as string)).toMatchObject({ snapshotId: 'main-source', coachSnapshotId: 'coach-one' });
+    const done = { done: true, response_text: 'Requesting a fresh observation.', actions_result: { saved: 0,
+      coach_snapshot_refresh: { requested: true, reason: 'Nearby advice needs a fresh location.' } } };
+    await act(async () => { fetchCalls[0].stream.sse(done); fetchCalls[0].stream.sse(done); });
+    expect(onRefreshCoachSnapshot).not.toHaveBeenCalled();
+    await act(async () => { fetchCalls[0].stream.end(); await sent; });
+    expect(onRefreshCoachSnapshot).toHaveBeenCalledTimes(1);
+    expect(onRefreshCoachSnapshot.mock.invocationCallOrder[0]).toBeLessThan(onStreamComplete.mock.invocationCallOrder[0]);
+    const history = result.current.messages;
+    rerender({ userId: 'driver-a', snapshotId: 'main-source', coachSnapshotId: 'coach-two' });
+    expect(result.current.messages).toEqual(history);
+    await act(async () => { sent = result.current.send('Now where should I go?'); });
+    expect(JSON.parse(fetchCalls[1].init.body as string)).toMatchObject({ snapshotId: 'main-source', coachSnapshotId: 'coach-two', threadHistory: history });
+    await act(async () => { fetchCalls[1].stream.sse({ done: true, response_text: 'Updated guidance' }); fetchCalls[1].stream.end(); await sent; });
+    expect(result.current.messages).toHaveLength(4);
+    expect(stored(key('driver-a', 'coach-two'))).toBeNull();
+  });
+
+  it.each(['failed', 'unfinished', 'account', 'token', 'aborted'] as const)('does not act on a %s refresh request', async outcome => {
+    const { result, rerender } = mount({ userId: 'driver-a', snapshotId: 'main-source' });
+    let sent!: Promise<void>;
+    await act(async () => { sent = result.current.send('Refresh my location'); });
+    if (outcome === 'account') rerender({ userId: 'driver-b', snapshotId: 'other-source' });
+    if (outcome === 'token') localStorage.setItem('vectopilot_auth_token', 'new-session');
+    if (outcome === 'aborted') result.current.abort();
+    await act(async () => {
+      fetchCalls[0].stream.sse({ ...(outcome === 'unfinished' ? {} : { done: true }),
+        ...(outcome === 'failed' ? { error: true } : {}), response_text: 'Requesting refresh',
+        actions_result: { saved: 0, coach_snapshot_refresh: { requested: true, reason: 'Moved' } } });
+      fetchCalls[0].stream.end(); await sent;
+    });
+    expect(onRefreshCoachSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('publishes the confirmed settings reply before refreshing setup, once per completed turn', async () => {
+    const { result } = mount({ userId: 'driver-a', snapshotId: 'snap-a' });
+    let sent!: Promise<void>;
+    await act(async () => { sent = result.current.send('Tune my Offer Analyzer for shorter pickups.'); });
+    const receipt = { version: 4, hash: 'saved-hash', changed: true, changes: [
+      { path: 'pickup.max_minutes', label: 'Maximum pickup minutes', before: 12, after: 8 },
+    ] };
+    await act(async () => {
+      fetchCalls[0].stream.sse({ done: true, response_text: 'Shorter pickups fit your recent offers.', actions_result: { saved: 1, offer_rules: receipt } });
+    });
+    expect(onOfferRulesSaved).not.toHaveBeenCalled();
+    await act(async () => { fetchCalls[0].stream.end(); await sent; });
+    expect(onOfferRulesSaved).toHaveBeenCalledTimes(1);
+    expect(onOfferRulesSaved).toHaveBeenCalledWith(receipt);
+    expect(onStreamComplete.mock.invocationCallOrder[0]).toBeLessThan(onOfferRulesSaved.mock.invocationCallOrder[0]);
+    expect(result.current.messages.at(-1)?.content).toContain('Maximum pickup minutes: 12 → 8');
+  });
+
+  it('a late settings receipt cannot refresh a replacement account', async () => {
+    const { result, rerender } = mount({ userId: 'driver-a', snapshotId: 'snap-a' });
+    let sent!: Promise<void>;
+    await act(async () => { sent = result.current.send('Tune my settings'); });
+    rerender({ userId: 'driver-b', snapshotId: 'snap-b' });
+    await act(async () => {
+      fetchCalls[0].stream.sse({ done: true, actions_result: { saved: 1, offer_rules: { version: 4, hash: 'old', changed: true, changes: [] } } });
+      fetchCalls[0].stream.end(); await sent;
+    });
+    expect(onOfferRulesSaved).not.toHaveBeenCalled();
+  });
   it('admits one request when two submit callbacks run before React renders, then permits an intentional repeat', async () => {
     const { result } = mount({ userId: 'driver-a', snapshotId: 'snap-a' });
     let first!: Promise<void>;

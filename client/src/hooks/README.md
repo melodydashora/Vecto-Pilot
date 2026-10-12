@@ -26,6 +26,10 @@ Custom React hooks for data fetching and UI state.
 
 ## Active Hooks
 
+### useCoachSnapshot
+
+`coach/useCoachSnapshot.ts` restores the current session’s Coach observation with a read-only GET. Activation then collects fresh browser GPS once; explicit refresh or a completed Coach request can refresh it again through `../lib/location/fresh-position.ts`, then posts only its sensor receipt to `/api/coach/snapshot`. The returned saved ID is available for one subsequent Coach answer. Concurrent refresh requests share one capture promise. Account/token/session changes, permission revocation and timeouts cannot publish late results. Foreground and display-clock updates never capture GPS. Failed refreshes retain the previous timestamped observation. The hook never starts MAIN, Briefing or Strategy; a separate `coachSnapshotId` leaves the conversation and saved source identity unchanged.
+
 ### useVenueFeedback
 
 Reads saved driver choices through the pure `/api/blocks-fast/saved` endpoint.

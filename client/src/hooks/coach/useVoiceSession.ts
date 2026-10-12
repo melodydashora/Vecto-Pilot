@@ -112,6 +112,7 @@ export interface UseVoiceSessionParams extends CoachBrainParams {
   onVoiceTurnFinal?: (role: 'user' | 'assistant', text: string) => void;
   /** Brain-call action side-effects — same handlers classic mode uses. */
   onNotesSaved?: () => void;
+  onOfferRulesSaved?: import('@/utils/coach/actionsResult').DonePayloadHandlers['onOfferRulesSaved'];
   onActionError?: (messages: string[]) => void;
   /**
    * 2026-08-14 (brain-hears/continuity): component-owned, render-time-fresh
@@ -413,13 +414,19 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       checkingCountRef.current += 1;
       setChecking(true);
       try {
-        return await askCoachBrain(
+        const answer = await askCoachBrain(
           {
             ...paramsRef.current,
             authToken: owner.token,
             conversationId,
             signal: brainController.signal,
             answerOnly: options?.answerOnly === true,
+            onRefreshCoachSnapshot: async () => {
+              if (!isCurrent() || brainController.signal.aborted) throw new DOMException('Voice session ended', 'AbortError');
+              const snapshotId = await paramsRef.current.onRefreshCoachSnapshot?.();
+              if (!isCurrent() || brainController.signal.aborted) throw new DOMException('Voice session ended', 'AbortError');
+              return snapshotId;
+            },
             // 2026-08-14 (brain-hears): the committed visible thread rides
             // along so the brain answers in context. Copied — the component
             // reassigns the ref's array each render, and the request must
@@ -430,6 +437,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
             onActionsResult: guard((payload) =>
               applyDonePayload(payload, {
                 onNotesSaved: paramsRef.current.onNotesSaved,
+                onOfferRulesSaved: paramsRef.current.onOfferRulesSaved,
                 onActionError: paramsRef.current.onActionError,
               })),
             // Links in the brain's answer surface as a tappable thread message
@@ -447,6 +455,8 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
           },
           question
         );
+        if (!isCurrent() || brainController.signal.aborted) throw new DOMException('Voice session ended', 'AbortError');
+        return answer;
       } finally {
         if (isCurrent()) {
           checkingCountRef.current -= 1;

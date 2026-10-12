@@ -21,6 +21,43 @@ No direct Map Tiles REST call was found in this application. Browser Maps can lo
 
 The reported Agent Platform, Compute Engine, cloud administration, storage, analytics, fleet, and other services are not automatically application integrations. Their presence in the console does not justify adding SDKs, credentials, or paid calls.
 
+## Weather Insights evaluation — October 12, 2026
+
+Melody requested an evaluation after Google Maps Platform reported that her project
+was allowlisted but had not queried the dataset recently. This is separate from
+the Weather API calls already made by Briefing. Google's
+[Weather Insights announcement](https://mapsplatform.google.com/resources/blog/from-reaction-to-resilience-empowering-industries-with-advanced-environmental-intelligence/)
+describes an experimental historical BigQuery dataset with roughly five years of
+hourly data. Its potential role here is historical weather comparison and measured
+weather–demand analysis; the existing Weather API remains the source for current
+conditions and the six-hour forecast.
+
+The initial workspace access check did not reach BigQuery. The installed `gcloud`
+had no active identity or selected project, and no Application Default Credentials
+file was available. A separate in-memory service-account authentication attempt
+using the existing uppercase credential fields failed during local signing with
+`ERR_OSSL_UNSUPPORTED`. No token, dataset metadata, query job or data was obtained.
+This is a workspace authentication limit, not evidence that Google's allowlisting
+failed. The app's existing credential reconstruction reads a different, lowercase
+set of fields; it was not invoked or changed during this check.
+
+The allowlisted execution project, dataset/table identifiers, region and schema
+remain unverified. No Weather Insights integration or prior query was found in the
+bounded repository and continuity search. Obtain the actual onboarding dataset
+link and an authenticated identity with the relevant BigQuery permissions before
+constructing dataset-specific SQL; do not substitute a different public weather
+dataset or assume an existing Vertex/Gemini project is the allowlisted project.
+
+Once access is available, inspect metadata and preview a few rows, verify time and
+coordinate fields, units, coverage, partitions and freshness, then dry-run a query
+for one historical day and a public Frisco location. Any executed query should
+select only the needed fields and carry an explicit `maximumBytesBilled` cap.
+`LIMIT` alone does not bound bytes scanned. Google documents
+[authentication](https://docs.cloud.google.com/bigquery/docs/authentication/getting-started),
+[query permissions](https://docs.cloud.google.com/bigquery/docs/running-queries),
+and [free preview and cost controls](https://docs.cloud.google.com/bigquery/docs/best-practices-costs).
+No BigQuery SDK dependency, pipeline call, credential change or deployment was added.
+
 ## Contracts enforced by the repaired paths
 
 - **One venue identity throughout.** Resolve names through Google/catalog; reuse the current Text Search result or refresh the exact saved place ID. Address, coordinates, country, hours, timezone, route destination and event linkage belong to that same identity. Place Details supports `location`; the former claim that Details cannot return coordinates was incorrect. [Place Details reference](https://developers.google.com/maps/documentation/places/web-service/place-details).

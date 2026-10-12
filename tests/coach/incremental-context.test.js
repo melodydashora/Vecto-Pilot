@@ -91,18 +91,19 @@ describe('Coach persisted source updates', () => {
     expect(getCoachContextProgress({ snapshot }).snapshot.state).toBe('partial');
   });
   test('each owned offer read includes the later sweep without changing its original decision', async () => {
-    rows = [{ id: 'offer-a', decision: 'ACCEPT', per_mile: '0', created_at: '2026-09-11T08:00:00Z', updated_at: '2026-09-11T08:00:00Z', parsed_data_json: { phase: 1 } }];
+    const offer = { id: 'offer-a', decision: 'ACCEPT', per_mile: '0', created_at: '2026-09-11T08:00:00Z', updated_at: '2026-09-11T08:00:00Z', parsed_data_json: { phase: 1 } };
+    rows = [{ offer, outcome: null }];
     const early = await dal.getOfferHistory('alice');
-    rows = [{ ...rows[0], updated_at: '2026-09-11T08:02:00Z', parsed_data_json: { phase: 2, venue_context: 'saved second sweep' }, raw_ai_response: '{"reason":"stored analysis"}' }];
+    rows = [{ offer: { ...offer, updated_at: '2026-09-11T08:02:00Z', parsed_data_json: { phase: 2, venue_context: 'saved second sweep' }, raw_ai_response: '{"reason":"stored analysis"}' }, outcome: null }];
     const later = await dal.getOfferHistory('alice');
     expect(early.offers[0].parsed_data_json.phase).toBe(1);
     expect(later.offers[0]).toMatchObject({ decision: 'ACCEPT', parsed_data_json: { phase: 2 }, raw_ai_response: '{"reason":"stored analysis"}' });
     expect(later.stats.avg_per_mile).toBe('0.00');
     expect(predicates).toHaveLength(2);
     expect(predicates.every(p => p.sql.includes('user_id') && p.params[0] === 'alice')).toBe(true);
-    expect(selected).toEqual([undefined, undefined]);
+    expect(selected).toEqual([expect.objectContaining({ offer: expect.any(Object), outcome: expect.any(Object) }), expect.objectContaining({ offer: expect.any(Object), outcome: expect.any(Object) })]);
     expect(limits).toEqual([20, 20]);
-    const prompt = formatCoachSourceContext({ created_at: rows[0].created_at }, { source_record: { status: 'pending', news: { title: 'already saved' }, events: null } }, { strategy: null, offerHistory: later });
+    const prompt = formatCoachSourceContext({ created_at: offer.created_at }, { source_record: { status: 'pending', news: { title: 'already saved' }, events: null } }, { strategy: null, offerHistory: later });
     expect(prompt).toContain('saved second sweep');
     expect(prompt).toContain('already saved');
     expect(prompt).toContain('"events": null');

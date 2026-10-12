@@ -7,6 +7,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { coachRulesPatchSchema } from '../../lib/offers/coach-rules-patch.js';
 
 const router = Router();
 
@@ -182,7 +183,13 @@ export const venueIntelSchema = z.object({
 });
 
 // Action type to schema mapping
+export const coachSnapshotRefreshSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+}).strict();
+
 const ACTION_SCHEMAS = {
+  REFRESH_COACH_SNAPSHOT: coachSnapshotRefreshSchema,
+  UPDATE_OFFER_RULES: coachRulesPatchSchema,
   SAVE_NOTE: noteSchema,
   DEACTIVATE_EVENT: eventDeactivationSchema,
   REACTIVATE_EVENT: eventReactivationSchema,
@@ -355,6 +362,8 @@ router.post('/batch', (req, res) => {
 
 function getSchemaDescription(action) {
   const descriptions = {
+    REFRESH_COACH_SNAPSHOT: 'Request a fresh device GPS and Google context capture after this completed reply; no coordinates or save claim',
+    UPDATE_OFFER_RULES: 'Apply driver-directed Offer Analyzer toggle and slider changes to verified saved settings',
     SAVE_NOTE: 'Save a note about driver preferences, tips, or insights',
     DEACTIVATE_EVENT: 'Mark an event as inactive (ended, cancelled, etc.)',
     REACTIVATE_EVENT: 'Restore a previously deactivated event',

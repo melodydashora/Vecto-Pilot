@@ -7,8 +7,16 @@ import { render, screen, cleanup } from '@testing-library/react';
 
 const received: Array<Record<string, unknown>> = [];
 const receivedStatus: Array<Record<string, unknown>> = [];
+const finishSave = jest.fn(async () => true);
+jest.unstable_mockModule('@/contexts/run-setup-context', () => ({ useRunSetup: () => ({ finishSave }) }));
 jest.unstable_mockModule('@/components/coach/CoachContextStatus', () => ({
   CoachContextStatus: (props: Record<string, unknown>) => { receivedStatus.push(props); return null; },
+  CoachSnapshotStatus: () => null,
+}));
+const refreshCoach = jest.fn();
+let coachObservation: { snapshot_id: string } | null = null;
+jest.unstable_mockModule('@/hooks/coach/useCoachSnapshot', () => ({
+  useCoachSnapshot: () => ({ snapshot: coachObservation, refresh: refreshCoach }),
 }));
 let authValue: { user: { userId: string; email: string } | null; sessionId?: string } = { user: null };
 let coPilotValue: Record<string, unknown>;
@@ -26,12 +34,46 @@ describe('CoachPage identity', () => {
   beforeEach(() => {
     received.length = 0;
     receivedStatus.length = 0;
+    finishSave.mockClear();
+    refreshCoach.mockClear();
+    coachObservation = null;
     localStorage.clear();
     authValue = { user: { userId: '11111111-1111-4111-8111-111111111111', email: 'a@example.test' }, sessionId: 'session-1' };
     coPilotValue = { lastSnapshotId: 'snap-1', contextSnapshotId: null, strategyData: null,
       immediateStrategy: null, snapshotData: null, blocks: [], criticalError: null };
   });
   afterEach(cleanup);
+
+  it('refreshes canonical setup only after the Coach reports a confirmed settings save', () => {
+    render(<CoachPage />);
+    expect(finishSave).not.toHaveBeenCalled();
+    (received.at(-1)?.onOfferRulesSaved as () => void)();
+    expect(finishSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes Coach observations without changing the conversation or admitted source props', () => {
+    const source = { snapshot_id: 'snap-1', city: 'Saved city', timezone: 'America/Chicago' };
+    const blocks = [{ name: 'Saved destination' }];
+    coPilotValue = { ...coPilotValue, snapshotData: source, blocks, immediateStrategy: 'Saved Strategy' };
+    coachObservation = { snapshot_id: 'coach-old' };
+    const { rerender } = render(<CoachPage />);
+    (received.at(-1)?.onRefreshCoachSnapshot as () => void)();
+    expect(refreshCoach).toHaveBeenCalledTimes(1);
+    expect(finishSave).not.toHaveBeenCalled();
+    coachObservation = { snapshot_id: 'coach-new' };
+    rerender(<CoachPage />);
+    expect(received.at(-1)).toMatchObject({ snapshotId: 'snap-1', coachSnapshotId: 'coach-new',
+      snapshot: source, blocks, strategy: 'Saved Strategy' });
+    expect(receivedStatus.at(-1)).toMatchObject({ snapshotId: 'snap-1', coachSnapshotId: 'coach-new' });
+  });
+
+  it('passes a standalone Coach observation without inventing a MAIN source', () => {
+    coPilotValue = { ...coPilotValue, lastSnapshotId: null };
+    coachObservation = { snapshot_id: 'coach-only' };
+    render(<CoachPage />);
+    expect(received.at(-1)).toMatchObject({ snapshotId: undefined, coachSnapshotId: 'coach-only', strategyReady: false });
+    expect(receivedStatus.at(-1)).toMatchObject({ snapshotId: undefined, coachSnapshotId: 'coach-only' });
+  });
 
   it('renders nothing keyed while the user is unknown (no "default" or "" bucket)', () => {
     authValue = { user: null };

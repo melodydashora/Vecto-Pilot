@@ -1,6 +1,7 @@
 // Real role registry, dispatcher and sequential router; provider adapters are
-// mocked so tonight's OpenAI text path and preserved Gemini image path reach no paid APIs.
+// mocked to verify Gemini text/image routing without paid API calls.
 import { jest, test, expect, beforeEach, afterEach } from '@jest/globals';
+const { console, AbortController, AbortSignal } = globalThis;
 
 const callGemini = jest.fn();
 const callOpenAI = jest.fn();
@@ -16,150 +17,76 @@ jest.unstable_mockModule('../../server/lib/ai/adapters/vertex-adapter.js', () =>
 }));
 const { callModel } = await import('../../server/lib/ai/adapters/index.js');
 
-const roles = [
-  ['OFFER_ANALYZER', 'gemini-3.5-flash-lite', 1024],
-  ['OFFER_ANALYZER_DEEP', 'gemini-3.1-pro-preview', 2048],
-];
-const payload = () => ({
-  system: 'Return ONLY JSON using the supplied synthetic rules.',
-  user: 'Synthetic OCR offer: pickup 2.1 miles at Fixture Pickup Road; dropoff 6.4 miles at Fixture Destination Avenue.',
-});
+const roles = [['OFFER_ANALYZER', 1024], ['OFFER_ANALYZER_DEEP', 2048]];
+const payload = () => ({ system: 'Return ONLY JSON using the supplied synthetic rules.',
+  user: 'Synthetic OCR offer: pickup 2.1 miles at Fixture Pickup Road; dropoff 6.4 miles at Fixture Destination Avenue.' });
 const image = { mimeType: 'image/png', data: 'c3ludGhldGljLWltYWdl' };
 const success = output => ({ ok: true, output });
-function deferred() {
-  let resolve;
-  const promise = new Promise(done => { resolve = done; });
-  return { promise, resolve };
-}
+function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 let errorLog;
 beforeEach(() => {
   jest.clearAllMocks();
-  callGemini.mockReset().mockResolvedValue(success('{"source":"vision"}'));
+  callGemini.mockReset().mockResolvedValue(success('{"source":"gemini"}'));
   callOpenAI.mockReset().mockResolvedValue(success('{"source":"text"}'));
   callOpenAIWithWebSearch.mockReset().mockResolvedValue(success('{"source":"search"}'));
   errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
 });
-afterEach(() => { errorLog.mockRestore(); jest.useRealTimers(); });
+afterEach(() => { errorLog.mockRestore(); });
 
-test.each(roles)('%s sends OCR directly to OpenAI with the original budget and no Google request', async (role, _visionModel, budget) => {
-  const started = deferred();
-  const primary = deferred();
-  callOpenAI.mockImplementation(() => { started.resolve(); return primary.promise; });
-  const request = payload();
-  const result = callModel(role, request);
-  await started.promise;
-  expect(callGemini).not.toHaveBeenCalled();
-  expect(callOpenAI).toHaveBeenCalledTimes(1);
-  expect(callOpenAI).toHaveBeenCalledWith(expect.objectContaining({
-    model: 'gpt-6-luna', role, system: request.system, user: request.user,
-    maxTokens: budget, reasoningEffort: 'none', jsonMode: true, signal: expect.any(AbortSignal),
-  }));
-  primary.resolve({ ...success('{"source":"text"}'), model: 'gpt-6-luna-resolved' });
-  await expect(result).resolves.toMatchObject({
-    success: true, ok: true, text: '{"source":"text"}', output: '{"source":"text"}',
-    provider: 'openai', model: 'gpt-6-luna-resolved',
-  });
-  expect(callOpenAI.mock.calls[0][0].images ?? []).toHaveLength(0);
-  expect(callGemini).not.toHaveBeenCalled();
-  expect(callOpenAIWithWebSearch).not.toHaveBeenCalled();
-});
-
-test.each(roles.flatMap(([role]) => ['429 quota', '503 UNAVAILABLE', '403 permission denied']
-  .map(error => [role, error])))('%s OpenAI failure %s never dispatches Google or another OpenAI attempt', async (role, error) => {
-  callOpenAI.mockResolvedValue({ ok: false, error: `${error} synthetic-provider-secret` });
-  const result = await callModel(role, payload());
-  expect(result).toMatchObject({ success: false, ok: false, text: null });
-  expect(result.error).toContain('openai:');
-  expect(result.error).not.toContain('synthetic-provider-secret');
-  expect(callOpenAI).toHaveBeenCalledTimes(1);
-  expect(callGemini).not.toHaveBeenCalled();
-  expect(callOpenAIWithWebSearch).not.toHaveBeenCalled();
-});
-
-test.each(roles.flatMap(([role, model, budget]) => [false, true]
-  .map(hasText => [role, model, budget, hasText])))('%s preserves every image with %s, %s tokens, OCR=%s', async (role, model, budget, hasText) => {
-  const request = { ...payload(), user: hasText ? payload().user : 'Analyze the supplied screenshot.', images: [image] };
+test.each(roles.flatMap(([role, budget]) => ['text', 'image', 'mixed'].map(mode => [role, budget, mode])))('%s routes %s tokens / %s input to Gemini 3.8 LOW', async (role, budget, mode) => {
+  const request = { ...payload(), ...(mode !== 'text' && { images: [image] }), ...(mode === 'image' && { user: 'Analyze the supplied screenshot.' }) };
   const result = await callModel(role, request);
   expect(callGemini).toHaveBeenCalledTimes(1);
-  expect(callGemini).toHaveBeenCalledWith(expect.objectContaining({
-    model, maxTokens: budget, images: [image], user: request.user,
-    temperature: role === 'OFFER_ANALYZER' ? 0.1 : 0.2,
-    thinkingLevel: role === 'OFFER_ANALYZER' ? 'MINIMAL' : 'LOW',
-  }));
-  expect(result).toMatchObject({ ok: true, provider: 'google', model });
-  expect(callOpenAI).not.toHaveBeenCalled(); expect(callOpenAIWithWebSearch).not.toHaveBeenCalled();
-  // Selecting a vision configuration must not mutate the next text request.
-  const textResult = await callModel(role, payload());
-  expect(callGemini).toHaveBeenCalledTimes(1);
-  expect(callOpenAI).toHaveBeenCalledTimes(1);
-  expect(textResult).toMatchObject({ ok: true, provider: 'openai', model: 'gpt-6-luna' });
-});
-
-test.each(roles)('%s failed image-bearing input never drops images into the text-only OpenAI path', async role => {
-  callGemini.mockResolvedValue({ ok: false, error: '429 quota' });
-  const result = await callModel(role, { ...payload(), images: [image] });
-  expect(result.ok).toBe(false);
-  expect(callGemini).toHaveBeenCalledTimes(1);
-  expect(callGemini).toHaveBeenCalledWith(expect.objectContaining({ images: [image] }));
+  expect(callGemini).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.8-flash', maxTokens: budget, thinkingLevel: 'LOW',
+    system: request.system, user: request.user, images: request.images, signal: expect.any(AbortSignal) }));
+  expect(callGemini.mock.calls[0][0].temperature).toBeUndefined();
+  expect(result).toMatchObject({ ok: true, provider: 'google', model: 'gemini-3.8-flash' });
   expect(callOpenAI).not.toHaveBeenCalled(); expect(callOpenAIWithWebSearch).not.toHaveBeenCalled();
 });
 
-test.each(roles)('%s lowercase calls retain the canonical Offer Analyzer adapter contract', async (role, _primary, budget) => {
-  const result = await callModel(role.toLowerCase(), payload());
-  expect(callOpenAI).toHaveBeenCalledTimes(1);
-  // The adapter uses this role to require complete answers, disable storage and
-  // SDK retries, and reject dummy credentials for Offer Analyzer.
-  expect(callOpenAI).toHaveBeenCalledWith(expect.objectContaining({
-    role, model: 'gpt-6-luna', maxTokens: budget, reasoningEffort: 'none',
-    jsonMode: true, signal: expect.any(AbortSignal),
-  }));
-  expect(result).toMatchObject({ ok: true, provider: 'openai', model: 'gpt-6-luna' });
-  expect(callGemini).not.toHaveBeenCalled();
+test.each(roles.flatMap(([role]) => ['429 quota', '400 invalid argument', '403 permission denied', 'truncated at max_tokens=1024 (finishReason=MAX_TOKENS)']
+  .map(error => [role, error])))('%s failure %s stays failed with no cross-provider fallback', async (role, error) => {
+  callGemini.mockResolvedValue({ ok: false, error: `${error} synthetic-provider-secret` });
+  const result = await callModel(role, payload());
+  expect(result).toMatchObject({ success: false, ok: false, text: null });
+  expect(result.error).not.toContain('synthetic-provider-secret');
+  expect(callGemini).toHaveBeenCalledTimes(1);
+  expect(callOpenAI).not.toHaveBeenCalled(); expect(callOpenAIWithWebSearch).not.toHaveBeenCalled();
 });
 
-test.each(roles)('%s image-bearing 503 retains the existing Gemini vision retry', async role => {
-  callGemini.mockResolvedValueOnce({ ok: false, error: '503 UNAVAILABLE' }).mockResolvedValueOnce(success('{"source":"vision-retry"}'));
-  const result = await callModel(role, { ...payload(), images: [image] });
+test.each(roles)('%s lower-case role resolves the same text/image contract without mutation', async (role, budget) => {
+  await callModel(role.toLowerCase(), { ...payload(), images: [image] });
+  await callModel(role, payload());
   expect(callGemini).toHaveBeenCalledTimes(2);
-  expect(callGemini.mock.calls[1][0]).toMatchObject({ model: 'gemini-3.5-flash', images: [image] });
-  expect(callOpenAI).not.toHaveBeenCalled(); expect(callOpenAIWithWebSearch).not.toHaveBeenCalled();
-  expect(result).toMatchObject({ ok: true, provider: 'google-fallback', model: 'gemini-3.5-flash' });
+  expect(callGemini.mock.calls[0][0]).toMatchObject({ model: 'gemini-3.8-flash', images: [image], maxTokens: budget, thinkingLevel: 'LOW' });
+  expect(callGemini.mock.calls[1][0]).toMatchObject({ model: 'gemini-3.8-flash', maxTokens: budget, thinkingLevel: 'LOW' });
+  expect(callGemini.mock.calls[1][0].images).toBeUndefined(); expect(callOpenAI).not.toHaveBeenCalled();
 });
 
-test.each(roles)('%s never dispatches either provider after caller cancellation', async role => {
+test.each(roles.flatMap(([role]) => ['text', 'image'].map(mode => [role, mode])))('%s %s 503 fails without another model or provider attempt', async (role, mode) => {
+  callGemini.mockResolvedValueOnce({ ok: false, error: '503 UNAVAILABLE' });
+  const result = await callModel(role, { ...payload(), ...(mode === 'image' && { images: [image] }) });
+  expect(callGemini).toHaveBeenCalledTimes(1);
+  expect(result).toMatchObject({ ok: false, success: false, text: null });
+  expect(callOpenAI).not.toHaveBeenCalled(); expect(callOpenAIWithWebSearch).not.toHaveBeenCalled();
+});
+
+test.each(roles)('%s never dispatches after caller cancellation', async role => {
   const controller = new AbortController(); controller.abort();
-  const result = await callModel(role, { ...payload(), signal: controller.signal });
-  expect(result.ok).toBe(false);
+  expect((await callModel(role, { ...payload(), signal: controller.signal })).ok).toBe(false);
   expect(callGemini).not.toHaveBeenCalled(); expect(callOpenAI).not.toHaveBeenCalled();
 });
 
-test.each(roles)('%s abort during vision analysis prevents Gemini retry and OpenAI dispatch', async role => {
-  const controller = new AbortController();
-  const started = deferred();
+test.each(roles.flatMap(([role]) => ['text', 'image'].map(mode => [role, mode])))('%s %s cancellation reaches adapter and prevents a retry', async (role, mode) => {
+  const controller = new AbortController(), started = deferred();
   callGemini.mockImplementation(({ signal }) => new Promise(resolve => {
     started.resolve(signal);
     signal.addEventListener('abort', () => resolve({ ok: false, error: '503 UNAVAILABLE after abort' }), { once: true });
   }));
-  const pending = callModel(role, { ...payload(), images: [image], signal: controller.signal });
-  const signal = await started.promise;
-  controller.abort();
+  const pending = callModel(role, { ...payload(), ...(mode === 'image' && { images: [image] }), signal: controller.signal });
+  const signal = await started.promise; controller.abort();
   expect((await pending).ok).toBe(false); expect(signal.aborted).toBe(true);
   expect(callGemini).toHaveBeenCalledTimes(1); expect(callOpenAI).not.toHaveBeenCalled();
-});
-
-test.each(roles)('%s OpenAI text analysis remains inside the original caller deadline', async role => {
-  const controller = new AbortController();
-  const started = deferred();
-  callOpenAI.mockImplementation(({ signal }) => new Promise(resolve => {
-    started.resolve(signal);
-    signal.addEventListener('abort', () => resolve({ ok: false, error: 'request aborted' }), { once: true });
-  }));
-  const pending = callModel(role, { ...payload(), signal: controller.signal });
-  const signal = await started.promise;
-  expect(signal).toBeInstanceOf(AbortSignal);
-  controller.abort();
-  expect((await pending).ok).toBe(false); expect(signal.aborted).toBe(true);
-  expect(callGemini).not.toHaveBeenCalled(); expect(callOpenAI).toHaveBeenCalledTimes(1);
 });
 
 test('unrelated Briefing keeps its existing Gemini 503 retry and never dispatches OpenAI', async () => {

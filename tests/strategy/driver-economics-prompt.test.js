@@ -14,6 +14,9 @@ const db = {
     const query = {
       from: value => { table = getTableName(value); return query; }, where: () => query,
       leftJoin: () => { joined = true; return query; }, for: () => query,
+      then: (resolve, reject) => (table === 'news_deactivations'
+        ? Promise.resolve([])
+        : Promise.reject(new Error('Unexpected unbounded fixture query'))).then(resolve, reject),
       limit: async () => {
         if (joined) return [{ strategy: { status: 'pending' }, briefing }];
         if (table === 'driver_profiles' && profileError) throw profileError;
@@ -247,4 +250,62 @@ test('independent normal research stays separate from unknown FAA and measured n
     expect(prompt).toContain('"faa_delay_minutes":0');
     expect(prompt).not.toContain('"faa_ground_stops":[]');
   });
+});
+
+
+test.each(['America/Chicago', 'Asia/Tokyo'])(
+  'actual Strategy and planner prompts distinguish school return day in %s', async timezone => {
+    const previousSchools = briefing.school_closures;
+    const previousSnapshot = { ...snapshot };
+    jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-14T02:00:00Z'));
+    Object.assign(snapshot, completeSnapshot({ timezone, createdAt: '2026-10-14T02:00:00Z' }));
+    const returning = { school_name: 'Returning district', start_date: '2026-10-09', reopening_date: '2026-10-14', status: 'closed' };
+    const closed = { school_name: 'Closed district', start_date: '2026-10-09', reopening_date: '2026-10-19', status: 'reopening_today' };
+    briefing.school_closures = { items: [returning, closed,
+      { school_name: 'Old district', start_date: '2026-10-01', reopening_date: '2026-10-12', status: 'reopening_today' },
+      { school_name: 'Future district', start_date: '2026-10-15', reopening_date: '2026-10-19' },
+    ] };
+    try {
+      await runImmediateStrategy(snapshot.snapshot_id);
+      expect(model).toHaveBeenCalledTimes(1);
+      const filtered = filterBriefingForPlanner(briefing, snapshot, []);
+      expect(filtered.schoolClosures.map(row => row.status)).toEqual([
+        timezone === 'America/Chicago' ? 'closed' : 'reopening_today', 'closed',
+      ]);
+      for (const prompt of [model.mock.calls[0][1].user, formatBriefingForPrompt(filtered)]) {
+        expect(prompt).toContain('SCHOOL BREAKS AND RETURNS:');
+        const line = prompt.split('\n').find(row => row.includes('Returning district'));
+        expect(line).toContain(timezone === 'America/Chicago' ? 'Closed today' : 'Students return today');
+        if (timezone === 'Asia/Tokyo') expect(line).not.toContain('Closed today');
+        expect(line).toContain('closed 2026-10-09 through 2026-10-13; students return 2026-10-14');
+        expect(prompt).toContain('Closed district: Closed today');
+        expect(prompt).not.toMatch(/Old district|Future district/);
+      }
+      expect(returning.status).toBe('closed'); expect(closed.status).toBe('reopening_today');
+
+      model.mockClear();
+      jest.setSystemTime(new Date('2026-10-15T17:00:00Z'));
+      await runImmediateStrategy(snapshot.snapshot_id);
+      const followingDay = formatBriefingForPrompt(filterBriefingForPlanner(briefing, snapshot, []));
+      expect(model.mock.calls[0][1].user).not.toContain('Returning district');
+      expect(followingDay).not.toContain('Returning district');
+    } finally {
+      briefing.school_closures = previousSchools;
+      Object.assign(snapshot, previousSnapshot);
+      jest.useRealTimers();
+    }
+  });
+
+test('planner never invents a student return date from a legacy inclusive end date', () => {
+  jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-14T17:00:00Z'));
+  const legacy = { school_name: 'Legacy district', start_date: '2026-10-09', end_date: '2026-10-14', status: 'reopening_today' };
+  try {
+    const filtered = filterBriefingForPlanner({ school_closures: [legacy] }, { timezone: 'America/Chicago' }, []);
+    expect(filtered.schoolClosures).toEqual([{ ...legacy, status: 'closed' }]);
+    const prompt = formatBriefingForPrompt(filtered);
+    expect(prompt).toContain('Legacy district: Closed today; closed 2026-10-09 through 2026-10-14');
+    expect(prompt).not.toMatch(/Students return|students return/);
+    jest.setSystemTime(new Date('2026-10-15T17:00:00Z'));
+    expect(filterBriefingForPlanner({ school_closures: [legacy] }, { timezone: 'America/Chicago' }, []).schoolClosures).toEqual([]);
+  } finally { jest.useRealTimers(); }
 });

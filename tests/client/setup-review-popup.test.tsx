@@ -63,6 +63,13 @@ function app() {
   </Routes></MemoryRouter></LocationProvider></RunSetupProvider>;
 }
 async function review() {
+  await waitFor(() => expect(setup.loading).toBe(false));
+  // Review remains available on explicit request; hydration and saved changes
+  // no longer interrupt the driver with an automatic preferences popup.
+  if (!setup.reviewOpen) {
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await act(async () => { setup.reviewSetup(); });
+  }
   const popup = await screen.findByRole('dialog', { name: 'Ready for your session?' });
   await waitFor(() => expect(within(popup).getByRole('button', { name: 'Continue with Preference' })).toBeEnabled());
   expect(screen.getAllByRole('dialog')).toHaveLength(1);
@@ -146,7 +153,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); jest.restoreAllMocks(); });
 
-test('both real editors repeatedly save into one shared popup; dismissal preserves hold and location comes first and component Continue alone starts Strategy', async () => {
+test('both real editors save without an automatic popup; explicit review preserves hold and location comes first and component Continue alone starts Strategy', async () => {
   render(app());
   await review(); assertHeld();
   await edit('preferences');
@@ -237,8 +244,10 @@ test.each([
   await waitFor(() => expect(setup.saving && (phase !== 'readback' || setup.loading)).toBe(true));
   fireEvent.change(field, { target: { value: newer } });
   await act(async () => { release(); });
-  const popup = await screen.findByRole('dialog');
   await waitFor(() => expect(setup.saving).toBe(false));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  await act(async () => { setup.reviewSetup(); });
+  const popup = await screen.findByRole('dialog');
   expect(field).toHaveValue(preferences ? newer : Number(newer));
   expect(within(popup).getByRole('button', { name: 'Continue with Preference' })).toBeDisabled();
   await act(async () => { expect(await setup.continueWithSavedPreferences(saved.currentSnapshot!.snapshot_id)).toBe(false); });
@@ -277,6 +286,9 @@ test.each([
 test('incomplete saved setup still requests location first and leaves history accessible', async () => {
   saved = { ...saved, ready: false, missingFields: ['offerRules'] };
   render(app());
+  await waitFor(() => expect(setup.loading).toBe(false));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  await act(async () => { setup.reviewSetup(); });
   const popup = await screen.findByRole('dialog', { name: 'Ready for your session?' });
   expect(navigator.geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
   expect(within(popup).getByRole('button', { name: 'Continue with Preference' })).toBeDisabled();

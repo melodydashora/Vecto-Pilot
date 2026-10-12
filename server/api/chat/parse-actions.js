@@ -16,6 +16,8 @@
  */
 export function parseActions(responseText) {
   const actions = {
+    coachSnapshotRefresh: [], // Request a device capture after completion; no snapshot write here.
+    offerRules: [],         // Driver-directed partial settings edits; no offer/verdict mutations.
     notes: [],
     events: [],
     news: [],
@@ -48,7 +50,9 @@ export function parseActions(responseText) {
           const actionType = action.type?.toUpperCase();
           const actionData = action.data || action;
 
-          if (actionType === 'SAVE_NOTE') actions.notes.push(actionData);
+          if (actionType === 'REFRESH_COACH_SNAPSHOT') actions.coachSnapshotRefresh.push(actionData);
+          else if (actionType === 'UPDATE_OFFER_RULES') actions.offerRules.push(actionData);
+          else if (actionType === 'SAVE_NOTE') actions.notes.push(actionData);
           else if (actionType === 'DEACTIVATE_EVENT') actions.events.push(actionData);
           else if (actionType === 'REACTIVATE_EVENT') actions.eventReactivations.push(actionData);
           else if (actionType === 'ADD_EVENT') actions.addEvents.push(actionData);
@@ -78,6 +82,8 @@ export function parseActions(responseText) {
   // 2026-01-06: Improved regex-based parsing with proper JSON extraction
   // Uses balanced brace matching instead of [^}]+ which breaks on nested JSON
   const actionTypes = [
+    { prefix: 'REFRESH_COACH_SNAPSHOT', key: 'coachSnapshotRefresh' },
+    { prefix: 'UPDATE_OFFER_RULES', key: 'offerRules' },
     { prefix: 'SAVE_NOTE', key: 'notes' },
     { prefix: 'DEACTIVATE_EVENT', key: 'events' },
     { prefix: 'REACTIVATE_EVENT', key: 'eventReactivations' },

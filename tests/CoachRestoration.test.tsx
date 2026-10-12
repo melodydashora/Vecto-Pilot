@@ -4,11 +4,62 @@ import { jest, test, expect, afterEach } from '@jest/globals';
 import { TextEncoder, TextDecoder } from 'node:util';
 import { ReportedMemos } from '../client/src/components/coach/ReportedMemos';
 import { confirmedCoachReply } from '../client/src/utils/coach/confirmedReply';
+import { applyDonePayload } from '../client/src/utils/coach/actionsResult';
 import { readCoachEvents } from '../client/src/utils/coach/readCoachEvents';
 import { useCanonicalVoiceSend } from '../client/src/hooks/coach/useCanonicalVoiceSend';
 
 const originalFetch = globalThis.fetch;
 afterEach(() => { cleanup(); globalThis.fetch = originalFetch; localStorage.clear(); });
+
+test('Coach refresh is a completed request for browser capture, never a saved-settings receipt', () => {
+  const onRefreshCoachSnapshot = jest.fn();
+  const onNotesSaved = jest.fn();
+  const request = { requested: true as const, reason: 'Current location is needed for nearby guidance.' };
+  applyDonePayload({ done: true, actions_result: { saved: 0, coach_snapshot_refresh: request } }, { onRefreshCoachSnapshot, onNotesSaved });
+  expect(onRefreshCoachSnapshot).toHaveBeenCalledTimes(1);
+  expect(onNotesSaved).not.toHaveBeenCalled();
+  onRefreshCoachSnapshot.mockClear();
+  for (const payload of [
+    { actions_result: { saved: 0, coach_snapshot_refresh: request } },
+    { done: true, error: true, actions_result: { saved: 0, coach_snapshot_refresh: request } },
+    { done: true, actions_result: { saved: 0, coach_snapshot_refresh: { ...request, reason: ' ' } } },
+  ]) applyDonePayload(payload, { onRefreshCoachSnapshot });
+  expect(onRefreshCoachSnapshot).not.toHaveBeenCalled();
+});
+
+test('settings receipts show exactly saved changes even if another action or history write failed', () => {
+  const offer_rules = { version: 8, hash: 'verified', changed: true, changes: [
+    { path: 'gates.block_share', label: 'Block shared rides', before: false, after: true },
+    { path: 'limits.pickup_minutes_max', label: 'Maximum pickup minutes', before: 15, after: 8 },
+  ] };
+  const result = confirmedCoachReply('Everything saved!', { done: true,
+    actions_result: { saved: 1, offer_rules, errors: ['Note failed'] }, persistence_error: 'history failed' });
+  expect(result).toContain('Offer Analyzer settings saved.');
+  expect(result).toContain('Block shared rides: Off → On');
+  expect(result).toContain('Maximum pickup minutes: 15 → 8');
+  expect(result).toContain('Note failed');
+  expect(result).not.toContain('Everything saved!');
+  expect(result).toContain('Confirmed changes above remain saved');
+  const changed = jest.fn();
+  applyDonePayload({ done: true, actions_result: { saved: 1, offer_rules } }, { onOfferRulesSaved: changed });
+  expect(changed).toHaveBeenCalledWith(offer_rules);
+  changed.mockClear();
+  for (const payload of [
+    { actions_result: { saved: 1, offer_rules } },
+    { done: true, error: true, actions_result: { saved: 1, offer_rules } },
+    { done: true, actions_result: { saved: 0, offer_rules: { ...offer_rules, changed: false } } },
+    { done: true, actions_result: { saved: 1, offer_rules: { ...offer_rules, version: null } } },
+  ]) applyDonePayload(payload, { onOfferRulesSaved: changed });
+  expect(changed).not.toHaveBeenCalled();
+  expect(confirmedCoachReply('', { done: true, actions_result: { saved: 0,
+    offer_rules: { ...offer_rules, changed: false, changes: [] } } })).toContain('already match');
+  const rates = confirmedCoachReply('', { done: true, actions_result: { saved: 1, offer_rules: {
+    ...offer_rules, changes: [{ path: 'tiers.standard.accept_ladder', label: 'Standard acceptance conditions',
+      before: [{ min_per_mile: 1.25, max_total_min_excl: 25 }], after: [{ min_per_mile: 1.5, max_total_min: 20 }] }],
+  } } });
+  expect(rates).toContain('at least $1.25/mi, under 25 minutes → at least $1.5/mi, up to 20 minutes');
+  expect(rates).not.toContain('max_total_min');
+});
 
 test('confirmed reply distinguishes memo receipt from generated save claims and failed writes', () => {
   expect(confirmedCoachReply('Saved!', undefined)).toContain('before Coach could confirm');

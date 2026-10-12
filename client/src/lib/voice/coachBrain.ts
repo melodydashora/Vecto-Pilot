@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { cleanTextForTTS } from '@/utils/coach/cleanTextForTTS';
 import { confirmedCoachReply } from '@/utils/coach/confirmedReply';
 import { readCoachEvents } from '@/utils/coach/readCoachEvents';
-import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
+import { coachRefreshRequested, type DonePayloadMeta, type CoachSnapshotRefreshHandler } from '@/utils/coach/actionsResult';
 import type { ThreadTurn } from './types';
 
 export interface CoachBrainParams {
@@ -16,6 +16,10 @@ export interface CoachBrainParams {
   /** Live sessions retain the credential that owns their transcript and actions. */
   authToken?: string | null;
   snapshotId?: string;
+  /** Fresh Coach observation, separate from the stable saved guidance/thread ID. */
+  coachSnapshotId?: string;
+  onRefreshCoachSnapshot?: CoachSnapshotRefreshHandler;
+  source?: 'typed' | 'voice';
   /** Minimal snapshot fields the chat endpoint's timezone gate expects. */
   snapshot?: {
     city?: string;
@@ -36,11 +40,13 @@ export interface CoachBrainParams {
    * messageHistory from it, so the brain answers "should I take it?" knowing
    * what "it" is. Capped to the last 20 turns at send time.
    */
-  threadHistory?: ThreadTurn[];
+  threadHistory?: (ThreadTurn & { attachments?: { name: string; type: string; data: string }[] })[];
   /** External abort (session teardown) — combined with the 180s timeout. */
   signal?: AbortSignal;
   /** Reconcile continued speech without repeating actions or automatic learning. */
   answerOnly?: boolean;
+  /** A fresh-context answer uses the normal search/reasoning deadline. */
+  contextRefreshContinuation?: boolean;
   /** Done-payload metadata (actions_result / persistence_error) consumer. */
   onActionsResult?: (payload: DonePayloadMeta) => void;
   /**
@@ -61,18 +67,22 @@ const BRAIN_TIMEOUT_MS = 180_000;
  * session degrades loudly, never silently.
  */
 export async function askCoachBrain(
-  { userId, authToken, snapshotId, snapshot, conversationId, threadHistory, signal, answerOnly = false, onActionsResult, onBrainAnswer }: CoachBrainParams,
+  { userId, authToken, snapshotId, coachSnapshotId, snapshot, conversationId, threadHistory, signal, answerOnly = false, contextRefreshContinuation = false, onActionsResult, onBrainAnswer, onRefreshCoachSnapshot, source = 'voice' }: CoachBrainParams,
   question: string
 ): Promise<string> {
   const token = authToken === undefined ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : authToken;
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), answerOnly ? 30000 : BRAIN_TIMEOUT_MS);
+  const timer = window.setTimeout(() => controller.abort(), answerOnly && !contextRefreshContinuation ? 30000 : BRAIN_TIMEOUT_MS);
   // External abort (session teardown) chains into the fetch controller.
   // Manual chaining instead of AbortSignal.any — wider browser support.
   if (signal?.aborted) controller.abort();
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
-  const assertActive = () => { if (controller.signal.aborted) throw new DOMException('Coach request canceled', 'AbortError'); };
+  const assertActive = () => {
+    if (controller.signal.aborted || token !== localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) {
+      throw new DOMException('Coach request canceled', 'AbortError');
+    }
+  };
 
   try {
     assertActive();
@@ -93,9 +103,10 @@ export async function askCoachBrain(
         // bloat the request.
         threadHistory: (threadHistory ?? []).slice(-20),
         snapshotId,
+        coachSnapshotId,
         snapshot,
         conversationId,
-        source: 'voice',
+        source,
         answerOnly,
       }),
       signal: controller.signal,
@@ -119,12 +130,44 @@ export async function askCoachBrain(
       if (msg.delta) full += msg.delta;
       if (msg.done) {
         completion = msg;
-        if (msg.actions_result || msg.persistence_error) onActionsResult?.(msg);
       }
     }
     assertActive();
-    const display = confirmedCoachReply(full, completion);
+    let display = confirmedCoachReply(full, completion);
     if (display) onBrainAnswer?.(display);
+    assertActive();
+    // One fresh observation can complete this question. The follow-up is
+    // read-only and cannot request another capture or repeat settings/memos.
+    if (!answerOnly && coachRefreshRequested(completion) && onRefreshCoachSnapshot) {
+      // The first provider request is complete. GPS has its own deadline and
+      // the continuation gets a full provider deadline; external abort remains linked.
+      window.clearTimeout(timer);
+      try {
+        const refreshedId = await onRefreshCoachSnapshot();
+        assertActive();
+        if (typeof refreshedId === 'string' && refreshedId) {
+          await askCoachBrain({ userId, authToken: token, snapshotId, coachSnapshotId: refreshedId, snapshot,
+            conversationId: completion?.conversation_id || conversationId,
+            threadHistory: [...(threadHistory ?? []), { role: 'user', content: question }, { role: 'assistant', content: display }],
+            signal: controller.signal, source, answerOnly: true, contextRefreshContinuation: true,
+            onBrainAnswer: answer => { display += `\n\n${answer}`; onBrainAnswer?.(answer); },
+          }, `Use the newly saved Coach snapshot to finish answering this question: ${question}`);
+          assertActive();
+        } else if (refreshedId === null) {
+          const message = 'Coach location could not be refreshed. The previous observation is still the only available location; check the location status before relying on nearby advice.';
+          display += `\n\n${message}`;
+          onBrainAnswer?.(message);
+        }
+      } catch {
+        assertActive();
+        const message = 'Coach could not complete the answer with refreshed context. Check the location status and ask again.';
+        display += `\n\n${message}`;
+        onBrainAnswer?.(message);
+      }
+    }
+    // A settings receipt can retire the prior Strategy context. Deliver the
+    // confirmed answer before allowing that readback to change the voice scope.
+    if (completion?.actions_result || completion?.persistence_error) onActionsResult?.(completion);
 
     const cleaned = cleanTextForTTS(display).trim();
     if (!cleaned) throw new Error('coach backend returned an empty answer');

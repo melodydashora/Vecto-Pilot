@@ -215,11 +215,14 @@ export async function callModel(role, params) {
       || String(err.originalError?.message || '').includes('503')
       || String(err.originalError?.message || '').includes('UNAVAILABLE');
     // 2026-08-17: pinned ids only — never a *-latest alias (registry doctrine, memory #342).
-    // A 3.5-flash primary retries on pinned Pro; any other primary (incl. OFFER_ANALYZER's
-    // gemini-3.5-flash-lite) retries on 3.5-flash. The caller's remaining deadline
+    // A 3.5-flash primary retries on pinned Pro; any other primary retries on
+    // 3.5-flash. The caller's remaining deadline
     // applies to this retry as well; do not dispatch it after cancellation.
     const GEMINI_FALLBACK_MODEL = primaryConfig.model === 'gemini-3.5-flash' ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash';
-    if (is503 && primaryConfig.provider === 'google' && !params.signal?.aborted) {
+    // Offer Analyzer has one bounded model attempt per phase. Restoring its
+    // Gemini primary must not enable a different-model retry after an outage.
+    const isOfferAnalyzer = ['OFFER_ANALYZER', 'OFFER_ANALYZER_DEEP'].includes(primaryConfig.role);
+    if (is503 && !isOfferAnalyzer && primaryConfig.provider === 'google' && !params.signal?.aborted) {
       aiLog.debug(`RETRY ${primaryConfig.role} got 503 on ${primaryConfig.model} - retrying with ${GEMINI_FALLBACK_MODEL}...`);
       try {
         const needsSearch = roleUsesGoogleSearch(role);

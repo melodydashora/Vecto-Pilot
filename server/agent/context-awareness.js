@@ -1,3 +1,4 @@
+import { excludeCoachSnapshots } from '../lib/location/snapshot-purpose.js';
 import { memoryGet, memoryPut, memoryQuery } from "../eidolon/memory/pg.js";
 import { db } from "../db/drizzle.js";
 import { snapshots, strategies, actions, rankings } from "../../shared/schema.js";
@@ -22,7 +23,7 @@ export async function getProjectContext() {
   };
   
   try {
-    const snaps = await db.select().from(snapshots).orderBy(desc(snapshots.created_at)).limit(5);
+    const snaps = await db.select().from(snapshots).where(excludeCoachSnapshots()).orderBy(desc(snapshots.created_at)).limit(5);
     context.recentSnapshots = snaps.map(s => ({
       id: s.snapshot_id,
       city: s.city,

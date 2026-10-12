@@ -52,7 +52,7 @@ function aggregate() {
       traffic: { incidents: [], reason: '', _pending: false, _generationFailed: false },
       news: { items: [], reason: '', _pending: false, _generationFailed: false },
       events: { items: [] as object[], marketEvents: [] as object[], market_name: '', reason: '', _pending: false, _generationFailed: false },
-      school_closures: { items: [], reason: '', _pending: false, _generationFailed: false },
+      school_closures: { items: [] as object[], reason: '', _pending: false, _generationFailed: false },
       // main's AirportCard treats an empty list with no reason as incomplete (role=alert); give it a real reason.
       airport_conditions: { airports: [], reason: 'No airports within range', _pending: false, _generationFailed: false },
     },
@@ -89,6 +89,26 @@ afterEach(() => {
 });
 
 describe('upstream briefing aggregate through its real provider, page, and event cards while Strategy is held', () => {
+  it('passes the snapshot timezone to Schools and separates current breaks from students returning today', async () => {
+    const data = aggregate();
+    data.briefing.school_closures.items = [
+      { schoolName: 'Active district', closureStart: '2026-09-12', reopeningDate: '2026-09-14', type: 'district', impact: 'high', reason: 'Fall break' },
+      { schoolName: 'Future district', closureStart: '2026-09-14', reopeningDate: '2026-09-16', type: 'district', impact: 'high' },
+      { schoolName: 'Returning district', closureStart: '2026-09-12', reopeningDate: '2026-09-13', type: 'district', impact: 'high', status: 'closed' },
+      { schoolName: 'Returned district', closureStart: '2026-09-10', reopeningDate: '2026-09-12', type: 'district', impact: 'high', status: 'reopening_today' },
+    ];
+    mount(data);
+    expect(await screen.findByText('Active district')).toBeInTheDocument();
+    expect(screen.getByText('Closed: Sep 12, 2026 – Sep 13, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Students return: Sep 14, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('Future district')).not.toBeInTheDocument();
+    expect(screen.getByText('Returning district')).toBeInTheDocument();
+    expect(screen.getByText('Students return today')).toBeInTheDocument();
+    expect(screen.getByText('Closed: Sep 12, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('Returned district')).not.toBeInTheDocument();
+    expect(screen.queryByText(/location timezone is missing or invalid/)).not.toBeInTheDocument();
+  });
+
   it('shows local today and upcoming events, including a known start without an end time', async () => {
     const data = aggregate();
     data.briefing.events.items = [

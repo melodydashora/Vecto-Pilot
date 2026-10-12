@@ -1,34 +1,51 @@
 // client/src/utils/coach/linkify.tsx
-// Minimal XSS-safe URL linkifier for chat transcript text. Deliberately not a
-// markdown renderer: the thread renders plain text (whitespace-pre-wrap) and
-// only https?:// URLs become anchors. Safe because React escapes text nodes
-// and href only ever receives a regex-matched http(s) URL — no javascript:
-// vector, no dangerouslySetInnerHTML.
+// Chat supports HTTP(S) links and their optional Markdown labels. Other markup
+// remains escaped text. A website cannot acquire a Directions label.
 
 import React from 'react';
+import { navigationLinkKind } from '@shared/navigation-links.js';
 
-// Capture group makes String.split alternate [text, url, text, url, ...].
-const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/g;
+const LINK_RE = /\[([^\]\n]+)\]\((https?:\/\/[^\s<>"')\]]+)\)|(https?:\/\/[^\s<>"')\]]+)/g;
 // Trailing sentence punctuation that shouldn't be swallowed into the URL.
 const TRAILING_PUNCT = /[.,;:!?)]+$/;
+const NAVIGATION_LABEL = /^(?:get\s+)?(?:directions?|navigation|navigate|driving|drive|route)(?:\s|$)/i;
 
 export function linkifyText(text: string): React.ReactNode[] {
-  return text.split(URL_RE).map((part, i) => {
-    if (i % 2 === 0) return part; // even indexes are plain text
-    const trailing = part.match(TRAILING_PUNCT)?.[0] ?? '';
-    const url = trailing ? part.slice(0, -trailing.length) : part;
-    return (
-      <React.Fragment key={i}>
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(LINK_RE)) {
+    const rawUrl = match[2] ?? match[3];
+    const trailing = match[2] ? '' : rawUrl.match(TRAILING_PUNCT)?.[0] ?? '';
+    const url = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl;
+    const kind = navigationLinkKind(url);
+    let preceding = text.slice(cursor, match.index);
+    // Correct an old plain-text "Navigate: <website>" without inventing a route.
+    if (kind !== 'directions') preceding = preceding.replace(
+      /\b(?:Directions?|Navigation|Navigate)(?:\s+link)?\s*:\s*$/i,
+      kind === 'map' ? 'Map: ' : 'Website: ',
+    );
+    parts.push(preceding);
+    const suppliedLabel = match[1]?.trim();
+    const label = kind === 'directions' ? (suppliedLabel && !NAVIGATION_LABEL.test(suppliedLabel)
+      ? `Directions — ${suppliedLabel}` : suppliedLabel || 'Directions')
+      : suppliedLabel && NAVIGATION_LABEL.test(suppliedLabel)
+        ? kind === 'map' ? 'Map' : 'Website'
+        : suppliedLabel || url;
+    parts.push(
+      <React.Fragment key={match.index}>
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
           className="underline decoration-dotted underline-offset-2 break-all text-blue-600 dark:text-blue-400"
         >
-          {url}
+          {label}
         </a>
         {trailing}
       </React.Fragment>
     );
-  });
+    cursor = match.index! + match[0].length;
+  }
+  parts.push(text.slice(cursor));
+  return parts;
 }
