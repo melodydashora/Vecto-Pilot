@@ -6,6 +6,10 @@ The [canonical lexicon](../../../../LEXICON.md) names the feature **Offer Analyz
 **offers** are the proposals and saved records it analyzes and tracks. Daily Offers
 is a record-list section within the feature.
 
+- Tab placement (2026-10-17, Melody): `GatesCard` and `LimitsCard` render in the Gates tab
+  (the caps are hard rejects in the engine); `RateTargetsCard` and `DeliveryCard` in Rates;
+  `SetupCard`, `GeographyCard` and `VisionRulesCard` in Rules & Setup. Every tab panel is
+  forceMount, so `tests/offers/rules-tab-layout.ui.test.tsx` checks placement by tabpanel.
 - `RateTargetsCard.tsx`: shows economic groups applicable to confirmed selected
   services using `shared/driver-services.js`, the same routing used by evaluation.
   Service identity differs from vehicle eligibility and economic tier. Legacy null

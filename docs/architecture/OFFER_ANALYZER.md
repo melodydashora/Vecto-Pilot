@@ -523,7 +523,12 @@ can Continue unchanged without rewriting their row or confusing effective/raw ha
 ## 13. Web page — `/co-pilot/offer-analyzer`
 
 `OfferAnalyzerPage.tsx` loads saved rules, exposes an explicit Save flow and preserves
-rule ownership/version provenance. Selected services determine relevant economic cards;
+rule ownership/version provenance. The rules editor spans three tabs: **Gates** holds the
+gate switches and the Limits card (pickup caps, total-time limit, acceptance-rate
+protection) because the engine applies those caps as hard rejects; **Rates** holds the
+per-tier rate sliders and Delivery; **Rules & Setup** holds phone setup, Geography and
+Vision. Melody placed Limits with Gates on 2026-10-17 so caps never sit beside the setup
+instructions. Selected services determine relevant economic cards;
 multiple selected services may share a tier. A hidden card’s saved values are preserved.
 Legacy unverified selection must not masquerade as a complete choice. Null legacy
 selection keeps existing rule controls and plain unchosen-service wording. A
