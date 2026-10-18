@@ -37,6 +37,7 @@ import { PREMIUM_PRODUCTS } from './parse-offer-text.js';
 import { offerRateTier } from '../../../shared/driver-services.js';
 export { DEFAULT_COMFORT_PRODUCTS, DEFAULT_XL_PRODUCTS } from '../../../shared/driver-services.js';
 import { haversineDistanceMiles, bearingDegrees, bearingDiffDegrees } from '../location/geo.js';
+import { roadDistanceMeters } from '../../util/eta.js';
 
 export const RULESET_SCHEMA_VERSION = 3;
 
@@ -182,6 +183,19 @@ export const DEFAULT_RULESET = {
   // in Phase 2 once dropoff coords are geocoded (evaluateGeoRules).
   avoid: [],
 
+  // v3.3 (2026-10-17, Melody): stay-in zone. ONE user-picked city — Google place_id +
+  // 6-decimal point from Places, never typed — approximated by a radius, plus a pickup
+  // buffer outside it and an optional cap on how far past the edge a dropoff may land.
+  // Pickups outside zone+buffer REJECT. A dropoff outside the zone must still clear the
+  // tier's $/mi floor over the full loop: pickup + trip + return to the zone EDGE (the
+  // spec's "Estimated Return" / Deadhead Logic made computable). Phase 1 is model-judged
+  // (rendered into the prompts; reported as pickup_in_zone / dropoff_in_zone /
+  // return_miles) because the spoken decision has no coordinates; Phase 2 audits the
+  // same geometry from geocodes (evaluateZone). Null = inert. A NEW key — the reserved
+  // `home` / `geo` keys stay inert per D2.
+  //   { place_id, label, lat, lng, radius_mi, pickup_buffer_mi, max_away_mi?, enabled }
+  zone: null,
+
   // v3: home-base deadhead policy. Home coordinates come from the driver's
   // profile (driver_profiles.home_lat/home_lng — set at signup), NEVER from here.
   // Reserved/inert: no active hook consumer or editor control implements this policy.
@@ -242,8 +256,15 @@ export function migrateRuleset(config) {
       airport: { enabled: false, overrides: {}, ...(config.geo?.airport || {}) },
     },
     avoid: Array.isArray(config.avoid) ? config.avoid.map((a) => ({ ...a })) : [],
+    zone: config.zone && typeof config.zone === 'object' ? { ...config.zone } : null,   // v3.3 — absent → inert
     home: config.home ? { ...config.home } : null,
   };
+}
+
+/** The stay-in zone when the driver has one and it is switched on; null otherwise. */
+export function activeZone(ruleset) {
+  const z = ruleset?.zone;
+  return z && typeof z === 'object' && z.enabled !== false ? z : null;
 }
 
 /**
@@ -488,6 +509,15 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
     return { decision: 'REJECT', reasonKind: 'rating', perMile, perMinute, totalMin };
   }
 
+  // v3.3 stay-in zone (spec priority: Geography after Rider Quality, before Pickup
+  // Distance). Phase 1 has no coordinates, so these gates read the model's judgment
+  // (pickup_in_zone / dropoff_in_zone / return_miles). null = not judged → not applied
+  // here; the live boundary turns an unjudged ride ACCEPT into NO DATA (D6).
+  const zone = activeZone(ruleset);
+  if (zone && raw.pickup_in_zone === false) {
+    return { decision: 'REJECT', reasonKind: 'zone_pickup', perMile, perMinute, totalMin };
+  }
+
   // v3: pickup limits. Only evaluable when pickup fields are present (text
   // pre-parse or vision-extracted); missing pickup data passes silently — the
   // prompt lane carries the rule for the model.
@@ -497,6 +527,27 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
     if ((g.pickup_limits.max_miles != null && pMi != null && pMi > g.pickup_limits.max_miles)
       || (g.pickup_limits.max_minutes != null && pMin != null && pMin > g.pickup_limits.max_minutes)) {
       return { decision: 'REJECT', reasonKind: 'pickup', perMile, perMinute, totalMin };
+    }
+  }
+
+  // v3.3: an out-of-zone dropoff is allowed only when the fare covers the whole loop —
+  // pickup + trip + return to the zone edge — at the tier's $/mi floor (Melody
+  // 2026-10-17), and never past the optional max-away cap. Geography is not ARP-rescuable
+  // (spec: "No geography rule"). A return leg the model could not estimate cannot be
+  // priced, so the honest verdict is NO DATA, never a guess.
+  if (zone && raw.dropoff_in_zone === false) {
+    const returnMiles = toFiniteNumber(raw.return_miles);
+    const price = toFiniteNumber(raw.price);
+    const cardMiles = toFiniteNumber(raw.total_miles);
+    if (returnMiles == null || returnMiles < 0 || !(price > 0) || !(cardMiles > 0)) {
+      return { decision: 'NO DATA', reasonKind: 'zone_unreadable', perMile, perMinute, totalMin };
+    }
+    if (zone.max_away_mi != null && returnMiles > zone.max_away_mi) {
+      return { decision: 'REJECT', reasonKind: 'zone_too_far', perMile, perMinute, totalMin, returnMiles };
+    }
+    const loopPerMile = round2(price / (cardMiles + returnMiles));
+    if (loopPerMile < t.floor_per_mile) {
+      return { decision: 'REJECT', reasonKind: 'zone_return', perMile, perMinute, totalMin, returnMiles, loopPerMile };
     }
   }
 
@@ -523,12 +574,13 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
   // conjunction holds (spec: "unless BOTH $2.00+/mile AND $1.00+/minute").
   // minForRules=999 for unknown duration → unknown durations hit this gate,
   // consistent with the legacy "missing minutes = very long ride" doctrine.
+  let timeExceptionMet = false;
   if (g.time_limit && g.time_limit.max_total_minutes != null && minForRules > g.time_limit.max_total_minutes) {
     const u = g.time_limit.unless;
-    const meetsUnless = u != null
+    timeExceptionMet = u != null
       && (u.min_per_mile == null || perMile >= u.min_per_mile)
       && (u.min_per_minute == null || (perMinute != null && perMinute >= u.min_per_minute));
-    if (!meetsUnless) {
+    if (!timeExceptionMet) {
       return { decision: 'REJECT', reasonKind: 'time_limit', perMile, perMinute, totalMin };
     }
   }
@@ -545,10 +597,16 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
     const okMile = perMile >= rung.min_per_mile;
     const okMinuteRate = rung.min_per_minute == null
       || (perMinute != null && perMinute >= rung.min_per_minute);
+    // v3.3 (2026-10-17): the editor bounds each ride type's Max trip minutes by the total
+    // time limit, so an offer that cleared the time gate only through the pay exception
+    // would otherwise always fail the derived rung's minute bound and be spoken as "low".
+    // The exception means "long is fine at this pay": it waives the rung's upper minute
+    // bounds too. Floors, the miles cap and the lower bounds still apply. Inert at
+    // defaults (time_limit null), so the parity suite is untouched.
     const okMin = (rung.min_total_min == null || minForRules >= rung.min_total_min)
       && (rung.min_total_min_excl == null || minForRules > rung.min_total_min_excl)
-      && (rung.max_total_min == null || minForRules <= rung.max_total_min)
-      && (rung.max_total_min_excl == null || minForRules < rung.max_total_min_excl);
+      && (timeExceptionMet || rung.max_total_min == null || minForRules <= rung.max_total_min)
+      && (timeExceptionMet || rung.max_total_min_excl == null || minForRules < rung.max_total_min_excl);
     if (okMile && okMinuteRate && okMin) {
       return { decision: 'ACCEPT', reasonKind: 'accept', perMile, perMinute, totalMin };
     }
@@ -602,6 +660,7 @@ function renderRuleLines(tierName, eff, ruleset, { tierRulesOnly = false } = {})
       if (!a || a.enabled === false) continue;
       rules.push(renderAvoidRule(a));
     }
+    rules.push(...renderZoneGateLines(ruleset));
     if (g.auto_reject?.multiple_stops) rules.push('REJECT if multiple stops.');
     if (g.auto_reject?.round_trip) rules.push('REJECT if round trip (pickup equals destination).');
     if (g.pickup_limits) {
@@ -634,6 +693,8 @@ function renderRuleLines(tierName, eff, ruleset, { tierRulesOnly = false } = {})
   }
 
   if (t.max_total_miles != null) rules.push(`REJECT if ${eff.basis === 'active_time' ? 'ride_miles' : 'total_miles'}>${Number(t.max_total_miles)}.`);
+  const zoneReturn = renderZoneReturnLine(ruleset, t);
+  if (zoneReturn) rules.push(zoneReturn);
 
   for (const rung of t.accept_ladder || []) {
     rules.push(`ACCEPT if ${renderRung(rung).replaceAll('total_min', eff.basis === 'active_time' ? 'ride_min' : 'total_min')}.`);
@@ -699,6 +760,31 @@ function renderAvoidRule(a) {
   }
 }
 
+// v3.3 stay-in zone prompt lines. Global: the pickup gate and the optional max-away cap.
+// Per tier: an out-of-zone dropoff must clear THAT tier's $/mi floor over the loop
+// (pickup + trip + return), so it renders inside each tier section of the vision and
+// Phase-2 prompts and must never leak into the all-tier gates (see the filters there).
+function renderZoneGateLines(ruleset) {
+  const z = activeZone(ruleset);
+  if (!z) return [];
+  const lines = [`REJECT if pickup is outside ${z.label} by more than ${Number(z.pickup_buffer_mi ?? 0)}mi (pickup_in_zone false; judgment_reject "zone:pickup").`];
+  if (z.max_away_mi != null) lines.push(`REJECT if return_miles>${Number(z.max_away_mi)} (dropoff outside ${z.label}).`);
+  return lines;
+}
+
+function renderZoneReturnLine(ruleset, t) {
+  const z = activeZone(ruleset);
+  if (!z) return null;
+  return `REJECT if dropoff is outside ${z.label} and price/(total_miles+return_miles)<${fmt(t.floor_per_mile)}.`;
+}
+
+// Extraction contract addendum for the three zone fields (only when a zone is active).
+function zoneContractLine(ruleset) {
+  const z = activeZone(ruleset);
+  if (!z) return '';
+  return ` Zone: ${z.label}, about ${Number(z.radius_mi)}mi around it. pickup_in_zone = pickup inside ${z.label} or within ${Number(z.pickup_buffer_mi ?? 0)}mi of it; dropoff_in_zone = dropoff inside ${z.label}; judge both from the card's addresses and map, null only when unreadable. return_miles = when dropoff_in_zone is false, estimated road miles from the dropoff back to the nearest edge of ${z.label}; otherwise null.`;
+}
+
 /**
  * Guidance lines appended after the numbered rules (vision lane, non-numbered —
  * they inform judgment rather than gate it). Empty at defaults.
@@ -723,11 +809,12 @@ export const NOTICE_LABELS = {
   deadhead_reduction: 'Deadhead Reduction Pickup',
 };
 
-function templateExtras(eff) {
+function templateExtras(eff, ruleset) {
   const g = eff.global || {};
   let extras = '';
   if (g.acceptance_rate_protection?.min_per_total_mile != null) extras += ',"fallback":false';
   if (g.notices && Object.values(g.notices).some(Boolean)) extras += ',"notices":[]';
+  if (activeZone(ruleset)) extras += ',"pickup_in_zone":null,"dropoff_in_zone":null,"return_miles":null';
   return extras;
 }
 
@@ -808,7 +895,7 @@ REJECT. Share rides always rejected.
     ? 'reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.'
     : 'reason: terse. "$1.21 13.7mi" or "$1.05 18mi low". No sentences.';
 
-  const jsonTemplate = `{"price":null,"total_miles":null,"total_minutes":null,"pickup_miles":null,"pickup_minutes":null,"ride_miles":null,"ride_minutes":null,"product":"","rating":null${templateExtras(eff)},"judgment_reject":"","decision":"NO DATA","reason":"no data"}`;
+  const jsonTemplate = `{"price":null,"total_miles":null,"total_minutes":null,"pickup_miles":null,"pickup_minutes":null,"ride_miles":null,"ride_minutes":null,"product":"","rating":null${templateExtras(eff, ruleset)},"judgment_reject":"","decision":"NO DATA","reason":"no data"}`;
 
   return `Raw JSON only. No markdown/backticks.
 
@@ -818,7 +905,7 @@ ${tierLine}Rules (first match wins):
 ${numbered}
 ${extraBlock}
 ${reasonHint}
-${phase1ExtractionContract()}
+${phase1ExtractionContract()}${zoneContractLine(ruleset)}
 
 ${jsonTemplate}`;
 }
@@ -847,6 +934,7 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   const globalRules = renderRuleLines('standard', eff, ruleset).filter((r) =>
     !r.startsWith('REJECT if $/mi<') && !r.startsWith('REJECT if $/min<')
     && !r.startsWith('REJECT if total_miles>') && !r.startsWith('REJECT if ride_miles>')
+    && !r.startsWith('REJECT if dropoff is outside')   // v3.3 per-tier zone line (each tier renders its own)
     && !r.startsWith('ACCEPT') && r !== 'REJECT.');
   const numberedGlobal = globalRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
   const arp = eff.global?.acceptance_rate_protection?.min_per_total_mile;
@@ -896,7 +984,7 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   // extracts (arithmetic authority — the model's own $/mi wobbled across the floor on
   // live cards). judgment_reject lets the server tell a judgment REJECT (avoid area,
   // road safety, missing Verified, stops, round trip) from an arithmetic one.
-  const jsonTemplate = `{"price":null,"total_miles":null,"total_minutes":null,"pickup_miles":null,"pickup_minutes":null,"ride_miles":null,"ride_minutes":null,"product":"","rating":null${templateExtras(eff)}${deliveryTemplate},"judgment_reject":"","decision":"NO DATA","reason":"no data"}`;
+  const jsonTemplate = `{"price":null,"total_miles":null,"total_minutes":null,"pickup_miles":null,"pickup_minutes":null,"ride_miles":null,"ride_minutes":null,"product":"","rating":null${templateExtras(eff, ruleset)}${deliveryTemplate},"judgment_reject":"","decision":"NO DATA","reason":"no data"}`;
 
   const shareLine = ruleset.share?.auto_reject !== false
     ? 'Share/pool rides (Uber Share, Lyft Shared): REJECT always.'
@@ -916,7 +1004,7 @@ ${tierSections}
 ${deliverySection}
 ${arpLine}No tier rule matched: REJECT.
 ${extraBlock}
-${phase1ExtractionContract()}
+${phase1ExtractionContract()}${zoneContractLine(ruleset)}
 reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.
 
 ${jsonTemplate}`;
@@ -944,6 +1032,7 @@ export function buildPhase2Prompt(ruleset = DEFAULT_RULESET, context = {}) {
   const globalLines = renderRuleLines('standard', eff, ruleset)
     .filter((r) => !r.startsWith('REJECT if $/mi<') && !r.startsWith('REJECT if $/min<')
       && !r.startsWith('REJECT if total_miles>') && !r.startsWith('REJECT if ride_miles>') // per-tier line (see buildPhase1VisionPrompt)
+      && !r.startsWith('REJECT if dropoff is outside')                                     // v3.3 per-tier zone line
       && !r.startsWith('ACCEPT') && r !== 'REJECT.')
     .map((r, i) => `  ${i + 1}. ${r}`);
   const arpMile = eff.global?.acceptance_rate_protection?.min_per_total_mile;
@@ -1082,4 +1171,41 @@ export function evaluateGeoRules(ruleset, { pickup, dropoff }) {
     results.push({ ...entry, result: violated ? 'violated' : 'clear' });
   }
   return results;
+}
+
+/**
+ * v3.3 stay-in zone audit (Phase 2, post-geocode). Pure geometry, no network. The zone is
+ * a circle of radius_mi around the picked city's Google point; "beyond" is straight-line
+ * miles past that edge. The return estimate applies the same road factor the ETA model
+ * uses (eta.js roadDistanceMeters is a unit-agnostic ×1.25). Mirrors what Phase 1 asked
+ * the model to judge, so model-vs-geometry disagreements become training data exactly
+ * like the avoid audit (evaluateGeoRules). Missing points → null fields and 'no_data'.
+ *
+ * @param {object} ruleset
+ * @param {{pickup?: {lat:number,lng:number}|null, dropoff?: {lat:number,lng:number}|null}} coords
+ * @returns {null|{place_id:string,label:string,pickup_in_zone:boolean|null,dropoff_in_zone:boolean|null,
+ *   pickup_beyond_mi:number|null,return_miles_straight:number|null,return_miles_est:number|null,
+ *   max_away_violated:boolean|null,result:'violated'|'clear'|'no_data'}}
+ */
+export function evaluateZone(ruleset, { pickup, dropoff }) {
+  const z = activeZone(ruleset);
+  if (!z || z.lat == null || z.lng == null) return null;
+  const beyond = (pt) => Math.max(0, haversineDistanceMiles(pt.lat, pt.lng, z.lat, z.lng) - Number(z.radius_mi ?? 0));
+  const pickupBeyond = pickup ? beyond(pickup) : null;
+  const dropBeyond = dropoff ? beyond(dropoff) : null;
+  const returnEst = dropBeyond == null ? null : round2(roadDistanceMeters(dropBeyond));
+  const pickupIn = pickupBeyond == null ? null : pickupBeyond <= Number(z.pickup_buffer_mi ?? 0);
+  const dropIn = dropBeyond == null ? null : dropBeyond === 0;
+  const maxAwayViolated = returnEst == null || z.max_away_mi == null ? null : returnEst > Number(z.max_away_mi);
+  const result = pickupIn == null && dropIn == null ? 'no_data'
+    : (pickupIn === false || maxAwayViolated === true) ? 'violated' : 'clear';
+  return {
+    place_id: z.place_id, label: z.label,
+    pickup_in_zone: pickupIn, dropoff_in_zone: dropIn,
+    pickup_beyond_mi: pickupBeyond == null ? null : round2(pickupBeyond),
+    return_miles_straight: dropBeyond == null ? null : round2(dropBeyond),
+    return_miles_est: returnEst,
+    max_away_violated: maxAwayViolated,
+    result,
+  };
 }

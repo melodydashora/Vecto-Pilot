@@ -36,7 +36,7 @@ import {
   buildPhase1Prompt,
   buildPhase1VisionPrompt,
   buildPhase2Prompt,
-  evaluateGeoRules,
+  evaluateGeoRules, evaluateZone,
   classifyTier,
   checkSanity,
   NOTICE_LABELS,
@@ -172,6 +172,10 @@ function buildVoiceLine(decision, perMile, totalMiles, reason, { delivery = fals
   if (decision === 'NO DATA' && /^delivery off$/i.test(reason || '')) {
     return 'No data. Delivery offers are off in your rules.';
   }
+  // v3.3: the zone is a gate the driver enabled; an ACCEPT cannot stand on an unjudged one (D6).
+  if (decision === 'NO DATA' && /^zone unreadable$/i.test(reason || '')) {
+    return 'No data. Could not judge your zone. Decide manually.';
+  }
 
   // 2026-04-16: FIX — produce an actionable message when offer data couldn't be parsed,
   // instead of bare "Unknown." which gives Siri nothing useful to speak.
@@ -190,6 +194,9 @@ function buildVoiceLine(decision, perMile, totalMiles, reason, { delivery = fals
   // Order matters (first match wins): 'too far' before 'time', 'fallback' before 'low',
   // 'low hourly' (delivery) before 'low'.
   const qualifierMap = [
+    ['too far from zone', 'too far from your zone'],       // v3.3 zone tokens before their substrings
+    ['pickup outside zone', 'pickup outside your zone'],
+    ['return not covered', 'return not covered'],
     ['too far', 'too far'],
     ['rating', 'low rider rating'],
     ['fallback', 'fallback accept'],
@@ -227,6 +234,10 @@ function terseReason(reasonKind, perMile, totalMiles, tier) {
     case 'time_limit':      return `${base} over time${tag}`;  // v3 total-time limit
     case 'too_far':         return `${base} too far${tag}`;
     case 'rating':          return `${base} rating`;
+    // v3.3 stay-in zone (2026-10-17) — tokens are what buildVoiceLine sniffs for the tail.
+    case 'zone_pickup':     return `${base} pickup outside zone${tag}`;
+    case 'zone_return':     return `${base} return not covered${tag}`;
+    case 'zone_too_far':    return `${base} too far from zone${tag}`;
     // v3.2 delivery lane (2026-08-26) — "delivery" is the tag; the hourly floor is the one
     // delivery-specific reject (rides never decide on $/hr).
     case 'delivery_accept':  return `${base} delivery`;
@@ -1144,6 +1155,34 @@ PRE-PARSED DATA (server-verified):
             geo_violated: geoViolated,
             geo_disagreement: geoAudit ? (geoViolated && dbDecision === 'ACCEPT') : null,
           });
+          // v3.3 stay-in zone: same posture as the avoid audit — geometry from the trusted
+          // points, the model's Phase-1 judgment kept beside it, disagreement = training signal.
+          // The loop rate re-prices the fare over pickup + trip + estimated return.
+          const zoneAudit = evaluateZone(ruleset, { pickup: pickupPt, dropoff: dropPt });
+          if (zoneAudit) {
+            const zonePrice = toNum(storageNumbers.price);
+            const zoneMiles = toNum(storageNumbers.total_miles);
+            const zoneTier = ruleset.tiers?.[effectiveTier] || ruleset.tiers?.standard;
+            const loopPerMile = zoneAudit.dropoff_in_zone === false && zonePrice > 0 && zoneMiles > 0 && zoneAudit.return_miles_est != null
+              ? Math.round((zonePrice / (zoneMiles + zoneAudit.return_miles_est)) * 100) / 100
+              : null;
+            const returnUnderFloor = loopPerMile != null && zoneTier ? loopPerMile < zoneTier.floor_per_mile : null;
+            const zoneViolated = zoneAudit.result === 'violated' || returnUnderFloor === true;
+            const zoneModel = {
+              pickup_in_zone: phase1Result.pickup_in_zone ?? null,
+              dropoff_in_zone: phase1Result.dropoff_in_zone ?? null,
+              return_miles: phase1Result.return_miles ?? null,
+            };
+            const bothJudged = (key) => zoneModel[key] != null && zoneAudit[key] != null;
+            Object.assign(mergedParsedData, {
+              zone_audit: { ...zoneAudit, loop_per_mile: loopPerMile, return_under_floor: returnUnderFloor },
+              zone_model: zoneModel,
+              zone_violated: zoneViolated,
+              zone_disagreement: (bothJudged('pickup_in_zone') && zoneModel.pickup_in_zone !== zoneAudit.pickup_in_zone)
+                || (bothJudged('dropoff_in_zone') && zoneModel.dropoff_in_zone !== zoneAudit.dropoff_in_zone)
+                || (zoneViolated && dbDecision === 'ACCEPT'),
+            });
+          }
         } else if (pickupAddr || dropoffAddr) {
           console.warn(`[HOOKS] No trusted point for either card address (pickup="${pickupAddr || ''}", dropoff="${dropoffAddr || ''}") — stored as text only`);
         }

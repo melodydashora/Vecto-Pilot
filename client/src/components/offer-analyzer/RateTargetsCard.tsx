@@ -10,6 +10,10 @@
 // pay ÷ minutes × 60 and shows/speaks it — never a decider (2026-08-11/14 doctrine).
 // standard/premium remain in stored config; selected services control visibility.
 // comfort/xl are optional split-outs (null = inert), independent of selection.
+// 2026-10-17 (Melody): ride-type sliders are BOUNDED by the gates — Max trip minutes by
+// the total time limit, Max miles by the max pickup miles. A saved value already outside
+// the bound is shown with a warning and left alone (never silently rewritten); the engine
+// lets the time-limit pay exception waive the ride-type minute cap (rules-engine.js).
 
 import { useWatch, type UseFormReturn } from 'react-hook-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,11 +29,22 @@ interface Props {
   selectedServices?: readonly string[] | null;
 }
 
+/** Gate values that bound the ride-type sliders (null = that gate is off). */
+export interface TierBounds {
+  maxTripMinutes: number | null;   // global.time_limit.max_total_minutes
+  minTotalMiles: number | null;    // global.pickup_limits.max_miles
+}
+
 interface TierEditorProps {
   title: string;
   tier: TierConfig;
+  bounds: TierBounds;
   onChange: (tier: TierConfig) => void;
 }
+
+const MINUTES_RANGE = { min: 5, max: 60 } as const;
+const MILES_RANGE = { min: 2, max: 40 } as const;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** One-line human preview of the tier's single accept rule. */
 function describeTier(tier: TierConfig, maxMin: number): string {
@@ -40,8 +55,15 @@ function describeTier(tier: TierConfig, maxMin: number): string {
   return `Accept when ${parts.join(' · ')} — otherwise reject.`;
 }
 
-function TierEditor({ title, tier, onChange }: TierEditorProps) {
+function TierEditor({ title, tier, bounds, onChange }: TierEditorProps) {
   const maxMin = tierMaxTripMinutes(tier);
+  const minutesCap = bounds.maxTripMinutes != null ? clamp(bounds.maxTripMinutes, MINUTES_RANGE.min, MINUTES_RANGE.max) : MINUTES_RANGE.max;
+  const milesFloor = bounds.minTotalMiles != null ? clamp(bounds.minTotalMiles, MILES_RANGE.min, MILES_RANGE.max) : MILES_RANGE.min;
+  // A legacy multi-rung ladder shows its first band here; the bound warning is for the
+  // derived single rung the sliders write (moving the slider collapses a legacy ladder).
+  const derived = tier.accept_ladder.length === 1;
+  const minutesOutOfBounds = bounds.maxTripMinutes != null && maxMin > bounds.maxTripMinutes;
+  const milesOutOfBounds = bounds.minTotalMiles != null && tier.max_total_miles != null && tier.max_total_miles < bounds.minTotalMiles;
   // Every slider change re-derives the single rung so the engine and the sliders
   // can never disagree (the ladder is not editable anywhere anymore).
   const set = (patch: Partial<TierConfig>, nextMaxMin: number = maxMin) =>
@@ -83,13 +105,27 @@ function TierEditor({ title, tier, onChange }: TierEditorProps) {
       <SliderRow
         label="Max trip minutes"
         value={maxMin}
-        min={5}
-        max={60}
+        min={MINUTES_RANGE.min}
+        max={minutesCap}
         step={1}
         format={(v) => `${Math.round(v)} min`}
         onChange={(v) => set({}, v)}
-        help="Pickup + ride. Longer offers are rejected even at a good rate."
+        help={bounds.maxTripMinutes != null
+          ? `Pickup + ride. Capped by your ${bounds.maxTripMinutes}-min total time limit; only the time-limit pay exception accepts longer.`
+          : 'Pickup + ride. Longer offers are rejected even at a good rate.'}
       />
+      {minutesOutOfBounds && derived && (
+        <p className="text-xs text-amber-700" role="note">
+          Saved {maxMin} min is above your {bounds.maxTripMinutes}-min total time limit. It stays until you move this
+          slider; the limit decides first, so only the pay exception can accept past {bounds.maxTripMinutes} min.
+        </p>
+      )}
+      {minutesOutOfBounds && !derived && (
+        <p className="text-xs text-gray-500" role="note">
+          This ride type still uses its older multi-step rule (first step {maxMin} min); your {bounds.maxTripMinutes}-min
+          total time limit decides first. Moving this slider replaces it with one rule inside the limit.
+        </p>
+      )}
 
       <SwitchRow
         label="Max total miles"
@@ -101,12 +137,19 @@ function TierEditor({ title, tier, onChange }: TierEditorProps) {
         <SliderRow
           label="Max miles"
           value={tier.max_total_miles}
-          min={2}
-          max={40}
+          min={milesFloor}
+          max={MILES_RANGE.max}
           step={1}
           format={(v) => `${Math.round(v)} mi`}
           onChange={(v) => set({ max_total_miles: Math.round(v) })}
+          help={bounds.minTotalMiles != null ? `At least your ${bounds.minTotalMiles}-mi max pickup, so a pickup at the cap still leaves room for the trip.` : undefined}
         />
+      )}
+      {milesOutOfBounds && (
+        <p className="text-xs text-amber-700" role="note">
+          Saved {tier.max_total_miles} mi is below your {bounds.minTotalMiles}-mi max pickup. It stays until you move this
+          slider; a pickup at your cap would leave no room for the trip.
+        </p>
       )}
 
       <p className="text-xs text-gray-500">{describeTier(tier, maxMin)}</p>
@@ -118,6 +161,12 @@ export default function RateTargetsCard({ form, selectedServices = null }: Props
   const tiers = useWatch({ control: form.control, name: 'tiers' });
   const tierProducts = useWatch({ control: form.control, name: 'tier_products' });
   const notices = useWatch({ control: form.control, name: 'global.notices' });
+  const pickupLimits = useWatch({ control: form.control, name: 'global.pickup_limits' });
+  const timeLimit = useWatch({ control: form.control, name: 'global.time_limit' });
+  const bounds: TierBounds = {
+    maxTripMinutes: timeLimit?.max_total_minutes ?? null,
+    minTotalMiles: pickupLimits?.max_miles ?? null,
+  };
   const routing = { tiers, tier_products: tierProducts };
   const groups = selectedServiceRateGroups(selectedServices, routing);
   const splitGroups = (['comfort', 'xl'] as const).map(tier => ({ tier,
@@ -159,7 +208,7 @@ export default function RateTargetsCard({ form, selectedServices = null }: Props
           const tier = tiers[group.tier];
           return tier ? <div key={group.tier} className="space-y-4" data-rate-tier={group.tier}>
             <Separator className="bg-gray-200" />
-            <TierEditor title={group.label} tier={tier}
+            <TierEditor title={group.label} tier={tier} bounds={bounds}
               onChange={value => form.setValue(`tiers.${group.tier}`, value, { shouldDirty: true })} />
           </div> : null;
         })}

@@ -14,6 +14,8 @@ import {
   classifyTier,
   evaluateDeterministic,
   evaluateGeoRules,
+  evaluateZone,
+  activeZone,
   buildPhase1Prompt,
   buildPhase1VisionPrompt,
   buildPhase2Prompt,
@@ -456,5 +458,145 @@ describe('acceptance-rate protection keeps its total-mile denominator', () => {
     expect(evaluateDeterministic('standard', { ...raw, price: 20 }, rules)).toMatchObject({ decision: 'ACCEPT' });
     rules.tiers.standard.accept_ladder = [];
     expect(evaluateDeterministic('standard', { ...raw, price: 20 }, rules)).toMatchObject({ decision: 'ACCEPT', fallback: true });
+  });
+});
+
+// ── v3.3 stay-in zone (Melody 2026-10-17) ────────────────────────────────────
+// One picked city (fixture anchor), 5-mile radius, 2-mile pickup buffer. Pickups beyond
+// zone+buffer REJECT; an out-of-zone dropoff must clear the tier $/mi floor over
+// pickup + trip + return to the zone edge. Phase 1 reads the model's judgment fields;
+// Phase 2 audits the geometry (evaluateZone).
+describe('v3.3 stay-in zone', () => {
+  const zoneFixture = { place_id: 'fixture_zone', label: 'Home City', lat: 33.150000, lng: -96.820000,
+    radius_mi: 5, pickup_buffer_mi: 2, max_away_mi: null, enabled: true };
+  const withZone = (extra = {}) => migrateRuleset({
+    ...DEFAULT_RULESET,
+    tiers: { ...DEFAULT_RULESET.tiers, standard: { floor_per_mile: 1.00, floor_per_minute: null, max_total_miles: null,
+      accept_ladder: [{ min_per_mile: 1.00, max_total_min: 30 }] } },
+    zone: { ...zoneFixture, ...extra },
+  });
+  const offer = (fields = {}) => ({ price: 20, total_miles: 10, total_minutes: 20, per_mile: 2.0, per_minute: 1.0,
+    pickup_miles: 2, pickup_minutes: 5, ride_miles: 8, ride_minutes: 15, ...fields });
+
+  it('migrate: absent → null (inert); a saved zone round-trips; disabled is inactive', () => {
+    expect(migrateRuleset(null).zone).toBeNull();
+    expect(migrateRuleset({ zone: zoneFixture }).zone).toEqual(zoneFixture);
+    expect(activeZone(DEFAULT_RULESET)).toBeNull();
+    expect(activeZone(withZone())).toMatchObject({ place_id: 'fixture_zone' });
+    expect(activeZone(withZone({ enabled: false }))).toBeNull();
+  });
+
+  it('write gate: accepts a zone; rejects unknown keys and out-of-range values by name', () => {
+    expect(validateRuleset(withZone()).ok).toBe(true);
+    expect(validateRuleset(withZone({ max_away_mi: 20 })).ok).toBe(true);
+    const range = validateRuleset(migrateRuleset({ zone: { ...zoneFixture, radius_mi: 900 } }));
+    expect(range.ok).toBe(false); expect(range.errors.join(' ')).toContain('zone.radius_mi');
+    const extra = validateRuleset({ ...withZone(), zone: { ...zoneFixture, polygon: [] } });
+    expect(extra.ok).toBe(false); expect(extra.errors.join(' ')).toContain('zone');
+  });
+
+  it('pickup judged outside the zone → REJECT zone_pickup, ahead of pickup limits and floors', () => {
+    const r = evaluateDeterministic('standard', offer({ pickup_in_zone: false, dropoff_in_zone: true }), withZone());
+    expect(r.decision).toBe('REJECT'); expect(r.reasonKind).toBe('zone_pickup');
+  });
+
+  it('out-of-zone dropoff: the fare must clear the floor over pickup + trip + return (not ARP-rescuable)', () => {
+    // $20 over 10 card miles; an 8-mile return → 18-mile loop → $1.11/mi ≥ $1.00 floor
+    expect(evaluateDeterministic('standard', offer({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 8 }), withZone()).decision).toBe('ACCEPT');
+    // a 12-mile return → 22-mile loop → $0.91/mi < floor
+    const bad = evaluateDeterministic('standard', offer({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 12 }), withZone());
+    expect(bad.decision).toBe('REJECT'); expect(bad.reasonKind).toBe('zone_return');
+    expect(bad.returnMiles).toBe(12); expect(bad.loopPerMile).toBe(0.91);
+    const arp = withZone(); arp.global.acceptance_rate_protection = { min_per_total_mile: 0.5 };
+    expect(evaluateDeterministic('standard', offer({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 12 }), arp).reasonKind).toBe('zone_return');
+  });
+
+  it('the max-away cap rejects a far dropoff however well it pays', () => {
+    // $60 over 10 card miles ($6/mi, $180/hr — inside the sanity ceilings) still cannot buy a 25-mile return past a 20-mile cap.
+    const r = evaluateDeterministic('standard', offer({ price: 60, per_mile: 6, per_minute: 3, pickup_in_zone: true, dropoff_in_zone: false, return_miles: 25 }), withZone({ max_away_mi: 20 }));
+    expect(r.decision).toBe('REJECT'); expect(r.reasonKind).toBe('zone_too_far'); expect(r.returnMiles).toBe(25);
+  });
+
+  it('an out-of-zone dropoff with no return estimate cannot be priced → NO DATA, never a guess', () => {
+    const r = evaluateDeterministic('standard', offer({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: null }), withZone());
+    expect(r.decision).toBe('NO DATA'); expect(r.reasonKind).toBe('zone_unreadable');
+    expect(evaluateDeterministic('standard', offer({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: -1 }), withZone()).reasonKind).toBe('zone_unreadable');
+  });
+
+  it('unjudged (null) fields do not gate the pure engine; a disabled zone is inert; delivery never sees it', () => {
+    expect(evaluateDeterministic('standard', offer(), withZone()).decision).toBe('ACCEPT');
+    expect(evaluateDeterministic('standard', offer({ pickup_in_zone: false }), withZone({ enabled: false })).decision).toBe('ACCEPT');
+    expect(evaluateDeterministic('delivery', { price: 12, total_miles: 4, total_minutes: 15, pickup_in_zone: false }, withZone()).decision).toBe('ACCEPT');
+  });
+
+  it('prompts render the zone gate lines, each tier\'s loop line and the three JSON fields; defaults render none', () => {
+    const p = buildPhase1Prompt('standard', withZone({ max_away_mi: 20 }));
+    expect(p).toContain('REJECT if pickup is outside Home City by more than 2mi (pickup_in_zone false; judgment_reject "zone:pickup").');
+    expect(p).toContain('REJECT if return_miles>20 (dropoff outside Home City).');
+    expect(p).toContain('REJECT if dropoff is outside Home City and price/(total_miles+return_miles)<1.00.');
+    expect(p).toContain('"pickup_in_zone":null,"dropoff_in_zone":null,"return_miles":null');
+    expect(p).toContain('Zone: Home City, about 5mi around it.');
+    const v = buildPhase1VisionPrompt(withZone());
+    const gates = v.slice(v.indexOf('Gates (all tiers):'), v.indexOf('STANDARD ('));
+    expect(gates).toContain('REJECT if pickup is outside Home City');
+    expect(gates).not.toContain('REJECT if dropoff is outside');   // per-tier line lives in the tier sections only
+    expect(v).toContain('- REJECT if dropoff is outside Home City and price/(total_miles+return_miles)<1.00.');
+    expect(v).toContain('- REJECT if dropoff is outside Home City and price/(total_miles+return_miles)<1.10.');
+    expect(v).toContain('"pickup_in_zone":null');
+    const deep = buildPhase2Prompt(withZone());
+    expect(deep).toContain('REJECT if pickup is outside Home City');
+    expect(deep).toContain('price/(total_miles+return_miles)<1.00');
+    for (const prompt of [buildPhase1Prompt('standard', DEFAULT_RULESET), buildPhase1VisionPrompt(DEFAULT_RULESET), buildPhase2Prompt(DEFAULT_RULESET)]) {
+      expect(prompt).not.toContain('pickup_in_zone');
+      expect(prompt).not.toContain('is outside');
+    }
+  });
+
+  it('evaluateZone geometry: inside, pickup buffer, outside, return measured to the EDGE with the road factor', () => {
+    const rs = withZone({ max_away_mi: 10 });
+    const center = { lat: zoneFixture.lat, lng: zoneFixture.lng };
+    const near = { lat: zoneFixture.lat + 6 / 69, lng: zoneFixture.lng };    // ≈6 mi north: 1 mi past the 5-mi edge
+    const far = { lat: zoneFixture.lat + 20 / 69, lng: zoneFixture.lng };    // ≈20 mi north: 15 mi past the edge
+    expect(evaluateZone(rs, { pickup: center, dropoff: center })).toMatchObject({
+      place_id: 'fixture_zone', pickup_in_zone: true, dropoff_in_zone: true, return_miles_est: 0, max_away_violated: false, result: 'clear',
+    });
+    const buffered = evaluateZone(rs, { pickup: near, dropoff: near });
+    expect(buffered.pickup_in_zone).toBe(true);            // 1 mi past the edge, inside the 2-mi buffer
+    expect(buffered.dropoff_in_zone).toBe(false);
+    expect(buffered.return_miles_straight).toBeCloseTo(1, 0);
+    expect(buffered.return_miles_est).toBeCloseTo(1.25, 1); // × the ETA road factor
+    expect(buffered.result).toBe('clear');
+    expect(evaluateZone(rs, { pickup: far, dropoff: far })).toMatchObject({
+      pickup_in_zone: false, dropoff_in_zone: false, max_away_violated: true, result: 'violated',
+    });
+    expect(evaluateZone(rs, { pickup: null, dropoff: near })).toMatchObject({ pickup_in_zone: null, dropoff_in_zone: false, result: 'clear' });
+    expect(evaluateZone(rs, { pickup: null, dropoff: null })).toMatchObject({ pickup_in_zone: null, dropoff_in_zone: null, result: 'no_data' });
+    expect(evaluateZone(DEFAULT_RULESET, { pickup: center, dropoff: center })).toBeNull();
+  });
+});
+
+// The editor bounds each ride type's Max trip minutes by the total time limit (Melody
+// 2026-10-17), so the pay exception must be able to accept past BOTH, or it is dead.
+describe('v3.3 time-limit exception waives the derived rung minute bound', () => {
+  const rs = migrateRuleset({
+    ...DEFAULT_RULESET,
+    global: { ...DEFAULT_RULESET.global, time_limit: { max_total_minutes: 30, unless: { min_per_mile: 2.0, min_per_minute: 1.0 } } },
+    tiers: { ...DEFAULT_RULESET.tiers, standard: { floor_per_mile: 1.0, floor_per_minute: null, max_total_miles: null,
+      accept_ladder: [{ min_per_mile: 1.0, max_total_min: 30 }] } },
+  });
+  it('over the limit AND paying both exception rates → ACCEPT although the rung caps at 30 min', () => {
+    const r = evaluateDeterministic('standard', { per_mile: 2.5, per_minute: 1.2, total_minutes: 40 }, rs);
+    expect(r.decision).toBe('ACCEPT'); expect(r.reasonKind).toBe('accept');
+  });
+  it('without the exception the time limit still rejects; under the limit the rung still bounds', () => {
+    expect(evaluateDeterministic('standard', { per_mile: 1.5, per_minute: 1.2, total_minutes: 40 }, rs).reasonKind).toBe('time_limit');
+    const tight = migrateRuleset({ ...rs, tiers: { ...rs.tiers, standard: { ...rs.tiers.standard, accept_ladder: [{ min_per_mile: 1.0, max_total_min: 20 }] } } });
+    expect(evaluateDeterministic('standard', { per_mile: 1.5, per_minute: 0.9, total_minutes: 25 }, tight).reasonKind).toBe('low');
+  });
+  it('the waiver never touches the miles cap, the floors, or the defaults', () => {
+    const capped = migrateRuleset({ ...rs, tiers: { ...rs.tiers, standard: { ...rs.tiers.standard, max_total_miles: 12 } } });
+    expect(evaluateDeterministic('standard', { per_mile: 2.5, per_minute: 1.2, total_minutes: 40, total_miles: 16 }, capped).reasonKind).toBe('too_far');
+    expect(evaluateDeterministic('standard', { per_mile: 0.95, per_minute: 1.2, total_minutes: 40 }, rs).reasonKind).toBe('floor');
+    expect(evaluateDeterministic('standard', { per_mile: 2.5, per_minute: 1.2, total_minutes: 40 }, DEFAULT_RULESET).decision).toBe('ACCEPT');
   });
 });
