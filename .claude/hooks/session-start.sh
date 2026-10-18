@@ -16,4 +16,9 @@ cd "$CLAUDE_PROJECT_DIR"
 # The lockfile still pins versions (README's clean-checkout gate uses it).
 npm install --include=dev --no-audit --no-fund
 
+# The container's npm rewrites lockfile metadata written by other npm major
+# versions (e.g. strips "libc" fields). That churn is not a dependency
+# change; restore the lockfile so the session starts with a clean tree.
+git checkout -- package-lock.json 2>/dev/null || true
+
 echo "session-start hook: npm dependencies ready" >&2
