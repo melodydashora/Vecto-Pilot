@@ -199,8 +199,10 @@ recommended option on each.
 | D11 | Enforcement when the spoken decision has no coordinates | Model-judged in Phase 1 like avoid rules (prompt-rendered; `pickup_in_zone` / `dropoff_in_zone` / `return_miles`), plus the deterministic Phase-2 geometry audit from day one; no new network call on the <3 s path |
 
 Consequence recorded with D8: because each ride type's Max trip minutes is now bounded by
-the total time limit, the engine's time-limit pay exception also waives the derived rung's
-upper minute bound; otherwise the exception could never accept anything. Inert at defaults.
+the total time limit, the engine's time-limit pay exception also waives the upper minute
+bound of a derived single-rung ladder; otherwise the exception could never accept anything.
+Legacy multi-rung ladders keep their time bands, so saved older rulesets decide as before.
+Inert at defaults.
 
 ## 5 · Evidence and continuity pointers
 

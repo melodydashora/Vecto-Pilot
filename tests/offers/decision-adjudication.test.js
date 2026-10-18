@@ -459,6 +459,26 @@ test('a stay-in zone needs the model zone judgment before any ride ACCEPT (D6)',
   expect(response.body.decision).toBe('ACCEPT');
 });
 
+test('a model judgment REJECT stands even when the zone is unjudged (D6 holds ACCEPTs only)', async () => {
+  ruleset.zone = fixtureZone();
+  ruleset.avoid = [{ place_id: 'fixture-area', label: 'Avoid area', lat: 0, lng: 0, mode: 'destination_in', enabled: true }];
+  reply = success({ decision: 'REJECT', judgment_reject: 'avoid:Avoid area', reason: '$3.33 6.0mi avoid area' });   // no zone fields at all
+  const response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('REJECT');
+  expect(response.body.voice).not.toMatch(/zone/i);
+});
+
+test('a NO DATA from a model that skipped the zone fields is not replayed against a re-send', async () => {
+  ruleset.zone = fixtureZone();
+  reply = success();                                                        // zone fields omitted → not delivered
+  const first = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(first.body.decision).toBe('NO DATA');
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: true, return_miles: null });
+  const second = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(second.body.decision).toBe('ACCEPT');
+  expect(second.body.duplicate).not.toBe(true);
+});
+
 test('zone judgments decide: an outside pickup rejects, an outside dropoff must pay for the return', async () => {
   ruleset.zone = fixtureZone();
   reply = success({ decision: 'REJECT', judgment_reject: 'zone:pickup', pickup_in_zone: false, dropoff_in_zone: true, reason: '$3.33 6.0mi outside zone' });

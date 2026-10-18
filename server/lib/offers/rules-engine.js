@@ -451,11 +451,13 @@ export function evaluateDelivery(raw, ruleset = DEFAULT_RULESET) {
  * Deterministic decision — the ground truth for arithmetic. Returns a decision
  * plus a `reasonKind` the caller turns into the terse spoken/notification string.
  *
- * v3 gate order (spec's Decision Priority, deterministic lane only — vision-lane
- * gates like safety/geography live in the prompt and the Phase-2 audit):
- *   share → SANITY (v3.2) → [delivery block, v3.2] → rating → pickup limits →
- *   per-mile floor → per-minute floor → time limit → tier max miles (v3.1) →
- *   accept ladder → acceptance-rate protection → too_far/low.
+ * v3 gate order (spec's Decision Priority, deterministic lane — safety and avoid-place
+ * geography live in the prompt and the Phase-2 audit; the v3.3 stay-in zone is ALSO
+ * gated here from the model's judged fields):
+ *   share → SANITY (v3.2) → [delivery block, v3.2] → rating → zone pickup (v3.3) →
+ *   pickup limits → zone dropoff/return (v3.3) → per-mile floor → per-minute floor →
+ *   time limit → tier max miles (v3.1) → accept ladder → acceptance-rate protection →
+ *   too_far/low.
  * All v3 gates are null at defaults → decisions identical to the legacy ladder; the
  * sanity ceilings sit far above every legacy grid value (parity suite unchanged).
  *
@@ -540,6 +542,13 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
     const price = toFiniteNumber(raw.price);
     const cardMiles = toFiniteNumber(raw.total_miles);
     if (returnMiles == null || returnMiles < 0 || !(price > 0) || !(cardMiles > 0)) {
+      // The loop rate can never exceed the card's own full-ride $/mi (return ≥ 0), so a
+      // card already under the floor is a certain REJECT whatever the return leg; only
+      // a fare that could still clear it is genuinely unpriceable → NO DATA.
+      const loopUpperBound = price > 0 && cardMiles > 0 ? round2(price / cardMiles) : null;
+      if (loopUpperBound != null && loopUpperBound < t.floor_per_mile) {
+        return { decision: 'REJECT', reasonKind: 'zone_return', perMile, perMinute, totalMin, returnMiles: null, loopPerMile: loopUpperBound };
+      }
       return { decision: 'NO DATA', reasonKind: 'zone_unreadable', perMile, perMinute, totalMin };
     }
     if (zone.max_away_mi != null && returnMiles > zone.max_away_mi) {
@@ -600,13 +609,15 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
     // v3.3 (2026-10-17): the editor bounds each ride type's Max trip minutes by the total
     // time limit, so an offer that cleared the time gate only through the pay exception
     // would otherwise always fail the derived rung's minute bound and be spoken as "low".
-    // The exception means "long is fine at this pay": it waives the rung's upper minute
-    // bounds too. Floors, the miles cap and the lower bounds still apply. Inert at
-    // defaults (time_limit null), so the parity suite is untouched.
+    // The exception means "long is fine at this pay": it waives that DERIVED single rung's
+    // upper minute bound. A legacy multi-rung ladder is time bands by design (its top rung
+    // is open-ended), so it keeps every bound. Floors, the miles cap and the lower bounds
+    // still apply. Inert at defaults (time_limit null), so the parity suite is untouched.
+    const waiveUpperMinutes = timeExceptionMet && (t.accept_ladder || []).length === 1;
     const okMin = (rung.min_total_min == null || minForRules >= rung.min_total_min)
       && (rung.min_total_min_excl == null || minForRules > rung.min_total_min_excl)
-      && (timeExceptionMet || rung.max_total_min == null || minForRules <= rung.max_total_min)
-      && (timeExceptionMet || rung.max_total_min_excl == null || minForRules < rung.max_total_min_excl);
+      && (waiveUpperMinutes || rung.max_total_min == null || minForRules <= rung.max_total_min)
+      && (waiveUpperMinutes || rung.max_total_min_excl == null || minForRules < rung.max_total_min_excl);
     if (okMile && okMinuteRate && okMin) {
       return { decision: 'ACCEPT', reasonKind: 'accept', perMile, perMinute, totalMin };
     }
@@ -1179,7 +1190,8 @@ export function evaluateGeoRules(ruleset, { pickup, dropoff }) {
  * miles past that edge. The return estimate applies the same road factor the ETA model
  * uses (eta.js roadDistanceMeters is a unit-agnostic ×1.25). Mirrors what Phase 1 asked
  * the model to judge, so model-vs-geometry disagreements become training data exactly
- * like the avoid audit (evaluateGeoRules). Missing points → null fields and 'no_data'.
+ * like the avoid audit (evaluateGeoRules). A missing point → null fields and 'no_data'
+ * unless the other point already proves a violation.
  *
  * @param {object} ruleset
  * @param {{pickup?: {lat:number,lng:number}|null, dropoff?: {lat:number,lng:number}|null}} coords
@@ -1197,8 +1209,10 @@ export function evaluateZone(ruleset, { pickup, dropoff }) {
   const pickupIn = pickupBeyond == null ? null : pickupBeyond <= Number(z.pickup_buffer_mi ?? 0);
   const dropIn = dropBeyond == null ? null : dropBeyond === 0;
   const maxAwayViolated = returnEst == null || z.max_away_mi == null ? null : returnEst > Number(z.max_away_mi);
-  const result = pickupIn == null && dropIn == null ? 'no_data'
-    : (pickupIn === false || maxAwayViolated === true) ? 'violated' : 'clear';
+  // A violation proven from either point stands; otherwise a missing point means the
+  // audit is incomplete (no_data), never 'clear' — same posture as evaluateGeoRules.
+  const result = (pickupIn === false || maxAwayViolated === true) ? 'violated'
+    : (pickupIn == null || dropIn == null) ? 'no_data' : 'clear';
   return {
     place_id: z.place_id, label: z.label,
     pickup_in_zone: pickupIn, dropoff_in_zone: dropIn,

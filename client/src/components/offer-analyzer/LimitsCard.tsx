@@ -98,8 +98,8 @@ export default function LimitsCard({ form }: Props) {
               }
             />
             <p className="text-xs text-gray-500">
-              …unless the offer pays at least BOTH rates below. The exception also waives each ride type&apos;s
-              Max trip minutes, which this limit caps.
+              …unless the offer pays at least BOTH rates below. An offer past this limit that pays both also
+              skips the ride type&apos;s Max trip minutes cap (which this limit bounds).
             </p>
             {/* unless is nullable in the schema — display seeds, write the full pair */}
             <SliderRow

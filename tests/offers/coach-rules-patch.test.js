@@ -135,6 +135,11 @@ describe('v3.3 stay-in zone controls and ride-type slider bounds (Melody 2026-10
     // Unrelated edits never trip a pre-existing contradiction; a legacy multi-rung ladder has no single max.
     expect(() => apply(derived, [change('global.rating_floor', 4.9)])).not.toThrow();
     expect(() => apply(baseline, [change('global.time_limit.max_total_minutes', 20)])).not.toThrow();
+    // A contradiction the EDITOR saved in one ride type never blocks an in-bounds Coach edit to another.
+    const contradicted = structuredClone(baseline);
+    contradicted.tiers.standard = { floor_per_mile: 1.1, floor_per_minute: null, max_total_miles: null, accept_ladder: [{ min_per_mile: 1.1, max_total_min: 40 }] };
+    expect(() => apply(contradicted, [change('tiers.premium.max_trip_minutes', 25)])).not.toThrow();
+    expect(() => apply(contradicted, [change('tiers.premium.max_trip_minutes', 30)])).toThrow(/premium max trip minutes 30/);
   });
   test('instructions describe the zone controls and the bound rule', () => {
     const text = coachRulesInstructions();

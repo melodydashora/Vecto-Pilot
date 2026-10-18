@@ -241,9 +241,9 @@ complete-evidence and judgment checks that the legacy pure engine alone cannot e
 | 4 | Present rating below floor → REJECT. |
 | 4a | Stay-in zone: model-judged pickup outside zone + pickup buffer → REJECT (`zone_pickup`). |
 | 5 | Observed pickup over configured mile/minute cap → REJECT. |
-| 5a | Stay-in zone: model-judged dropoff outside the zone — no return estimate → NO DATA (`zone_unreadable`); return past the optional cap → REJECT (`zone_too_far`); price ÷ (card miles + return) under the tier $/mi floor → REJECT (`zone_return`). Geography is never ARP-rescuable. |
+| 5a | Stay-in zone: model-judged dropoff outside the zone — return past the optional cap → REJECT (`zone_too_far`); price ÷ (card miles + return) under the tier $/mi floor → REJECT (`zone_return`); no return estimate → REJECT (`zone_return`) when the card's own $/mi is already under the floor (the loop rate can only be lower), otherwise NO DATA (`zone_unreadable`). Geography is never ARP-rescuable. |
 | 6 | Without ARP, per-mile then optional per-minute floor failures → REJECT. With ARP, defer these profitability failures. |
-| 7 | Time cap exceeded → REJECT unless all enabled pay exceptions pass. When they pass, the exception also waives the acceptance rung's upper minute bounds in row 9 (2026-10-17: the editor bounds each ride type's Max trip minutes by this cap, so the exception must be able to accept past both). |
+| 7 | Time cap exceeded → REJECT unless all enabled pay exceptions pass. When they pass, the exception also waives the upper minute bound of a **derived single-rung** ladder in row 9 (2026-10-17: the editor bounds each ride type's Max trip minutes by this cap, so the exception must be able to accept past both). Legacy multi-rung ladders keep their time bands. |
 | 8 | Effective miles above tier distance cap → REJECT. |
 | 9 | First matching acceptance-ladder rung → potential ACCEPT. |
 | 10 | No rung, but total-mile ARP threshold met → potential ACCEPT (FALLBACK). ARP uses full-trip miles even under active-time rate basis. |
@@ -253,7 +253,10 @@ The pure engine retains old missing-duration behavior for compatibility. The liv
 acceptance wrapper rejects missing evidence as NO DATA rather than trusting that legacy
 sentinel. The stay-in zone fields (`pickup_in_zone`, `dropoff_in_zone`, `return_miles`)
 come from the model in Phase 1 because the spoken decision has no coordinates; a ride
-ACCEPT with either membership field unjudged becomes NO DATA (`zone unreadable`, D6). ARP can rescue profitability; it cannot excuse earlier safety/judgment,
+ACCEPT with either membership field unjudged becomes NO DATA (`zone unreadable`, D6). A
+model judgment REJECT (safety, Verified, stops, avoid area) stands even when the zone is
+unjudged, and a NO DATA caused by the model omitting the zone fields is not cached against
+a re-send (same posture as a missing judgment report). ARP can rescue profitability; it cannot excuse earlier safety/judgment,
 pickup, rating, time or distance rejection. Delivery independently applies enabled,
 required total metrics, maximum total miles, per-mile floor and hourly floor.
 
@@ -282,8 +285,10 @@ Missing required coordinates produce `no_data`, not `clear`. Phase-2 geometry is
 as an audit; it does not rewrite the earlier speech. `evaluateZone()` audits the stay-in
 zone the same way: straight-line miles past the circle's edge for pickup and dropoff, the
 pickup buffer, the road-factor return estimate (×1.25, the ETA model's factor) and the
-optional max-away cap; the hook adds the loop $/mi against the tier floor and records the
-model's Phase-1 judgment beside it (`zone_model`, `zone_disagreement`). A direction rule is a condition on
+optional max-away cap; a missing point yields `no_data` unless the other point already
+proves a violation. The hook adds the loop $/mi against the tier floor and records the
+model's Phase-1 judgment beside it (`zone_model`, `zone_disagreement`); delivery and
+auto-rejected share rows get no zone audit because the engine never gates them on it. A direction rule is a condition on
 a trip, not a blanket ban on the anchor venue. Any future VenuePlanner integration must
 respect those semantics rather than passing every avoided-place entry as a venue ban.
 
@@ -779,7 +784,6 @@ record. It is historical evidence, not proof of today’s rollout.
 4. Vision-first shortcut: the screenshot only; "the address is on the offer"; full extraction in Phase 2 because "this will tell us where pings and patterns happen" (2026-07-02/03).
 5. Outcomes card: "if I get a reject — I can tell our system I accepted it" (2026-07-03).
 6. "<3 seconds" hard latency target; "we only need the sliders for the input"; hourly rate is telemetry, never the decider (2026-08-14). Validated: "ours is perfect" vs Apple device vision on her real offers.
-7. A stay-in zone ("cities you only want to drive in") instead of listing every place to avoid, with a pickup buffer; an out-of-zone dropoff only when the pickup passes gates and limits and the pay covers pickup, dropoff and the drive back to base; Limits belong with Gates; ride-type sliders constricted to the gates (2026-10-17; the four follow-up choices are roadmap D8–D11).
 7. The Coach does not do the real-time verdict (that is this pipeline's job — `app_rules`,
    2026-08-13) — but it **should** mine `offer_intelligence` for location / daypart /
    day-of-week / time / seasonality patterns to steer the driver toward better offers
@@ -787,6 +791,7 @@ record. It is historical evidence, not proof of today’s rollout.
 8. Field-name tolerance (the alias table) is a safety net for hand-built shortcuts — **not**
    a reason to stay quiet. Melody, 2026-08-17:  — when something on her end (a shortcut's test name, a misspelled
    key or `source`) is degrading the pipeline, tell her directly so she can fix it.
+9. A stay-in zone ("cities you only want to drive in") instead of listing every place to avoid, with a pickup buffer; an out-of-zone dropoff only when the pickup passes gates and limits and the pay covers pickup, dropoff and the drive back to base; Limits belong with Gates; ride-type sliders constricted to the gates (2026-10-17; the four follow-up choices are roadmap D8–D11).
 
 **Joint (Melody + Claude, 2026-08-14):** two canonical shortcuts (`analyze-offer-text`,
 `analyze-offer-vision`); no Get Current Location action; `source` keys `siri_text` /

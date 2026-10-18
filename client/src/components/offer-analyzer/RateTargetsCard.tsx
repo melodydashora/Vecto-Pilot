@@ -57,8 +57,10 @@ function describeTier(tier: TierConfig, maxMin: number): string {
 
 function TierEditor({ title, tier, bounds, onChange }: TierEditorProps) {
   const maxMin = tierMaxTripMinutes(tier);
-  const minutesCap = bounds.maxTripMinutes != null ? clamp(bounds.maxTripMinutes, MINUTES_RANGE.min, MINUTES_RANGE.max) : MINUTES_RANGE.max;
-  const milesFloor = bounds.minTotalMiles != null ? clamp(bounds.minTotalMiles, MILES_RANGE.min, MILES_RANGE.max) : MILES_RANGE.min;
+  // The slider primitive needs max > min; a bound at or past the range's edge keeps one step of room.
+  const minutesCap = bounds.maxTripMinutes != null ? clamp(bounds.maxTripMinutes, MINUTES_RANGE.min + 1, MINUTES_RANGE.max) : MINUTES_RANGE.max;
+  const milesFloor = bounds.minTotalMiles != null ? clamp(bounds.minTotalMiles, MILES_RANGE.min, MILES_RANGE.max - 1) : MILES_RANGE.min;
+  const milesBoundBeyondRange = bounds.minTotalMiles != null && bounds.minTotalMiles > MILES_RANGE.max;
   // A legacy multi-rung ladder shows its first band here; the bound warning is for the
   // derived single rung the sliders write (moving the slider collapses a legacy ladder).
   const derived = tier.accept_ladder.length === 1;
@@ -111,7 +113,7 @@ function TierEditor({ title, tier, bounds, onChange }: TierEditorProps) {
         format={(v) => `${Math.round(v)} min`}
         onChange={(v) => set({}, v)}
         help={bounds.maxTripMinutes != null
-          ? `Pickup + ride. Capped by your ${bounds.maxTripMinutes}-min total time limit; only the time-limit pay exception accepts longer.`
+          ? `Pickup + ride. Capped by your ${bounds.maxTripMinutes}-min total time limit.`
           : 'Pickup + ride. Longer offers are rejected even at a good rate.'}
       />
       {minutesOutOfBounds && derived && (
@@ -145,10 +147,16 @@ function TierEditor({ title, tier, bounds, onChange }: TierEditorProps) {
           help={bounds.minTotalMiles != null ? `At least your ${bounds.minTotalMiles}-mi max pickup, so a pickup at the cap still leaves room for the trip.` : undefined}
         />
       )}
-      {milesOutOfBounds && (
+      {milesOutOfBounds && !milesBoundBeyondRange && (
         <p className="text-xs text-amber-700" role="note">
           Saved {tier.max_total_miles} mi is below your {bounds.minTotalMiles}-mi max pickup. It stays until you move this
           slider; a pickup at your cap would leave no room for the trip.
+        </p>
+      )}
+      {milesBoundBeyondRange && tier.max_total_miles != null && (
+        <p className="text-xs text-amber-700" role="note">
+          Your {bounds.minTotalMiles}-mi max pickup is above this slider&apos;s {MILES_RANGE.max}-mi range, so no Max miles
+          value here can fit a pickup at that cap. Lower the max pickup under Gates → Limits, or turn this cap off.
         </p>
       )}
 

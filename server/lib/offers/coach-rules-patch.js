@@ -145,18 +145,18 @@ control('zone.remove', 'Remove stay-in zone', z.literal(true), 'true; requires a
 
 // Same cross-field bounds the editor's sliders enforce (Melody 2026-10-17): a ride type's
 // Max trip minutes cannot exceed the total time limit, and its Max miles cannot sit below
-// the max pickup miles. Checked only when the action touched one of those knobs, so a
-// pre-existing contradiction never blocks an unrelated edit, but Coach cannot create one.
+// the max pickup miles. Only contradictions this action CREATES block it: the editor flags
+// but never rewrites a saved out-of-bounds value, so a pre-existing one must not stop an
+// unrelated Coach edit.
 const BOUND_PATHS = /^(?:global\.time_limit\.(?:max_total_minutes|enabled)|global\.pickup_limits\.(?:max_miles|enabled)|tiers\.\w+\.(?:max_trip_minutes|max_total_miles|enabled))$/;
-function assertSliderBounds(config, paths) {
-  if (!paths.some(path => BOUND_PATHS.test(path))) return;
-  const limit = config.global.time_limit?.max_total_minutes ?? null;
-  const pickupMax = config.global.pickup_limits?.max_miles ?? null;
+function sliderBoundProblems(config) {
+  const limit = config.global?.time_limit?.max_total_minutes ?? null;
+  const pickupMax = config.global?.pickup_limits?.max_miles ?? null;
   const problems = [];
-  for (const [name, tier] of Object.entries(config.tiers)) {
+  for (const [name, tier] of Object.entries(config.tiers ?? {})) {
     // Only the derived single-rung shape has "a max trip minutes"; a legacy multi-rung
     // ladder is time bands by design and the time limit is its separate outer gate.
-    if (!tier || tier.accept_ladder.length !== 1) continue;
+    if (!tier || tier.accept_ladder?.length !== 1) continue;
     const rung = tier.accept_ladder[0];
     const maxMinutes = rung?.max_total_min ?? rung?.max_total_min_excl ?? null;
     if (limit != null && maxMinutes != null && maxMinutes > limit) {
@@ -166,7 +166,13 @@ function assertSliderBounds(config, paths) {
       problems.push(`${name} max miles ${tier.max_total_miles} is below the ${pickupMax}-mile max pickup`);
     }
   }
-  if (problems.length) throw new Error(`Ride-type sliders must stay inside the gates: ${problems.join('; ')}. Change the slider and the limit in one action.`);
+  return problems;
+}
+function assertSliderBounds(baseline, config, paths) {
+  if (!paths.some(path => BOUND_PATHS.test(path))) return;
+  const before = new Set(sliderBoundProblems(baseline));
+  const introduced = sliderBoundProblems(config).filter(problem => !before.has(problem));
+  if (introduced.length) throw new Error(`Ride-type sliders must stay inside the gates: ${introduced.join('; ')}. Change the slider and the limit in one action.`);
 }
 
 export const coachRulesPatchSchema = z.object({
@@ -222,7 +228,7 @@ export function applyCoachRulesPatch(baseline, action) {
   for (const change of parsed.changes) controls[change.path].set(config, change.value, change);
   const validation = validateRuleset(config);
   if (!validation.ok) throw new Error(`Invalid ruleset: ${validation.errors.join('; ')}`);
-  assertSliderBounds(validation.config, parsed.changes.map(change => change.path));
+  assertSliderBounds(baseline, validation.config, parsed.changes.map(change => change.path));
   const { avoid: oldAvoid, zone: oldZone = null, ...oldRest } = baseline;
   const { avoid: newAvoid, zone: newZone = null, ...newRest } = validation.config;
   const changes = diff(oldRest, newRest);

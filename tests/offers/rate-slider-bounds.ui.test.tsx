@@ -67,3 +67,17 @@ test('a legacy multi-step ladder above the limit gets the explanatory note rathe
   expect(screen.getByRole('note').textContent).toMatch(/older multi-step rule \(first step 20 min\)/);
   expect(formState.getValues('tiers.standard.accept_ladder')).toHaveLength(5);
 });
+
+test('a bound at or past the slider range keeps one step of room and sends the driver to Limits when nothing can fit', () => {
+  const tight = derivedStandard(20, 12);
+  tight.global.time_limit = { max_total_minutes: 5, unless: { min_per_mile: 2, min_per_minute: 1 } };
+  tight.global.pickup_limits = { max_miles: 50, max_minutes: 10 };
+  render(<Harness config={tight} />);
+  expect(screen.getByRole('slider', { name: 'Max trip minutes' })).toHaveProperty('max', '6');
+  const miles = screen.getByRole('slider', { name: 'Max miles' });
+  expect(miles).toHaveProperty('min', '39');
+  expect(miles).toHaveProperty('max', '40');
+  const notes = screen.getAllByRole('note').map(node => node.textContent);
+  expect(notes.some(text => /above this slider's 40-mi range/.test(text ?? ''))).toBe(true);
+  expect(formState.getValues('tiers.standard.max_total_miles')).toBe(12);
+});

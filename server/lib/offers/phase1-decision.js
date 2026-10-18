@@ -168,15 +168,17 @@ export function adjudicatePhase1({ preParsed = null, model = null, ruleset, sele
       || (pickup?.max_miles != null && raw.pickup_miles == null)
       || (pickup?.max_minutes != null && raw.pickup_minutes == null)) return { ...noData(raw), tier };
     if (!model?.judgment_reported) return { ...noData(raw, 'judgment_unavailable'), tier };
-    // v3.3: a stay-in zone is a judgment gate the driver enabled. D6 — an ACCEPT waits
-    // until it is evaluable: the model must have answered BOTH zone fields with a verdict.
-    const zone = ruleset.zone && ruleset.zone.enabled !== false ? ruleset.zone : null;
-    if (zone && (!model.zone_reported || raw.pickup_in_zone == null || raw.dropoff_in_zone == null)) {
-      return { ...noData(raw, 'zone_unreadable'), tier, reason: 'zone unreadable' };
-    }
     if (model.decision === 'REJECT' && model.judgment_reject) {
       return { ...result, decision: 'REJECT', reason_kind: 'judgment', reason: model.reason || model.judgment_reject,
         judgment_reject: model.judgment_reject, fallback: false };
+    }
+    // v3.3: a stay-in zone is a judgment gate the driver enabled. D6 — an ACCEPT waits
+    // until it is evaluable: the model must have answered BOTH zone fields with a verdict.
+    // Placed after the judgment REJECT above on purpose: a model that rejected on safety,
+    // Verified, stops or an avoid area has given a usable verdict even with the zone unjudged.
+    const zone = ruleset.zone && ruleset.zone.enabled !== false ? ruleset.zone : null;
+    if (zone && (!model.zone_reported || raw.pickup_in_zone == null || raw.dropoff_in_zone == null)) {
+      return { ...noData(raw, 'zone_unreadable'), tier, reason: 'zone unreadable' };
     }
   }
   return result;

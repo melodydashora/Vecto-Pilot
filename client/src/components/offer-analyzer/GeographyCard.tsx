@@ -145,7 +145,7 @@ export default function GeographyCard({ form }: Props) {
     setZone(makeZone({ place_id: place.place_id, label: place.label, lat: place.lat, lng: place.lng }));
     setQuery('');
     setResults([]);
-    toast({ title: 'Stay-in zone set', description: `${place.label} — adjust its radius and pickup buffer below.` });
+    toast({ title: 'Stay-in zone set', description: `${place.label} — set its radius and pickup buffer in the zone panel above.` });
   };
 
   const updateRule = (i: number, patch: Partial<AvoidRule>) => {

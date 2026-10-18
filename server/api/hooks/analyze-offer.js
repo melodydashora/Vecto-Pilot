@@ -196,6 +196,7 @@ function buildVoiceLine(decision, perMile, totalMiles, reason, { delivery = fals
   const qualifierMap = [
     ['too far from zone', 'too far from your zone'],       // v3.3 zone tokens before their substrings
     ['pickup outside zone', 'pickup outside your zone'],
+    ['zone:pickup', 'pickup outside your zone'],            // a model echoing the judgment_reject token
     ['return not covered', 'return not covered'],
     ['too far', 'too far'],
     ['rating', 'low rider rating'],
@@ -592,6 +593,9 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       phase1Authoritative = model !== null;
       phase1Result = adjudicate(model);
       if (phase1Result.reason_kind === 'judgment_unavailable') phase1Authoritative = false;
+      // v3.3: a model that skipped the zone fields entirely did not deliver the contract —
+      // like a missing judgment report, that NO DATA must not be cached against a re-send.
+      if (phase1Result.reason_kind === 'zone_unreadable' && model && !model.zone_reported) phase1Authoritative = false;
       if (!model) console.warn('[HOOKS] Phase 1 did not deliver a valid verdict; no ride acceptance without judgment checks');
     }
     const effectiveTier = phase1Result.tier;
@@ -1158,7 +1162,10 @@ PRE-PARSED DATA (server-verified):
           // v3.3 stay-in zone: same posture as the avoid audit — geometry from the trusted
           // points, the model's Phase-1 judgment kept beside it, disagreement = training signal.
           // The loop rate re-prices the fare over pickup + trip + estimated return.
-          const zoneAudit = evaluateZone(ruleset, { pickup: pickupPt, dropoff: dropPt });
+          // Deliveries and auto-rejected shares never meet the zone in the engine, so they
+          // get no zone audit either (a row flagged zone_violated there would be a false signal).
+          const zoneAudit = effectiveTier === 'delivery' || effectiveTier === 'share'
+            ? null : evaluateZone(ruleset, { pickup: pickupPt, dropoff: dropPt });
           if (zoneAudit) {
             const zonePrice = toNum(storageNumbers.price);
             const zoneMiles = toNum(storageNumbers.total_miles);

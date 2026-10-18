@@ -523,6 +523,13 @@ describe('v3.3 stay-in zone', () => {
     expect(evaluateDeterministic('standard', offer({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: -1 }), withZone()).reasonKind).toBe('zone_unreadable');
   });
 
+  it('…but a card already under the floor is a certain REJECT whatever the return leg (loop rate can only be lower)', () => {
+    // $8 over 10 card miles = $0.80/mi < the $1.00 floor before any return is added.
+    const r = evaluateDeterministic('standard', offer({ price: 8, per_mile: 0.8, per_minute: 0.4, pickup_in_zone: true, dropoff_in_zone: false, return_miles: null }), withZone());
+    expect(r.decision).toBe('REJECT'); expect(r.reasonKind).toBe('zone_return');
+    expect(r.returnMiles).toBeNull(); expect(r.loopPerMile).toBe(0.8);
+  });
+
   it('unjudged (null) fields do not gate the pure engine; a disabled zone is inert; delivery never sees it', () => {
     expect(evaluateDeterministic('standard', offer(), withZone()).decision).toBe('ACCEPT');
     expect(evaluateDeterministic('standard', offer({ pickup_in_zone: false }), withZone({ enabled: false })).decision).toBe('ACCEPT');
@@ -569,7 +576,10 @@ describe('v3.3 stay-in zone', () => {
     expect(evaluateZone(rs, { pickup: far, dropoff: far })).toMatchObject({
       pickup_in_zone: false, dropoff_in_zone: false, max_away_violated: true, result: 'violated',
     });
-    expect(evaluateZone(rs, { pickup: null, dropoff: near })).toMatchObject({ pickup_in_zone: null, dropoff_in_zone: false, result: 'clear' });
+    // One point missing → incomplete audit (no_data), unless the other point already proves a violation.
+    expect(evaluateZone(rs, { pickup: null, dropoff: near })).toMatchObject({ pickup_in_zone: null, dropoff_in_zone: false, result: 'no_data' });
+    expect(evaluateZone(rs, { pickup: far, dropoff: null })).toMatchObject({ pickup_in_zone: false, dropoff_in_zone: null, result: 'violated' });
+    expect(evaluateZone(rs, { pickup: null, dropoff: far })).toMatchObject({ pickup_in_zone: null, max_away_violated: true, result: 'violated' });
     expect(evaluateZone(rs, { pickup: null, dropoff: null })).toMatchObject({ pickup_in_zone: null, dropoff_in_zone: null, result: 'no_data' });
     expect(evaluateZone(DEFAULT_RULESET, { pickup: center, dropoff: center })).toBeNull();
   });
@@ -592,6 +602,14 @@ describe('v3.3 time-limit exception waives the derived rung minute bound', () =>
     expect(evaluateDeterministic('standard', { per_mile: 1.5, per_minute: 1.2, total_minutes: 40 }, rs).reasonKind).toBe('time_limit');
     const tight = migrateRuleset({ ...rs, tiers: { ...rs.tiers, standard: { ...rs.tiers.standard, accept_ladder: [{ min_per_mile: 1.0, max_total_min: 20 }] } } });
     expect(evaluateDeterministic('standard', { per_mile: 1.5, per_minute: 0.9, total_minutes: 25 }, tight).reasonKind).toBe('low');
+  });
+  it('the waiver is scoped to the derived single rung: a legacy multi-rung ladder keeps its time bands', () => {
+    // Default standard ladder (5 bands) + a time limit whose exception rates sit below the upper bands.
+    const legacy = migrateRuleset({ ...DEFAULT_RULESET,
+      global: { ...DEFAULT_RULESET.global, time_limit: { max_total_minutes: 20, unless: { min_per_mile: 1.0, min_per_minute: 0.5 } } } });
+    const r = evaluateDeterministic('standard', { per_mile: 1.2, per_minute: 0.6, total_minutes: 35 }, legacy);
+    expect(r.decision).toBe('REJECT'); expect(r.reasonKind).toBe('low');   // exception met, but no band accepts 35 min at $1.20
+    expect(evaluateDeterministic('standard', { per_mile: 2.2, per_minute: 1.1, total_minutes: 35 }, legacy).decision).toBe('ACCEPT'); // the 30–40 band itself
   });
   it('the waiver never touches the miles cap, the floors, or the defaults', () => {
     const capped = migrateRuleset({ ...rs, tiers: { ...rs.tiers, standard: { ...rs.tiers.standard, max_total_miles: 12 } } });
