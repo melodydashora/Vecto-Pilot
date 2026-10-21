@@ -28,7 +28,7 @@
 | **ID.AM-3** Data flows mapped | Implemented | AUTH.md, SNAPSHOT.md, BRIEFING.md document all data flows | — |
 | **ID.AM-4** External systems catalogued | Implemented | LLM-REQUESTS.md documents all 12 external APIs + keys | — |
 | **ID.AM-5** Resources prioritized | Partial | No formal data classification. PII fields identified in DB_SCHEMA.md | Add data classification labels |
-| **ID.AM-6** Cybersecurity roles established | Not Implemented | Solo developer (Melody). No formal security roles | Define security responsibilities |
+| **ID.AM-6** Cybersecurity roles established | Implemented | Security maintainer: Melody Dashora (Dashora LLC), responsibilities defined in root SECURITY.md (2026-10-21) | — |
 
 ### ID.BE — Business Environment
 
@@ -192,12 +192,12 @@
 
 | NIST Function | Controls Assessed | Implemented | Partial | Not Implemented |
 |---------------|-------------------|-------------|---------|-----------------|
-| **IDENTIFY** | 11 | 4 | 4 | 3 |
+| **IDENTIFY** | 11 | 5 | 4 | 2 |
 | **PROTECT** | 16 | 9 | 5 | 2 |
 | **DETECT** | 9 | 0 | 3 | 6 |
 | **RESPOND** | 7 | 4 | 2 | 1 |
 | **RECOVER** | 3 | 2 | 0 | 1 |
-| **TOTAL** | **46** | **19 (41%)** | **14 (30%)** | **13 (28%)** |
+| **TOTAL** | **46** | **20 (43%)** | **14 (30%)** | **12 (26%)** |
 
 **Strongest:** PROTECT (access control, encryption, input validation)
 **Weakest:** DETECT (no monitoring, no SIEM, no alerting)

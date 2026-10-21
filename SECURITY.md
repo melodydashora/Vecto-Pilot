@@ -1,5 +1,13 @@
 # Security Policy
 
+## Security Maintainer
+
+Vecto Pilot is owned and maintained by **Dashora LLC**.
+
+- **Security maintainer:** Melody Dashora, owner, Dashora LLC
+- **Responsibilities:** vulnerability intake and triage, remediation, incident response, and upkeep of this policy and the [NIST CSF mapping](docs/architecture/NIST.md)
+- **Reports:** security@vectopilot.com (see below)
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in Vecto Pilot, please report it responsibly.
@@ -70,6 +78,11 @@ This security policy covers:
 
 ## Security Changelog
 
+### 2026-10-21
+
+- Security maintainer role defined (Melody Dashora, Dashora LLC); closes NIST CSF gap ID.AM-6 in [NIST.md](docs/architecture/NIST.md)
+- Incident records indexed here: [2026-05-12 memory poisoning](SECURITY_INCIDENT_2026-05-12_memory_poisoning.md), [incident findings](SECURITY_INCIDENT_FINDINGS.md)
+
 ### 2026-02-15
 - Full codebase security audit by Claude Opus 4.6
 - All 21 root documents reviewed for accuracy
@@ -94,4 +107,4 @@ This security policy covers:
 
 ---
 
-Last updated: 2026-02-15
+Last updated: 2026-10-21
