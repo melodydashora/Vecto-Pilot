@@ -6,6 +6,17 @@ The [canonical lexicon](../../../../LEXICON.md) names the feature **Offer Analyz
 **offers** are the proposals and saved records it analyzes and tracks. Daily Offers
 is a record-list section within the feature.
 
+- Tab placement (2026-10-17, Melody): `GatesCard` and `LimitsCard` render in the Gates tab
+  (the caps are hard rejects in the engine); `RateTargetsCard` and `DeliveryCard` in Rates;
+  `SetupCard`, `GeographyCard` and `VisionRulesCard` in Rules & Setup. Every tab panel is
+  forceMount, so `tests/offers/rules-tab-layout.ui.test.tsx` checks placement by tabpanel.
+- `GeographyCard.tsx` (v3.3, 2026-10-17): one Places search feeds both the stay-in zone
+  ("Stay in", only while no zone is set) and the avoid list ("Avoid"). The zone panel holds
+  the radius, pickup buffer, optional dropoff cap and enabled switch; a place can never be
+  both the zone and an avoid place. `tests/offers/geography-zone.ui.test.tsx`.
+- Ride-type slider bounds (Melody 2026-10-17): `RateTargetsCard` caps Max trip minutes at
+  the total time limit and floors Max miles at the max pickup miles, flags a saved value
+  outside a bound and never rewrites it. `tests/offers/rate-slider-bounds.ui.test.tsx`.
 - `RateTargetsCard.tsx`: shows economic groups applicable to confirmed selected
   services using `shared/driver-services.js`, the same routing used by evaluation.
   Service identity differs from vehicle eligibility and economic tier. Legacy null

@@ -55,6 +55,23 @@ export const avoidRuleSchema = z.object({
 });
 export type AvoidRule = z.infer<typeof avoidRuleSchema>;
 
+// v3.3 (2026-10-17, Melody): stay-in zone — ONE Places-picked city (place_id + 6-decimal
+// point, never typed), a radius that approximates it, a pickup buffer outside it, and an
+// optional cap on how far past the edge a dropoff may land. Dropoffs outside the zone
+// must clear the tier $/mi floor over pickup + trip + return to the zone edge. A new key,
+// independent of the inert home/geo keys (D2). Mirrors server/lib/offers/ruleset-schema.js.
+export const zoneSchema = z.object({
+  place_id: z.string().min(1).max(512),
+  label: z.string().min(1).max(120),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  radius_mi: miles,
+  pickup_buffer_mi: miles,
+  max_away_mi: miles.nullish(),
+  enabled: z.boolean().default(true),
+});
+export type ZoneConfig = z.infer<typeof zoneSchema>;
+
 const geoScopeSchema = z.object({
   enabled: z.boolean(),
   overrides: z
@@ -140,6 +157,8 @@ export const offerRulesetSchema = z.object({
     airport: geoScopeSchema,
   }),
   avoid: z.array(avoidRuleSchema).max(25),
+  // v3.3: .default(null) for the same deploy-skew reason as `delivery` above.
+  zone: zoneSchema.nullable().default(null),
   home: z
     .object({ deadhead_only: z.boolean().default(true), mention_threshold_min: minutes.nullish() })
     .nullable(),
@@ -200,6 +219,7 @@ export const DEFAULT_OFFER_RULESET_CONFIG: OfferRulesetConfig = {
     airport: { enabled: false, overrides: {} },
   },
   avoid: [],
+  zone: null,
   home: null,
 };
 
@@ -213,6 +233,10 @@ export const ENABLE_SEEDS = {
   delivery: { enabled: true, min_per_mile: 1.5, min_per_hour: 25, max_total_miles: 12 },
   comfort_tier: { floor_per_mile: 1.25, floor_per_minute: 0.7, max_total_miles: null, accept_ladder: [{ min_per_mile: 1.25, max_total_min: 20 }] } as TierConfig,
   xl_tier: { floor_per_mile: 2.0, floor_per_minute: 1.0, max_total_miles: null, accept_ladder: [{ min_per_mile: 2.0, max_total_min: 20 }] } as TierConfig,
+  // v3.3 stay-in zone: a radius that covers a typical suburb from its Google point, a
+  // 2-mile pickup buffer (Melody's example), no dropoff cap until switched on.
+  zone: { radius_mi: 5, pickup_buffer_mi: 2, max_away_mi: null, enabled: true },
+  zone_max_away_mi: 20,
 } as const;
 
 /** v3.1 sliders: the tier's ONE accept rule, derived from the sliders. */
@@ -244,4 +268,9 @@ export function makeAvoidRule(place: {
     min_trip_mi: 8,
     enabled: true,
   };
+}
+
+/** New stay-in zone from a Places pick with the seed radius/buffer — editable right after. */
+export function makeZone(place: { place_id: string; label: string; lat: number; lng: number }): ZoneConfig {
+  return { ...place, label: place.label.slice(0, 120), ...ENABLE_SEEDS.zone };
 }

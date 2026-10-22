@@ -51,6 +51,20 @@ const avoidPlace = z.object({
   enabled: z.boolean().default(true),
 }).strict();
 
+// v3.3 (2026-10-17, Melody): stay-in zone — one Places-picked city, a radius that
+// approximates it, a pickup buffer outside it, and an optional cap on how far past the
+// edge a dropoff may land. Independent of the reserved `home`/`geo` keys (D2).
+const zone = z.object({
+  place_id: z.string().min(1).max(512),
+  label: z.string().min(1).max(120),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  radius_mi: miles,
+  pickup_buffer_mi: miles,
+  max_away_mi: miles.nullish(),
+  enabled: z.boolean().default(true),
+}).strict();
+
 export const rulesetSchema = z.object({
   schema_version: z.literal(RULESET_SCHEMA_VERSION),
   basis: z.enum(['full_ride', 'active_time']),
@@ -119,6 +133,7 @@ export const rulesetSchema = z.object({
     airport: geoScope,
   }).strict(),
   avoid: z.array(avoidPlace).max(25),
+  zone: zone.nullable(),
   home: z.object({
     deadhead_only: z.boolean().default(true),
     mention_threshold_min: minutes.nullish(),
