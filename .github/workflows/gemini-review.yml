@@ -114,4 +114,4 @@ jobs:
           # The pinned action installs /gemini-review before invoking the CLI.
           prompt: >-
             /gemini-review Use pull_request_review_write with method=create to start
-            the pending review and method=submit with event=COMMENT to submit it.
+            the pending review and method=submit_pending with event=COMMENT to submit it.
