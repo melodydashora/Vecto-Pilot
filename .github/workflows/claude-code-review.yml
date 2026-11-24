@@ -3,46 +3,54 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # The action accepts human actors by default. Forks cannot use the Actions secret.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.sender.type == 'User'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          fetch-depth: 1
+          persist-credentials: false
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@eb56b6666facdbd501035f4a0269d8caee2e7a8b # v1
         with:
+          # A review only needs to read the code and comment on this PR.
+          github_token: ${{ github.token }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: |
             https://github.com/anthropics/claude-code.git
           plugins: |
             code-review@claude-code-plugins
-          prompt: |
-            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          prompt: /code-review:code-review ${{ github.event.pull_request.html_url }} --comment
+          claude_args: --allowedTools "mcp__github_inline_comment__create_inline_comment"
 
+      - name: Report Claude provider error
+        if: failure() && steps.claude-review.outcome == 'failure'
+        env:
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+        run: |
+          if [[ ! -s "$EXECUTION_FILE" ]]; then
+            echo "::notice::No Claude execution record was written. Check the setup and authentication messages above."
+            exit 0
+          fi
+          # The transcript can contain private data. Print only known SDK codes and HTTP statuses.
+          jq -r '
+            def known_code:
+              IN("authentication_failed", "oauth_org_not_allowed", "account_on_hold",
+                 "verification_required", "billing_error", "rate_limit", "overloaded", "invalid_request",
+                 "model_not_found", "server_error", "max_output_tokens", "cloud_credential_error");
+            [ .[] | select(.type == "assistant" or .type == "result" or .subtype == "api_retry") ] as $events
+            | ([$events[].error | select(known_code)] | last // "unclassified") as $code
+            | ([$events[] | (.api_error_status // .error_status) | numbers
+                 | select(. == floor and . >= 400 and . <= 599)] | last // "unavailable") as $status
+            | "::error::Claude provider error category=\($code), last HTTP error=\($status)"
+          ' "$EXECUTION_FILE"
