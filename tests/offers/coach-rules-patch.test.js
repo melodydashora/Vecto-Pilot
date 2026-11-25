@@ -102,3 +102,49 @@ describe('Coach Offer Analyzer control patches', () => {
     expect(prompt).toContain('global.notices.hourly_rate');
   });
 });
+
+describe('v3.3 stay-in zone controls and ride-type slider bounds (Melody 2026-10-17)', () => {
+  const zone = { place_id: 'fixture-zone', label: 'Public fixture zone', lat: 33, lng: -96, radius_mi: 5, pickup_buffer_mi: 2, max_away_mi: null, enabled: true };
+  test('zone members are tunable only when a zone is saved; creating one stays with the Places picker', () => {
+    expect(() => apply(defaults(), [change('zone.radius_mi', 8)])).toThrow(/Places picker/);
+    const { config, changes } = apply({ ...defaults(), zone }, [change('zone.radius_mi', 8), change('zone.pickup_buffer_mi', 2.5), change('zone.max_away_mi', 20)]);
+    expect(config.zone).toEqual({ ...zone, radius_mi: 8, pickup_buffer_mi: 2.5, max_away_mi: 20 });
+    expect(changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'zone.radius_mi', label: 'Stay-in zone: Zone radius (miles)', before: 5, after: 8 }),
+      expect.objectContaining({ path: 'zone.max_away_mi', before: null, after: 20 }),
+    ]));
+    expect(coachRulesPatchSchema.safeParse(action([change('zone.radius_mi', 30)])).success).toBe(false);
+    expect(coachRulesPatchSchema.safeParse(action([change('zone.place_id', 'invented')])).success).toBe(false);
+  });
+  test('removing the zone is one labelled change and cannot be combined with zone edits', () => {
+    const removed = apply({ ...defaults(), zone }, [change('zone.remove', true)]);
+    expect(removed.config.zone).toBeNull();
+    expect(removed.changes).toEqual([expect.objectContaining({ path: 'zone', label: 'Remove stay-in zone: Public fixture zone', after: null })]);
+    expect(coachRulesPatchSchema.safeParse(action([change('zone.remove', true), change('zone.radius_mi', 6)])).success).toBe(false);
+  });
+  test('ride-type sliders cannot be pushed outside the gates; paired changes pass; legacy ladders are bands', () => {
+    const baseline = defaults();
+    baseline.global.time_limit = { max_total_minutes: 25, unless: { min_per_mile: 2, min_per_minute: 1 } };
+    baseline.global.pickup_limits = { max_miles: 5, max_minutes: 10 };
+    expect(() => apply(baseline, [change('tiers.standard.max_trip_minutes', 30)])).toThrow(/standard max trip minutes 30 exceeds the 25-minute total time limit/);
+    expect(() => apply(baseline, [change('tiers.standard.max_total_miles', 4)])).toThrow(/standard max miles 4 is below the 5-mile max pickup/);
+    expect(() => apply(baseline, [change('tiers.standard.max_trip_minutes', 30), change('global.time_limit.max_total_minutes', 35)])).not.toThrow();
+    const derived = apply(baseline, [change('tiers.standard.max_trip_minutes', 25)]).config;
+    expect(() => apply(derived, [change('global.time_limit.max_total_minutes', 20)])).toThrow(/standard max trip minutes 25/);
+    expect(() => apply(derived, [change('global.time_limit.max_total_minutes', 20), change('tiers.standard.max_trip_minutes', 20)])).not.toThrow();
+    // Unrelated edits never trip a pre-existing contradiction; a legacy multi-rung ladder has no single max.
+    expect(() => apply(derived, [change('global.rating_floor', 4.9)])).not.toThrow();
+    expect(() => apply(baseline, [change('global.time_limit.max_total_minutes', 20)])).not.toThrow();
+    // A contradiction the EDITOR saved in one ride type never blocks an in-bounds Coach edit to another.
+    const contradicted = structuredClone(baseline);
+    contradicted.tiers.standard = { floor_per_mile: 1.1, floor_per_minute: null, max_total_miles: null, accept_ladder: [{ min_per_mile: 1.1, max_total_min: 40 }] };
+    expect(() => apply(contradicted, [change('tiers.premium.max_trip_minutes', 25)])).not.toThrow();
+    expect(() => apply(contradicted, [change('tiers.premium.max_trip_minutes', 30)])).toThrow(/premium max trip minutes 30/);
+  });
+  test('instructions describe the zone controls and the bound rule', () => {
+    const text = coachRulesInstructions();
+    expect(text).toContain('zone.radius_mi: Stay-in zone: Zone radius (miles)');
+    expect(text).toContain('zone.remove: Remove stay-in zone');
+    expect(text).toContain('may not exceed the total time limit');
+  });
+});

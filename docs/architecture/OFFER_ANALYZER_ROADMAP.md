@@ -98,6 +98,8 @@ separate entry contract, not a retroactive requirement for all existing shortcut
 `home` and `geo` scope keys remain inert, with no UI controls, by D2. Do not activate,
 remove or expose them while fixing unrelated arithmetic or selected-service behavior.
 Home-return estimation and per-area override semantics need an explicit future decision.
+v3.3 (2026-10-17) added a NEW `zone` key for the stay-in zone (D9); it does not activate
+`home` or `geo`, and D2 still stands.
 
 ### L7 — Original spec output differences
 
@@ -176,6 +178,31 @@ previously authorized; Melody’s current source-based correction supersedes it 
 actual current-owner config and selected services. The reason is accurate provenance
 and avoiding stale prose as runtime rules, not an invented ban on Coach context cost.
 D2 remains unchanged: leave `home` and scope overrides inert with no UI.
+
+## 4a · Decisions — answered by Melody 2026-10-17
+
+Context (Melody, from the editor on her phone): keep the Offer Analyzer's structure, but
+Limits "should not be in the same subtab as instructions and should probably be with
+gates"; "sliders for ride type should be constricted to gates"; Geography "should have a
+filter for cities you only want to drive in", e.g. the city plus "maybe 2 miles from that
+city for pickup with a max away", where she can drop a rider outside the city "only if the
+pickup meets gate requirements and limits and the sliders match a higher amount to cover
+the full amount to pickup, drop off and back to base" — never hardcoded, because this is a
+global app. Four questions were put to her with a recommended default; she chose the
+recommended option on each.
+
+| # | Question | Melody's choice |
+|---|---|---|
+| D8 | What "sliders for ride type constricted to gates" means | Bound the ride-type slider ranges by the gates/limits (Max trip minutes ≤ total time limit; Max miles ≥ max pickup miles); flag saved values outside a bound, never rewrite silently |
+| D9 | Storing the stay-in zone under "keep the schema the way it is" | Add ONE additive v3 key `zone` {place_id, label, lat, lng, radius_mi, pickup_buffer_mi, max_away_mi?, enabled}; old saves stay valid |
+| D10 | What "base" is for the return leg | The zone edge: return miles = dropoff → nearest point of the zone |
+| D11 | Enforcement when the spoken decision has no coordinates | Model-judged in Phase 1 like avoid rules (prompt-rendered; `pickup_in_zone` / `dropoff_in_zone` / `return_miles`), plus the deterministic Phase-2 geometry audit from day one; no new network call on the <3 s path |
+
+Consequence recorded with D8: because each ride type's Max trip minutes is now bounded by
+the total time limit, the engine's time-limit pay exception also waives the upper minute
+bound of a derived single-rung ladder; otherwise the exception could never accept anything.
+Legacy multi-rung ladders keep their time bands, so saved older rulesets decide as before.
+Inert at defaults.
 
 ## 5 · Evidence and continuity pointers
 

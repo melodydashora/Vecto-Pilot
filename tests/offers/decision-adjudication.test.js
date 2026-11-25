@@ -437,3 +437,79 @@ test.each([['OFFER_ANALYZER', 20000], ['OFFER_ANALYZER_DEEP', 45000]])('%s deadl
   expect(signal.aborted).toBe(true);
   expect(global.setTimeout.mock.calls.some(([, ms]) => ms === deadline)).toBe(true);
 });
+
+// v3.3 stay-in zone (Melody 2026-10-17). The zone is a judgment gate: Phase 1 has no
+// coordinates, so the model reports pickup_in_zone / dropoff_in_zone / return_miles and the
+// server prices the loop. D6: an ACCEPT waits until that judgment is evaluable.
+const fixtureZone = () => ({ place_id: 'fixture-zone', label: 'Fixture zone', lat: 0, lng: 0, radius_mi: 5, pickup_buffer_mi: 2, max_away_mi: null, enabled: true });
+
+test('a stay-in zone needs the model zone judgment before any ride ACCEPT (D6)', async () => {
+  ruleset.zone = fixtureZone();
+  reply = success();                                                        // zone fields omitted
+  let response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('NO DATA');
+  expect(response.body.voice).toMatch(/could not judge your zone/i);
+  requestId++;
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: null, return_miles: null });   // half-judged
+  response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('NO DATA');
+  requestId++;
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: true, return_miles: null });
+  response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('ACCEPT');
+});
+
+test('a model judgment REJECT stands even when the zone is unjudged (D6 holds ACCEPTs only)', async () => {
+  ruleset.zone = fixtureZone();
+  ruleset.avoid = [{ place_id: 'fixture-area', label: 'Avoid area', lat: 0, lng: 0, mode: 'destination_in', enabled: true }];
+  reply = success({ decision: 'REJECT', judgment_reject: 'avoid:Avoid area', reason: '$3.33 6.0mi avoid area' });   // no zone fields at all
+  const response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('REJECT');
+  expect(response.body.voice).not.toMatch(/zone/i);
+});
+
+test('a NO DATA from a model that skipped the zone fields is not replayed against a re-send', async () => {
+  ruleset.zone = fixtureZone();
+  reply = success();                                                        // zone fields omitted → not delivered
+  const first = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(first.body.decision).toBe('NO DATA');
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: true, return_miles: null });
+  const second = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(second.body.decision).toBe('ACCEPT');
+  expect(second.body.duplicate).not.toBe(true);
+});
+
+test('zone judgments decide: an outside pickup rejects, an outside dropoff must pay for the return', async () => {
+  ruleset.zone = fixtureZone();
+  reply = success({ decision: 'REJECT', judgment_reject: 'zone:pickup', pickup_in_zone: false, dropoff_in_zone: true, reason: '$3.33 6.0mi outside zone' });
+  let response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('REJECT');
+  expect(response.body.voice).toMatch(/pickup outside your zone/);
+  requestId++;
+  // $20 over 6 card miles; a 20-mile return → 26-mile loop → $0.77/mi, under the $0.90 standard floor
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 20 });
+  response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('REJECT');
+  expect(response.body.voice).toMatch(/return not covered/);
+  requestId++;
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 4 });   // 10-mile loop → $2.00/mi
+  response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('ACCEPT');
+  requestId++;
+  ruleset.zone = { ...fixtureZone(), max_away_mi: 10 };
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 12 });
+  response = await analyze({ text: completeText, image: 'ZmFrZQ==' });
+  expect(response.body.decision).toBe('REJECT');
+  expect(response.body.voice).toMatch(/too far from your zone/);
+});
+
+test('stored rows keep the model zone judgment beside the Phase-1 result for the Phase-2 audit', async () => {
+  storeExpected = true;
+  ruleset.zone = fixtureZone();
+  reply = success({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 3 });
+  expect((await analyze({ image: 'ZmFrZQ==' })).body.decision).toBe('ACCEPT');
+  await finishBackground();
+  expect(stored).toHaveLength(1);
+  expect(stored[0].parsed_data_json.phase1_result).toMatchObject({ pickup_in_zone: true, dropoff_in_zone: false, return_miles: 3 });
+  expect(stored[0].parsed_data_json.zone_audit).toBeUndefined();   // no trusted points in this fixture → no geometry audit
+});

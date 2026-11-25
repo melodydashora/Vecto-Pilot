@@ -8,6 +8,10 @@
 // this page loaded); the server answers 409 if another tab/device saved first, and
 // on success returns the canonical config + new version — no second GET, so a slider
 // moved during the round-trip is kept (reset with keepValues) instead of clobbered.
+// 2026-10-17 (Melody): Limits sit in the Gates tab, under the gate switches. Pickup and
+// total-time caps are hard REJECT gates in the engine (rules-engine.js gate order), and
+// they should not share a tab with the phone-setup instructions. Rules & Setup keeps
+// setup, Geography and Vision.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
@@ -320,8 +324,14 @@ function OfferAnalyzerEditor({ token }: { token: string }) {
                 </AlertDescription>
               </Alert>}
               <TabsContent value="gates" forceMount className="mt-0 space-y-4 data-[state=inactive]:hidden">
+                {meta?.isDefault && (
+                  <Alert><AlertDescription>{meta.fromProfile
+                    ? 'Available shared-ride and pickup preferences from your profile initialize these rules. Save your analyzer rules here to keep a separate set of offer limits; later profile edits will not overwrite them.'
+                    : 'You are using initial rules. Review and save your own limits before relying on an offer decision.'}</AlertDescription></Alert>
+                )}
                 {serviceSelection.loaded && !serviceSelection.error && hasRideServices && <GatesCard form={form} />}
-                {serviceSelection.loaded && !serviceSelection.error && !hasRideServices && <p className="text-sm text-gray-600">Ride gates are hidden because no ride services are selected. Saved ride rules are preserved.</p>}
+                {serviceSelection.loaded && !serviceSelection.error && hasRideServices && <LimitsCard form={form} />}
+                {serviceSelection.loaded && !serviceSelection.error && !hasRideServices && <p className="text-sm text-gray-600">Ride gates and limits are hidden because no ride services are selected. Saved ride rules are preserved.</p>}
               </TabsContent>
               <TabsContent value="rates" forceMount className="mt-0 space-y-4 data-[state=inactive]:hidden">
                 {serviceSelection.loaded && !serviceSelection.error && <RateTargetsCard form={form} selectedServices={serviceSelection.services} />}
@@ -329,12 +339,6 @@ function OfferAnalyzerEditor({ token }: { token: string }) {
               </TabsContent>
               <TabsContent value="rules" forceMount className="mt-0 space-y-4 data-[state=inactive]:hidden">
                 <SetupCard />
-                {meta?.isDefault && (
-                  <Alert><AlertDescription>{meta.fromProfile
-                    ? 'Available shared-ride and pickup preferences from your profile initialize these rules. Save your analyzer rules here to keep a separate set of offer limits; later profile edits will not overwrite them.'
-                    : 'You are using initial rules. Review and save your own limits before relying on an offer decision.'}</AlertDescription></Alert>
-                )}
-                {serviceSelection.loaded && !serviceSelection.error && hasRideServices && <LimitsCard form={form} />}
                 {serviceSelection.loaded && !serviceSelection.error && hasRideServices && <GeographyCard form={form} />}
                 {serviceSelection.loaded && !serviceSelection.error && hasRideServices && <VisionRulesCard form={form} />}
               </TabsContent>

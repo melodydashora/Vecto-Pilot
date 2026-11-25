@@ -215,7 +215,10 @@ second authoritative document.
 
 Ride controls include `basis`, per-tier floors/ladders/distance caps, rating, pickup/time
 limits and acceptance-rate protection. Additional controls cover verification, stops,
-round trips, physical road access, notices, share handling and avoided places. Delivery
+round trips, physical road access, notices, share handling and avoided places. v3.3
+(2026-10-17) adds one optional `zone`: a Places-picked stay-in city approximated by a
+radius, with a pickup buffer outside it and an optional dropoff cap (§6.3 rows 4a/5a,
+§6.5). It is a new key; `home` and `geo` stay inert per D2. Delivery
 has its own enablement and floors. Sanity ceilings detect implausible extraction; they
 are not the driver’s profitability preferences. Current default sanity ceilings include
 $500 total, $40/mile and $500/hour, with separate missing-cents checks and denominator
@@ -236,9 +239,11 @@ complete-evidence and judgment checks that the legacy pure engine alone cannot e
 | 2 | Sanity breach → NO DATA; delivery branches to `evaluateDelivery()`. |
 | 3 | Resolve effective basis/tier; missing effective rate → NO DATA. |
 | 4 | Present rating below floor → REJECT. |
+| 4a | Stay-in zone: model-judged pickup outside zone + pickup buffer → REJECT (`zone_pickup`). |
 | 5 | Observed pickup over configured mile/minute cap → REJECT. |
+| 5a | Stay-in zone: model-judged dropoff outside the zone — return past the optional cap → REJECT (`zone_too_far`); price ÷ (card miles + return) under the tier $/mi floor → REJECT (`zone_return`); no return estimate → REJECT (`zone_return`) when the card's own $/mi is already under the floor (the loop rate can only be lower), otherwise NO DATA (`zone_unreadable`). Geography is never ARP-rescuable. |
 | 6 | Without ARP, per-mile then optional per-minute floor failures → REJECT. With ARP, defer these profitability failures. |
-| 7 | Time cap exceeded → REJECT unless all enabled pay exceptions pass. |
+| 7 | Time cap exceeded → REJECT unless all enabled pay exceptions pass. When they pass, the exception also waives the upper minute bound of a **derived single-rung** ladder in row 9 (2026-10-17: the editor bounds each ride type's Max trip minutes by this cap, so the exception must be able to accept past both). Legacy multi-rung ladders keep their time bands. |
 | 8 | Effective miles above tier distance cap → REJECT. |
 | 9 | First matching acceptance-ladder rung → potential ACCEPT. |
 | 10 | No rung, but total-mile ARP threshold met → potential ACCEPT (FALLBACK). ARP uses full-trip miles even under active-time rate basis. |
@@ -246,7 +251,12 @@ complete-evidence and judgment checks that the legacy pure engine alone cannot e
 
 The pure engine retains old missing-duration behavior for compatibility. The live
 acceptance wrapper rejects missing evidence as NO DATA rather than trusting that legacy
-sentinel. ARP can rescue profitability; it cannot excuse earlier safety/judgment,
+sentinel. The stay-in zone fields (`pickup_in_zone`, `dropoff_in_zone`, `return_miles`)
+come from the model in Phase 1 because the spoken decision has no coordinates; a ride
+ACCEPT with either membership field unjudged becomes NO DATA (`zone unreadable`, D6). A
+model judgment REJECT (safety, Verified, stops, avoid area) stands even when the zone is
+unjudged, and a NO DATA caused by the model omitting the zone fields is not cached against
+a re-send (same posture as a missing judgment report). ARP can rescue profitability; it cannot excuse earlier safety/judgment,
 pickup, rating, time or distance rejection. Delivery independently applies enabled,
 required total metrics, maximum total miles, per-mile floor and hourly floor.
 
@@ -272,7 +282,13 @@ Geographic rules use user-selected Google `place_id` anchors and coordinates:
 | `heads_toward` | Pickup-to-dropoff motion toward the anchor, subject to trip distance, bearing corridor and getting closer. |
 
 Missing required coordinates produce `no_data`, not `clear`. Phase-2 geometry is saved
-as an audit; it does not rewrite the earlier speech. A direction rule is a condition on
+as an audit; it does not rewrite the earlier speech. `evaluateZone()` audits the stay-in
+zone the same way: straight-line miles past the circle's edge for pickup and dropoff, the
+pickup buffer, the road-factor return estimate (×1.25, the ETA model's factor) and the
+optional max-away cap; a missing point yields `no_data` unless the other point already
+proves a violation. The hook adds the loop $/mi against the tier floor and records the
+model's Phase-1 judgment beside it (`zone_model`, `zone_disagreement`); delivery and
+auto-rejected share rows get no zone audit because the engine never gates them on it. A direction rule is a condition on
 a trip, not a blanket ban on the anchor venue. Any future VenuePlanner integration must
 respect those semantics rather than passing every avoided-place entry as a venue ban.
 
@@ -292,7 +308,7 @@ configuration was used; current rules do not reconstruct an old configuration by
 | Avoided places / physical access | `avoid[]`, visual road-access rules and later coordinate audit; no demographic inference. |
 | Immediate short spoken response | `voice`/`notification`, not the original four-line written report. |
 | Actual driver action retained | Overrides and revisioned outcomes are separate from Offer Analyzer decisions. |
-| Home-return calculations | `home` remains declared but inert; no UI controls, per recorded D2. |
+| Home-return calculations | `home` remains declared but inert per D2. Since v3.3 the spec's "Estimated Return" / Deadhead Logic is representable through `zone`: an out-of-zone dropoff must clear the tier $/mi floor over pickup + trip + return to the zone edge. |
 | Per-area scope overrides | `geo` remains declared but no active caller supplies its scope; no UI controls, per D2. |
 
 The verbatim spec’s personal thresholds are not universal defaults. See roadmap L6/L7
@@ -438,7 +454,7 @@ network adapters supply candidate data, not guaranteed truth.
 | Places fallback | Current search radius 50,000 meters; accepted result must be within 60 miles and pass name/kind checks. A returned place is not automatically a match. |
 | No anchor | Both pickup and dropoff must have city-confirmed geocodes and be within 60 miles of each other. No Places fallback is attempted. Otherwise addresses remain text-only. |
 | Precision classification | `geoIsPrecise()` distinguishes precise point/route/intersection evidence from locality centroids. A trusted coarse point may resolve timezone; only precise points enter pickup/dropoff columns and geometry audit. |
-| Audit | Enabled `avoid[]` rules produce violated/clear/no_data based on needed coordinates. Store violation/disagreement plus place IDs, trust/via/corroboration/precision, anchor source/age and geocoder metadata. It never changes the earlier speech. |
+| Audit | Enabled `avoid[]` rules produce violated/clear/no_data based on needed coordinates. Store violation/disagreement plus place IDs, trust/via/corroboration/precision, anchor source/age and geocoder metadata. It never changes the earlier speech. With a stay-in zone active, `zone_audit` (membership, miles past the edge, road-factor return estimate, loop $/mi vs the tier floor), `zone_model` (the Phase-1 judgment) and `zone_violated` / `zone_disagreement` are stored the same way. |
 
 Six-decimal **representation** is not six-decimal sensor accuracy. Shared coordinate
 normalization preserves supplied numeric precision and accepts zero coordinates.
@@ -523,7 +539,17 @@ can Continue unchanged without rewriting their row or confusing effective/raw ha
 ## 13. Web page — `/co-pilot/offer-analyzer`
 
 `OfferAnalyzerPage.tsx` loads saved rules, exposes an explicit Save flow and preserves
-rule ownership/version provenance. Selected services determine relevant economic cards;
+rule ownership/version provenance. The rules editor spans three tabs: **Gates** holds the
+gate switches and the Limits card (pickup caps, total-time limit, acceptance-rate
+protection) because the engine applies those caps as hard rejects; **Rates** holds the
+per-tier rate sliders and Delivery; **Rules & Setup** holds phone setup, Geography and
+Vision. Melody placed Limits with Gates on 2026-10-17 so caps never sit beside the setup
+instructions. The Geography card's stay-in zone (v3.3) is picked from the same Places
+search as avoid places ("Stay in" vs "Avoid"); its radius, pickup buffer, optional
+dropoff cap and enabled switch are sliders and switches, and one place cannot be both
+the zone and an avoid place. Ride-type sliders in Rates are bounded by the gates: Max
+trip minutes by the total time limit and Max miles by the max pickup miles; a saved value
+outside a bound is flagged and left unchanged, never rewritten. Selected services determine relevant economic cards;
 multiple selected services may share a tier. A hidden card’s saved values are preserved.
 Legacy unverified selection must not masquerade as a complete choice. Null legacy
 selection keeps existing rule controls and plain unchosen-service wording. A
@@ -716,6 +742,11 @@ an older “shipped” paragraph or treat a historical handoff as the current ch
 
 ## Appendix A — Change log
 
+- 2026-10-17: Limits moved into the Gates tab. Ride-type sliders bounded by the gates,
+  with the engine's time-limit pay exception now waiving the derived rung's minute bound.
+  v3.3 adds the stay-in `zone` key (model-judged in Phase 1, geometry-audited in Phase 2)
+  with Geography card controls and the Coach mirror. Melody's four decisions are recorded
+  in the roadmap §4a.
 - 2026-10-12: Restored immediate/deep text and image analysis to Gemini 3.8 Flash
   with explicit LOW thinking, existing caps/deadlines and no Offer Analyzer model
   retry. Coach and venue assignments are outside this change.
@@ -760,6 +791,7 @@ record. It is historical evidence, not proof of today’s rollout.
 8. Field-name tolerance (the alias table) is a safety net for hand-built shortcuts — **not**
    a reason to stay quiet. Melody, 2026-08-17:  — when something on her end (a shortcut's test name, a misspelled
    key or `source`) is degrading the pipeline, tell her directly so she can fix it.
+9. A stay-in zone ("cities you only want to drive in") instead of listing every place to avoid, with a pickup buffer; an out-of-zone dropoff only when the pickup passes gates and limits and the pay covers pickup, dropoff and the drive back to base; Limits belong with Gates; ride-type sliders constricted to the gates (2026-10-17; the four follow-up choices are roadmap D8–D11).
 
 **Joint (Melody + Claude, 2026-08-14):** two canonical shortcuts (`analyze-offer-text`,
 `analyze-offer-vision`); no Get Current Location action; `source` keys `siri_text` /

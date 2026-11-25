@@ -36,6 +36,14 @@ export function normalizePhase1Model(value) {
   normalized.tip_included = value.tip_included === true;
   normalized.notices = Array.isArray(value.notices) ? value.notices.filter(item => typeof item === 'string') : [];
   normalized.confidence = offerNumber(value.confidence) ?? 0;
+  // v3.3 stay-in zone judgment: tri-state booleans (anything but true/false is "not
+  // judged") plus the model's return-leg estimate. zone_reported tells the acceptance
+  // boundary whether the model answered the zone fields at all.
+  const tri = flag => (flag === true ? true : flag === false ? false : null);
+  normalized.pickup_in_zone = tri(value.pickup_in_zone);
+  normalized.dropoff_in_zone = tri(value.dropoff_in_zone);
+  normalized.return_miles = offerNumber(value.return_miles);
+  normalized.zone_reported = Object.hasOwn(value, 'pickup_in_zone') || Object.hasOwn(value, 'dropoff_in_zone');
   return normalized;
 }
 
@@ -76,6 +84,10 @@ export function mergePhase1Extraction(preParsed, model) {
   raw.product_conflict = Boolean(textService && modelService
     && (textService !== modelService || shared(textProduct) !== shared(modelProduct)));
   raw.tip_included = preParsed?.tip_included === true || model?.tip_included === true;
+  // v3.3 zone judgment rides along as evidence (the engine reads it; Phase 2 audits it).
+  raw.pickup_in_zone = model?.pickup_in_zone === true ? true : model?.pickup_in_zone === false ? false : null;
+  raw.dropoff_in_zone = model?.dropoff_in_zone === true ? true : model?.dropoff_in_zone === false ? false : null;
+  raw.return_miles = offerNumber(model?.return_miles);
   if (fullText) {
     for (const key of ['total_miles', 'total_minutes', 'pickup_miles', 'pickup_minutes', 'ride_miles', 'ride_minutes']) {
       raw[key] = offerNumber(preParsed[key]);
@@ -138,8 +150,13 @@ export function adjudicatePhase1({ preParsed = null, model = null, ruleset, sele
     ...(engine.fallback ? { fallback: true } : {}),
     ...(engine.delivery ? { per_hour: engine.perHour, tip_thin: engine.tipThin === true, offer_kind: 'delivery' } : {}),
   };
-  if (engine.decision === 'NO DATA') return { ...result, ...noData(raw, engine.reasonKind), tier };
-  if (engine.decision === 'REJECT') return result;
+  if (engine.decision === 'NO DATA') {
+    return { ...result, ...noData(raw, engine.reasonKind), tier,
+      ...(engine.reasonKind === 'zone_unreadable' ? { reason: 'zone unreadable' } : {}) };
+  }
+  if (engine.decision === 'REJECT') return { ...result,
+    ...(engine.returnMiles != null ? { return_miles: engine.returnMiles } : {}),
+    ...(engine.loopPerMile != null ? { zone_loop_per_mile: engine.loopPerMile } : {}) };
 
   // An accepted ride needs every configured numeric gate to be evaluable. The
   // pure engine retains historical missing-field semantics for other callers;
@@ -154,6 +171,14 @@ export function adjudicatePhase1({ preParsed = null, model = null, ruleset, sele
     if (model.decision === 'REJECT' && model.judgment_reject) {
       return { ...result, decision: 'REJECT', reason_kind: 'judgment', reason: model.reason || model.judgment_reject,
         judgment_reject: model.judgment_reject, fallback: false };
+    }
+    // v3.3: a stay-in zone is a judgment gate the driver enabled. D6 — an ACCEPT waits
+    // until it is evaluable: the model must have answered BOTH zone fields with a verdict.
+    // Placed after the judgment REJECT above on purpose: a model that rejected on safety,
+    // Verified, stops or an avoid area has given a usable verdict even with the zone unjudged.
+    const zone = ruleset.zone && ruleset.zone.enabled !== false ? ruleset.zone : null;
+    if (zone && (!model.zone_reported || raw.pickup_in_zone == null || raw.dropoff_in_zone == null)) {
+      return { ...noData(raw, 'zone_unreadable'), tier, reason: 'zone unreadable' };
     }
   }
   return result;

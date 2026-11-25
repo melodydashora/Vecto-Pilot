@@ -3,12 +3,16 @@
 // places via GET /api/offer-analyzer/places/search — identity is the Google
 // place_id with 6-decimal coords from Places, never typed coordinates and never
 // code constants (zero-hardcoded-locations decision, design §1.4).
+// 2026-10-17 (Melody, v3.3): stay-in zone on top of the avoid list. One picked city +
+// radius + pickup buffer (+ optional dropoff cap) replaces listing every city to avoid.
+// The same Places search feeds both: a result can become the zone or an avoid place.
 
 import { useEffect, useRef, useState } from 'react';
 import { useWatch, type UseFormReturn } from 'react-hook-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -16,12 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SwitchRow } from './controls';
+import { SliderRow, SwitchRow } from './controls';
 import { useToast } from '@/hooks/useToast';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { API_ROUTES } from '@/constants/apiRoutes';
-import type { AvoidMode, AvoidRule, OfferRulesetConfig } from '@/lib/offer-ruleset-schema';
-import { makeAvoidRule } from '@/lib/offer-ruleset-schema';
+import type { AvoidMode, AvoidRule, OfferRulesetConfig, ZoneConfig } from '@/lib/offer-ruleset-schema';
+import { ENABLE_SEEDS, makeAvoidRule, makeZone } from '@/lib/offer-ruleset-schema';
 import { Loader2, MapPin, Search, Trash2 } from 'lucide-react';
 
 interface Props {
@@ -73,6 +77,7 @@ function normalizePlaces(json: unknown): PlaceResult[] {
 export default function GeographyCard({ form }: Props) {
   const { toast } = useToast();
   const avoid = useWatch({ control: form.control, name: 'avoid' });
+  const zone = useWatch({ control: form.control, name: 'zone' });
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -80,6 +85,7 @@ export default function GeographyCard({ form }: Props) {
   const searchSeqRef = useRef(0);
 
   const setAvoid = (rules: AvoidRule[]) => form.setValue('avoid', rules, { shouldDirty: true });
+  const setZone = (next: ZoneConfig | null) => form.setValue('zone', next, { shouldDirty: true });
 
   useEffect(() => {
     const q = query.trim();
@@ -121,14 +127,32 @@ export default function GeographyCard({ form }: Props) {
       toast({ title: 'Already in your list', description: place.label });
       return;
     }
+    if (zone && zone.place_id === place.place_id) {
+      toast({ title: 'That is your stay-in zone', description: `Remove the zone first to avoid ${place.label}.` });
+      return;
+    }
     setAvoid([...avoid, makeAvoidRule({ place_id: place.place_id, label: place.label, lat: place.lat, lng: place.lng })]);
     setQuery('');
     setResults([]);
     toast({ title: 'Place added', description: `${place.label} — adjust its mode below.` });
   };
 
+  const chooseZone = (place: PlaceResult) => {
+    if (avoid.some((r) => r.place_id === place.place_id)) {
+      toast({ title: 'That place is on your avoid list', description: `Remove ${place.label} from avoid places first.` });
+      return;
+    }
+    setZone(makeZone({ place_id: place.place_id, label: place.label, lat: place.lat, lng: place.lng }));
+    setQuery('');
+    setResults([]);
+    toast({ title: 'Stay-in zone set', description: `${place.label} — set its radius and pickup buffer in the zone panel above.` });
+  };
+
   const updateRule = (i: number, patch: Partial<AvoidRule>) => {
     setAvoid(avoid.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  };
+  const updateZone = (patch: Partial<ZoneConfig>) => {
+    if (zone) setZone({ ...zone, ...patch });
   };
 
   return (
@@ -138,15 +162,88 @@ export default function GeographyCard({ form }: Props) {
           <MapPin className="h-5 w-5 text-red-500" />
           Geography
         </CardTitle>
-        <CardDescription>Places and directions you don't want to be sent</CardDescription>
+        <CardDescription>Where you want to stay, and places you don't want to be sent</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Place search */}
+        {/* Stay-in zone */}
+        <div className="space-y-1">
+          <span className="text-sm font-medium text-gray-700">Stay-in zone</span>
+          <p className="text-xs text-gray-500">
+            Pick the city you want to work instead of listing every place to avoid. Pickups may be a little
+            outside it; a dropoff outside it must pay your $/mi floor over pickup + trip + the drive back to the zone edge.
+          </p>
+        </div>
+        {zone ? (
+          <div className="rounded-lg border border-gray-200 p-3 space-y-4" data-zone={zone.place_id}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-gray-800 truncate">{zone.label}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-600"
+                aria-label={`Remove zone ${zone.label}`}
+                onClick={() => setZone(null)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <SliderRow
+              label="Zone radius"
+              value={zone.radius_mi}
+              min={1}
+              max={25}
+              step={1}
+              format={(v) => `${Math.round(v)} mi`}
+              onChange={(v) => updateZone({ radius_mi: Math.round(v) })}
+              help="How far around the city's map point still counts as inside. Cities aren't circles — set this to cover the parts you work."
+            />
+            <SliderRow
+              label="Pickup buffer"
+              value={zone.pickup_buffer_mi}
+              min={0}
+              max={10}
+              step={0.5}
+              format={(v) => `${v} mi`}
+              onChange={(v) => updateZone({ pickup_buffer_mi: v })}
+              help="Pickups this far outside the zone are still fine (a mall just over the city line). Farther out is rejected."
+            />
+            <SwitchRow
+              label="Cap dropoff distance"
+              checked={zone.max_away_mi != null}
+              onCheckedChange={(on) => updateZone({ max_away_mi: on ? ENABLE_SEEDS.zone_max_away_mi : null })}
+              help="Reject a dropoff past this many miles outside the zone, however well it pays. Off — pay alone decides."
+            />
+            {zone.max_away_mi != null && (
+              <SliderRow
+                label="Max miles past the edge"
+                value={zone.max_away_mi}
+                min={5}
+                max={60}
+                step={1}
+                format={(v) => `${Math.round(v)} mi`}
+                onChange={(v) => updateZone({ max_away_mi: Math.round(v) })}
+              />
+            )}
+            <SwitchRow
+              label="Enabled"
+              checked={zone.enabled}
+              onCheckedChange={(on) => updateZone({ enabled: on })}
+            />
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 italic">No stay-in zone — search below and choose “Stay in”.</p>
+        )}
+
+        <Separator className="bg-gray-200" />
+
+        {/* Place search — feeds the zone (when none is set) and the avoid list */}
         <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search a city, road, or landmark…"
+              aria-label="Search a city, road, or landmark"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-9 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
@@ -158,24 +255,35 @@ export default function GeographyCard({ form }: Props) {
           {results.length > 0 && (
             <ul className="rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               {results.map((place) => (
-                <li key={place.place_id}>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-3 text-left hover:bg-gray-50 transition-colors"
-                    onClick={() => addPlace(place)}
-                  >
-                    <span className="block text-sm font-medium text-gray-800">{place.label}</span>
-                    <span className="block text-xs text-gray-500">{place.formatted_address}</span>
-                  </button>
+                <li key={place.place_id} className="flex items-center gap-2 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-gray-800 truncate">{place.label}</span>
+                    <span className="block text-xs text-gray-500 truncate">{place.formatted_address}</span>
+                  </div>
+                  {!zone && (
+                    <Button type="button" size="sm" variant="outline" className="shrink-0"
+                      aria-label={`Stay in ${place.label}`} onClick={() => chooseZone(place)}>
+                      Stay in
+                    </Button>
+                  )}
+                  <Button type="button" size="sm" variant="outline" className="shrink-0"
+                    aria-label={`Avoid ${place.label}`} onClick={() => addPlace(place)}>
+                    Avoid
+                  </Button>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
+        <div className="space-y-1">
+          <span className="text-sm font-medium text-gray-700">Avoid places</span>
+          <p className="text-xs text-gray-500">Places and directions you don't want to be sent, judged on top of the zone.</p>
+        </div>
+
         {avoid.length === 0 && (
           <p className="text-sm text-gray-400 italic">
-            No avoid places yet — search above to add one.
+            No avoid places yet — search above and choose “Avoid”.
           </p>
         )}
 

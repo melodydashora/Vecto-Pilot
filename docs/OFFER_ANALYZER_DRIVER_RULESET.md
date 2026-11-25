@@ -14,7 +14,10 @@
 > and [roadmap L6/L7](architecture/OFFER_ANALYZER_ROADMAP.md#l6--declared-but-unconsumed-ruleset-keys).
 > `home` and geographic scope overrides remain inert with no UI by Melody's
 > recorded D2; the concise spoken contract remains distinct from this written
-> report format. Personal values in this spec are not universal defaults.
+> report format. Since v3.3 (2026-10-17, roadmap D8–D11) the "Estimated Return" /
+> Deadhead Logic below is representable through the separate stay-in `zone` key:
+> an out-of-zone dropoff must pay the tier $/mi floor over pickup + trip + return
+> to the zone edge. Personal values in this spec are not universal defaults.
 > Current selected services, saved rules and actual input evidence determine
 > runtime behavior; the spec is not spliced into Coach as current-owner data.
 >
