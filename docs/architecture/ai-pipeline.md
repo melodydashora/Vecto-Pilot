@@ -1,41 +1,57 @@
 # MAIN and independent pipeline trace
 
-Source review: September 29, 2026, `main` based on `6e98390697dfd3d677702bc64fe206b2383f5279` plus the working-tree changes recorded in the [review register](audits/PIPELINE_REVIEW_2026-09-29.md). This describes source behavior, not proof of deployment or live provider success. Read the register for verification and remaining limits.
+Source review updated November 24, 2026 against [`main` at `22210fa52`](https://github.com/melodydashora/Vecto-Pilot/tree/22210fa52e25335de2b7fefb70e6ef8424dbbae9). The [September 29 review](audits/PIPELINE_REVIEW_2026-09-29.md) records the original trace. The [October workspace acceptance record](audits/PIPELINE_READINESS_2026-10-04.md#october-5-live-workspace-acceptance-and-remaining-findings) identifies the paths exercised with a browser, database and providers. The November review follows the committed source.
 
-Entry sequence: location and Briefing prepare independently of Strategy. Under Melody's October 12 direction, one explicit Strategy start uses valid saved settings without a routine preference-confirmation popup. Missing setup, unsaved drafts, failed readback and incomplete context remain admission gates.
-
-Melody's purpose is to reduce the attention needed to evaluate work while driving. Saved preferences must remain usable without forcing edits. Missing measurements and failed sources must remain distinguishable from measured zero, verified absence, or a recommendation. Offer Analyzer calculations and spoken decisions have their own [full trace](OFFER_ANALYZER.md); they are not a new input to MAIN.
+| Driver task | Starting point | Result |
+|---|---|---|
+| Review conditions before a shift (Market Briefing) | MAIN prepares a location snapshot and runs Briefing for that observation. | The driver can read sections as they arrive. Strategy requires all seven to finish successfully. |
+| Decide where to stage (Shift Strategy Planner) | The driver starts Strategy with prepared context and saved settings. | The Strategist produces guidance. VenuePlanner proposes candidates for place and route verification. |
+| Evaluate an incoming offer (Offer Analyzer) | The driver supplies a capture through the browser or a configured phone shortcut. | The driver gets a quick verdict or a **NO DATA** response under the applicable rules. Eligible captures continue to history. [Offer Analyzer](OFFER_ANALYZER.md) |
+| Review a shift or adjust a rule (Coach) | The driver opens Coach or asks a typed or spoken question. | Coach can discuss recent offers and recorded outcomes and can update supported Offer Analyzer settings on request. [Coach](RIDESHARE_COACH.md) |
 
 ## Ordered waterfall
 
+### Prepare market context
+
 ```mermaid
 flowchart TD
-  A[Authenticated session and canonical setup read] --> B{Saved or pending context?}
-  B -->|Saved| R[Restore context through reads]
-  B -->|Active Briefing| W[Read saved progress; wait for the current owner]
-  B -->|Failed or interrupted capture| X[Show cause; preserve received context]
-  B -->|Neither| D[Fresh precise GPS observation]
-  X --> V[View Briefing or open Coach]
-  A -->|Separate explicit header GPS Refresh| D
-  D --> E[Geocoding, timezone, market, weather and air]
-  E --> F[Atomic snapshot publication for current capture]
-  F --> G[Briefing: seven parallel sections]
-  G --> H{All required sections saved and usable?}
-  H -->|Yes| Q[Canonical context readback]
-  H -->|Still collecting| W
-  H -->|Failure| X
-  W --> H
+  A["Read signed-in session and saved setup"] --> B{"State of this session's context?"}
+  B -->|Saved| R["Read saved snapshot and Briefing"]
+  B -->|Pending| W["Follow saved progress"]
+  B -->|Missing| D["Capture precise GPS"]
+  B -->|Failed or interrupted| X["Show cause and available sections"]
+  D --> E["Resolve address, timezone, market, weather and air"]
+  E --> F["Save snapshot and collect seven Briefing sections"]
+  F --> H{"Briefing status?"}
   R --> H
-  Q --> C[Explicit Strategy start with valid saved settings]
-  C --> N[Pin settings and copy immutable snapshot and Briefing]
-  N --> I[Strategist: STRATEGY_TACTICAL]
-  I --> J[Venue planner: VENUE_SCORER]
-  J --> K[Verified Places identities and Routes measurements]
-  K --> L[Atomic ranking completion]
-  L --> M[Saved Strategy and venue display]
+  W --> H
+  H -->|Pending| W
+  H -->|Failed| X
+  H -->|Complete| Q["Read back the prepared context"]
 ```
 
-SSE wakes readers to fetch saved state; receiving an event never proves that this sequence completed. Active collection uses saved reads and a five-minute inactivity wait extended by saved progress, not a five-minute whole-pipeline deadline. The existing header GPS Refresh is a separate explicit new-context action, not a Refresh Briefing feature. There is no second active STRATEGY_CORE stage. Model names, role parameters and provider fallbacks belong to [model-registry.js](../../server/lib/ai/model-registry.js) and the [adapter guide](AI_MODEL_ADAPTERS.md), not copied pins in this guide.
+### Start Strategy and rank venues
+
+| Driver action | What the app does |
+|---|---|
+| Open the app or return to the page | Restores current context, follows pending work, or prepares the first snapshot and Briefing. Once ready, the context is available for an explicit Strategy start. |
+| Choose **Continue** or **Refresh** on the Strategy page | Uses the prepared context. The same action confirms valid saved settings and requests admission. Outstanding edits, saves, or incomplete context hold the request. [Strategy page](../../client/src/pages/co-pilot/StrategyPage.tsx) |
+| Choose **Refresh** in the global header | Requests fresh GPS and Briefing. After a successful refresh, previously confirmed settings allow the same click to request Strategy for the returned snapshot. Otherwise it stops with the refreshed context. [Header](../../client/src/components/GlobalHeader.tsx) |
+
+```mermaid
+flowchart TD
+  A["Explicit Strategy request"] --> B{"Source, Briefing and settings current?"}
+  B -->|No| X["Hold request for setup or context"]
+  B -->|Yes| C["Pin settings and copy the source snapshot and Briefing"]
+  C --> P["Start generation for the admitted run"]
+  P --> D["Strategist produces Strategy"]
+  D --> E["VenuePlanner proposes candidates"]
+  E --> F["Verify Places identities and measure Routes"]
+  F --> G["Save ranking and candidates together"]
+  G --> H["Display eligible recommendations"]
+```
+
+Server-sent events prompt the client to read saved state. While work is pending, saved progress extends the five-minute inactivity window. The [role registry](../../server/lib/ai/model-registry.js) and [adapter guide](AI_MODEL_ADAPTERS.md) identify the active model roles and provider settings.
 
 <a id="1-session-and-preferences--admitted-run"></a>
 
@@ -64,7 +80,7 @@ Environmental observation times must identify real instants with an explicit tim
 
 The client next posts `{snapshotId}` to `/api/location/news-briefing`, which validates owned current upstream context and runs the shared Briefing aggregator. A final setup GET must confirm ready snapshot/Briefing and matching source/session before the context is eligible for Strategy. Strategy Continue/Refresh sends `expectedSnapshotId` to `/api/main-runs/continue`; admission copies the complete snapshot and Briefing into a new downstream context while preserving original observation timestamps and generation token. It does not re-run GPS or Briefing.
 
-[GlobalHeader](../../client/src/components/GlobalHeader.tsx) Refresh explicitly prepares new location and Briefing, then admits Strategy/venues only when preferences remain confirmed and canonical. The Strategy component's own Continue/Refresh consumes prepared context. Focus/navigation/remount do not start generation or capture again; old guidance remains available during pending or failed replacement.
+During a pending or failed replacement, the driver can still view earlier guidance. Opening the page again restores the same session's saved context when available.
 
 After a completed setup-read failure, explicit Strategy Continue/Refresh retries canonical setup before admission. Pending saves, unsaved edits and incomplete context remain held.
 
@@ -83,7 +99,7 @@ The aggregator validates the persisted snapshot, claims one generation token und
 | [Events](../../server/lib/briefing/pipelines/events.js) | BRIEFING_EVENTS_DISCOVERY, Google venue resolution, canonical normalize/validate/hash/store/read pipeline | `events`; linked `venue_catalog`, `discovered_events` |
 | [Airport](../../server/lib/briefing/pipelines/airport.js) | Seeded Google-derived identities within 50 miles; FAA conditions, conditional BRIEFING_AIRPORT conditions fallback, then terminal research using fixed conditions | `airport_conditions` |
 | [News](../../server/lib/briefing/pipelines/news.js) | BRIEFING_NEWS discovery and source parsing | `news` |
-| [Schools](../../server/lib/briefing/pipelines/schools.js) | School calendar/closure discovery for this snapshot | `school_closures` |
+| [Schools](../../server/lib/briefing/pipelines/schools.js) | District breaks and first student return days, evaluated on the snapshot’s local date using the [shared interval rules](../../shared/school-closures.js) | `school_closures` |
 | [Holiday](../../server/lib/briefing/pipelines/holiday.js) | Holiday role returns a named result plus boolean, including an explicit none result | `holiday` |
 
 [briefing-generation.js](../../server/lib/briefing/briefing-generation.js) fences writes to the current generation/admission. [briefing-readiness.js](../../server/lib/briefing/briefing-readiness.js) checks every required field plus final status and generation timestamp. Progressive notifications are useful to the UI, but Strategy waits until the whole row is saved `complete`. A malformed result, provider fallback marked failed, unexplained emptiness, failed save, or bounded wait expiry prevents Strategy.
@@ -108,6 +124,8 @@ The ignored `sent-to-strategist.txt` artifact is a snapshot-scoped saved-row dia
 
 ### 4. Complete Briefing → Strategist
 
+The browser makes two requests. `POST /api/main-runs/continue` admits the run and returns its identifiers. When `vecto-strategy-started` matches the active run and snapshot, the client sends `POST /api/blocks-fast` to start generation. Polling and server-sent events use `GET /api/blocks/strategy/:snapshotId` to read saved progress. [Admission route](../../server/api/strategy/main-runs.js) · [Client orchestration](../../client/src/contexts/co-pilot-context.tsx)
+
 [consolidator.js](../../server/lib/ai/providers/consolidator.js), `runImmediateStrategy`, re-reads the saved snapshot and complete Briefing, verifies the current admission, and claims the Briefing source generation before dispatching `STRATEGY_TACTICAL`. It formats fresh events/news, environmental/traffic/airport/school/holiday context and the pinned driver profile/vehicle context. News/event timing uses explicit calendar and timezone rules; malformed times do not become all-day events.
 
 [strategy-source-store.js](../../server/lib/strategy/strategy-source-store.js) fences claim/publication by snapshot and Briefing generation. Empty model text is failure. A late result cannot replace a newer source. `strategies.strategy_for_now` and its source receipt must agree with the currently complete Briefing before venue planning or cached reuse.
@@ -118,21 +136,30 @@ The [venue trace](VENUES.md) covers [tactical-planner.js](../../server/lib/strat
 
 The planner receives saved Strategy, filtered Briefing and admitted driver context. An already verified Google place keeps that identity during enrichment; saved recommendations do not run another paid address lookup. Unknown/closed/unidentified/out-of-radius candidates and failed route cells cannot become zero-minute recommendations. The established recommendation radius remains 15 miles; no Offer Analyzer-driven home radius or avoidance policy was added here.
 
-Rankings and candidates publish only under the current source/admission checks. [strategy-utils.js](../../server/lib/strategy/strategy-utils.js) sends one `blocks_ready` notification from the atomic completion transaction. Saved GETs revalidate source identity. Missing ranking after a purported generation completes is a terminal failure, not perpetual pending.
+Rankings and candidates publish only under the current source/admission checks. [strategy-utils.js](../../server/lib/strategy/strategy-utils.js) sends one `blocks_ready` notification from the atomic completion transaction. The saved Strategy reader rechecks source identity. A separate `GET /api/blocks-fast?snapshotId=…` can generate missing venues once its prerequisites pass. [Blocks route](../../server/api/strategy/blocks-fast.js) Missing ranking after a purported generation completes is a terminal failure, not perpetual pending.
+
+The initial Strategy shortlist shows up to three eligible Grade A/B venues and prefers one-mile spacing. A completed ranking containing only Grade C venues therefore displays zero shortlist cards. When the driver has confirmed changes to the shortlist, the page uses the saved feedback order. [Strategy page](../../client/src/pages/co-pilot/StrategyPage.tsx) · [Shortlist filter](../../client/src/utils/co-pilot-helpers.ts)
 
 The unrendered legacy `/api/strategy/tactical-plan` generator is retired with 410. It accepted model coordinates and fabricated geometric fallback zones; it is not the venue planner described above.
 
-### 6. Saved context → Coach
-
-[RIDESHARE_COACH.md](RIDESHARE_COACH.md) is the canonical source trace for text, current context, voice, TTS, actions, saved conversation and memo export. Coach is an independent request pipeline that reads owned saved evidence. It does not start MAIN. It can see eligible saved Offer Analyzer context with freshness/ownership limits; that is not authority to recompute or announce a live offer verdict.
-
-Recent session history uses each saved snapshot's own timezone and observation instant, including an explicit GMT offset and UTC receipt to distinguish repeated DST wall times. Missing/invalid zones remain unknown; invalid or zoneless timestamps do not acquire the current driver's or server's timezone and do not discard valid neighboring history.
-
 ## Independent pipelines and shared infrastructure
+
+<a id="6-saved-context--coach"></a>
+
+### Coach observations, history and settings
+
+Opening Coach attempts a fresh GPS observation for the signed-in driver. `coachSnapshotId` identifies Coach’s own session-scoped location, time, weather and air data. A separate `snapshotId` identifies the original source of saved Briefing and Strategy guidance. Coach can discuss available sections before Strategy starts or after a Briefing failure. Refreshing Coach’s observation leaves the MAIN run and its source intact. [Coach page](../../client/src/pages/co-pilot/CoachPage.tsx) · [Observation storage](../../server/lib/location/coach-snapshot.js)
+
+Typed and spoken questions can use the driver’s recent Offer Analyzer records and separately reported outcomes. A driver-directed settings change checks the driver’s current rules version and hash before writing. A successful write returns a receipt. Prior verdicts and outcomes retain their original values. Offer Analyzer handles the next live offer. [Coach contract](RIDESHARE_COACH.md) · [Chat handler](../../server/api/chat/chat.js)
+
+Recent session history uses each saved snapshot’s own timezone and observation instant. The offset and UTC timestamp distinguish repeated wall times when daylight saving time ends. Missing or invalid zones remain unknown.
+
+### Independent entry points
 
 | Path | Active entry and relationship to MAIN |
 |---|---|
-| Offer Analyzer | [Offer Analyzer API](../../server/api/offer-analyzer/index.js), [shortcut hook](../../server/api/hooks/analyze-offer.js), OCR/parse/rules/decision/speech chain; [full trace](OFFER_ANALYZER.md). Its rules are saved setup data; offer decisions remain separate from MAIN. |
+| Offer Analyzer | The [capture hook](../../server/api/hooks/analyze-offer.js) accepts an image or text, applies the applicable rules and returns the Phase 1 decision and wording for speech. Eligible Phase 2 enrichment runs in the same process after the response, so a restart can prevent the history row from being saved. The [outcome API](../../server/api/offer-analyzer/index.js) separately records what the driver actually did. MAIN uses the rules revision for setup and does not consume live verdicts. [Full trace](OFFER_ANALYZER.md) |
+| Coach | [Coach’s own observation, saved context and settings actions](#coach-observations-history-and-settings) are available independently of Strategy admission. |
 | Bars/Lounges | [nearby venues](../../server/api/venue/venue-intelligence.js) and [venue intelligence](../../server/lib/venue/venue-intelligence.js), consumed through [useBarsQuery.ts](../../client/src/hooks/useBarsQuery.ts). Independent discovery, shared verified place catalog; no MAIN completion claim. See [venues](VENUES.md). |
 | Public Concierge | [public route](../../server/api/concierge/concierge.js), [service](../../server/lib/concierge/concierge-service.js), [page](../../client/src/pages/concierge/PublicConciergePage.tsx). Anonymous token/GPS lifecycle; separate circuit and canonical verified shared venue/event writes. [Guide](MOBILE_CONCIERGE_2026-09-11.md). |
 | Translation | [shortcut translation](../../server/api/hooks/translate.js) and [translation prompt](../../server/api/translate/translation-prompt.js); independent provider result, no Briefing generation. |
@@ -149,4 +176,6 @@ Recent session history uses each saved snapshot's own timezone and observation i
 
 ## Verification and recovery
 
-The [review register](audits/PIPELINE_REVIEW_2026-09-29.md) records reproductions, bounded test receipts and unresolved limits. The [removal ledger](removals/2026-09-29-pipeline-review.md) records superseded code/docs and recovery provenance. Existing Offer Analyzer/P1 changes were preserved. No commit, deployment, gateway startup, live provider campaign or application migration is implied by these docs.
+The September [review register](audits/PIPELINE_REVIEW_2026-09-29.md) and [removal ledger](removals/2026-09-29-pipeline-review.md) preserve original checks and recovery references. In one October workspace run, all seven Briefing sections completed and six route-measured candidates were saved. All six received Grade C, so the driver saw “Recommendations ready” with zero shortlist cards. Physical-phone capture and production acceptance remained open in that record. [October workspace results](audits/PIPELINE_READINESS_2026-10-04.md#october-5-live-workspace-acceptance-and-remaining-findings)
+
+The November 24 review checked source paths, entry points and handoffs. Live provider availability, production state and device behavior require their own acceptance results.
